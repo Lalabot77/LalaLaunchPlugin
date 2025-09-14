@@ -1,0 +1,106 @@
+﻿<UserControl x:Class="LaunchPlugin.DashesTabView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:LaunchPlugin"
+             xmlns:styles="clr-namespace:SimHub.Plugins.Styles;assembly=SimHub.Plugins"
+             xmlns:ui="clr-namespace:SimHub.Plugins.UI;assembly=SimHub.Plugins"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="800"
+             x:Name="DashSettingsPage">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    </UserControl.Resources>
+    <ScrollViewer
+        VerticalScrollBarVisibility="Auto"
+        HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="10">
+            <TextBlock Text="DASH BINDINGS" FontSize="16" FontWeight="Bold" Margin="0,5,0,0"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                    <ui:ControlsEditor ActionName="LalaLaunch.MsgCx" FriendlyName="Cancel Msg Button" />
+                    <ui:ControlsEditor ActionName="LalaLaunch.TogglePitScreen" FriendlyName="Toggle Pit Screen Popup" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,0,0">
+                    <ui:ControlsEditor ActionName="LalaLaunch.PrimaryDashMode" FriendlyName="Change Primary Dash Mode" ToolTip="Used for Main Dash Functions like switching mode displays."/>
+                    <ui:ControlsEditor ActionName="LalaLaunch.SecondaryDashMode" FriendlyName="Change Secondary Dash Mode" ToolTip="Used for Sub Dash Functions like switching a widget display."/>
+                </StackPanel>
+            </Grid>
+            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" />
+
+            <Grid Margin="0,0,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="GLOBAL DASH FUNCTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <styles:SHToggleCheckbox Content="Auto screen selection at session start" IsChecked="{Binding Settings.EnableAutoDashSwitch, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Post-Launch Results Display Time: " Minimum="0" Maximum="30" Value="{Binding Settings.ResultsDisplayTime, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="LALADASH OPTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <styles:SHToggleCheckbox Content="Show Launch Screen" IsChecked="{Binding Settings.LalaDashShowLaunchScreen, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Pit Limiter Screen" IsChecked="{Binding Settings.LalaDashShowPitLimiter, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Automatic Pit Screen" IsChecked="{Binding Settings.LalaDashShowPitScreen, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Track Rejoin Assist" IsChecked="{Binding Settings.LalaDashShowRejoinAssist, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Verbose Race Messages" IsChecked="{Binding Settings.LalaDashShowVerboseMessaging, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Race Flags" IsChecked="{Binding Settings.LalaDashShowRaceFlags, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Radio Messages" IsChecked="{Binding Settings.LalaDashShowRadioMessages, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Traffic Alerts" IsChecked="{Binding Settings.LalaDashShowTraffic, Mode=TwoWay}" Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="MESSAGE SYSTEM OPTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <styles:SHToggleCheckbox Content="Show Launch Screen" IsChecked="{Binding Settings.MsgDashShowLaunchScreen, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Pit Limiter Screen" IsChecked="{Binding Settings.MsgDashShowPitLimiter, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Automatic Pit Screen" IsChecked="{Binding Settings.MsgDashShowPitScreen, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Track Rejoin Assist" IsChecked="{Binding Settings.MsgDashShowRejoinAssist, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Verbose Race Messages" IsChecked="{Binding Settings.MsgDashShowVerboseMessaging, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Race Flags" IsChecked="{Binding Settings.MsgDashShowRaceFlags, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Radio Messages" IsChecked="{Binding Settings.MsgDashShowRadioMessages, Mode=TwoWay}" Margin="0,5,0,0"/>
+                    <styles:SHToggleCheckbox Content="Show Traffic Alerts" IsChecked="{Binding Settings.MsgDashShowTraffic, Mode=TwoWay}" Margin="0,5,0,0"/>
+                </StackPanel>
+            </Grid>
+
+            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" />
+
+            <TextBlock Text="USER VARIABLES (PER-PROFILE)" FontSize="16" FontWeight="Bold" Margin="0,5,10,0"/>
+            <StackPanel Orientation="Horizontal" Margin="5,0,0,10">
+                <TextBlock Text="{Binding ActiveProfile.ProfileName, StringFormat='Current Profile: {0}'}"
+                           HorizontalAlignment="Left" FontSize="13" Foreground="DarkGray" VerticalAlignment="Center"/>
+
+                <styles:SHButtonPrimary Content="Save to Profile" Margin="15,0,0,0"
+                                        Command="{Binding SaveActiveProfileCommand}"
+                                        Visibility="{Binding IsActiveProfileDirty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                <styles:SHButtonPrimary Content="Return to Defaults" Margin="5,0,0,0"
+                        Command="{Binding ReturnToDefaultsCommand}"
+                        ToolTip="Resets the view to the 'Default Settings' profile."
+                        Visibility="{Binding CanReturnToDefaults, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            </StackPanel>
+            <Grid Margin="0,0,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <ui:TitledSlider Title="Rejoin Assist Linger Time (sec): " Minimum="1" Maximum="30" Value="{Binding ActiveProfile.RejoinWarningLingerTime, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Rejoin Assist Clear Speed (kph): " Minimum="10" Maximum="250" Value="{Binding ActiveProfile.RejoinWarningMinSpeed, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Spin Yaw Rate Threshold: " Minimum="10" Maximum="100" Value="{Binding ActiveProfile.SpinYawRateThreshold, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Overtake Alert activation (sec): " Minimum="1" Maximum="20" Value="{Binding ActiveProfile.TrafficApproachWarnSeconds, Mode=TwoWay}" />
+                </StackPanel>
+            </Grid>
+            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,147 @@
+﻿<UserControl x:Class="LaunchPlugin.LaunchAnalysisControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:LaunchPlugin"
+             xmlns:styles="clr-namespace:SimHub.Plugins.Styles;assembly=SimHub.Plugins"
+             xmlns:ui="clr-namespace:SimHub.Plugins.UI;assembly=SimHub.Plugins"
+             mc:Ignorable="d"
+             d:DesignHeight="800" d:DesignWidth="800">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="10" Orientation="Vertical">
+
+            <!-- Trace File Selection -->
+            <StackPanel Orientation="Vertical">
+                <Grid VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="TRACE FILE SELECTION" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                    <ComboBox Grid.Column="1" x:Name="FileComboBox" 
+                      VerticalAlignment="Center"
+                      ItemsSource="{Binding AvailableTraceFiles}"
+                      SelectedItem="{Binding SelectedFilePath, Mode=TwoWay}" />
+
+                    <styles:SHButtonPrimary Grid.Column="2" x:Name="RefreshButton"
+                                Content="Refresh File List" Width="120" Margin="10,0,0,0" 
+                                ToolTip="Reloads the list of files from the path specified in the Settings tab."/>
+
+                    <styles:SHButtonPrimary Grid.Column="3" Content="Change Folder..." Width="120" Margin="5,0,0,0" 
+                            Click="ChangeFolder_Click"
+                            ToolTip="Temporarily browse a different folder for launch trace files."/>
+
+
+                    <Button Grid.Column="4" Content="Delete File" Width="120" Margin="5,0,0,0"
+                    Click="DeleteFile_Click"
+                    ToolTip="WARNING: Permanently deletes the selected trace file from your disk."
+                    Background="#C82333" Foreground="White" BorderThickness="0"/>
+
+                </Grid>
+                <Border Height="1" Background="#444" Margin="0,10,0,0"/>
+            </StackPanel>
+
+            <!-- Summary + Raw Telemetry -->
+            <styles:SHExpander Header="LAUNCH SUMMARY" IsExpanded="True">
+                <Grid x:Name="SummaryGrid" Margin="10" />
+            </styles:SHExpander>
+
+            <styles:SHExpander Header="RAW TELEMETRY DATA" IsExpanded="False">
+                <DataGrid x:Name="RawTelemetryGrid"
+                          ItemsSource="{Binding RawTelemetryData}"
+                          AutoGenerateColumns="True"
+                          HeadersVisibility="Column"
+                          MaxHeight="300"
+                          IsReadOnly="True"
+                          Margin="5" />
+            </styles:SHExpander>
+
+            <!-- Plot Controls -->
+            <StackPanel Orientation="Vertical" Margin="0,15,0,0">
+                <DockPanel>
+                    <TextBlock Text="LAUNCH PERFORMANCE GRAPHS" 
+                   DockPanel.Dock="Left" 
+                   FontWeight="Bold" 
+                   VerticalAlignment="Center" 
+                   Margin="0,0,15,0"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+
+                            <TextBlock Text="Plot 1:" VerticalAlignment="Center" Margin="0,0,5,0" />
+                            <Grid Width="200">
+                                <ComboBox ItemsSource="{Binding PlottableProperties}"
+                                          SelectedItem="{Binding SelectedPlotProperty, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                                <Border Height="3" Background="LightBlue" VerticalAlignment="Bottom" Margin="0,2,0,0" CornerRadius="1.5" />
+                            </Grid>
+
+                            <TextBlock Text="Plot 2:" VerticalAlignment="Center" Margin="20,0,5,0" />
+                            <Grid Width="200">
+                                <ComboBox ItemsSource="{Binding PlottableProperties}"
+                                          SelectedItem="{Binding SelectedPlotProperty2, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                                <Border Height="3" Background="OrangeRed" VerticalAlignment="Bottom" Margin="0,2,0,0" CornerRadius="1.5" />
+                            </Grid>
+
+                        </StackPanel>
+
+                        <styles:SHToggleCheckbox Grid.Column="1"
+                                     IsChecked="{Binding NormalizeData, Mode=TwoWay}"
+                                     VerticalAlignment="Center"
+                                     HorizontalAlignment="Right"
+                                     ToolTip="When checked, scales each graph's Y-axis from its own min to max value (or 0-Max for RPM), making it easier to see the shape of the data. Uncheck to see the true values." >
+                            Normalize Data (0–100%)
+                        </styles:SHToggleCheckbox>
+                    </Grid>
+                </DockPanel>
+                <Border Height="1" Background="#444" Margin="0,10,0,0"/>
+            </StackPanel>
+
+            <!-- Graph Canvas Area -->
+            <Grid Margin="0,10,0,0" Height="375">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="40" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="20" />
+                </Grid.RowDefinitions>
+
+                <Canvas x:Name="GraphCanvas" Grid.Row="0" Grid.Column="1" Background="#1E1E1E" />
+                <Border Grid.Row="0" Grid.Column="1" BorderBrush="DarkCyan" BorderThickness="1" />
+                <Grid x:Name="YAxisLabelsPanel" Grid.Row="0" Grid.Column="0" />
+                <Grid x:Name="XAxisLabelsPanel" Grid.Row="1" Grid.Column="1" />
+                <Line x:Name="CrosshairX" Grid.Row="0" Grid.Column="1" Stroke="IndianRed" StrokeThickness="0.75" Visibility="Collapsed" />
+                <Line x:Name="CrosshairY" Grid.Row="0" Grid.Column="1" Stroke="IndianRed" StrokeThickness="0.75" Visibility="Collapsed" />
+                <TextBlock x:Name="DataReadout"
+                           Grid.Row="0" Grid.Column="1"
+                           Background="#C8111111"
+                           Foreground="White"
+                           Padding="4"
+                           Visibility="Collapsed" />
+            </Grid>
+
+            <!-- Time Range Sliders -->
+            <ui:TitledRangeSlider Title="Time (seconds)"
+                      Minimum="0"
+                      Maximum="{Binding SliderMaximum}"
+                      LowerValue="{Binding SliderMinTime, Mode=TwoWay}"
+                      UpperValue="{Binding SliderMaxTime, Mode=TwoWay}"
+                      Margin="0,15,0,0"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,217 @@
+﻿<UserControl x:Class="LaunchPlugin.ProfilesManagerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:styles="clr-namespace:SimHub.Plugins.Styles;assembly=SimHub.Plugins"
+             xmlns:ui="clr-namespace:SimHub.Plugins.UI;assembly=SimHub.Plugins"
+             xmlns:local="clr-namespace:LaunchPlugin"  
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="800">
+    <UserControl.Resources>
+    </UserControl.Resources>
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250" MinWidth="200" />
+            <ColumnDefinition Width="10" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <DockPanel Grid.Column="0">
+            <TextBlock DockPanel.Dock="Top" Text="Car Profiles Library" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                <styles:SHButtonPrimary Content="New" Width="70" Margin="2" Command="{Binding NewProfileCommand}"/>
+                <styles:SHButtonPrimary Content="Copy To..." Width="80" Margin="2" Command="{Binding CopySettingsCommand}"/>
+                <styles:SHButtonSecondary Content="Delete" Width="70" Margin="2" Command="{Binding DeleteProfileCommand}" Background="#C82333" Foreground="White"/>
+            </StackPanel>
+            <ListBox ItemsSource="{Binding SortedCarProfiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" DisplayMemberPath="ProfileName" BorderThickness="1" BorderBrush="Gray"/>
+        </DockPanel>
+
+        <DockPanel Grid.Column="2" IsEnabled="{Binding IsProfileSelected}">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Editing Profile:" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding SelectedProfile.ProfileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                         FontSize="16" FontWeight="Normal" Margin="10,0,0,0" MinWidth="200"
+                         BorderThickness="0" Background="Transparent"/>
+            </StackPanel>
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                <styles:SHButtonPrimary Content="Apply to Live Session" Width="150" Margin="0,0,10,0" Command="{Binding ApplyToLiveCommand}" Height="30"
+                                        ToolTip="Instantly copies these settings to the active car for this session."/>
+                <styles:SHButtonPrimary Content="Save All Changes" Width="150" Command="{Binding SaveChangesCommand}" Height="30"
+                                        ToolTip="Saves all profiles to the JSON file."/>
+            </StackPanel>
+
+            <TabControl>
+                <styles:SHTabItem Header="DASH">
+                    <StackPanel Margin="10" DataContext="{Binding SelectedProfile}">
+                        <ui:TitledSlider Title="Rejoin Assist Linger Time (sec)" Minimum="1" Maximum="30" Value="{Binding RejoinWarningLingerTime, Mode=TwoWay}" />
+                        <ui:TitledSlider Title="Rejoin Assist Clear Speed (kph)" Minimum="10" Maximum="250" Value="{Binding RejoinWarningMinSpeed, Mode=TwoWay}" />
+                        <ui:TitledSlider Title="Spin Yaw Rate Threshold" Minimum="10" Maximum="100" Value="{Binding SpinYawRateThreshold, Mode=TwoWay}" />
+                        <ui:TitledSlider Title="Overtake Alert Time (sec)" Minimum="1" Maximum="20" Value="{Binding TrafficApproachWarnSeconds, Mode=TwoWay}" />
+                    </StackPanel>
+                </styles:SHTabItem>
+                <styles:SHTabItem Header="LAUNCH">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="10" DataContext="{Binding SelectedProfile}">
+                            <ui:TitledSlider Title="Target Launch RPM" Minimum="1000" Maximum="10000" Value="{Binding TargetLaunchRPM, Mode=TwoWay}" />
+                            <ui:TitledSlider Title="Optimal RPM Tolerance" Minimum="100" Maximum="2000" Value="{Binding OptimalRPMTolerance, Mode=TwoWay}" />
+                            <ui:TitledSlider Title="Target Launch Throttle (%)" Minimum="1" Maximum="100" Value="{Binding TargetLaunchThrottle, Mode=TwoWay}" />
+                            <ui:TitledSlider Title="Optimal Throttle Tolerance (%)" Minimum="0" Maximum="20" Value="{Binding OptimalThrottleTolerance, Mode=TwoWay}" />
+                            <ui:TitledSlider Title="Target Bite Point (%)" Minimum="0" Maximum="100" Value="{Binding TargetBitePoint, Mode=TwoWay}" />
+                            <ui:TitledSlider Title="Bite Point Tolerance (%)" Minimum="1" Maximum="10" Value="{Binding BitePointTolerance, Mode=TwoWay}" />
+                            <ui:TitledSlider Title="Bog Down Factor (%)" Minimum="0" Maximum="100" Value="{Binding BogDownFactorPercent, Mode=TwoWay}" />
+                            <ui:TitledSlider Title="Anti-Stall Alert Threshold (%)" Minimum="0" Maximum="100" Value="{Binding AntiStallThreshold, Mode=TwoWay}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </styles:SHTabItem>
+
+                <styles:SHTabItem Header="FUEL">
+                    <StackPanel Margin="10" DataContext="{Binding SelectedProfile}">
+                        <ui:TitledSlider Title="Contingency Laps/Litres" Minimum="0" Maximum="10" Value="{Binding FuelContingencyValue, Mode=TwoWay}" />
+                        <styles:SHToggleCheckbox Content="Contingency is in Laps (otherwise Litres)" IsChecked="{Binding IsContingencyInLaps, Mode=TwoWay}" Margin="5,10,0,0"/>
+                        <ui:TitledSlider Title="Wet Fuel Multiplier (%)" Minimum="70" Maximum="130" Value="{Binding WetFuelMultiplier, Mode=TwoWay}" Margin="0,15,0,0"/>
+
+                        <Grid Margin="0,15,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="Race Pace Delta (seconds):" ToolTip="How many seconds slower your average race pace is compared to your personal best lap (e.g., 1.2)."/>
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RacePaceDeltaSeconds, Mode=TwoWay}" Minimum="0" Maximum="5" SmallChange="0.1" TickFrequency="0.1" IsSnapToTickEnabled="True" />
+                                <TextBlock Grid.Column="1" Text="{Binding RacePaceDeltaSeconds, StringFormat=N1}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
+                            </Grid>
+                        </Grid>
+
+                        <Grid Margin="0,15,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="Refuel Rate (L/s):" ToolTip="The average rate at which the car refuels."/>
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RefuelRate, Mode=TwoWay}" Minimum="1" Maximum="10" SmallChange="0.05" TickFrequency="0.05" IsSnapToTickEnabled="True" />
+                                <TextBlock Grid.Column="1" Text="{Binding RefuelRate, StringFormat=N2}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
+                            </Grid>
+                        </Grid>
+                    </StackPanel>
+                </styles:SHTabItem>
+
+                <styles:SHTabItem Header="TRACKS">
+                    <Grid Margin="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200" MinWidth="180" />
+                            <ColumnDefinition Width="10" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <DockPanel Grid.Column="0">
+                            <TextBlock DockPanel.Dock="Top" Text="Recorded Tracks" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                                <styles:SHButtonSecondary Content="Delete" Width="80" Command="{Binding DeleteTrackCommand}" Background="#C82333" Foreground="White"/>
+                            </StackPanel>
+                            <ListBox ItemsSource="{Binding TracksForSelectedProfile}" SelectedItem="{Binding SelectedTrack, Mode=TwoWay}" DisplayMemberPath="DisplayName" BorderThickness="1" BorderBrush="Gray"/>
+                        </DockPanel>
+
+                        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel DataContext="{Binding SelectedTrack}" IsEnabled="{Binding DataContext.IsTrackSelected, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <TextBlock FontWeight="Bold">
+                                    <Run Text="Editing Data for: "/>
+                                    <Run Text="{Binding DisplayName}"/>
+                                </TextBlock>
+                                <Border Height="1" Background="#444" Margin="0,5,0,10"/>
+
+                                <TextBlock Text="Core Data" FontWeight="Bold" Margin="0,5,0,2"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Best Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Width="100">
+                                        <TextBox.Text>
+                                            <Binding Path="BestLapMsText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <local:LapTimeValidationRule />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+                                        </TextBox.Text>
+                                    </TextBox>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Pit Lane Time Loss (s):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+
+                                <TextBlock Text="Dry Conditions Data" FontWeight="Bold" Margin="0,10,0,2"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Sample Laps (Fuel):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding DryFuelSampleCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Avg Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Width="100">
+                                        <TextBox.Text>
+                                            <Binding Path="AvgLapTimeDryText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <local:LapTimeValidationRule />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+                                        </TextBox.Text>
+                                    </TextBox>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Sample Laps (Lap Time):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding DryLapTimeSampleCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Avg Track Temp:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding AvgDryTrackTempText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+
+                                <TextBlock Text="Wet Conditions Data" FontWeight="Bold" Margin="0,10,0,2"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Sample Laps (Fuel):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding WetFuelSampleCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Avg Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Width="100">
+                                        <TextBox.Text>
+                                            <Binding Path="AvgLapTimeWetText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <local:LapTimeValidationRule />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+                                        </TextBox.Text>
+                                    </TextBox>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Sample Laps (Lap Time):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding WetLapTimeSampleCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                    <TextBlock Text="Avg Track Temp:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
+                                    <TextBox Text="{Binding AvgWetTrackTempText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </styles:SHTabItem>
+            </TabControl>
+        </DockPanel>
+    </Grid>
+</UserControl>
+   
