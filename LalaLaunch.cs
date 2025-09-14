@@ -1121,15 +1121,16 @@ namespace LaunchPlugin
                 // =========================================================================
 
                 // Check if the currently detected car/track is different from the one we last auto-selected.
-                if (!string.IsNullOrEmpty(CurrentCarModel) && !string.IsNullOrEmpty(CurrentTrackName) &&
-                    (CurrentCarModel != _lastSeenCar || CurrentTrackName != _lastSeenTrack))
+                // ---- THIS IS THE FINAL, CORRECTED LOGIC ----
+                if (!string.IsNullOrEmpty(CurrentCarModel) && CurrentCarModel != "Unknown" && !string.IsNullOrEmpty(CurrentTrackKey) &&
+                    (CurrentCarModel != _lastSeenCar || CurrentTrackKey != _lastSeenTrack))
                 {
                     // It's a new combo, so we'll perform the auto-selection.
                     SimHub.Logging.Current.Info($"[LalaLaunch] New live combo detected. Auto-selecting profile for Car='{CurrentCarModel}', Track='{CurrentTrackName}'.");
 
-                    // Store this combo so we don't try to auto-select it again.
+                    // Store this combo's KEY so we don't trigger again for the same session.
                     _lastSeenCar = CurrentCarModel;
-                    _lastSeenTrack = CurrentTrackName;
+                    _lastSeenTrack = CurrentTrackKey; // <-- This now correctly stores the key
 
                     // Dispatch UI updates to the main thread.
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -1137,7 +1138,7 @@ namespace LaunchPlugin
                         var profileToLoad = ProfilesViewModel.GetProfileForCar(CurrentCarModel) ?? ProfilesViewModel.EnsureCar(CurrentCarModel);
                         this.ActiveProfile = profileToLoad;
 
-                        if (this.ActiveProfile != null && !string.IsNullOrEmpty(CurrentTrackKey) && CurrentTrackKey != "unknown")
+                        if (this.ActiveProfile != null && !string.IsNullOrEmpty(CurrentTrackKey))
                         {
                             // Pass BOTH the key and the display name to the updated EnsureTrack method
                             this.ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);

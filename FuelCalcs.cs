@@ -774,8 +774,9 @@ public class FuelCalcs : INotifyPropertyChanged
             return;
         }
 
-        // The rest of the logic uses 'targetProfile' instead of '_selectedCarProfile'
-        var trackRecord = targetProfile.EnsureTrack(_selectedTrack, _selectedTrack);
+        // Get the correct, unique TrackCode from the main plugin
+        var currentTrackKey = _plugin.CurrentTrackKey;
+        var trackRecord = targetProfile.EnsureTrack(currentTrackKey, _selectedTrack);
 
         // --- Save Car-Level Settings ---
         targetProfile.FuelContingencyValue = this.ContingencyValue;
