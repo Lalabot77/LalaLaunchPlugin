@@ -213,7 +213,7 @@ namespace LaunchPlugin
                     // --- Add fallback logic if live pace is unavailable ---
                     if (stableAvgPace <= 0 && ActiveProfile != null)
                     {
-                        var trackRecord = ActiveProfile.FindTrack(CurrentTrackName);
+                        var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
                         if (trackRecord?.AvgLapTimeDry > 0)
                         {
                             stableAvgPace = trackRecord.AvgLapTimeDry.Value / 1000.0;
@@ -270,7 +270,7 @@ namespace LaunchPlugin
                         // If we have a full sample set, update the active profile's track data
                         if (_recentConsumptions.Count >= ConsumptionSampleCount && ActiveProfile != null)
                         {
-                            var trackRecord = ActiveProfile.FindTrack(CurrentTrackName);
+                            var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
                             if (trackRecord != null)
                             {
                                 // Update the dry average fuel per lap
@@ -489,6 +489,8 @@ namespace LaunchPlugin
             }
         }
 
+        public string CurrentTrackKey { get; private set; } = "unknown";
+
         public enum ProfileEditMode { ActiveCar, CarProfile, Template }
 
         
@@ -610,6 +612,11 @@ namespace LaunchPlugin
         // --- Session State ---
         private string _lastSessionType = "";
 
+        private string _lastSeenCar = "";
+        private string _lastSeenTrack = "";
+
+
+
         // --- Session Launch RPM Tracker ---
         private readonly List<double> _sessionLaunchRPMs = new List<double>();
 
@@ -635,7 +642,7 @@ namespace LaunchPlugin
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
             // The Action for "Apply to Live" in the Profiles tab is now simplified: just update the ActiveProfile
-            ProfilesViewModel = new ProfilesManagerViewModel(this.PluginManager, (profile) => { this.ActiveProfile = profile; }, () => this.CurrentCarModel, () => this.CurrentTrackName);
+            ProfilesViewModel = new ProfilesManagerViewModel(this.PluginManager, (profile) => { this.ActiveProfile = profile; }, () => this.CurrentCarModel, () => this.CurrentTrackKey);
             ProfilesViewModel.LoadProfiles();
 
             // --- Set the initial ActiveProfile on startup ---
@@ -888,7 +895,7 @@ namespace LaunchPlugin
             // Round the calculated value to the nearest whole second, as requested.
             var roundedTimeLoss = Math.Round(timeLossSeconds);
 
-            var trackRecord = ActiveProfile.EnsureTrack(CurrentTrackName);
+            var trackRecord = ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);
             if (trackRecord != null)
             {
                 // 1. Update the in-memory profile value. This will be saved when you exit or save manually.
@@ -1008,69 +1015,33 @@ namespace LaunchPlugin
 
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
         {
-            // ==== PATCH: robust car/track detection (latch, then log; ignore blanks) ====
+            // ==== New, Simplified Car & Track Detection ====
+            // This is the function that needs to exist for the car model detection below
+            string FirstNonEmpty(params object[] vals) => vals.Select(v => Convert.ToString(v)).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "";
             try
             {
-                // Probe SimHub property bag (works for live + replay)
-                string FirstNonEmpty(params object[] vals)
-                    => vals.Select(v => Convert.ToString(v)).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)) ?? "";
+                string trackKey = Convert.ToString(pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackCode"));
+                string trackDisplay = Convert.ToString(pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_TrackDisplayName"));
 
-                string carModel = FirstNonEmpty(
+                string carModel = "Unknown";
+                var carModelProbe = FirstNonEmpty(
                     pluginManager.GetPropertyValue("DataCorePlugin.GameData.CarModel"),
-                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.CarName"),
-                    pluginManager.GetPropertyValue("DataCorePlugin.iRacing.CarModel"),
-                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_CarModel"),
-                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_CarScreenName"),
-                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_CarShortName")
+                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_CarModel")
                 );
+                if (!string.IsNullOrWhiteSpace(carModelProbe)) { carModel = carModelProbe; }
 
-                string trackName = FirstNonEmpty(
-                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackName"),
-                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.CircuitName"),
-                    pluginManager.GetPropertyValue("DataCorePlugin.iRacing.TrackName"),
-                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_TrackDisplayName"),
-                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_TrackName")
-                );
-
-                bool isReplay = false;
-                try
+                if (!string.IsNullOrWhiteSpace(trackKey))
                 {
-                    var replayObj = FirstNonEmpty(
-                        pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay"),
-                        pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_IsReplay")
-                    );
-                    if (!string.IsNullOrWhiteSpace(replayObj))
-                        isReplay = Convert.ToBoolean(replayObj);
-                }
-                catch { /* ignore */ }
-
-                // Ignore total blanks (nothing to latch)
-                if (string.IsNullOrWhiteSpace(carModel) && string.IsNullOrWhiteSpace(trackName))
-                    return;
-
-                var prevCar = CurrentCarModel;
-                var prevTrack = CurrentTrackName;
-
-                // Latch non-empty updates individually
-                if (!string.IsNullOrWhiteSpace(carModel)) CurrentCarModel = carModel;
-                if (!string.IsNullOrWhiteSpace(trackName)) CurrentTrackName = trackName;
-
-                // Log only on meaningful change
-                if (!string.Equals(CurrentCarModel, prevCar, StringComparison.Ordinal) ||
-                    !string.Equals(CurrentTrackName, prevTrack, StringComparison.Ordinal))
-                {
-                    //SimHub.Logging.Current.Info($"[LalaLaunch] Detected car/track change: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'  Replay={isReplay} (prev Car='{prevCar}', Track='{prevTrack}')");
+                    if (string.IsNullOrWhiteSpace(trackDisplay)) { trackDisplay = Convert.ToString(pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackName")); }
+                    CurrentCarModel = carModel;
+                    CurrentTrackKey = trackKey;
+                    CurrentTrackName = trackDisplay;
                 }
             }
-            catch (Exception ex)
-            {
-                //SimHub.Logging.Current.Warn($"[LalaLaunch] Car/Track probe failed: {ex.Message}");
-            }
-            // ==== /PATCH ====
-
+            catch (Exception ex) { SimHub.Logging.Current.Warn($"[LalaLaunch] Simplified Car/Track probe failed: {ex.Message}"); }
 
             // --- MASTER GUARD CLAUSES ---
-            if (Settings == null) return; // <-- ADD THIS LINE
+            if (Settings == null) return;
             if (!data.GameRunning || data.NewData == null) return;
 
             long currentSessionId = Convert.ToInt64(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.SessionID") ?? -1);
@@ -1078,15 +1049,10 @@ namespace LaunchPlugin
             {
                 _rejoinEngine.Reset();
                 _pit.Reset();
-                // Force a re-evaluation of the car profile by resetting the current car model
                 _currentCarModel = "Unknown";
                 _lastSessionId = currentSessionId;
                 FuelCalculator.ForceProfileDataReload();
-
-                // ==== DEBUG: New session snapshot ====
                 SimHub.Logging.Current.Info($"[LalaLaunch] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
-                // ==== /DEBUG ====
-
             }
 
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
@@ -1096,33 +1062,20 @@ namespace LaunchPlugin
             if (_poll250ms.ElapsedMilliseconds >= 250)
             {
                 _poll250ms.Restart();
-
-                // Get the car's base max fuel and the BoP percentage (defaults to 1.0 if not available)
                 double baseMaxFuel = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
                 double bopPercent = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct") ?? 1.0);
-
-                // Ensure BoP is never zero to avoid incorrect calculations, default to 100% (1.0)
                 if (bopPercent <= 0) { bopPercent = 1.0; }
-
-                // The correct max fuel is always the base multiplied by the BoP percentage
                 double maxFuel = baseMaxFuel * bopPercent;
-
                 LiveCarMaxFuel = maxFuel;
                 if (Math.Abs(LiveCarMaxFuel - _lastAnnouncedMaxFuel) > 0.01)
                 {
                     _lastAnnouncedMaxFuel = LiveCarMaxFuel;
                     FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
                 }
-
-                // Enable when either dash wants traffic alerts
                 _msgSystem.Enabled = Settings.MsgDashShowTraffic || Settings.LalaDashShowTraffic;
-
-                // WarnSeconds only needs updates if the setting changed; but cheap to set here at 4 Hz
                 double warn = ActiveProfile.TrafficApproachWarnSeconds;
-                if (!(warn > 0)) warn = 5.0; // defend against 0/NaN
+                if (!(warn > 0)) warn = 5.0;
                 _msgSystem.WarnSeconds = warn;
-
-                // Only run the message system when enabled (throttled)
                 if (_msgSystem.Enabled)
                     _msgSystem.Update(data, pluginManager);
             }
@@ -1134,7 +1087,6 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info("LaunchPlugin: Off track or in pits, aborting launch state to Idle.");
                 AbortLaunch();
             }
-
             double clutchRaw = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.ClutchRaw") ?? 0.0);
             _paddleClutch = 100.0 - (clutchRaw * 100.0);
 
@@ -1144,16 +1096,14 @@ namespace LaunchPlugin
                 _poll500ms.Restart();
                 UpdateLiveFuelCalcs(data);
 
-                // --- PB Saving ---
                 var currentBestLap = data.NewData?.BestLapTime ?? TimeSpan.Zero;
                 if (currentBestLap > TimeSpan.Zero && currentBestLap != _lastSeenBestLap)
                 {
                     _lastSeenBestLap = currentBestLap;
                     FuelCalculator?.SetPersonalBestSeconds(currentBestLap.TotalSeconds);
-
                     if (ActiveProfile != null)
                     {
-                        var trackRecord = ActiveProfile.FindTrack(CurrentTrackName);
+                        var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
                         if (trackRecord != null)
                         {
                             if (!trackRecord.BestLapMs.HasValue || currentBestLap.TotalMilliseconds < trackRecord.BestLapMs.Value)
@@ -1165,41 +1115,39 @@ namespace LaunchPlugin
                     }
                 }
 
-                var detectedModelNew = DetectCarModel(data, pluginManager);
-                var (trackDisplayNew, trackKeyNew) = DetectTrackDisplayAndKey(data, pluginManager);
+                // =========================================================================
+                // ======================= MODIFIED BLOCK START ============================
+                // This new logic performs the auto-selection ONLY ONCE per session change.
+                // =========================================================================
 
-                // --- Check if car or track has changed ---
-                bool carChanged = !string.Equals(_currentCarModel, detectedModelNew, System.StringComparison.OrdinalIgnoreCase);
-                bool trackChanged = !string.Equals(CurrentTrackName, trackDisplayNew, System.StringComparison.OrdinalIgnoreCase);
-
-                // --- This block now runs ONLY if the car or track has changed ---
-                if (carChanged || trackChanged)
+                // Check if the currently detected car/track is different from the one we last auto-selected.
+                if (!string.IsNullOrEmpty(CurrentCarModel) && !string.IsNullOrEmpty(CurrentTrackName) &&
+                    (CurrentCarModel != _lastSeenCar || CurrentTrackName != _lastSeenTrack))
                 {
-                    _currentCarModel = detectedModelNew;
-                    CurrentTrackName = trackDisplayNew;
+                    // It's a new combo, so we'll perform the auto-selection.
+                    SimHub.Logging.Current.Info($"[LalaLaunch] New live combo detected. Auto-selecting profile for Car='{CurrentCarModel}', Track='{CurrentTrackName}'.");
 
-                    // Dispatch UI-related updates to the main thread.
+                    // Store this combo so we don't try to auto-select it again.
+                    _lastSeenCar = CurrentCarModel;
+                    _lastSeenTrack = CurrentTrackName;
+
+                    // Dispatch UI updates to the main thread.
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
-                        // This logic finds/creates the profile and sets it as Active.
-                        // The ActiveProfile setter automatically updates the Profiles tab selection.
-                        var profileToLoad = ProfilesViewModel.GetProfileForCar(_currentCarModel) ?? ProfilesViewModel.EnsureCar(_currentCarModel);
+                        var profileToLoad = ProfilesViewModel.GetProfileForCar(CurrentCarModel) ?? ProfilesViewModel.EnsureCar(CurrentCarModel);
                         this.ActiveProfile = profileToLoad;
 
-                        // This ensures a track record exists for the new combination.
-                        if (this.ActiveProfile != null && !string.IsNullOrEmpty(CurrentTrackName) && CurrentTrackName != "Unknown")
+                        if (this.ActiveProfile != null && !string.IsNullOrEmpty(CurrentTrackKey) && CurrentTrackKey != "unknown")
                         {
-                            if (this.ActiveProfile.FindTrack(CurrentTrackName) == null)
-                            {
-                                ProfilesViewModel.EnsureCarTrack(this.ActiveProfile.ProfileName, CurrentTrackName);
-                            }
+                            // Pass BOTH the key and the display name to the updated EnsureTrack method
+                            this.ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);
                         }
-
-                        // MOVED: This call now only happens on a change, updating the Fuel tab's selection.
                         FuelCalculator.SetLiveSession(CurrentCarModel, CurrentTrackName);
                     });
                 }
-                // --- REMOVED: The continuous calls to SetLiveSession and SetLiveSelection are now gone from here. ---
+                // =======================================================================
+                // ======================= MODIFIED BLOCK END ============================
+                // =======================================================================
             }
 
             UpdateLiveProperties(pluginManager, ref data);
@@ -1213,24 +1161,20 @@ namespace LaunchPlugin
                 {
                     SetLaunchState(LaunchState.Logging);
                 }
-
                 if (IsLogging)
                 {
                     _telemetryTraceLogger.Update(data);
                 }
-
                 ExecuteLaunchTimers(pluginManager, ref data);
             }
 
             string currentSession = data.NewData?.SessionTypeName ?? "";
-
             if (Settings.EnableAutoDashSwitch && isOnTrack && !_hasProcessedOnTrack)
             {
                 _hasProcessedOnTrack = true;
                 _lastSessionType = currentSession;
                 SimHub.Logging.Current.Info("LaunchPlugin: New session on-track activity detected. Resetting all values.");
                 ResetAllValues();
-
                 Task.Run(async () =>
                 {
                     string pageToShow = "practice";
@@ -1243,13 +1187,10 @@ namespace LaunchPlugin
                         case "Warmup": pageToShow = "timing"; break;
                         case "Race": pageToShow = "racing"; break;
                     }
-
                     Screens.Mode = "auto";
                     Screens.CurrentPage = pageToShow;
                     SimHub.Logging.Current.Info($"OnTrack detected. Mode set to 'auto', page set to '{Screens.CurrentPage}'.");
-
                     await Task.Delay(2000);
-
                     Screens.Mode = "manual";
                     SimHub.Logging.Current.Info("Auto mode timer expired. Mode set to 'manual'.");
                 });
@@ -1258,7 +1199,6 @@ namespace LaunchPlugin
             {
                 _hasProcessedOnTrack = false;
             }
-
             bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false);
             if (isOnPitRoad)
             {
@@ -1266,7 +1206,6 @@ namespace LaunchPlugin
                 {
                     _pittingTimer.Restart();
                 }
-
                 if (_pittingTimer.Elapsed.TotalMilliseconds > 200)
                 {
                     _pitScreenActive = !_pitScreenDismissed;
@@ -1276,7 +1215,6 @@ namespace LaunchPlugin
             {
                 _pitScreenActive = false;
                 _pitScreenDismissed = false;
-
                 if (_pittingTimer.IsRunning)
                 {
                     _pittingTimer.Stop();
@@ -1312,38 +1250,7 @@ namespace LaunchPlugin
             // 3) As a last resort, keep it stable but explicit
             return "Unknown";
         }
-        private (string Display, string Key) DetectTrackDisplayAndKey(GameData data, PluginManager pm)
-        {
-            // Fallbacks (game-agnostic)
-            var fallbackDisplay = data?.NewData?.TrackName ?? "";
-
-            // iRacing raw fields via SimHub
-            var trackId = GetString(pm.GetPropertyValue("DataCorePlugin.GameData.TrackId"));       // e.g., "3880"
-            var trackName = GetString(pm.GetPropertyValue("DataCorePlugin.GameData.TrackName"));     // e.g., "watkinsglen 2021 classic"
-            var trackConfig = GetString(pm.GetPropertyValue("DataCorePlugin.GameData.TrackConfig"));   // e.g., "Classic"
-            var nameWithCfg = GetString(pm.GetPropertyValue("DataCorePlugin.GameData.TrackNameWithConfig")); // e.g., "watkinsglen 2021 classic-Classic"
-
-            // What the driver sees
-            string display =
-                !string.IsNullOrWhiteSpace(nameWithCfg) ? nameWithCfg :
-                (!string.IsNullOrWhiteSpace(trackName) && !string.IsNullOrWhiteSpace(trackConfig)) ? $"{trackName}-{trackConfig}" :
-                (!string.IsNullOrWhiteSpace(trackName) ? trackName :
-                (!string.IsNullOrWhiteSpace(fallbackDisplay) ? fallbackDisplay : "Unknown"));
-
-            // Stable key: TrackId + layout (lowercased). Falls back to display if TrackId is missing.
-            string layoutPart = (trackConfig ?? "").Trim().ToLowerInvariant();
-            string key;
-            if (!string.IsNullOrWhiteSpace(trackId))
-                key = string.IsNullOrWhiteSpace(layoutPart)
-                        ? trackId.Trim().ToLowerInvariant()
-                        : $"{trackId.Trim().ToLowerInvariant()}:{layoutPart}";
-            else
-                key = (display ?? "").Trim().ToLowerInvariant();
-
-            return (display, key);
-        }
-
-        
+                
         /// Updates properties that need to be checked on every tick, like dash switching and anti-stall.
         private void UpdateLiveProperties(PluginManager pluginManager, ref GameData data)
         {

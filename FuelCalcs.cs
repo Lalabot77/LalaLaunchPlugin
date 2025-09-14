@@ -775,7 +775,7 @@ public class FuelCalcs : INotifyPropertyChanged
         }
 
         // The rest of the logic uses 'targetProfile' instead of '_selectedCarProfile'
-        var trackRecord = targetProfile.EnsureTrack(_selectedTrack);
+        var trackRecord = targetProfile.EnsureTrack(_selectedTrack, _selectedTrack);
 
         // --- Save Car-Level Settings ---
         targetProfile.FuelContingencyValue = this.ContingencyValue;
@@ -1156,16 +1156,6 @@ public class FuelCalcs : INotifyPropertyChanged
             ts = defaultProfile?.FindTrack("default");
             usingDefaultProfile = (ts != null);
         }
-
-        // … when you set any “source: …” labels, also set “source: default profile” if usingDefaultProfile == true.
-        // DEBUG: surface what key we asked for and what keys exist in the selected car
-        var asked = CarProfile.NormalizeTrackKey(SelectedTrack);
-        var car = _plugin.ProfilesViewModel.GetProfileForCar(SelectedCarProfile?.ProfileName);
-        var keys = car?.TrackStats?.Keys?.ToList() ?? new List<string>();
-        var hit = keys.Contains(asked);
-
-        System.Diagnostics.Debug.WriteLine(
-            $"[FuelCalcs] SelectedTrack='{SelectedTrack}' → askedKey='{asked}', hit={hit}, availableKeys=[{string.Join(", ", keys)}]");
 
         double fuelPerLap = FuelPerLap;
 

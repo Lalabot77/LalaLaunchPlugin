@@ -68,108 +68,43 @@ namespace LaunchPlugin
         public double TrafficApproachWarnSeconds { get => _trafficApproachWarnSeconds; set { if (_trafficApproachWarnSeconds != value) { _trafficApproachWarnSeconds = value; OnPropertyChanged(); } } }
 
         // --- Helper methods (unchanged and preserved) ---
-        public static string NormalizeTrackKey(string displayName)
+
+        public TrackStats FindTrack(string trackKey)
         {
-            if (string.IsNullOrWhiteSpace(displayName)) return "unknown";
-            var s = displayName.Trim().ToLowerInvariant();
-            // collapse spaces/punctuation differences which iRacing varies by layout naming
-            s = s.Replace('_', ' ').Replace('-', ' ');
-            s = System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
-            return s; // canonical dict key
-        }
-        private static string LooseKey(string s)
-        {
-            if (string.IsNullOrWhiteSpace(s)) return "";
-            s = s.ToLowerInvariant().Trim();
+            if (string.IsNullOrWhiteSpace(trackKey) || TrackStats == null) return null;
 
-            // normalize common synonyms
-            s = s.Replace("grand prix", "gp");
-
-            // collapse non-alphanumerics to space
-            var chars = s.Select(c => char.IsLetterOrDigit(c) ? c : ' ').ToArray();
-            s = new string(chars);
-
-            // collapse whitespace
-            s = System.Text.RegularExpressions.Regex.Replace(s, @"\s+", " ").Trim();
-            return s;
+            // Simple, direct lookup using the TrackCode as the key.
+            TrackStats.TryGetValue(trackKey, out var trackRecord);
+            return trackRecord;
         }
 
-        public TrackStats FindTrack(string trackName)
+        public TrackStats EnsureTrack(string trackKey, string trackDisplay)
         {
-            if (string.IsNullOrWhiteSpace(trackName)) return null;
-
-            // 1) exact by normalized key
-            var key = NormalizeTrackKey(trackName);
-            if (TrackStats.TryGetValue(key, out var tsExact))
-                return tsExact;
-
-            // 2) case-insensitive key probe (shouldn’t hit often, but cheap)
-            var tsCase = TrackStats.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase)).Value;
-            if (tsCase != null) return tsCase;
-
-            // 3) match by DisplayName (case-insensitive)
-            var tsDisp = TrackStats.Values.FirstOrDefault(t =>
-                string.Equals(t.DisplayName?.Trim(), trackName?.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (tsDisp != null) return tsDisp;
-
-            // 4) loose matching (handles "grand prix" ↔ "gp", hyphens, punctuation, spacing)
-            var targetLoose = LooseKey(trackName);
-            var tsLoose = TrackStats.Values.FirstOrDefault(t => LooseKey(t.DisplayName ?? t.Key) == targetLoose);
-            if (tsLoose != null) return tsLoose;
-
-            // Give up: not found
-            return null;
-        }
-
-        public TrackStats EnsureTrack(string trackName)
-        {
-            if (string.IsNullOrWhiteSpace(trackName)) return null;
-
-            var normKey = NormalizeTrackKey(trackName);
-            if (TrackStats != null && TrackStats.TryGetValue(normKey, out var tsExact))
-            {
-                // Even on an exact match, ensure the DisplayName is up-to-date.
-                tsExact.DisplayName = trackName;
-                return tsExact;
-            }
+            if (string.IsNullOrWhiteSpace(trackKey)) return null;
 
             if (TrackStats == null)
-                TrackStats = new Dictionary<string, TrackStats>(StringComparer.OrdinalIgnoreCase);
-
-            // Find by DisplayName or Loose Key
-            var tsFound = TrackStats.Values.FirstOrDefault(t =>
-                string.Equals(t.DisplayName?.Trim(), trackName?.Trim(), StringComparison.OrdinalIgnoreCase) ||
-                LooseKey(t.DisplayName ?? t.Key) == LooseKey(trackName)
-            );
-
-            if (tsFound != null)
             {
-                // --- THIS IS THE KEY FIX ---
-                // We found a match, but its key may have drifted.
-                // 1. Update its internal properties to the new canonical names.
-                tsFound.Key = normKey;
-                tsFound.DisplayName = trackName;
-
-                // 2. Re-index it in the dictionary under the correct key.
-                // We may need to remove an old, incorrect key if it exists.
-                var oldKeyEntry = TrackStats.FirstOrDefault(kv => kv.Value == tsFound);
-                if (oldKeyEntry.Key != null && oldKeyEntry.Key != normKey)
-                {
-                    TrackStats.Remove(oldKeyEntry.Key);
-                }
-                TrackStats[normKey] = tsFound;
-
-                return tsFound;
+                TrackStats = new Dictionary<string, TrackStats>(StringComparer.OrdinalIgnoreCase);
             }
 
-            // Not found — create a new empty record.
-            var created = new TrackStats
+            // Try to find an existing record using the reliable key.
+            if (TrackStats.TryGetValue(trackKey, out var existingRecord))
             {
-                DisplayName = trackName,
-                Key = normKey
-            };
-            TrackStats[normKey] = created;
-            return created;
+                // Record found. Just update its DisplayName in case it has changed.
+                existingRecord.DisplayName = trackDisplay;
+                return existingRecord;
+            }
+            else
+            {
+                // No record found. Create a new one.
+                var newRecord = new TrackStats
+                {
+                    Key = trackKey,
+                    DisplayName = trackDisplay
+                };
+                TrackStats[trackKey] = newRecord;
+                return newRecord;
+            }
         }
     }
     public class TrackStats : INotifyPropertyChanged

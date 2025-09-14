@@ -93,7 +93,7 @@ namespace LaunchPlugin
                 }
 
                 // Ensure the newly created car profile has a default track record
-                car.EnsureTrack("Default");
+                car.EnsureTrack("Default", "Default");
                 SimHub.Logging.Current.Info($"[Profiles] EnsureCar('{carProfileName}') -> CREATED new profile.");
                 CarProfiles.Add(car);
                 SaveProfiles();
@@ -106,7 +106,7 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"[Profiles] EnsureCarTrack('{carProfileName}', '{trackName}')");
 
             var car = EnsureCar(carProfileName);
-            var ts = car.EnsureTrack(trackName); // This still creates the basic record
+            var ts = car.EnsureTrack(trackName, trackName);
             SimHub.Logging.Current.Info($"[Profiles] Track resolved -> Key='{ts?.Key}', Disp='{ts?.DisplayName}'");
 
             // --- FIX: Manually initialize the text properties after creation ---
@@ -239,7 +239,7 @@ namespace LaunchPlugin
             {
                 newProfile.ProfileName = $"{baseName} ({count++})";
             }
-            newProfile.EnsureTrack("Default");
+            newProfile.EnsureTrack("Default", "Default");
             CarProfiles.Add(newProfile);
             SelectedProfile = newProfile;
             SaveProfiles();
