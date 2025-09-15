@@ -115,8 +115,11 @@ public class FuelCalcs : INotifyPropertyChanged
     public string ProfileAvgDryFuelDisplay { get; private set; }
     public string LiveFuelPerLapDisplay { get; private set; } = "-";
 
+    public ObservableCollection<TrackStats> AvailableTrackStats { get; set; } = new ObservableCollection<TrackStats>();
+
+
     // --- NEW: Properties for PB Feature ---
-    
+
     private string _historicalBestLapDisplay;
     public string HistoricalBestLapDisplay
     {
@@ -223,38 +226,63 @@ public class FuelCalcs : INotifyPropertyChanged
                 _selectedCarProfile = value;
                 OnPropertyChanged();
 
-                AvailableTracks.Clear();
+                // Rebuild lists
+                AvailableTracks.Clear();        // legacy string list – safe to keep for now
+                AvailableTrackStats.Clear();    // object list for ComboBox
+
                 if (_selectedCarProfile?.TrackStats != null)
                 {
-                    foreach (var t in _selectedCarProfile.TrackStats.Values.OrderBy(t => t.DisplayName))
-                        AvailableTracks.Add(t.DisplayName);
+                    foreach (var t in _selectedCarProfile.TrackStats.Values
+                                 .OrderBy(t => t.DisplayName ?? t.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+                    {
+                        AvailableTracks.Add(t.DisplayName);   // legacy
+                        AvailableTrackStats.Add(t);           // object list
+                    }
                 }
                 OnPropertyChanged(nameof(AvailableTracks));
+                OnPropertyChanged(nameof(AvailableTrackStats));
 
-                // When car changes, if a track is already selected, reload data
-                if (!string.IsNullOrEmpty(SelectedTrack))
+                // Select first track by instance (triggers LoadProfileData via SelectedTrackStats setter)
+                if (AvailableTrackStats.Count > 0)
                 {
-                    LoadProfileData();
+                    if (!ReferenceEquals(SelectedTrackStats, AvailableTrackStats[0]))
+                        SelectedTrackStats = AvailableTrackStats[0];
                 }
-                SelectedTrack = AvailableTracks.FirstOrDefault();
+                else
+                {
+                    if (SelectedTrackStats != null)
+                        SelectedTrackStats = null;
+                }
             }
         }
     }
 
+
     // Cache of the resolved TrackStats for the current SelectedCarProfile + SelectedTrack
     private TrackStats _selectedTrackStats;
+    private bool _suppressSelectedTrackSync;
+
     public TrackStats SelectedTrackStats
     {
         get => _selectedTrackStats;
-        private set
+        set
         {
             if (!ReferenceEquals(_selectedTrackStats, value))
             {
                 _selectedTrackStats = value;
                 OnPropertyChanged(nameof(SelectedTrackStats));
+
+                // Keep the legacy string SelectedTrack in sync (avoids touching other code)
+                _suppressSelectedTrackSync = true;
+                SelectedTrack = value?.DisplayName ?? "";
+                _suppressSelectedTrackSync = false;
+
+                // One authoritative reload when selection changes
+                LoadProfileData();
             }
         }
     }
+
 
     // Resolve the SelectedTrack string to the actual TrackStats object (try key first, then display name)
     private TrackStats ResolveSelectedTrackStats()
@@ -271,13 +299,13 @@ public class FuelCalcs : INotifyPropertyChanged
             {
                 _selectedTrack = value;
                 OnPropertyChanged();
-                // FIX: Must reload data when track changes to update PB hint
-                LoadProfileData();
+                if (!_suppressSelectedTrackSync)
+                {
+                    LoadProfileData();
+                }
             }
         }
     }
-
-
 
     public RaceType SelectedRaceType
     {
@@ -986,16 +1014,16 @@ public class FuelCalcs : INotifyPropertyChanged
         }
 
         // 2) Rebuild the Fuel tab track list strictly from the selected profile
-        AvailableTracks.Clear();
+        AvailableTrackStats.Clear();
         if (SelectedCarProfile?.TrackStats != null)
         {
             foreach (var t in SelectedCarProfile.TrackStats.Values
                          .OrderBy(t => t.DisplayName ?? t.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase))
             {
-                AvailableTracks.Add(t.DisplayName);
+                AvailableTrackStats.Add(t);
             }
         }
-        OnPropertyChanged(nameof(AvailableTracks));
+        OnPropertyChanged(nameof(AvailableTrackStats));
 
         // 3) Resolve the actual TrackStats to select:
         //    Prefer the plugin's reliable key; fall back to the live display if needed.
@@ -1004,20 +1032,21 @@ public class FuelCalcs : INotifyPropertyChanged
             SelectedCarProfile?.TrackStats?.Values
                 .FirstOrDefault(t => t.DisplayName?.Equals(trackName, StringComparison.OrdinalIgnoreCase) == true);
 
-        // 4) Select it (this triggers LoadProfileData via SelectedTrack setter)
+        // 4) Select it by instance (this triggers LoadProfileData via SelectedTrackStats setter)
         if (ts != null)
         {
-            if (this.SelectedTrack != ts.DisplayName)
+            if (!ReferenceEquals(this.SelectedTrackStats, ts))
             {
-                this.SelectedTrack = ts.DisplayName;
+                this.SelectedTrackStats = ts;
             }
         }
         else
         {
-            // Fallback: pick the first available (or leave blank). Critically: DO NOT push raw live strings.
-            if (AvailableTracks.Count > 0 && this.SelectedTrack != AvailableTracks[0])
-                this.SelectedTrack = AvailableTracks[0];
+            // Fallback: select the first available instance. Critically: DO NOT push raw live strings.
+            if (AvailableTrackStats.Count > 0 && !ReferenceEquals(this.SelectedTrackStats, AvailableTrackStats[0]))
+                this.SelectedTrackStats = AvailableTrackStats[0];
         }
+
     }
 
 

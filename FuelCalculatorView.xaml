@@ -28,8 +28,9 @@
 
                 <TextBlock Text="Track:" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
                 <ComboBox Width="250"
-                          ToolTip="Select the track and layout." ItemsSource="{Binding AvailableTracks}"
-                          SelectedItem="{Binding SelectedTrack, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                          ToolTip="Select the track and layout." ItemsSource="{Binding AvailableTrackStats}"
+                           DisplayMemberPath="DisplayName"
+                          SelectedItem="{Binding SelectedTrackStats, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                 <TextBlock Text="{Binding SeenSessionSummary, Mode=OneWay}"
                            Margin="12,0,0,0"
