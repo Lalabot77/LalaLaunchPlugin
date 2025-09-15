@@ -127,8 +127,20 @@ namespace LaunchPlugin
         public TrackStats TryGetCarTrack(string carProfileName, string trackName)
         {
             var car = GetProfileForCar(carProfileName);
-            return car?.FindTrack(trackName);
+            if (car == null) return null;
+
+            var ts = car.FindTrack(trackName);
+            if (ts == null && car.TrackStats != null)
+            {
+                if (!car.TrackStats.TryGetValue(trackName, out ts))
+                {
+                    ts = car.TrackStats.Values
+                        .FirstOrDefault(t => t.DisplayName?.Equals(trackName, StringComparison.OrdinalIgnoreCase) == true);
+                }
+            }
+            return ts;
         }
+
         public ObservableCollection<TrackStats> TracksForSelectedProfile { get; } = new ObservableCollection<TrackStats>();
 
         private TrackStats _selectedTrack;

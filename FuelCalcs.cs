@@ -1024,7 +1024,19 @@ public class FuelCalcs : INotifyPropertyChanged
         }
 
         var car = SelectedCarProfile;
+        // Robust lookup: accept either key or display name
         var ts = car.FindTrack(SelectedTrack);
+        if (ts == null && car?.TrackStats != null)
+        {
+            // Try by key
+            if (!car.TrackStats.TryGetValue(SelectedTrack, out ts))
+            {
+                // Try by display name
+                ts = car.TrackStats.Values
+                    .FirstOrDefault(t => t.DisplayName?.Equals(SelectedTrack, StringComparison.OrdinalIgnoreCase) == true);
+            }
+        }
+
 
         // --- Load Refuel Rate from profile ---
         this._refuelRate = car.RefuelRate;
