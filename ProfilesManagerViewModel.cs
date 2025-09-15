@@ -590,7 +590,7 @@ namespace LaunchPlugin
                     bool isEditingDefaultsWithNoCar = (activeCar == "Unknown" || string.IsNullOrEmpty(activeCar))
                                                       && selectedName.Equals("Default Settings", StringComparison.OrdinalIgnoreCase);
 
-                    if (isActiveCarMatch || isEditingDefaultsWithNoCar)
+                    if (SelectedProfile != null)
                     {
                         _applyProfileToLiveAction(SelectedProfile);
                         SimHub.Logging.Current.Info($"LalaLaunch: Saved profile '{selectedName}' changes applied to live session.");

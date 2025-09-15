@@ -642,8 +642,36 @@ namespace LaunchPlugin
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
             // The Action for "Apply to Live" in the Profiles tab is now simplified: just update the ActiveProfile
-            ProfilesViewModel = new ProfilesManagerViewModel(this.PluginManager, (profile) => { this.ActiveProfile = profile; }, () => this.CurrentCarModel, () => this.CurrentTrackKey);
-            ProfilesViewModel.LoadProfiles();
+            ProfilesViewModel = new ProfilesManagerViewModel(
+                this.PluginManager,
+                // applyProfileToLiveAction:
+                (profile) =>
+                {
+                    // 1) Set ActiveProfile so Profiles tab shows the selected car immediately
+                    this.ActiveProfile = profile;
+
+                    // 2) Decide which track to push to the Fuel tab:
+                    //    - Prefer the Profiles tab's currently selected track
+                    //    - Else the first track in that profile
+                    //    - Else "Default"
+                    var selectedTrackName =
+                        this.ProfilesViewModel?.SelectedTrack?.DisplayName
+                        ?? this.ProfilesViewModel?.SelectedProfile?.TrackStats?.Values
+                               .OrderBy(t => t.DisplayName ?? t.Key ?? string.Empty)
+                               .FirstOrDefault()?.DisplayName
+                        ?? "Default";
+
+                    // 3) Tell the Fuel tab to reflect this car + track now
+                    this.FuelCalculator?.SetLiveSession(profile.ProfileName, selectedTrackName);
+
+                    SimHub.Logging.Current.Info(
+                        $"LalaLaunch: Apply-to-live -> Car='{profile.ProfileName}', Track='{selectedTrackName}'");
+                },
+                // getCurrentCarModel:
+                () => this.CurrentCarModel,
+                // getCurrentTrackKey:
+                () => this.CurrentTrackKey
+            ); ProfilesViewModel.LoadProfiles();
 
             // --- Set the initial ActiveProfile on startup ---
             // It will be "Default Settings" or the first profile if that doesn't exist.
