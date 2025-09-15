@@ -259,26 +259,7 @@ public class FuelCalcs : INotifyPropertyChanged
     // Resolve the SelectedTrack string to the actual TrackStats object (try key first, then display name)
     private TrackStats ResolveSelectedTrackStats()
     {
-        var car = _selectedCarProfile;
-        var nameOrKey = _selectedTrack;
-
-        if (car == null || string.IsNullOrWhiteSpace(nameOrKey))
-            return null;
-
-        // 1) direct lookup (your FindTrack expects key)
-        var ts = car.FindTrack(nameOrKey);
-        if (ts != null) return ts;
-
-        // 2) try dictionary key
-        if (car.TrackStats != null && car.TrackStats.TryGetValue(nameOrKey, out ts))
-            return ts;
-
-        // 3) fallback by display name (case-insensitive)
-        if (car.TrackStats != null)
-            ts = car.TrackStats.Values.FirstOrDefault(t =>
-                t.DisplayName?.Equals(nameOrKey, StringComparison.OrdinalIgnoreCase) == true);
-
-        return ts;
+        return _selectedCarProfile?.ResolveTrackByNameOrKey(_selectedTrack);
     }
 
     public string SelectedTrack
