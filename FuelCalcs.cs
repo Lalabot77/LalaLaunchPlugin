@@ -241,6 +241,46 @@ public class FuelCalcs : INotifyPropertyChanged
         }
     }
 
+    // Cache of the resolved TrackStats for the current SelectedCarProfile + SelectedTrack
+    private TrackStats _selectedTrackStats;
+    public TrackStats SelectedTrackStats
+    {
+        get => _selectedTrackStats;
+        private set
+        {
+            if (!ReferenceEquals(_selectedTrackStats, value))
+            {
+                _selectedTrackStats = value;
+                OnPropertyChanged(nameof(SelectedTrackStats));
+            }
+        }
+    }
+
+    // Resolve the SelectedTrack string to the actual TrackStats object (try key first, then display name)
+    private TrackStats ResolveSelectedTrackStats()
+    {
+        var car = _selectedCarProfile;
+        var nameOrKey = _selectedTrack;
+
+        if (car == null || string.IsNullOrWhiteSpace(nameOrKey))
+            return null;
+
+        // 1) direct lookup (your FindTrack expects key)
+        var ts = car.FindTrack(nameOrKey);
+        if (ts != null) return ts;
+
+        // 2) try dictionary key
+        if (car.TrackStats != null && car.TrackStats.TryGetValue(nameOrKey, out ts))
+            return ts;
+
+        // 3) fallback by display name (case-insensitive)
+        if (car.TrackStats != null)
+            ts = car.TrackStats.Values.FirstOrDefault(t =>
+                t.DisplayName?.Equals(nameOrKey, StringComparison.OrdinalIgnoreCase) == true);
+
+        return ts;
+    }
+
     public string SelectedTrack
     {
         get => _selectedTrack;
@@ -255,6 +295,8 @@ public class FuelCalcs : INotifyPropertyChanged
             }
         }
     }
+
+
 
     public RaceType SelectedRaceType
     {
@@ -446,7 +488,6 @@ public class FuelCalcs : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsMaxFuelAvailable));
     }
 
-    // --- REPLACE the old property with this new version ---
     public TrackCondition SelectedTrackCondition
     {
         get => _selectedTrackCondition;
@@ -464,7 +505,8 @@ public class FuelCalcs : INotifyPropertyChanged
                 else { FuelPerLap = _baseDryFuelPerLap; }
 
                 // --- NEW LOGIC: Update Estimated Lap Time based on condition ---
-                var ts = _selectedCarProfile?.FindTrack(_selectedTrack);
+                var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
+
                 if (ts != null)
                 {
                     int? lapTimeMs = IsWet ? ts.AvgLapTimeWet : ts.AvgLapTimeDry;
@@ -580,7 +622,7 @@ public class FuelCalcs : INotifyPropertyChanged
     // --- REWIRED "What-If" Properties ---
     public void LoadProfileLapTime()
     {
-        var ts = _selectedCarProfile?.FindTrack(_selectedTrack);
+        var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
         if (ts == null) return;
 
         int? lapMs = IsDry ? ts.AvgLapTimeDry : ts.AvgLapTimeWet;
@@ -654,7 +696,7 @@ public class FuelCalcs : INotifyPropertyChanged
 
     private void UseProfileFuelPerLap()
     {
-        var ts = _selectedCarProfile?.FindTrack(_selectedTrack);
+        var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
         if (ts == null) return;
 
         // Use the dry value as the primary profile source
@@ -1024,8 +1066,10 @@ public class FuelCalcs : INotifyPropertyChanged
         }
 
         var car = SelectedCarProfile;
-        // Robust lookup: accept either key or display name
-        var ts = car.FindTrack(SelectedTrack);
+
+        // Keep an internal object reference in sync with the dropdown string
+        SelectedTrackStats = ResolveSelectedTrackStats();
+        var ts = SelectedTrackStats;
         if (ts == null && car?.TrackStats != null)
         {
             // Try by key
