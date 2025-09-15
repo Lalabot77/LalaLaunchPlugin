@@ -1138,13 +1138,20 @@ namespace LaunchPlugin
                         var profileToLoad = ProfilesViewModel.GetProfileForCar(CurrentCarModel) ?? ProfilesViewModel.EnsureCar(CurrentCarModel);
                         this.ActiveProfile = profileToLoad;
 
-                        if (this.ActiveProfile != null && !string.IsNullOrEmpty(CurrentTrackKey))
+                        // Ensure the track exists via the Profiles VM (this triggers UI refresh + selection)
+                        if (!string.IsNullOrWhiteSpace(CurrentTrackKey))
                         {
-                            // Pass BOTH the key and the display name to the updated EnsureTrack method
-                            this.ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);
+                            SimHub.Logging.Current.Info($"[LalaLaunch] EnsureCarTrack hook -> car='{CurrentCarModel}', trackKey='{CurrentTrackKey}'");
+                            ProfilesViewModel.EnsureCarTrack(CurrentCarModel, CurrentTrackKey);
                         }
+                        else
+                        {
+                            SimHub.Logging.Current.Info("[LalaLaunch] Skipped EnsureCarTrack: live track key is empty/unknown.");
+                        }
+
                         FuelCalculator.SetLiveSession(CurrentCarModel, CurrentTrackName);
                     });
+
                 }
                 // =======================================================================
                 // ======================= MODIFIED BLOCK END ============================

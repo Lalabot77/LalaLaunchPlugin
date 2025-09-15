@@ -95,7 +95,15 @@ namespace LaunchPlugin
                 // Ensure the newly created car profile has a default track record
                 car.EnsureTrack("Default", "Default");
                 SimHub.Logging.Current.Info($"[Profiles] EnsureCar('{carProfileName}') -> CREATED new profile.");
-                CarProfiles.Add(car);
+                var disp = System.Windows.Application.Current?.Dispatcher;
+                if (disp == null || disp.CheckAccess())
+                {
+                    CarProfiles.Add(car);
+                }
+                else
+                {
+                    disp.Invoke(() => CarProfiles.Add(car));
+                }
                 SaveProfiles();
             }
             return car;
@@ -121,6 +129,61 @@ namespace LaunchPlugin
             ts.AvgWetTrackTempText = ts.AvgWetTrackTemp?.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
             SaveProfiles();
+            var disp = System.Windows.Application.Current?.Dispatcher;
+
+            void DoUiWork()
+            {
+                // 1) ensure the visible car is the instance in CarProfiles
+                var carInList = CarProfiles.FirstOrDefault(p =>
+                    p.ProfileName.Equals(car.ProfileName, StringComparison.OrdinalIgnoreCase));
+
+                if (carInList != null && !ReferenceEquals(SelectedProfile, carInList))
+                    SelectedProfile = carInList; // this may call RefreshTracksForSelectedProfile() internally
+
+                // --- LOG A: state just before we mutate the tracks list
+                SimHub.Logging.Current.Info(
+                    $"[Profiles][UI] Before refresh: SelectedProfile='{SelectedProfile?.ProfileName}', " +
+                    $"targetCar='{car.ProfileName}'");
+
+                // 2) force refresh (mutating the existing collection)
+                RefreshTracksForSelectedProfile();
+
+                // --- LOG B: what does the bound list look like after refresh?
+                var keysAfter = TracksForSelectedProfile?
+                    .Select(t => t?.Key)
+                    .Where(k => !string.IsNullOrWhiteSpace(k)) ?? Enumerable.Empty<string>();
+                SimHub.Logging.Current.Info(
+                    $"[Profiles][UI] After refresh: TracksForSelectedProfile.Count={TracksForSelectedProfile?.Count ?? 0}, " +
+                    $"keys=[{string.Join(",", keysAfter)}]");
+
+                // --- LOG C: what are we trying to select?
+                SimHub.Logging.Current.Info(
+                    $"[Profiles][UI] Looking for track: key='{ts?.Key}', name='{ts?.DisplayName}'");
+
+                // 3) select the track instance (no fallback add — track should already exist after EnsureCarTrack)
+                TrackStats match = null;
+                if (TracksForSelectedProfile != null)
+                {
+                    match = TracksForSelectedProfile.FirstOrDefault(x => x?.Key == ts?.Key)
+                         ?? TracksForSelectedProfile.FirstOrDefault(x => string.Equals(x?.DisplayName, ts?.DisplayName, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (match != null)
+                {
+                    SelectedTrack = match;
+                }
+                else
+                {
+                    // Optional: keep a breadcrumb if something ever goes wrong again
+                    SimHub.Logging.Current.Info("[Profiles][UI] Track instance not found in TracksForSelectedProfile after refresh.");
+                }
+
+            }
+
+
+            if (disp == null || disp.CheckAccess()) DoUiWork();
+            else disp.Invoke(DoUiWork);
+
             return ts;
         }
 
@@ -160,15 +223,40 @@ namespace LaunchPlugin
 
         public void RefreshTracksForSelectedProfile()
         {
-            TracksForSelectedProfile.Clear();
-            if (_selectedProfile?.TrackStats != null)
+            var disp = System.Windows.Application.Current?.Dispatcher;
+            void DoRefresh()
             {
-                foreach (var trackStat in _selectedProfile.TrackStats.Values.OrderBy(t => t.DisplayName))
+                // keep the same ObservableCollection instance so WPF bindings stay wired
+                if (TracksForSelectedProfile == null) return;
+
+                TracksForSelectedProfile.Clear();
+
+                if (SelectedProfile?.TrackStats != null)
                 {
-                    TracksForSelectedProfile.Add(trackStat);
+                    // add in a stable order (name or key)
+                    foreach (var t in SelectedProfile.TrackStats.Values
+                                 .OrderBy(t => t.DisplayName ?? t.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+                    {
+                        TracksForSelectedProfile.Add(t);
+                    }
                 }
+
+                // ensure selection points to the instance that’s in the list
+                if (SelectedTrack != null && TracksForSelectedProfile.Count > 0)
+                {
+                    var same = TracksForSelectedProfile.FirstOrDefault(x => x?.Key == SelectedTrack.Key)
+                           ?? TracksForSelectedProfile.FirstOrDefault(x => string.Equals(x?.DisplayName, SelectedTrack.DisplayName, StringComparison.OrdinalIgnoreCase));
+                    if (same != null) SelectedTrack = same;
+                }
+
+                // nudge the view in case the control uses a CollectionView
+                System.Windows.Data.CollectionViewSource.GetDefaultView(TracksForSelectedProfile)?.Refresh();
             }
+
+            if (disp == null || disp.CheckAccess()) DoRefresh();
+            else disp.Invoke(DoRefresh);
         }
+
 
         public bool IsProfileSelected => SelectedProfile != null;
         public bool IsTrackSelected => SelectedTrack != null;
