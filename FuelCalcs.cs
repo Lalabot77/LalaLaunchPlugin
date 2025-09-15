@@ -1003,35 +1003,53 @@ public class FuelCalcs : INotifyPropertyChanged
     // Helper does the actual updates (runs on UI thread)
     private void ApplyLiveSession(string carName, string trackName)
     {
+        // Keep the nice human-readable label
         SeenSessionSummary = $"Live: {carName} @ {trackName}";
 
-        // 1) Find and set the car profile object
-        var carProfile = AvailableCarProfiles.FirstOrDefault(p => p.ProfileName.Equals(carName, StringComparison.OrdinalIgnoreCase));
+        // 1) Make sure the car profile object is selected (this will also rebuild AvailableTracks once below)
+        var carProfile = AvailableCarProfiles.FirstOrDefault(
+            p => p.ProfileName.Equals(carName, StringComparison.OrdinalIgnoreCase));
+
         if (this.SelectedCarProfile != carProfile)
         {
             this.SelectedCarProfile = carProfile;
         }
 
-        // 2) Select track (triggers LoadProfileData via setter)
-        if (!string.IsNullOrWhiteSpace(trackName) && this.SelectedTrack != trackName)
+        // 2) Rebuild the Fuel tab track list strictly from the selected profile
+        AvailableTracks.Clear();
+        if (SelectedCarProfile?.TrackStats != null)
         {
-            if (this.AvailableTracks.Contains(trackName))
+            foreach (var t in SelectedCarProfile.TrackStats.Values
+                         .OrderBy(t => t.DisplayName ?? t.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase))
             {
-                this.SelectedTrack = trackName;
-            }
-            else
-            {
-                // If track doesn't exist for profile, add it to the list and select it
-                this.AvailableTracks.Add(trackName);
-                this.SelectedTrack = trackName;
+                AvailableTracks.Add(t.DisplayName);
             }
         }
-        //else if (this.SelectedCarProfile == carProfile && this.SelectedTrack == trackName)
-        //{
-            // Force refresh if car/track haven't changed string-wise (e.g., on session restart)
-            //LoadProfileData(); removed due conflict with live data selection
-        //}
+        OnPropertyChanged(nameof(AvailableTracks));
+
+        // 3) Resolve the actual TrackStats to select:
+        //    Prefer the plugin's reliable key; fall back to the live display if needed.
+        var ts =
+            SelectedCarProfile?.FindTrack(_plugin.CurrentTrackKey) ??
+            SelectedCarProfile?.TrackStats?.Values
+                .FirstOrDefault(t => t.DisplayName?.Equals(trackName, StringComparison.OrdinalIgnoreCase) == true);
+
+        // 4) Select it (this triggers LoadProfileData via SelectedTrack setter)
+        if (ts != null)
+        {
+            if (this.SelectedTrack != ts.DisplayName)
+            {
+                this.SelectedTrack = ts.DisplayName;
+            }
+        }
+        else
+        {
+            // Fallback: pick the first available (or leave blank). Critically: DO NOT push raw live strings.
+            if (AvailableTracks.Count > 0 && this.SelectedTrack != AvailableTracks[0])
+                this.SelectedTrack = AvailableTracks[0];
+        }
     }
+
 
     private void SetUIDefaults()
     {

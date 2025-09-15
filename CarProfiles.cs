@@ -78,6 +78,20 @@ namespace LaunchPlugin
             return trackRecord;
         }
 
+        public TrackStats ResolveTrackByNameOrKey(string nameOrKey)
+        {
+            if (string.IsNullOrWhiteSpace(nameOrKey) || TrackStats == null) return null;
+
+            // 1) Try as dictionary key (your canonical ID)
+            var ts = FindTrack(nameOrKey);
+            if (ts != null) return ts;
+
+            // 2) Fallback by display name (case-insensitive)
+            return TrackStats.Values
+                .FirstOrDefault(t => t.DisplayName?.Equals(nameOrKey, StringComparison.OrdinalIgnoreCase) == true);
+        }
+
+
         public TrackStats EnsureTrack(string trackKey, string trackDisplay)
         {
             if (string.IsNullOrWhiteSpace(trackKey)) return null;

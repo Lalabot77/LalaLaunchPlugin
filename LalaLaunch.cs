@@ -1101,18 +1101,10 @@ namespace LaunchPlugin
                 {
                     _lastSeenBestLap = currentBestLap;
                     FuelCalculator?.SetPersonalBestSeconds(currentBestLap.TotalSeconds);
-                    if (ActiveProfile != null)
-                    {
-                        var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
-                        if (trackRecord != null)
-                        {
-                            if (!trackRecord.BestLapMs.HasValue || currentBestLap.TotalMilliseconds < trackRecord.BestLapMs.Value)
-                            {
-                                trackRecord.BestLapMs = (int)currentBestLap.TotalMilliseconds;
-                                SimHub.Logging.Current.Debug($"LalaLaunch.LiveMining: New PB of {currentBestLap:m\\:ss\\.fff} saved to profile.");
-                            }
-                        }
-                    }
+
+                    int lapMs = (int)currentBestLap.TotalMilliseconds;
+                    bool accepted = ProfilesViewModel.TryUpdatePB(CurrentCarModel, CurrentTrackKey, lapMs);
+                    SimHub.Logging.Current.Info($"[PB] candidate={lapMs}ms car='{CurrentCarModel}' trackKey='{CurrentTrackKey}' -> {(accepted ? "accepted" : "rejected")}");
                 }
 
                 // =========================================================================
