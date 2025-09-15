@@ -774,9 +774,33 @@ public class FuelCalcs : INotifyPropertyChanged
             return;
         }
 
-        // Get the correct, unique TrackCode from the main plugin
-        var currentTrackKey = _plugin.CurrentTrackKey;
-        var trackRecord = targetProfile.EnsureTrack(currentTrackKey, _selectedTrack);
+        string trackKeyToSave;
+
+        // Use the live track key only when actually in a live session and the key is valid
+        if (isLiveSession && !string.IsNullOrWhiteSpace(_plugin.CurrentTrackKey) && _plugin.CurrentTrackKey != "Unknown")
+        {
+            trackKeyToSave = _plugin.CurrentTrackKey;
+        }
+        else
+        {
+            // Non-live save: find the existing track in the selected profile by its display name
+            var tsExisting = targetProfile.FindTrack(_selectedTrack);
+
+            if (tsExisting == null || string.IsNullOrWhiteSpace(tsExisting.Key))
+            {
+                MessageBox.Show(
+                    "This track doesn’t exist in the selected profile. Create it on the Profiles tab or start a live session first.",
+                    "Missing track key",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            trackKeyToSave = tsExisting.Key;
+        }
+
+        var trackRecord = targetProfile.EnsureTrack(trackKeyToSave, _selectedTrack);
+
 
         // --- Save Car-Level Settings ---
         targetProfile.FuelContingencyValue = this.ContingencyValue;
