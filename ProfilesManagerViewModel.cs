@@ -1,4 +1,4 @@
-// In file: ProfilesManagerViewModel.cs
+﻿// In file: ProfilesManagerViewModel.cs
 
 using SimHub.Plugins; // Required for this.GetPluginManager()
 using System;
@@ -26,6 +26,56 @@ namespace LaunchPlugin
         private readonly Func<string> _getCurrentCarModel;
         private readonly Func<string> _getCurrentTrackName;
         private readonly string _profilesFilePath;
+        // --- PB constants ---
+        private const int PB_MIN_MS = 30000;     // >= 30s
+        private const int PB_MAX_MS = 1200000;   // <= 20min
+        private const int PB_IMPROVE_MS = 50;    // >= 0.05s faster
+
+        /// <summary>
+        /// Try to update personal best for the given car+track. Returns true if updated.
+        /// </summary>
+        public bool TryUpdatePB(string carName, string trackKey, int lapMs)
+        {
+            if (string.IsNullOrWhiteSpace(carName) || string.IsNullOrWhiteSpace(trackKey))
+            {
+                SimHub.Logging.Current.Info("[PB] Reject: missing car/track.");
+                return false;
+            }
+            if (lapMs < PB_MIN_MS || lapMs > PB_MAX_MS)
+            {
+                SimHub.Logging.Current.Info($"[PB] Reject: out of range ({lapMs} ms).");
+                return false;
+            }
+
+            var car = EnsureCar(carName);
+
+            // Resolve by key first, fall back to display name via the centralized resolver
+            var ts = car.FindTrack(trackKey) ?? car.ResolveTrackByNameOrKey(trackKey);
+            if (ts == null)
+            {
+                // Safety: ensure the track exists using the key as both key+display
+                ts = car.EnsureTrack(trackKey, trackKey);
+            }
+
+            bool improved = !ts.BestLapMs.HasValue || lapMs <= ts.BestLapMs.Value - PB_IMPROVE_MS;
+            if (!improved)
+            {
+                SimHub.Logging.Current.Info($"[PB] Reject: not improved enough. old={ts.BestLapMs} new={lapMs} (≥{PB_IMPROVE_MS} ms required).");
+                return false;
+            }
+
+            ts.BestLapMs = lapMs;
+            ts.BestLapMsText = ts.MillisecondsToLapTimeString(ts.BestLapMs);
+            SaveProfiles();
+
+            // If Profiles tab is on this car, refresh so the new PB shows immediately
+            var disp = System.Windows.Application.Current?.Dispatcher;
+            void DoUi() { if (SelectedProfile == car) RefreshTracksForSelectedProfile(); }
+            if (disp == null || disp.CheckAccess()) DoUi(); else disp.BeginInvoke((Action)DoUi);
+
+            SimHub.Logging.Current.Info($"[PB] Updated: {carName} @ '{ts.DisplayName}' -> {ts.BestLapMsText}");
+            return true;
+        }
 
         // --- Public Properties for UI Binding ---
         public ICollectionView SortedCarProfiles { get; } // This will be a sorted view of the CarProfiles collection
@@ -160,7 +210,7 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info(
                     $"[Profiles][UI] Looking for track: key='{ts?.Key}', name='{ts?.DisplayName}'");
 
-                // 3) select the track instance (no fallback add � track should already exist after EnsureCarTrack)
+                // 3) select the track instance (no fallback add — track should already exist after EnsureCarTrack)
                 TrackStats match = null;
                 if (TracksForSelectedProfile != null)
                 {
@@ -230,7 +280,7 @@ namespace LaunchPlugin
                     }
                 }
 
-                // ensure selection points to the instance that�s in the list
+                // ensure selection points to the instance that’s in the list
                 if (SelectedTrack != null && TracksForSelectedProfile.Count > 0)
                 {
                     var same = TracksForSelectedProfile.FirstOrDefault(x => x?.Key == SelectedTrack.Key)
