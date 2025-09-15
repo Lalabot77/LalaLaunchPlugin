@@ -799,69 +799,59 @@ public class FuelCalcs : INotifyPropertyChanged
         string liveCarName = _plugin.CurrentCarModel;
         string uiCarName = _selectedCarProfile?.ProfileName;
 
-        // --- NEW LOGIC: Determine the correct profile to save to ---
+        // 1) Decide which profile to save to
         CarProfile targetProfile = null;
         bool isLiveSession = !string.IsNullOrEmpty(liveCarName) && liveCarName != "Unknown";
 
         if (isLiveSession)
         {
-            // In a live session, ALWAYS save to the live car's profile.
-            // EnsureCar will find the existing profile or create a new one based on the live car name.
+            // Live: always save to the live car’s profile (create if missing)
             targetProfile = _plugin.ProfilesViewModel.EnsureCar(liveCarName);
         }
         else
         {
-            // If not in a live session, it's safe to save to the profile selected in the UI.
+            // Non-live: save to the UI-selected profile
             targetProfile = _selectedCarProfile;
         }
 
-        // --- NEW: Audit log line as requested ---
-        SimHub.Logging.Current.Info($"[FuelCalcs.Save] Saving data. Target: '{targetProfile?.ProfileName}' (Live Car: '{liveCarName}', UI Car: '{uiCarName}')");
-
-        // Guard clause: If no target profile could be determined, or no track is selected, exit.
+        // 2) Guard: we need a profile and a selected track string
         if (targetProfile == null || string.IsNullOrEmpty(_selectedTrack))
         {
-            MessageBox.Show("Please select a car and track profile first.", "No Profile Selected", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("Please select a car and track profile first.", "No Profile Selected",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
-        string trackKeyToSave;
+        // 3) Resolve the selected TrackStats and decide the key/display to save under
+        var selectedTs = ResolveSelectedTrackStats();
 
-        // Use the live track key only when actually in a live session and the key is valid
-        if (isLiveSession && !string.IsNullOrWhiteSpace(_plugin.CurrentTrackKey) && _plugin.CurrentTrackKey != "Unknown")
+        string keyToSave = isLiveSession && !string.IsNullOrWhiteSpace(_plugin.CurrentTrackKey) && _plugin.CurrentTrackKey != "Unknown"
+                            ? _plugin.CurrentTrackKey
+                            : (selectedTs?.Key ?? _selectedTrack); // fallback to the dropdown string if needed
+
+        string nameToSave = selectedTs?.DisplayName ?? _selectedTrack;
+
+        // Non-live: if we still have no real key, stop the save so we don’t create junk
+        if (!isLiveSession && (selectedTs == null || string.IsNullOrWhiteSpace(selectedTs.Key)))
         {
-            trackKeyToSave = _plugin.CurrentTrackKey;
-        }
-        else
-        {
-            // Non-live save: find the existing track in the selected profile by its display name
-            var tsExisting = targetProfile.FindTrack(_selectedTrack);
-
-            if (tsExisting == null || string.IsNullOrWhiteSpace(tsExisting.Key))
-            {
-                MessageBox.Show(
-                    "This track doesn’t exist in the selected profile. Create it on the Profiles tab or start a live session first.",
-                    "Missing track key",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            trackKeyToSave = tsExisting.Key;
+            MessageBox.Show(
+                "This track doesn’t exist in the selected profile. Create it on the Profiles tab or start a live session first.",
+                "Missing track key", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
         }
 
-        var trackRecord = targetProfile.EnsureTrack(trackKeyToSave, _selectedTrack);
+        // 4) Ensure the record we’re saving into
+        var trackRecord = targetProfile.EnsureTrack(keyToSave, nameToSave);
 
-
-        // --- Save Car-Level Settings ---
+        // 5) Save car-level settings
         targetProfile.FuelContingencyValue = this.ContingencyValue;
         targetProfile.IsContingencyInLaps = this.IsContingencyInLaps;
         targetProfile.WetFuelMultiplier = this.WetFactorPercent;
         targetProfile.TireChangeTime = this.TireChangeTime;
         targetProfile.RacePaceDeltaSeconds = this.RacePaceDeltaOverride;
 
-        // --- Save Track-Specific Settings ---
-        var lapTimeMs = trackRecord.LapTimeStringToMilliseconds(EstimatedLapTime); // Correctly calls the method on the TrackStats object
+        // 6) Save track-specific settings
+        var lapTimeMs = trackRecord.LapTimeStringToMilliseconds(EstimatedLapTime);
         double.TryParse(FuelPerLapText.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double fuelVal);
 
         if (IsDry)
@@ -869,7 +859,7 @@ public class FuelCalcs : INotifyPropertyChanged
             if (lapTimeMs.HasValue) trackRecord.AvgLapTimeDry = lapTimeMs;
             if (fuelVal > 0) trackRecord.AvgFuelPerLapDry = fuelVal;
         }
-        else // IsWet
+        else // Wet
         {
             if (lapTimeMs.HasValue) trackRecord.AvgLapTimeWet = lapTimeMs;
             if (fuelVal > 0) trackRecord.AvgFuelPerLapWet = fuelVal;
@@ -878,19 +868,18 @@ public class FuelCalcs : INotifyPropertyChanged
         trackRecord.PitLaneLossSeconds = this.PitLaneTimeLoss;
 
         if (IsPersonalBestAvailable && _loadedBestLapTimeSeconds > 0)
-        {
             trackRecord.BestLapMs = (int)(_loadedBestLapTimeSeconds * 1000);
-        }
-        // --- Save to File and Notify User ---
+
+        // 7) Persist + refresh dependent UI
         _plugin.ProfilesViewModel.SaveProfiles();
-
-        // --- NEW: Force the Profiles tab's track list to refresh ---
         _plugin.ProfilesViewModel.RefreshTracksForSelectedProfile();
+        LoadProfileData(); // refresh ProfileAvg labels/sources
 
-        LoadProfileData(); // refresh ProfileAvg... labels and sources after save
-
-        MessageBox.Show($"All planner settings have been saved to the '{targetProfile.ProfileName}' profile for the track '{trackRecord.DisplayName}'.", "Planner Data Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(
+            $"All planner settings have been saved to the '{targetProfile.ProfileName}' profile for the track '{trackRecord.DisplayName}'.",
+            "Planner Data Saved", MessageBoxButton.OK, MessageBoxImage.Information);
     }
+
 
     // Unique id to make sure the UI and the engine are the same instance
     public string InstanceTag { get; } = Guid.NewGuid().ToString("N").Substring(0, 6);
@@ -1088,7 +1077,7 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         if (SelectedCarProfile == null || string.IsNullOrEmpty(SelectedTrack))
         {
-            SetUIDefaults(); // If no valid selection, reset to sandbox defaults
+            SetUIDefaults();
             CalculateStrategy();
             return;
         }
@@ -1098,7 +1087,7 @@ public class FuelCalcs : INotifyPropertyChanged
         // Keep an internal object reference in sync with the dropdown string
         SelectedTrackStats = ResolveSelectedTrackStats();
         var ts = SelectedTrackStats;
-        
+
         // --- Load Refuel Rate from profile ---
         this._refuelRate = car.RefuelRate;
 
