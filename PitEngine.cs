@@ -31,6 +31,7 @@ namespace LaunchPlugin
 
 
         // --- State management for the Pace Delta calculation ---
+
         public enum PaceDeltaState { Idle, AwaitingPitLap, AwaitingOutLap, Complete }
         private PaceDeltaState _paceDeltaState = PaceDeltaState.Idle;
         public PaceDeltaState CurrentState => _paceDeltaState;
@@ -208,7 +209,7 @@ namespace LaunchPlugin
                     ResetPaceDelta();
                     return;
                 }
-
+              
                 _avgPaceAtPit = averagePace;
                 _pitLapSeconds = outLapTime;   // this first finalize call is the PIT LAP
 
