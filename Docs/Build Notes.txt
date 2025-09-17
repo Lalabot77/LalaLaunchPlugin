@@ -1,0 +1,68 @@
+{"EnableDebugLogging":true,"EnableCsvLogging":true,"TargetLaunchRPM":6893.3500685464433,"OptimalRPMTolerance":567.24730445737157}
+
+F3  4793 ,860
+
+Porsche  4178, 595
+
+Unknown 5000, 500
+
+
+🚗 Porsche 911 GT3 Cup (992)
+Clutch Bite Point: 41%
+
+Throttle Position: Full throttle (100%)
+
+Launch Technique: Hold full throttle with the clutch engaged at 41%. Upon the green light, release the clutch smoothly to prevent wheelspin. 
+simhubdash.com
++3
+support.iracing.com
++3
+s100.iracing.com
++3
+support.iracing.com
++2
+reddit.com
++2
+reddit.com
++2
+
+🏎️ Dallara F3
+Clutch Bite Point: Not specified
+
+Throttle Position: Gradual throttle application
+
+Launch Technique: Some drivers prefer starting in 2nd gear. The key is to modulate the throttle and clutch smoothly to prevent wheelspin. 
+youtube.com
++7
+coachdaveacademy.com
++7
+m.youtube.com
++7
+app.tracktitan.io
+reddit.com
+
+🏁 FIA F4
+Clutch Bite Point: 34%
+
+Throttle Position: Full throttle (100%)
+
+Launch Technique: Utilize a dual-clutch setup. Hold the clutch at 34% bite point with full throttle. At the green light, release the launch clutch, then gradually release the remaining clutch to ensure a smooth start. 
+youtube.com
++2
+support.iracing.com
++2
+simhubdash.com
++2
+reddit.com
++1
+reddit.com
++1
+
+🏎️ Mercedes-AMG W13
+Clutch Bite Point: Not specified
+
+Throttle Position: 50%
+
+Launch Technique: Engage the launch control, fully press the clutch, select 2nd gear, and apply 50% throttle. Upon the green light, release the launch control to initiate the start. 
+en.wikipedia.org
+reddit.com

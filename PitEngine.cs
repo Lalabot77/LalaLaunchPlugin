@@ -64,6 +64,15 @@ namespace LaunchPlugin
             _avgPaceAtPit = 0.0;
         }
 
+        public void PrimeInLapTime(double inLapSeconds)
+        {
+            if (inLapSeconds > 20 && inLapSeconds < 900)  // sanity
+            {
+                _inLapTime = inLapSeconds;
+                SimHub.Logging.Current.Debug($"PitEngine: Primed in-lap via previous-lap time = {_inLapTime:F2}s");
+            }
+        }
+
         public void Update(GameData data, PluginManager pluginManager)
         {
             bool isInPitLane = data.NewData.IsInPitLane != 0;
@@ -79,8 +88,18 @@ namespace LaunchPlugin
                 // This is the "Direct Stopwatch" method.
                 if (_pitRoadTimer.IsRunning)
                 {
-                    LastDirectTravelTime = _pitRoadTimer.Elapsed.TotalSeconds - _lastPitStopDuration.TotalSeconds;
-                    SimHub.Logging.Current.Info($"PitEngine: Direct Pit Lane Travel Time calculated: {LastDirectTravelTime:F2}s");
+                    double direct = _pitRoadTimer.Elapsed.TotalSeconds - _lastPitStopDuration.TotalSeconds;
+
+                    // Discard impossible values (e.g., sitting in pits, resets, telemetry oddities)
+                    if (direct < 0 || direct > 300)
+                    {
+                        SimHub.Logging.Current.Warn($"PitEngine: Ignoring invalid Direct Travel Time ({direct:F2}s)");
+                    }
+                    else
+                    {
+                        LastDirectTravelTime = direct;
+                        SimHub.Logging.Current.Info($"PitEngine: Direct Pit Lane Travel Time calculated: {LastDirectTravelTime:F2}s");
+                    }
                 }
             }
 
@@ -131,10 +150,10 @@ namespace LaunchPlugin
             {
                 if (data.NewData.LastLapTime.TotalSeconds > 0)
                 {
-                    _inLapTime = data.NewData.LastLapTime.TotalSeconds;
+                    //_inLapTime = data.NewData.LastLapTime.TotalSeconds;
                     // We'll need to pass the average pace from the main plugin. For now, we'll placeholder it.
                     // This will be the next step.
-                    SimHub.Logging.Current.Info($"PitEngine: In-Lap time captured: {_inLapTime:F2}s");
+                    //SimHub.Logging.Current.Info($"PitEngine: In-Lap time captured: {_inLapTime:F2}s");
                 }
             }
 
@@ -170,14 +189,29 @@ namespace LaunchPlugin
                 return;
             }
 
+            // Baseline pace captured at the pit event (avg or PB fallback chosen upstream)
             _avgPaceAtPit = averagePace;
-            LastTotalPitCycleTimeLoss = (_inLapTime + outLapTime) - (2 * _avgPaceAtPit);
-            LastPaceDeltaNetLoss = LastTotalPitCycleTimeLoss - _lastPitStopDuration.TotalSeconds;
 
-            SimHub.Logging.Current.Info($"PitEngine: Pace Delta Time Loss calculated: Total={LastTotalPitCycleTimeLoss:F2}s, NetTravel={LastPaceDeltaNetLoss:F2}s");
-            SimHub.Logging.Current.Debug($" -> (InLap:{_inLapTime:F2} + OutLap:{outLapTime:F2}) - (2 * AvgPace:{_avgPaceAtPit:F2})");
+            // Per-lap deltas (treat any “gain” as 0 – this is a loss metric)
+            double deltaIn = Math.Max(0.0, _inLapTime - _avgPaceAtPit);
+            double deltaOut = Math.Max(0.0, outLapTime - _avgPaceAtPit);
 
-            // Fire the event with the calculated value
+            // TOTAL CYCLE LOSS: how much in+out were slower than two normal laps
+            // (= (Lin+Lout) - 2*A ; equivalent to ((Lin+Lout)/2 - A)*2)
+            LastTotalPitCycleTimeLoss = deltaIn + deltaOut;
+
+            // NET PACE DELTA LOSS (your request):
+            // subtract ONLY the time stopped on the box (stationary service time)
+            double stopSeconds = _lastPitStopDuration.TotalSeconds;
+            LastPaceDeltaNetLoss = Math.Max(0.0, LastTotalPitCycleTimeLoss - stopSeconds);
+
+            // Diagnostics to verify inputs immediately
+            SimHub.Logging.Current.Info(
+                $"PitEngine: Pace Delta Time Loss calculated: Total={LastTotalPitCycleTimeLoss:F2}s, NetMinusStop={LastPaceDeltaNetLoss:F2}s " +
+                $"(avg={_avgPaceAtPit:F2}s, in={_inLapTime:F2}s, out={outLapTime:F2}s, stop={stopSeconds:F2}s)"
+            );
+
+            // Keep the existing callbacks
             OnValidPitStopTimeLossCalculated?.Invoke(LastTotalPitCycleTimeLoss);
             OnValidPitStopTimeLossCalculated?.Invoke(LastPaceDeltaNetLoss);
             ResetPaceDelta();
