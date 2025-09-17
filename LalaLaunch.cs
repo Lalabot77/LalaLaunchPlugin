@@ -244,8 +244,6 @@ namespace LaunchPlugin
                         stableAvgPace = _lastSeenBestLap.TotalSeconds;
                     }
                     SimHub.Logging.Current.Debug($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
-                    // Pass the data to the PitEngine to handle
-                    _pit.PrimeInLapTime(_lastLapTimeSec);
 
                     // Decide and publish baseline (live-median → profile-avg → session-pb)
                     string paceSource = "live-median";
