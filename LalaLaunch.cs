@@ -143,6 +143,18 @@ namespace LaunchPlugin
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private double _lastPitLossSaved = double.NaN;
 
+        // --- PIT TEST: dash-facing fields (for replay validation) ---
+        double _pitDbg_AvgPaceUsedSec = 0.0;
+        string _pitDbg_AvgPaceSource = "";
+
+        double _pitDbg_InLapSec = 0.0;
+        double _pitDbg_OutLapSec = 0.0;
+        double _pitDbg_DeltaInSec = 0.0;
+        double _pitDbg_DeltaOutSec = 0.0;
+
+        double _pitDbg_CandidateSavedSec = 0.0;
+        string _pitDbg_CandidateSource = "";
+
         // --- Property Changed Interface ---
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -230,7 +242,38 @@ namespace LaunchPlugin
                     SimHub.Logging.Current.Debug($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
                     // Pass the data to the PitEngine to handle
                     _pit.PrimeInLapTime(_lastLapTimeSec);
+
+                    // Decide and publish baseline (live-median → profile-avg → session-pb)
+                    string paceSource = "live-median";
+
+                    if (stableAvgPace <= 0 && ActiveProfile != null)
+                    {
+                        var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
+                        if (trackRecord?.AvgLapTimeDry > 0)
+                        {
+                            stableAvgPace = trackRecord.AvgLapTimeDry.Value / 1000.0;
+                            paceSource = "profile-avg";
+                        }
+                    }
+
+                    if (stableAvgPace <= 0 && _lastSeenBestLap > TimeSpan.Zero)
+                    {
+                        stableAvgPace = _lastSeenBestLap.TotalSeconds;
+                        paceSource = "session-pb";
+                    }
+
+                    _pitDbg_AvgPaceUsedSec = stableAvgPace;
+                    _pitDbg_AvgPaceSource = paceSource;
+
                     _pit.FinalizePaceDeltaCalculation(lastLapSec, stableAvgPace, lastLapLooksClean);
+
+                    // Publish in/out and deltas for the dash
+                    _pitDbg_InLapSec = _lastLapTimeSec;   // the lap we primed as the in-lap
+                    _pitDbg_OutLapSec = lastLapSec;        // the lap that just finished (out-lap)
+
+                    _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec; // can be negative at shortcut tracks
+                    _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
+
                     // Roll the "previous lap" pointer AFTER we used it as in-lap
                     _lastLapTimeSec = lastLapSec;
                 }
@@ -695,6 +738,30 @@ namespace LaunchPlugin
             this.AttachDelegate("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds); // The raw timer for total time spent on pit road (tPit).
             this.AttachDelegate("Pit.Debug.LastPitStopDuration", () => _pit.PitStopDuration.TotalSeconds); // The raw timer for the last stationary pit stop duration (tStop).
             this.AttachDelegate("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss); // --- The net loss from the Pace Delta method ---
+                                                                                              // --- PIT TEST: inputs & outputs for replay validation ---
+            this.AttachDelegate("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
+            this.AttachDelegate("Lala.Pit.AvgPaceSource", () => _pitDbg_AvgPaceSource);
+
+            this.AttachDelegate("Lala.Pit.InLapSec", () => _pitDbg_InLapSec);
+            this.AttachDelegate("Lala.Pit.OutLapSec", () => _pitDbg_OutLapSec);
+            this.AttachDelegate("Lala.Pit.DeltaInSec", () => _pitDbg_DeltaInSec);
+            this.AttachDelegate("Lala.Pit.DeltaOutSec", () => _pitDbg_DeltaOutSec);
+
+            this.AttachDelegate("Lala.Pit.DriveThroughLossSec", () => _pit?.LastTotalPitCycleTimeLoss ?? 0.0);
+            this.AttachDelegate("Lala.Pit.DirectTravelSec", () => _pit?.LastDirectTravelTime ?? 0.0);
+            this.AttachDelegate("Lala.Pit.StopSeconds", () => _pit?.PitStopDuration.TotalSeconds ?? 0.0);
+            this.AttachDelegate("Lala.Pit.NetMinusStopSec", () => _pit?.LastPaceDeltaNetLoss ?? 0.0);
+
+            // From profile: what’s currently stored as “Pit Lane Loss”
+            this.AttachDelegate("Lala.Pit.Profile.PitLaneLossSec", () =>
+            {
+                var ts = ActiveProfile?.FindTrack(CurrentTrackKey);
+                return ts?.PitLaneLossSeconds ?? 0.0;
+            });
+
+            // After a save, show what we saved and why
+            this.AttachDelegate("Lala.Pit.CandidateSavedSec", () => _pitDbg_CandidateSavedSec);
+            this.AttachDelegate("Lala.Pit.CandidateSource", () => _pitDbg_CandidateSource); // "total" or "direct"
 
             // --- DELEGATES FOR DASHBOARD STATE & OVERLAYS ---
             this.AttachDelegate("CurrentDashPage", () => Screens.CurrentPage);
@@ -945,6 +1012,8 @@ namespace LaunchPlugin
 
                 ProfilesViewModel?.SaveProfiles();
                 ProfilesViewModel?.RefreshTracksForSelectedProfile();
+                _pitDbg_CandidateSavedSec = rounded;
+                _pitDbg_CandidateSource = (Math.Abs(candidate - total) < 0.001) ? "total" : "direct";
 
                 SimHub.Logging.Current.Info(
                     $"LalaLaunch: Saved pit lane loss: {rounded:F2}s (direct {direct:F2}, total {total:F2})");
