@@ -1,0 +1,457 @@
+{
+  "Variables": {
+    "DashboardVariables": []
+  },
+  "DashboardDebugManager": {
+    "WindowPositionSettings": {
+      "IsFullScreen": false,
+      "Position": "208,208,800,450",
+      "TopMost": false,
+      "AllowTransparency": false,
+      "CloseOnMonitorLoss": false,
+      "NoWindowActivate": false
+    }
+  },
+  "Version": 2,
+  "Id": "PitTest",
+  "BaseHeight": 500,
+  "BaseWidth": 800,
+  "BackgroundColor": "#FF000000",
+  "Screens": [
+    {
+      "RenderingSkip": 0,
+      "Name": "Pit Test",
+      "InGameScreen": true,
+      "IdleScreen": true,
+      "PitScreen": false,
+      "ScreenId": "bba1d056-5fb0-492b-93a4-7bbd214e99e5",
+      "AllowOverlays": true,
+      "IsForegroundLayer": false,
+      "IsOverlayLayer": false,
+      "OverlayTriggerExpression": {
+        "Expression": ""
+      },
+      "ScreenEnabledExpression": {
+        "Expression": ""
+      },
+      "OverlayMaxDuration": 0,
+      "OverlayMinDuration": 0,
+      "IsBackgroundLayer": false,
+      "BackgroundColor": "#FF000000",
+      "Items": [
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Bold",
+          "FontSize": 24.0,
+          "Text": "BASELINE & LAPS",
+          "TextColor": "#FFFFD700",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 1,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 20.0,
+          "Top": 20.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 400.0,
+          "Name": "Header BASELINE & LAPS",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Avg used:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 20.0,
+          "Top": 60.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Avg used:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Avg used: ' + format([Lala.Pit.AvgPaceUsedSec], '0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Source:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 20.0,
+          "Top": 100.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Source:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Source: ' + [Lala.Pit.AvgPaceSource]"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "In lap:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 20.0,
+          "Top": 140.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "In lap:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'In lap: ' + format([Lala.Pit.InLapSec], '0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Out lap:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 20.0,
+          "Top": 180.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Out lap:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Out lap: ' + format([Lala.Pit.OutLapSec], '0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Δin:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 20.0,
+          "Top": 220.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Δin:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Δin: ' + format([Lala.Pit.DeltaInSec], '+0.00;-0.00;0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Δout:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 20.0,
+          "Top": 260.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Δout:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Δout: ' + format([Lala.Pit.DeltaOutSec], '+0.00;-0.00;0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Bold",
+          "FontSize": 24.0,
+          "Text": "LOSSES & SAVE",
+          "TextColor": "#FFFFD700",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 1,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 460.0,
+          "Top": 20.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 400.0,
+          "Name": "Header LOSSES & SAVE",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Direct:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 460.0,
+          "Top": 60.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Direct:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Direct: ' + format([Lala.Pit.DirectTravelSec], '0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "DTL (Total):",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 460.0,
+          "Top": 100.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "DTL (Total):",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'DTL (Total): ' + format([Lala.Pit.DriveThroughLossSec], '0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Stop:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 460.0,
+          "Top": 140.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Stop:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Stop: ' + format([Lala.Pit.StopSeconds], '0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Net minus stop:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 460.0,
+          "Top": 180.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Net minus stop:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Net minus stop: ' + format([Lala.Pit.NetMinusStopSec], '0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Profile Pit Loss:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 460.0,
+          "Top": 220.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Profile Pit Loss:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Profile Pit Loss: ' + format([Lala.Pit.Profile.PitLaneLossSec], '0.00')"
+              },
+              "Mode": 2
+            }
+          }
+        },
+        {
+          "$type": "SimHub.Plugins.OutputPlugins.GraphicalDash.Models.TextItem, SimHub.Plugins",
+          "IsTextItem": true,
+          "Font": "Roboto",
+          "FontWeight": "Medium",
+          "FontSize": 22.0,
+          "Text": "Last saved:",
+          "TextColor": "#FFFFFFFF",
+          "HorizontalAlignment": 0,
+          "VerticalAlignment": 0,
+          "BackgroundColor": "#00FFFFFF",
+          "Height": 30.0,
+          "Left": 460.0,
+          "Top": 260.0,
+          "Visible": true,
+          "BlinkPhasisInverted": false,
+          "Width": 420.0,
+          "Name": "Last saved:",
+          "RenderingSkip": 0,
+          "MinimumRefreshIntervalMS": 0.0,
+          "Bindings": {
+            "Text": {
+              "Formula": {
+                "Expression": "'Last saved: ' + format([Lala.Pit.CandidateSavedSec], '0.00') + ' (' + [Lala.Pit.CandidateSource] + ')'"
+              },
+              "Mode": 2
+            }
+          }
+        }
+      ],
+      "MinimumRefreshIntervalMS": 0.0,
+      "BaseWidth": 800
+    }
+  ],
+  "SnapToGrid": false,
+  "HideLabels": true,
+  "ShowForeground": true,
+  "ForegroundOpacity": 100.0,
+  "ShowBackground": true,
+  "BackgroundOpacity": 100.0,
+  "ShowBoundingRectangles": false,
+  "GridSize": 10,
+  "Images": [],
+  "Metadata": {
+    "Name": "Pit Test",
+    "Author": "LalaLaunch",
+    "Description": "Pit stop testing overlay with DTL, Direct, Net, baseline & save info."
+  },
+  "ShowOnScreenControls": true,
+  "IsOverlay": false,
+  "EnableClickThroughOverlay": true,
+  "EnableOnDashboardMessaging": true,
+  "UseStrictJSIsolation": false,
+  "UseStrictJSIsolationWarning": true
+}
