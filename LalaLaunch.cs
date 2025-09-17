@@ -189,6 +189,33 @@ namespace LaunchPlugin
             return (arr.Length % 2 == 1) ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2.0;
         }
 
+        // Returns profile average lap in *seconds* for the current car+track, 0 if none.
+        // Prefers Dry avg, falls back to Wet if Dry is unset.
+        private double GetProfileAvgLapSeconds()
+        {
+            try
+            {
+                var car = ActiveProfile; // your existing pointer
+                if (car == null) return 0.0;
+
+                // Try by key first, then by display name (your CarProfile has this utility)
+                var ts =
+                    car.ResolveTrackByNameOrKey(CurrentTrackKey) ??
+                    car.ResolveTrackByNameOrKey(CurrentTrackName);
+
+                if (ts == null) return 0.0;
+
+                // TrackStats stores lap averages in milliseconds (nullable)
+                var ms =
+                    (ts.AvgLapTimeDry ?? 0) > 0 ? (ts.AvgLapTimeDry ?? 0) :
+                    (ts.AvgLapTimeWet ?? 0);
+
+                if (ms <= 0) return 0.0;
+                return ms / 1000.0; // convert ms -> sec
+            }
+            catch { return 0.0; }
+        }
+
         private void UpdateLiveFuelCalcs(GameData data)
         {
             // --- 1) Gather required data ---
@@ -245,27 +272,54 @@ namespace LaunchPlugin
                     }
                     SimHub.Logging.Current.Debug($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
 
-                    // Decide and publish baseline (live-median → profile-avg → session-pb)
-                    string paceSource = "live-median";
+                    // Decide and publish baseline (profile-avg → live-median → session-pb)
+                    string paceSource = "live-median"; // default to whatever stableAvgPace currently holds
 
-                    if (stableAvgPace <= 0 && ActiveProfile != null)
+                    // 1) Prefer profile average (Dry). Fall back to name if key resolve fails.
+                    try
                     {
-                        var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
-                        if (trackRecord?.AvgLapTimeDry > 0)
+                        if (ActiveProfile != null)
                         {
-                            stableAvgPace = trackRecord.AvgLapTimeDry.Value / 1000.0;
-                            paceSource = "profile-avg";
+                            var tr =
+                                ActiveProfile.FindTrack(CurrentTrackKey) ??
+                                ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackName);
+
+                            if (tr?.AvgLapTimeDry > 0)
+                            {
+                                stableAvgPace = tr.AvgLapTimeDry.Value / 1000.0; // ms -> sec
+                                paceSource = "profile-avg";
+                            }
                         }
                     }
+                    catch { /* keep fallback behavior */ }
 
+                    // 2) If still not set (>0), leave live-median as-is (stableAvgPace already holds it).
+                    //    3) If live-median is also missing, fall back to the session PB.
                     if (stableAvgPace <= 0 && _lastSeenBestLap > TimeSpan.Zero)
                     {
                         stableAvgPace = _lastSeenBestLap.TotalSeconds;
                         paceSource = "session-pb";
                     }
 
+                    // Publish to dash
                     _pitDbg_AvgPaceUsedSec = stableAvgPace;
                     _pitDbg_AvgPaceSource = paceSource;
+                    
+                    // Publish lap numbers to dash as soon as we cross S/F, based on pit state
+                    var pitPhaseBefore = _pit?.CurrentState ?? PitEngine.PaceDeltaState.Idle;
+
+                    if (pitPhaseBefore == PitEngine.PaceDeltaState.AwaitingPitLap)
+                    {
+                        // This crossing just completed the PIT LAP (includes the stop)
+                        _pitDbg_InLapSec = lastLapSec;
+                        _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec;
+                    }
+                    else if (pitPhaseBefore == PitEngine.PaceDeltaState.AwaitingOutLap)
+                    {
+                        // This crossing just completed the OUT LAP
+                        _pitDbg_OutLapSec = lastLapSec;
+                        _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
+                    }
 
                     _pit.FinalizePaceDeltaCalculation(lastLapSec, stableAvgPace, lastLapLooksClean);
 
@@ -756,6 +810,7 @@ namespace LaunchPlugin
             this.AttachDelegate("Pit.LastTotalPitCycleTimeLoss", () => _pit.LastTotalPitCycleTimeLoss); // The final calculated value from the "Race Pace Delta" method.
             this.AttachDelegate("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds); // The raw timer for total time spent on pit road (tPit).
             this.AttachDelegate("Pit.Debug.LastPitStopDuration", () => _pit.PitStopDuration.TotalSeconds); // The raw timer for the last stationary pit stop duration (tStop).
+            this.AttachDelegate("Pit.Debug.LastTimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds);
             this.AttachDelegate("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss); // --- The net loss from the Pace Delta method ---
             // --- PIT TEST: inputs & outputs for replay validation ---
             this.AttachDelegate("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
@@ -772,7 +827,14 @@ namespace LaunchPlugin
             this.AttachDelegate("Lala.Pit.DriveThroughLossSec", () => _pit?.LastTotalPitCycleTimeLoss ?? 0.0);
             this.AttachDelegate("Lala.Pit.DirectTravelSec", () => _pit?.LastDirectTravelTime ?? 0.0);
             this.AttachDelegate("Lala.Pit.StopSeconds", () => _pit?.PitStopDuration.TotalSeconds ?? 0.0);
-            this.AttachDelegate("Lala.Pit.NetMinusStopSec", () => _pit?.LastPaceDeltaNetLoss ?? 0.0);
+            // Service stop loss = DTL (moving loss vs pace) + stationary stop time
+            this.AttachDelegate("Lala.Pit.ServiceStopLossSec", () =>
+            {
+                var dtl = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;             // already >= 0
+                var stop = _pit?.PitStopDuration.TotalSeconds ?? 0.0;          // >= 0 once latched
+                var val = dtl + stop;
+                return val < 0 ? 0.0 : val;
+            });
 
             // From profile: what’s currently stored as “Pit Lane Loss”
             this.AttachDelegate("Lala.Pit.Profile.PitLaneLossSec", () =>
