@@ -175,8 +175,20 @@ namespace LaunchPlugin
             {
                 if (_bestLapMs != value)
                 {
+                    var old = _bestLapMs;
                     _bestLapMs = value;
                     OnPropertyChanged();
+
+                    // LOG: PB changed (covers live PB and manual text edits)
+                    try
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"[Profiles][Lap] PB updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMs)}'"
+                        );
+                    }
+                    catch { /* logging must never throw */ }
+
                     if (!_suppressBestLapSync)
                     {
                         BestLapMsText = MillisecondsToLapTimeString(_bestLapMs);
@@ -184,6 +196,7 @@ namespace LaunchPlugin
                 }
             }
         }
+
 
         public string BestLapMsText
         {
@@ -261,8 +274,20 @@ namespace LaunchPlugin
             {
                 if (_avgLapTimeDry != value)
                 {
+                    var old = _avgLapTimeDry;
                     _avgLapTimeDry = value;
                     OnPropertyChanged();
+
+                    // LOG: Avg dry lap changed
+                    try
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"[Profiles][Lap] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeDry)}'"
+                        );
+                    }
+                    catch { }
+
                     if (!_suppressAvgLapDrySync)
                     {
                         AvgLapTimeDryText = MillisecondsToLapTimeString(_avgLapTimeDry);
@@ -270,6 +295,7 @@ namespace LaunchPlugin
                 }
             }
         }
+
 
         public string AvgLapTimeDryText
         {
@@ -350,8 +376,20 @@ namespace LaunchPlugin
             {
                 if (_avgLapTimeWet != value)
                 {
+                    var old = _avgLapTimeWet;
                     _avgLapTimeWet = value;
                     OnPropertyChanged();
+
+                    // LOG: Avg wet lap changed
+                    try
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"[Profiles][Lap] AvgWet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeWet)}'"
+                        );
+                    }
+                    catch { }
+
                     if (!_suppressAvgLapWetSync)
                     {
                         AvgLapTimeWetText = MillisecondsToLapTimeString(_avgLapTimeWet);
@@ -359,6 +397,7 @@ namespace LaunchPlugin
                 }
             }
         }
+
 
         public string AvgLapTimeWetText
         {

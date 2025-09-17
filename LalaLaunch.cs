@@ -140,6 +140,8 @@ namespace LaunchPlugin
         private TimeSpan _lastSeenBestLap = TimeSpan.Zero;
         private readonly List<double> _recentLeaderLapTimes = new List<double>(); // seconds
         public double LiveLeaderAvgPaceSeconds { get; private set; }
+        private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
+        private double _lastPitLossSaved = double.NaN;
 
         // --- Property Changed Interface ---
         public event PropertyChangedEventHandler PropertyChanged;
@@ -220,8 +222,17 @@ namespace LaunchPlugin
                             SimHub.Logging.Current.Debug($"Pace Delta: No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
                         }
                     }
+                    // --- PB tertiary fallback (for replays / no live median and no profile avg) ---
+                    if (stableAvgPace <= 0 && _lastSeenBestLap > TimeSpan.Zero)
+                    {
+                        stableAvgPace = _lastSeenBestLap.TotalSeconds;
+                    }
+                    SimHub.Logging.Current.Debug($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
                     // Pass the data to the PitEngine to handle
+                    _pit.PrimeInLapTime(_lastLapTimeSec);
                     _pit.FinalizePaceDeltaCalculation(lastLapSec, stableAvgPace, lastLapLooksClean);
+                    // Roll the "previous lap" pointer AFTER we used it as in-lap
+                    _lastLapTimeSec = lastLapSec;
                 }
             }
 
@@ -290,11 +301,12 @@ namespace LaunchPlugin
                 // Start the next lap’s measurement window
                 _lapStartFuel = currentFuel;
 
-                // --- Optional: Live lap pace bookkeeping (only if your backing members exist) ---
+                // --- Live lap pace bookkeeping (only if your backing members exist) ---
                 // Prefer SimHub/iRacing last-lap if available; basic guard against out/in laps.
                 var lastLapTs = data.NewData?.LastLapTime ?? TimeSpan.Zero;
                 double lastLapSec = lastLapTs.TotalSeconds;
                 bool lastLapLooksClean = !inPitArea && lastLapSec > 20 && lastLapSec < 900; // 20s..15min
+
 
                 if (lastLapLooksClean)
                 {
@@ -614,8 +626,7 @@ namespace LaunchPlugin
 
         private string _lastSeenCar = "";
         private string _lastSeenTrack = "";
-
-
+        private double _lastLapTimeSec = 0.0;   // last completed lap time
 
         // --- Session Launch RPM Tracker ---
         private readonly List<double> _sessionLaunchRPMs = new List<double>();
@@ -642,36 +653,8 @@ namespace LaunchPlugin
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
             // The Action for "Apply to Live" in the Profiles tab is now simplified: just update the ActiveProfile
-            ProfilesViewModel = new ProfilesManagerViewModel(
-                this.PluginManager,
-                // applyProfileToLiveAction:
-                (profile) =>
-                {
-                    // 1) Set ActiveProfile so Profiles tab shows the selected car immediately
-                    this.ActiveProfile = profile;
-
-                    // 2) Decide which track to push to the Fuel tab:
-                    //    - Prefer the Profiles tab's currently selected track
-                    //    - Else the first track in that profile
-                    //    - Else "Default"
-                    var selectedTrackName =
-                        this.ProfilesViewModel?.SelectedTrack?.DisplayName
-                        ?? this.ProfilesViewModel?.SelectedProfile?.TrackStats?.Values
-                               .OrderBy(t => t.DisplayName ?? t.Key ?? string.Empty)
-                               .FirstOrDefault()?.DisplayName
-                        ?? "Default";
-
-                    // 3) Tell the Fuel tab to reflect this car + track now
-                    this.FuelCalculator?.SetLiveSession(profile.ProfileName, selectedTrackName);
-
-                    SimHub.Logging.Current.Info(
-                        $"LalaLaunch: Apply-to-live -> Car='{profile.ProfileName}', Track='{selectedTrackName}'");
-                },
-                // getCurrentCarModel:
-                () => this.CurrentCarModel,
-                // getCurrentTrackKey:
-                () => this.CurrentTrackKey
-            ); ProfilesViewModel.LoadProfiles();
+            ProfilesViewModel = new ProfilesManagerViewModel(this.PluginManager, (profile) => { this.ActiveProfile = profile; }, () => this.CurrentCarModel, () => this.CurrentTrackKey);
+            ProfilesViewModel.LoadProfiles();
 
             // --- Set the initial ActiveProfile on startup ---
             // It will be "Default Settings" or the first profile if that doesn't exist.
@@ -914,30 +897,64 @@ namespace LaunchPlugin
 
         private void Pit_OnValidPitStopTimeLossCalculated(double timeLossSeconds)
         {
-            if (ActiveProfile == null || string.IsNullOrEmpty(CurrentTrackName) || timeLossSeconds <= 0)
+            // Basic guards
+            if (ActiveProfile == null || string.IsNullOrEmpty(CurrentTrackKey))
             {
-                SimHub.Logging.Current.Warn("LalaLaunch: Cannot save pit time loss, no active profile, track, or valid time loss value.");
+                SimHub.Logging.Current.Warn("LalaLaunch: Cannot save pit time loss – no active profile or track.");
                 return;
             }
 
-            // Round the calculated value to the nearest whole second, as requested.
-            var roundedTimeLoss = Math.Round(timeLossSeconds);
+            // Debounce: engine fires twice (Total & Net); only handle once
+            var now = DateTime.UtcNow;
+            if ((now - _lastPitLossSavedAtUtc).TotalSeconds < 1.0)
+                return;
 
+            // Choose a conservative candidate
+            double direct = _pit?.LastDirectTravelTime ?? 0.0;          // entry→exit while moving
+            double total = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;     // (in-avg)+(out-avg), clamped ≥0
+            double candidate = Math.Max(direct, total);
+
+            // Sanity window (ignore teleport / noise)
+            if (candidate < 5.0 || candidate > 180.0)
+            {
+                SimHub.Logging.Current.Warn($"LalaLaunch: Skipping pit-lane loss candidate {candidate:F2}s (direct {direct:F2}, total {total:F2})");
+                return;
+            }
+
+            // Skip if we just saved the exact same value recently
+            if (!double.IsNaN(_lastPitLossSaved) &&
+                Math.Abs(candidate - _lastPitLossSaved) < 0.01 &&
+                (now - _lastPitLossSavedAtUtc).TotalSeconds < 10.0)
+            {
+                return;
+            }
+
+            // Round (keep 2 dp so it matches UI/params nicely)
+            double rounded = Math.Round(candidate, 2);
+
+            // Persist to the current car/track profile
             var trackRecord = ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);
             if (trackRecord != null)
             {
-                // 1. Update the in-memory profile value. This will be saved when you exit or save manually.
-                trackRecord.PitLaneLossSeconds = roundedTimeLoss;
+                trackRecord.PitLaneLossSeconds = rounded;
+                trackRecord.PitLaneLossSecondsText = rounded.ToString(CultureInfo.InvariantCulture);
 
-                // 2. Push the new value directly to the Fuel Calculator UI for a live update.
+                // Live UI update
                 if (FuelCalculator != null)
-                {
-                    FuelCalculator.PitLaneTimeLoss = roundedTimeLoss;
-                }
+                    FuelCalculator.PitLaneTimeLoss = rounded;
 
-                SimHub.Logging.Current.Info($"LalaLaunch: Mined new PitLaneTimeLoss ({roundedTimeLoss}s) and updated profile/UI.");
+                ProfilesViewModel?.SaveProfiles();
+                ProfilesViewModel?.RefreshTracksForSelectedProfile();
+
+                SimHub.Logging.Current.Info(
+                    $"LalaLaunch: Saved pit lane loss: {rounded:F2}s (direct {direct:F2}, total {total:F2})");
             }
+
+            // Update debounce memory
+            _lastPitLossSaved = rounded;
+            _lastPitLossSavedAtUtc = now;
         }
+
 
         public void End(PluginManager pluginManager)
         {
