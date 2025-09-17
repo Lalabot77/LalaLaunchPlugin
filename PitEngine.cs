@@ -10,7 +10,8 @@ namespace LaunchPlugin
         // --- Public surface (used by MSG.PitPhaseDebug) ---
         public PitPhase CurrentPitPhase { get; private set; } = PitPhase.None;
         public bool IsOnPitRoad { get; private set; } = false;
-        public TimeSpan TimeOnPitRoad => _pitRoadTimer.Elapsed;
+        // Live while in lane; frozen (latched) after exit until next pit event
+        public TimeSpan TimeOnPitRoad => _pitRoadTimer.IsRunning ? _pitRoadTimer.Elapsed : _lastTimeOnPitRoad;
         public TimeSpan PitStopDuration => _lastPitStopDuration;
 
         // --- Public properties for our calculated time loss values ---
@@ -26,10 +27,14 @@ namespace LaunchPlugin
         private readonly Stopwatch _pitRoadTimer = new Stopwatch();   // time spent in pit lane
         private readonly Stopwatch _pitStopTimer = new Stopwatch();   // time spent in stall
         private TimeSpan _lastPitStopDuration = TimeSpan.Zero;
+        private TimeSpan _lastTimeOnPitRoad = TimeSpan.Zero; // <-- NEW (latched tPit)
+
 
         // --- State management for the Pace Delta calculation ---
-        private enum PaceDeltaState { Idle, AwaitingPitLap, AwaitingOutLap, Complete }
+
+        public enum PaceDeltaState { Idle, AwaitingPitLap, AwaitingOutLap, Complete }
         private PaceDeltaState _paceDeltaState = PaceDeltaState.Idle;
+        public PaceDeltaState CurrentState => _paceDeltaState;
         private double _inLapTime = 0.0;
         private double _avgPaceAtPit = 0.0;
         private double _pitLapSeconds = 0.0; // stores the actual pit lap (includes stop)
@@ -63,6 +68,7 @@ namespace LaunchPlugin
             _paceDeltaState = PaceDeltaState.Idle;
             _inLapTime = 0.0;
             _avgPaceAtPit = 0.0;
+            _lastTimeOnPitRoad = TimeSpan.Zero;
         }
 
         public void PrimeInLapTime(double inLapSeconds)
@@ -89,6 +95,8 @@ namespace LaunchPlugin
                 // This is the "Direct Stopwatch" method.
                 if (_pitRoadTimer.IsRunning)
                 {
+                    _lastTimeOnPitRoad = _pitRoadTimer.Elapsed; // <-- NEW: latch tPit
+
                     double direct = _pitRoadTimer.Elapsed.TotalSeconds - _lastPitStopDuration.TotalSeconds;
 
                     // Discard impossible values (e.g., sitting in pits, resets, telemetry oddities)
@@ -201,7 +209,7 @@ namespace LaunchPlugin
                     ResetPaceDelta();
                     return;
                 }
-
+              
                 _avgPaceAtPit = averagePace;
                 _pitLapSeconds = outLapTime;   // this first finalize call is the PIT LAP
 
