@@ -155,6 +155,10 @@ namespace LaunchPlugin
         double _pitDbg_CandidateSavedSec = 0.0;
         string _pitDbg_CandidateSource = "";
 
+        // --- PIT TEST: raw formula diagnostics ---
+        double _pitDbg_RawPitLapSec = 0.0;       // derived: lap that included the stop (see formula)
+        double _pitDbg_RawDTLFormulaSec = 0.0;   // (Lpit - Stop + Lout) - 2*Avg
+
         // --- Property Changed Interface ---
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
@@ -276,6 +280,23 @@ namespace LaunchPlugin
 
                     // Roll the "previous lap" pointer AFTER we used it as in-lap
                     _lastLapTimeSec = lastLapSec;
+                    // --- PIT TEST: derive the raw pit lap and the formula DTL for visibility ---
+                    // Inputs at this point:
+                    //   DTL  = _pit.LastTotalPitCycleTimeLoss
+                    //   Avg  = _pitDbg_AvgPaceUsedSec
+                    //   Lout = lastLapSec
+                    //   Stop = _pit.PitStopDuration.TotalSeconds
+                    double dtl = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
+                    double avg = _pitDbg_AvgPaceUsedSec;
+                    double lout = lastLapSec;
+                    double stop = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
+
+                    // Reconstruct the raw pit-lap time that would include the stop:
+                    _pitDbg_RawPitLapSec = dtl + (2.0 * avg) - lout + stop;
+
+                    // Show the formula directly: (Lpit - Stop + Lout) - 2*Avg
+                    _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stop + lout) - (2.0 * avg);
+
                 }
             }
 
@@ -738,9 +759,12 @@ namespace LaunchPlugin
             this.AttachDelegate("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds); // The raw timer for total time spent on pit road (tPit).
             this.AttachDelegate("Pit.Debug.LastPitStopDuration", () => _pit.PitStopDuration.TotalSeconds); // The raw timer for the last stationary pit stop duration (tStop).
             this.AttachDelegate("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss); // --- The net loss from the Pace Delta method ---
-                                                                                              // --- PIT TEST: inputs & outputs for replay validation ---
+            // --- PIT TEST: inputs & outputs for replay validation ---
             this.AttachDelegate("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
             this.AttachDelegate("Lala.Pit.AvgPaceSource", () => _pitDbg_AvgPaceSource);
+            // Raw components / formula view
+            this.AttachDelegate("Lala.Pit.Raw.PitLapSec", () => _pitDbg_RawPitLapSec);
+            this.AttachDelegate("Lala.Pit.Raw.DTLFormulaSec", () => _pitDbg_RawDTLFormulaSec);
 
             this.AttachDelegate("Lala.Pit.InLapSec", () => _pitDbg_InLapSec);
             this.AttachDelegate("Lala.Pit.OutLapSec", () => _pitDbg_OutLapSec);
@@ -977,9 +1001,28 @@ namespace LaunchPlugin
                 return;
 
             // Choose a conservative candidate
+            // Prefer DTL (lap-delta drive-through loss). If it's null/NaN/≤0, fallback to Direct.
             double direct = _pit?.LastDirectTravelTime ?? 0.0;          // entry→exit while moving
-            double total = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;     // (in-avg)+(out-avg), clamped ≥0
-            double candidate = Math.Max(direct, total);
+            double total = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;     // Δin + Δout (can include shortcut credit)
+
+            double candidate;
+            if (total > 0.0 && total < 180.0)        // accept any positive DTL in a sane window
+            {
+                candidate = total;                   // primary: race-pace delta
+                _pitDbg_CandidateSource = "total";
+            }
+            else if (direct > 0.0 && direct < 180.0) // fallback
+            {
+                candidate = direct;
+                _pitDbg_CandidateSource = "direct";
+            }
+            else
+            {
+                SimHub.Logging.Current.Warn(
+                    $"LalaLaunch: Skipping pit-lane loss candidate (total {total:F2}, direct {direct:F2})");
+                return;
+            }
+
 
             // Sanity window (ignore teleport / noise)
             if (candidate < 5.0 || candidate > 180.0)
