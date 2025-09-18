@@ -353,29 +353,9 @@ namespace LaunchPlugin
                     _pitDbg_RawPitLapSec = dtl + (2.0 * _pitDbg_AvgPaceUsedSec) - _pitDbg_OutLapSec + stop;
                     _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stop + _pitDbg_OutLapSec) - (2.0 * _pitDbg_AvgPaceUsedSec);
                     _pitFreezeUntilNextCycle = true;
-                    
-                    if (!_pitFreezeUntilNextCycle)
-                    {
-                        // Publish in/out and deltas for the dash
-                        _pitDbg_InLapSec = _lastLapTimeSec;   // the lap we primed as the in-lap
-                        _pitDbg_OutLapSec = lastLapSec;        // the lap that just finished (out-lap)
-
-                        _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec; // can be negative at shortcut tracks
-                        _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
-                    }
 
                     // Roll the "previous lap" pointer AFTER we used it as in-lap
                     _lastLapTimeSec = lastLapSec;
-                                        
-                    double avg = _pitDbg_AvgPaceUsedSec;
-                    double lout = lastLapSec;
-                    
-                    // Reconstruct the raw pit-lap time that would include the stop:
-                    _pitDbg_RawPitLapSec = dtl + (2.0 * avg) - lout + stop;
-
-                    // Show the formula directly: (Lpit - Stop + Lout) - 2*Avg
-                    _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stop + lout) - (2.0 * avg);
-
                 }
             }
 

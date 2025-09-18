@@ -35,7 +35,6 @@ namespace LaunchPlugin
         public enum PaceDeltaState { Idle, AwaitingPitLap, AwaitingOutLap, Complete }
         private PaceDeltaState _paceDeltaState = PaceDeltaState.Idle;
         public PaceDeltaState CurrentState => _paceDeltaState;
-        private double _inLapTime = 0.0;
         private double _avgPaceAtPit = 0.0;
         private double _pitLapSeconds = 0.0; // stores the actual pit lap (includes stop)
 
@@ -66,18 +65,8 @@ namespace LaunchPlugin
             LastDirectTravelTime = 0.0;
             LastTotalPitCycleTimeLoss = 0.0;
             _paceDeltaState = PaceDeltaState.Idle;
-            _inLapTime = 0.0;
             _avgPaceAtPit = 0.0;
             _lastTimeOnPitRoad = TimeSpan.Zero;
-        }
-
-        public void PrimeInLapTime(double inLapSeconds)
-        {
-            if (inLapSeconds > 20 && inLapSeconds < 900)  // sanity
-            {
-                _inLapTime = inLapSeconds;
-                SimHub.Logging.Current.Debug($"PitEngine: Primed in-lap via previous-lap time = {_inLapTime:F2}s");
-            }
         }
 
         public void Update(GameData data, PluginManager pluginManager)
@@ -159,19 +148,6 @@ namespace LaunchPlugin
             // --- Store the previous phase before updating to the new one ---
             var previousPhase = CurrentPitPhase;
             UpdatePitPhase(data, pluginManager);
-
-            // --- Logic for the "Race Pace Delta" state machine ---
-            // If the phase just changed to InBox, capture the In-Lap time.
-            if (CurrentPitPhase == PitPhase.InBox && previousPhase != PitPhase.InBox)
-            {
-                if (data.NewData.LastLapTime.TotalSeconds > 0)
-                {
-                    //_inLapTime = data.NewData.LastLapTime.TotalSeconds;
-                    // We'll need to pass the average pace from the main plugin. For now, we'll placeholder it.
-                    // This will be the next step.
-                    //SimHub.Logging.Current.Info($"PitEngine: In-Lap time captured: {_inLapTime:F2}s");
-                }
-            }
 
             // If we have just left the pits, start waiting for the out-lap.
             if (justExitedPits)
@@ -256,7 +232,6 @@ namespace LaunchPlugin
         private void ResetPaceDelta()
         {
             _paceDeltaState = PaceDeltaState.Idle;
-            _inLapTime = 0.0;
             _avgPaceAtPit = 0.0;
             _pitLapSeconds = 0.0;
         }
