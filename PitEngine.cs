@@ -13,6 +13,21 @@ namespace LaunchPlugin
         // Live while in lane; frozen (latched) after exit until next pit event
         public TimeSpan TimeOnPitRoad => _pitRoadTimer.IsRunning ? _pitRoadTimer.Elapsed : _lastTimeOnPitRoad;
         public TimeSpan PitStopDuration => _lastPitStopDuration;
+        /// <summary>
+        /// Live-or-latched pit stop seconds for the dash:
+        /// - Counts up while the car is stationary in the pit box (stopwatch running)
+        /// - Freezes at the final value once you leave the box (latched TimeSpan)
+        /// </summary>
+        public double PitStopElapsedSec
+        {
+            get
+            {
+                if (_pitStopTimer != null && _pitStopTimer.IsRunning)
+                    return _pitStopTimer.Elapsed.TotalSeconds;
+
+                return _lastPitStopDuration.TotalSeconds; // 0 if we’ve never had a stop
+            }
+        }
 
         // --- Public properties for our calculated time loss values ---
         public double LastDirectTravelTime { get; private set; } = 0.0;
@@ -35,7 +50,6 @@ namespace LaunchPlugin
         public enum PaceDeltaState { Idle, AwaitingPitLap, AwaitingOutLap, Complete }
         private PaceDeltaState _paceDeltaState = PaceDeltaState.Idle;
         public PaceDeltaState CurrentState => _paceDeltaState;
-        private double _inLapTime = 0.0;
         private double _avgPaceAtPit = 0.0;
         private double _pitLapSeconds = 0.0; // stores the actual pit lap (includes stop)
 
@@ -66,18 +80,8 @@ namespace LaunchPlugin
             LastDirectTravelTime = 0.0;
             LastTotalPitCycleTimeLoss = 0.0;
             _paceDeltaState = PaceDeltaState.Idle;
-            _inLapTime = 0.0;
             _avgPaceAtPit = 0.0;
             _lastTimeOnPitRoad = TimeSpan.Zero;
-        }
-
-        public void PrimeInLapTime(double inLapSeconds)
-        {
-            if (inLapSeconds > 20 && inLapSeconds < 900)  // sanity
-            {
-                _inLapTime = inLapSeconds;
-                SimHub.Logging.Current.Debug($"PitEngine: Primed in-lap via previous-lap time = {_inLapTime:F2}s");
-            }
         }
 
         public void Update(GameData data, PluginManager pluginManager)
@@ -148,8 +152,8 @@ namespace LaunchPlugin
 
                 // --- NEW: Add validation check for our internal tStop timer ---
                 object stopTimeProp = pluginManager.GetPropertyValue("DataCorePlugin.GameData.LastPitStopDuration");
-                TimeSpan simhubStopTime = (stopTimeProp is TimeSpan)
-                    ? (TimeSpan)stopTimeProp
+                TimeSpan simhubStopTime = (stopTimeProp is TimeSpan span)
+                    ? span
                     : TimeSpan.FromSeconds(Convert.ToDouble(stopTimeProp ?? 0.0));
                 SimHub.Logging.Current.Debug($"PitEngine: Stop Time Validation -> Internal: {_lastPitStopDuration.TotalSeconds:F2}s, SimHub: {simhubStopTime.TotalSeconds:F2}s");
 
@@ -157,21 +161,8 @@ namespace LaunchPlugin
             }
 
             // --- Store the previous phase before updating to the new one ---
-            var previousPhase = CurrentPitPhase;
+            //var previousPhase = CurrentPitPhase;
             UpdatePitPhase(data, pluginManager);
-
-            // --- Logic for the "Race Pace Delta" state machine ---
-            // If the phase just changed to InBox, capture the In-Lap time.
-            if (CurrentPitPhase == PitPhase.InBox && previousPhase != PitPhase.InBox)
-            {
-                if (data.NewData.LastLapTime.TotalSeconds > 0)
-                {
-                    //_inLapTime = data.NewData.LastLapTime.TotalSeconds;
-                    // We'll need to pass the average pace from the main plugin. For now, we'll placeholder it.
-                    // This will be the next step.
-                    //SimHub.Logging.Current.Info($"PitEngine: In-Lap time captured: {_inLapTime:F2}s");
-                }
-            }
 
             // If we have just left the pits, start waiting for the out-lap.
             if (justExitedPits)
@@ -256,7 +247,6 @@ namespace LaunchPlugin
         private void ResetPaceDelta()
         {
             _paceDeltaState = PaceDeltaState.Idle;
-            _inLapTime = 0.0;
             _avgPaceAtPit = 0.0;
             _pitLapSeconds = 0.0;
         }
