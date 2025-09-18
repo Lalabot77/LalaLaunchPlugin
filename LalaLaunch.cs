@@ -140,12 +140,12 @@ namespace LaunchPlugin
         private TimeSpan _lastSeenBestLap = TimeSpan.Zero;
         private readonly List<double> _recentLeaderLapTimes = new List<double>(); // seconds
         public double LiveLeaderAvgPaceSeconds { get; private set; }
+        private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
-        private double _lastPitLossSaved = double.NaN;
+        private string _lastPitLossSource = "";
         // Freeze latched pit debug values after we finalize at the end of OUT LAP.
         // Cleared when a new pit cycle starts (first time we see AwaitingPitLap again).
         private bool _pitFreezeUntilNextCycle = false;
-
 
         // --- PIT TEST: dash-facing fields (for replay validation) ---
         double _pitDbg_AvgPaceUsedSec = 0.0;
@@ -331,28 +331,38 @@ namespace LaunchPlugin
                         _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
                     }
 
+                    // Call PitEngine to advance the state / compute totals when appropriate
                     _pit.FinalizePaceDeltaCalculation(lastLapSec, stableAvgPace, lastLapLooksClean);
-                    
-                    // --- IMMEDIATE PUBLISH: snap values for the dash right now (no extra lap needed) ---
-                    
-                    // Prefer DTL (race-pace delta). If it’s not positive, fall back to Direct stopwatch.
-                    var dtl = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
-                    var direct = _pit?.LastDirectTravelTime ?? 0.0;
 
-                    _pitDbg_CandidateSavedSec = (dtl > 0.0) ? dtl : direct;
-                    _pitDbg_CandidateSource = (dtl > 0.0) ? "total" : "direct";
+                    // --- IMMEDIATE PUBLISH: only when we just completed the OUT LAP ---
+                    if (pitPhaseBefore == PitEngine.PaceDeltaState.AwaitingOutLap)
+                    {
+                        // Prefer the DTL (Total) if available; else fall back to Direct
+                        var dtlNow = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
+                        var directNow = _pit?.LastDirectTravelTime ?? 0.0;
 
-                    // Also snap deltas using the laps we now know (end of out-lap)
-                    _pitDbg_InLapSec = _lastLapTimeSec; // the lap we primed as the in-lap
-                    _pitDbg_OutLapSec = lastLapSec;      // the lap that just finished (out-lap)
-                    _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec;
-                    _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
+                        _pitDbg_CandidateSavedSec = (dtlNow > 0.0) ? dtlNow : directNow;
+                        _pitDbg_CandidateSource = (dtlNow > 0.0) ? "total" : "direct";
 
-                    // Raw formula display for the test dash: (Lpit - Stop + Lout) - 2*Avg
-                    var stop = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
-                    _pitDbg_RawPitLapSec = dtl + (2.0 * _pitDbg_AvgPaceUsedSec) - _pitDbg_OutLapSec + stop;
-                    _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stop + _pitDbg_OutLapSec) - (2.0 * _pitDbg_AvgPaceUsedSec);
-                    _pitFreezeUntilNextCycle = true;
+                        // Lock the debug panel numbers to this event until the next cycle
+                        _pitDbg_InLapSec = _lastLapTimeSec; // the lap we primed as IN-lap
+                        _pitDbg_OutLapSec = lastLapSec;      // the OUT-lap that just finished
+
+                        _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec;
+                        _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
+
+                        // Raw “formula” view for the dash:
+                        // DTL = (Lpit - Stop + Lout) - 2*Avg,
+                        // and Lpit (with stop included) can be reconstructed as:
+                        // Lpit = DTL + (2*Avg) - Lout + Stop
+                        double stopNow = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
+                        _pitDbg_RawPitLapSec = dtlNow + (2.0 * _pitDbg_AvgPaceUsedSec) - _pitDbg_OutLapSec + stopNow;
+                        _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stopNow + _pitDbg_OutLapSec) - (2.0 * _pitDbg_AvgPaceUsedSec);
+
+                        // Freeze everything until the next pit entry
+                        _pitFreezeUntilNextCycle = true;
+                    }
+
 
                     // Roll the "previous lap" pointer AFTER we used it as in-lap
                     _lastLapTimeSec = lastLapSec;
@@ -816,7 +826,7 @@ namespace LaunchPlugin
             this.AttachDelegate("Pit.LastDirectTravelTime", () => _pit.LastDirectTravelTime); // The final calculated value from the "Direct Stopwatch" method.
             this.AttachDelegate("Pit.LastTotalPitCycleTimeLoss", () => _pit.LastTotalPitCycleTimeLoss); // The final calculated value from the "Race Pace Delta" method.
             this.AttachDelegate("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds); // The raw timer for total time spent on pit road (tPit).
-            this.AttachDelegate("Pit.Debug.LastPitStopDuration", () => _pit.PitStopDuration.TotalSeconds); // The raw timer for the last stationary pit stop duration (tStop).
+            this.AttachDelegate("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0); // The raw timer for the last stationary pit stop duration (tStop).
             this.AttachDelegate("Pit.Debug.LastTimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds);
             this.AttachDelegate("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss); // --- The net loss from the Pace Delta method ---
             // --- PIT TEST: inputs & outputs for replay validation ---
@@ -1062,76 +1072,46 @@ namespace LaunchPlugin
                 return;
             }
 
-            // Debounce: engine fires twice (Total & Net); only handle once
+            // Prefer the race-pace “Total/DTL” result; fall back to Direct if Total not available yet
+            double total = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
+            double direct = _pit?.LastDirectTravelTime ?? 0.0;
+
+            string source = (total > 0.0) ? "total" : "direct";
+            double candidate = (total > 0.0) ? total : direct;
+
             var now = DateTime.UtcNow;
-            if ((now - _lastPitLossSavedAtUtc).TotalSeconds < 1.0)
-                return;
 
-            // Choose a conservative candidate
-            // Prefer DTL (lap-delta drive-through loss). If it's null/NaN/≤0, fallback to Direct.
-            double direct = _pit?.LastDirectTravelTime ?? 0.0;          // entry→exit while moving
-            double total = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;     // Δin + Δout (can include shortcut credit)
+            // If a Direct value was just saved, allow an immediate override by Total
+            bool justSaved = (now - _lastPitLossSavedAtUtc).TotalSeconds < 10.0;
+            bool allowOverride = (source == "total" && _lastPitLossSource == "direct" && justSaved);
 
-            double candidate;
-            if (total > 0.0 && total < 180.0)        // accept any positive DTL in a sane window
+            if (!allowOverride)
             {
-                candidate = total;                   // primary: race-pace delta
-                _pitDbg_CandidateSource = "total";
-            }
-            else if (direct > 0.0 && direct < 180.0) // fallback
-            {
-                candidate = direct;
-                _pitDbg_CandidateSource = "direct";
-            }
-            else
-            {
-                SimHub.Logging.Current.Warn(
-                    $"LalaLaunch: Skipping pit-lane loss candidate (total {total:F2}, direct {direct:F2})");
-                return;
+                // Normal debounce: ignore very-rapid repeats with the same value
+                if (justSaved && Math.Abs(candidate - _lastPitLossSaved) < 0.01)
+                    return;
             }
 
-
-            // Sanity window (ignore teleport / noise)
-            if (candidate < 5.0 || candidate > 180.0)
-            {
-                SimHub.Logging.Current.Warn($"LalaLaunch: Skipping pit-lane loss candidate {candidate:F2}s (direct {direct:F2}, total {total:F2})");
-                return;
-            }
-
-            // Skip if we just saved the exact same value recently
-            if (!double.IsNaN(_lastPitLossSaved) &&
-                Math.Abs(candidate - _lastPitLossSaved) < 0.01 &&
-                (now - _lastPitLossSavedAtUtc).TotalSeconds < 10.0)
-            {
-                return;
-            }
-
-            // Round (keep 2 dp so it matches UI/params nicely)
+            // Round the stored value (use 2 dp to match your dash; change to 0 for whole seconds if you prefer)
             double rounded = Math.Round(candidate, 2);
 
-            // Persist to the current car/track profile
+            // Persist to profile
             var trackRecord = ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);
-            if (trackRecord != null)
+            trackRecord.PitLaneLossSeconds = rounded;
+
+            // Live UI: push into Fuel tab immediately
+            if (FuelCalculator != null)
             {
-                trackRecord.PitLaneLossSeconds = rounded;
-                trackRecord.PitLaneLossSecondsText = rounded.ToString(CultureInfo.InvariantCulture);
-
-                // Live UI update
-                if (FuelCalculator != null)
-                    FuelCalculator.PitLaneTimeLoss = rounded;
-
-                ProfilesViewModel?.SaveProfiles();
-                ProfilesViewModel?.RefreshTracksForSelectedProfile();
-                _pitDbg_CandidateSavedSec = rounded;
-                _pitDbg_CandidateSource = (Math.Abs(candidate - total) < 0.001) ? "total" : "direct";
-
-                SimHub.Logging.Current.Info(
-                    $"LalaLaunch: Saved pit lane loss: {rounded:F2}s (direct {direct:F2}, total {total:F2})");
+                FuelCalculator.PitLaneTimeLoss = rounded;
             }
 
             // Update debounce memory
             _lastPitLossSaved = rounded;
             _lastPitLossSavedAtUtc = now;
+            _lastPitLossSource = source;
+
+            SimHub.Logging.Current.Info($"LalaLaunch: Saved PitLaneLoss = {rounded:F2}s ({source}).");
+
         }
 
 
@@ -1312,7 +1292,7 @@ namespace LaunchPlugin
                 AbortLaunch();
             }
             double clutchRaw = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.ClutchRaw") ?? 0.0);
-            _paddleClutch = 100.0 - (clutchRaw * 100.0);
+            _paddleClutch = 100.0 - (clutchRaw * 100.0); // Convert to the same scale as the settings
 
             // --- 500ms group: identity polling & session-change handling ---
             if (_poll500ms.ElapsedMilliseconds >= 500)

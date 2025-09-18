@@ -13,6 +13,21 @@ namespace LaunchPlugin
         // Live while in lane; frozen (latched) after exit until next pit event
         public TimeSpan TimeOnPitRoad => _pitRoadTimer.IsRunning ? _pitRoadTimer.Elapsed : _lastTimeOnPitRoad;
         public TimeSpan PitStopDuration => _lastPitStopDuration;
+        /// <summary>
+        /// Live-or-latched pit stop seconds for the dash:
+        /// - Counts up while the car is stationary in the pit box (stopwatch running)
+        /// - Freezes at the final value once you leave the box (latched TimeSpan)
+        /// </summary>
+        public double PitStopElapsedSec
+        {
+            get
+            {
+                if (_pitStopTimer != null && _pitStopTimer.IsRunning)
+                    return _pitStopTimer.Elapsed.TotalSeconds;
+
+                return _lastPitStopDuration.TotalSeconds; // 0 if we’ve never had a stop
+            }
+        }
 
         // --- Public properties for our calculated time loss values ---
         public double LastDirectTravelTime { get; private set; } = 0.0;
@@ -146,7 +161,7 @@ namespace LaunchPlugin
             }
 
             // --- Store the previous phase before updating to the new one ---
-            var previousPhase = CurrentPitPhase;
+            //var previousPhase = CurrentPitPhase;
             UpdatePitPhase(data, pluginManager);
 
             // If we have just left the pits, start waiting for the out-lap.
