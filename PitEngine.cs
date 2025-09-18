@@ -148,8 +148,8 @@ namespace LaunchPlugin
 
                 // --- NEW: Add validation check for our internal tStop timer ---
                 object stopTimeProp = pluginManager.GetPropertyValue("DataCorePlugin.GameData.LastPitStopDuration");
-                TimeSpan simhubStopTime = (stopTimeProp is TimeSpan)
-                    ? (TimeSpan)stopTimeProp
+                TimeSpan simhubStopTime = (stopTimeProp is TimeSpan span)
+                    ? span
                     : TimeSpan.FromSeconds(Convert.ToDouble(stopTimeProp ?? 0.0));
                 SimHub.Logging.Current.Debug($"PitEngine: Stop Time Validation -> Internal: {_lastPitStopDuration.TotalSeconds:F2}s, SimHub: {simhubStopTime.TotalSeconds:F2}s");
 

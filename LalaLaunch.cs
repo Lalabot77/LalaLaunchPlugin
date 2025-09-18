@@ -142,6 +142,10 @@ namespace LaunchPlugin
         public double LiveLeaderAvgPaceSeconds { get; private set; }
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private double _lastPitLossSaved = double.NaN;
+        // Freeze latched pit debug values after we finalize at the end of OUT LAP.
+        // Cleared when a new pit cycle starts (first time we see AwaitingPitLap again).
+        private bool _pitFreezeUntilNextCycle = false;
+
 
         // --- PIT TEST: dash-facing fields (for replay validation) ---
         double _pitDbg_AvgPaceUsedSec = 0.0;
@@ -239,6 +243,12 @@ namespace LaunchPlugin
             // --- 2) Detect S/F crossing & update rolling averages ---
             bool lapCrossed = lastPct > 0.95 && curPct < 0.05;
 
+            // Unfreeze once we're primed for a new pit cycle (next entry detected)
+            if (_pitFreezeUntilNextCycle && _pit?.CurrentState == PitEngine.PaceDeltaState.AwaitingPitLap)
+            {
+                _pitFreezeUntilNextCycle = false;
+            }
+
             // --- Add this block right after 'lapCrossed' is calculated ---
             if (lapCrossed)
             {
@@ -322,27 +332,44 @@ namespace LaunchPlugin
                     }
 
                     _pit.FinalizePaceDeltaCalculation(lastLapSec, stableAvgPace, lastLapLooksClean);
+                    
+                    // --- IMMEDIATE PUBLISH: snap values for the dash right now (no extra lap needed) ---
+                    
+                    // Prefer DTL (race-pace delta). If it’s not positive, fall back to Direct stopwatch.
+                    var dtl = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
+                    var direct = _pit?.LastDirectTravelTime ?? 0.0;
 
-                    // Publish in/out and deltas for the dash
-                    _pitDbg_InLapSec = _lastLapTimeSec;   // the lap we primed as the in-lap
-                    _pitDbg_OutLapSec = lastLapSec;        // the lap that just finished (out-lap)
+                    _pitDbg_CandidateSavedSec = (dtl > 0.0) ? dtl : direct;
+                    _pitDbg_CandidateSource = (dtl > 0.0) ? "total" : "direct";
 
-                    _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec; // can be negative at shortcut tracks
+                    // Also snap deltas using the laps we now know (end of out-lap)
+                    _pitDbg_InLapSec = _lastLapTimeSec; // the lap we primed as the in-lap
+                    _pitDbg_OutLapSec = lastLapSec;      // the lap that just finished (out-lap)
+                    _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec;
                     _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
+
+                    // Raw formula display for the test dash: (Lpit - Stop + Lout) - 2*Avg
+                    var stop = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
+                    _pitDbg_RawPitLapSec = dtl + (2.0 * _pitDbg_AvgPaceUsedSec) - _pitDbg_OutLapSec + stop;
+                    _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stop + _pitDbg_OutLapSec) - (2.0 * _pitDbg_AvgPaceUsedSec);
+                    _pitFreezeUntilNextCycle = true;
+                    
+                    if (!_pitFreezeUntilNextCycle)
+                    {
+                        // Publish in/out and deltas for the dash
+                        _pitDbg_InLapSec = _lastLapTimeSec;   // the lap we primed as the in-lap
+                        _pitDbg_OutLapSec = lastLapSec;        // the lap that just finished (out-lap)
+
+                        _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec; // can be negative at shortcut tracks
+                        _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
+                    }
 
                     // Roll the "previous lap" pointer AFTER we used it as in-lap
                     _lastLapTimeSec = lastLapSec;
-                    // --- PIT TEST: derive the raw pit lap and the formula DTL for visibility ---
-                    // Inputs at this point:
-                    //   DTL  = _pit.LastTotalPitCycleTimeLoss
-                    //   Avg  = _pitDbg_AvgPaceUsedSec
-                    //   Lout = lastLapSec
-                    //   Stop = _pit.PitStopDuration.TotalSeconds
-                    double dtl = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
+                                        
                     double avg = _pitDbg_AvgPaceUsedSec;
                     double lout = lastLapSec;
-                    double stop = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
-
+                    
                     // Reconstruct the raw pit-lap time that would include the stop:
                     _pitDbg_RawPitLapSec = dtl + (2.0 * avg) - lout + stop;
 
