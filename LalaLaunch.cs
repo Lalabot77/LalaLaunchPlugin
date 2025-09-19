@@ -143,6 +143,8 @@ namespace LaunchPlugin
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
+        private PitCycleLite _pitLite; // simple, deterministic pit-cycle surface for the test dash
+
         // Freeze latched pit debug values after we finalize at the end of OUT LAP.
         // Cleared when a new pit cycle starts (first time we see AwaitingPitLap again).
         private bool _pitFreezeUntilNextCycle = false;
@@ -835,12 +837,10 @@ namespace LaunchPlugin
             // Raw components / formula view
             this.AttachDelegate("Lala.Pit.Raw.PitLapSec", () => _pitDbg_RawPitLapSec);
             this.AttachDelegate("Lala.Pit.Raw.DTLFormulaSec", () => _pitDbg_RawDTLFormulaSec);
-
             this.AttachDelegate("Lala.Pit.InLapSec", () => _pitDbg_InLapSec);
             this.AttachDelegate("Lala.Pit.OutLapSec", () => _pitDbg_OutLapSec);
             this.AttachDelegate("Lala.Pit.DeltaInSec", () => _pitDbg_DeltaInSec);
             this.AttachDelegate("Lala.Pit.DeltaOutSec", () => _pitDbg_DeltaOutSec);
-
             this.AttachDelegate("Lala.Pit.DriveThroughLossSec", () => _pit?.LastTotalPitCycleTimeLoss ?? 0.0);
             this.AttachDelegate("Lala.Pit.DirectTravelSec", () => _pit?.LastDirectTravelTime ?? 0.0);
             this.AttachDelegate("Lala.Pit.StopSeconds", () => _pit?.PitStopDuration.TotalSeconds ?? 0.0);
@@ -859,10 +859,20 @@ namespace LaunchPlugin
                 var ts = ActiveProfile?.FindTrack(CurrentTrackKey);
                 return ts?.PitLaneLossSeconds ?? 0.0;
             });
-
             // After a save, show what we saved and why
             this.AttachDelegate("Lala.Pit.CandidateSavedSec", () => _pitDbg_CandidateSavedSec);
             this.AttachDelegate("Lala.Pit.CandidateSource", () => _pitDbg_CandidateSource); // "total" or "direct"
+
+            // --- PitLite: minimal, deterministic outputs for the test dash ---
+            this.AttachDelegate("PitLite.InLapSec", () => _pitLite?.InLapSec ?? 0.0);
+            this.AttachDelegate("PitLite.OutLapSec", () => _pitLite?.OutLapSec ?? 0.0);
+            this.AttachDelegate("PitLite.TimePitLaneSec", () => _pitLite?.TimePitLaneSec ?? 0.0);
+            this.AttachDelegate("PitLite.TimePitBoxSec", () => _pitLite?.TimePitBoxSec ?? 0.0);
+            this.AttachDelegate("PitLite.DirectSec", () => _pitLite?.DirectSec ?? 0.0);
+            this.AttachDelegate("PitLite.DTLSec", () => _pitLite?.DTLSec ?? 0.0);
+            this.AttachDelegate("PitLite.Status", () => _pitLite?.Status.ToString() ?? "None");
+            this.AttachDelegate("PitLite.Live.TimeOnPitRoadSec", () => _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
+            this.AttachDelegate("PitLite.Live.TimeInBoxSec", () => _pit?.PitStopElapsedSec ?? 0.0);
 
             // --- DELEGATES FOR DASHBOARD STATE & OVERLAYS ---
             this.AttachDelegate("CurrentDashPage", () => Screens.CurrentPage);
@@ -1051,7 +1061,7 @@ namespace LaunchPlugin
                 if (s > 10.0) s = 10.0; // clamp to something sensible
                 return s;
             });
-
+            _pitLite = new PitCycleLite(_pit);
             // Hand the PitEngine to Rejoin so it reads pit phases from the single source of truth
             _rejoinEngine.SetPitEngine(_pit);
 
@@ -1261,6 +1271,15 @@ namespace LaunchPlugin
 
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
             _pit.Update(data, pluginManager);
+            bool inLane = _pit?.IsOnPitRoad ?? (data.NewData.IsInPitLane != 0);
+            int completedLaps = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
+            double lastLapSec = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
+
+            // Use exactly the same baseline you already show on the dash
+            double avgUsed = _pitDbg_AvgPaceUsedSec > 0 ? _pitDbg_AvgPaceUsedSec : 0.0;
+
+            _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
+
 
             // --- 250ms group: things safe to refresh at ~4 Hz ---
             if (_poll250ms.ElapsedMilliseconds >= 250)

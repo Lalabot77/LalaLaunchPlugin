@@ -114,6 +114,7 @@
     <Compile Include="MessagingSystem.cs" />
     <Compile Include="ParsedSummary.cs" />
     <Compile Include="LalaLaunch.cs" />
+    <Compile Include="PitCycleLite.cs" />
     <Compile Include="PitEngine.cs" />
     <Compile Include="ProfilesManagerView.xaml.cs">
       <DependentUpon>ProfilesManagerView.xaml</DependentUpon>
