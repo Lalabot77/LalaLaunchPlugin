@@ -873,6 +873,12 @@ namespace LaunchPlugin
             this.AttachDelegate("PitLite.Status", () => _pitLite?.Status.ToString() ?? "None");
             this.AttachDelegate("PitLite.Live.TimeOnPitRoadSec", () => _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
             this.AttachDelegate("PitLite.Live.TimeInBoxSec", () => _pit?.PitStopElapsedSec ?? 0.0);
+            this.AttachDelegate("PitLite.CurrentLapType", () => _pitLite?.CurrentLapType.ToString() ?? "Normal");
+            this.AttachDelegate("PitLite.LastLapType", () => _pitLite?.LastLapType.ToString() ?? "None");
+
+            // Live edge flags (instant per-lap detection)
+            this.AttachDelegate("PitLite.Live.SeenEntryThisLap", () => _pitLite?.EntrySeenThisLap ?? false);
+            this.AttachDelegate("PitLite.Live.SeenExitThisLap", () => _pitLite?.ExitSeenThisLap ?? false);
 
             // --- DELEGATES FOR DASHBOARD STATE & OVERLAYS ---
             this.AttachDelegate("CurrentDashPage", () => Screens.CurrentPage);
@@ -1271,15 +1277,16 @@ namespace LaunchPlugin
 
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
             _pit.Update(data, pluginManager);
+            // --- PitLite tick: after PitEngine update and baseline selection ---
             bool inLane = _pit?.IsOnPitRoad ?? (data.NewData.IsInPitLane != 0);
             int completedLaps = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
             double lastLapSec = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
-
-            // Use exactly the same baseline you already show on the dash
             double avgUsed = _pitDbg_AvgPaceUsedSec > 0 ? _pitDbg_AvgPaceUsedSec : 0.0;
 
             _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
 
+
+            int laps = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
 
             // --- 250ms group: things safe to refresh at ~4 Hz ---
             if (_poll250ms.ElapsedMilliseconds >= 250)

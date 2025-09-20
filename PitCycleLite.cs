@@ -3,119 +3,166 @@
 namespace LaunchPlugin
 {
     /// <summary>
-    /// Deterministic, tiny pit-cycle tracker:
-    /// - Arms on lane entry
-    /// - Captures PIT lap at first S/F after entry
-    /// - Latches tPit and tStop on lane exit (using PitEngine's trusted timers)
-    /// - Captures OUT lap at first S/F after exit, computes Direct + DTL, then holds until next entry
+    /// PitCycleLite — minimal, deterministic pit-cycle surface.
+    ///
+    /// DEFINITIONS:
+    ///  - In-lap  = lap in which pit ENTRY line was crossed.
+    ///  - Out-lap = lap in which pit EXIT  line was crossed.
+    ///
+    /// RACE-PROOF LATCHING:
+    ///  - Set per-lap flags on OnPitRoad edges during the current lap.
+    ///  - When LastLapTime changes (previous lap just finished), use those flags
+    ///    to classify that lap and latch the time.
+    ///
+    /// TIMERS (from PitEngine):
+    ///  - TimePitLaneSec = _pit.TimeOnPitRoad.TotalSeconds   (latched on EXIT)
+    ///  - TimePitBoxSec  = _pit.PitStopElapsedSec            (latched on EXIT)
+    ///  - DirectSec      = TimePitLaneSec - TimePitBoxSec
+    ///
+    /// DTL (simple):
+    ///  - DTLSec = (InLapSec + OutLapSec) - 2 * AvgLapSec - TimePitBoxSec
     /// </summary>
     public sealed class PitCycleLite
     {
-        public enum StatusKind { None, Armed, StopValid, DriveThrough, Incomplete }
+        public enum StatusKind { None, Armed, StopValid, DriveThrough }
+        public enum LapKind { None, InLap, OutLap, Normal }
 
-        private readonly PitEngine _pit;   // for lane state + timers
+        private readonly PitEngine _pit;
+
+        // Rolling state
         private bool _wasInLane = false;
-        private int _prevCompletedLaps = -1;
 
-        // Cycle latches
+        // Per-lap flags (cleared when LastLapTime updates)
+        private bool _entrySeenThisLap = false;
+        private bool _exitSeenThisLap = false;
+
+        // We key latching off LastLapTime changes
+        private double _lastLapCached = 0.0;
+
+        // Cycle state
         private bool _armed = false;
-        private int _entryLap = -1;
-        private int _exitLap = -1;
 
-        // Public surface (latched until next arm)
-        public double InLapSec { get; private set; } = 0.0;
-        public double OutLapSec { get; private set; } = 0.0;
-        public double TimePitLaneSec { get; private set; } = 0.0;  // limiter line to limiter line
-        public double TimePitBoxSec { get; private set; } = 0.0;   // stationary in stall
-        public double DirectSec { get; private set; } = 0.0;       // tPit - tStop
-        public double DTLSec { get; private set; } = 0.0;          // (Lpit - Stop + Lout) - 2*Avg
+        // ---- Public, latched outputs ----
+        public double InLapSec { get; private set; } = 0.0; // lap which had ENTRY
+        public double OutLapSec { get; private set; } = 0.0; // lap which had EXIT
+        public double TimePitLaneSec { get; private set; } = 0.0; // limiter-to-limiter (latched at EXIT)
+        public double TimePitBoxSec { get; private set; } = 0.0; // stall total        (latched at EXIT)
+        public double DirectSec { get; private set; } = 0.0; // lane - stop
+        public double DTLSec { get; private set; } = 0.0; // (In + Out) - 2*Avg - Stop
+
         public StatusKind Status { get; private set; } = StatusKind.None;
+
+        // Lap typing
+        public LapKind LastLapType { get; private set; } = LapKind.None;
+        public LapKind CurrentLapType { get; private set; } = LapKind.Normal;
+
+        // Live, per-lap edges (true only until next S/F)
+        public bool EntrySeenThisLap => _entrySeenThisLap;
+        public bool ExitSeenThisLap => _exitSeenThisLap;
+
+        // Optional debug
+        public bool Armed => _armed;
 
         public PitCycleLite(PitEngine pit) => _pit = pit;
 
         public void ResetCycle()
         {
             _armed = false;
-            _entryLap = -1;
-            _exitLap = -1;
-
-            // Keep last latched values visible for the dash until next entry
+            _entrySeenThisLap = false;
+            _exitSeenThisLap = false;
+            // keep latched numbers visible until next entry
             Status = StatusKind.None;
+            LastLapType = LapKind.None;
+            CurrentLapType = LapKind.Normal;
         }
 
         /// <summary>
-        /// Call every tick from LalaLaunch.DataUpdate.
-        /// Pass:
-        /// - isInPitLane: lane state this tick
-        /// - completedLaps: integer lap count (increments at S/F)
-        /// - lastLapSec: SimHub's last completed lap time (seconds)
-        /// - avgLapSec: baseline pace to use for DTL (0 if unknown)
+        /// Call once per frame, AFTER:
+        ///   1) _pit.Update(...)
+        ///   2) you've computed the baseline (AvgLapSec) you display on the dash.
         /// </summary>
+        /// <param name="isInPitLane">OnPitRoad boolean this tick.</param>
+        /// <param name="completedLaps">Unused (kept for call-site compatibility).</param>
+        /// <param name="lastLapSec">SimHub/iRacing LastLapTime.TotalSeconds.</param>
+        /// <param name="avgLapSec">Baseline lap time used on the dash (0 if unknown).</param>
         public void Update(bool isInPitLane, int completedLaps, double lastLapSec, double avgLapSec)
         {
-            // Lane edges
-            bool justEnteredLane = (isInPitLane && !_wasInLane);
-            bool justExitedLane = (!isInPitLane && _wasInLane);
-
-            if (justEnteredLane)
+            // ---- 1) Edge detection FIRST (for the current, in-progress lap) ----
+            if (isInPitLane && !_wasInLane)
             {
+                // Pit ENTRY this lap
+                _entrySeenThisLap = true;
                 _armed = true;
-                _entryLap = completedLaps;
-                _exitLap = -1;
 
-                // Clear lap latches for the new cycle (previous values remain until re-arm)
+                // New cycle: clear previous latched values so we start fresh
                 InLapSec = 0.0;
                 OutLapSec = 0.0;
                 TimePitLaneSec = 0.0;
                 TimePitBoxSec = 0.0;
                 DirectSec = 0.0;
                 DTLSec = 0.0;
+
                 Status = StatusKind.Armed;
             }
-
-            if (justExitedLane)
+            if (!isInPitLane && _wasInLane)
             {
-                _exitLap = completedLaps;
+                // Pit EXIT this lap
+                _exitSeenThisLap = true;
 
-                // Latch timers from PitEngine (trusted stopwatches)
+                // Latch timers immediately from PitEngine
                 double tPit = Math.Max(0.0, _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
-                double tStop = Math.Max(0.0, _pit?.PitStopDuration.TotalSeconds ?? 0.0);
-
+                double tStop = Math.Max(0.0, _pit?.PitStopElapsedSec ?? 0.0);
                 TimePitLaneSec = tPit;
                 TimePitBoxSec = tStop;
                 DirectSec = Math.Max(0.0, tPit - tStop);
                 Status = (tStop > 0.5) ? StatusKind.StopValid : StatusKind.DriveThrough;
             }
 
-            // S/F detection (CompletedLaps increments)
-            bool sfCrossed = (_prevCompletedLaps >= 0) && (completedLaps != _prevCompletedLaps);
-            if (sfCrossed)
+            // Instantaneous tag for the in-progress lap
+            CurrentLapType = _exitSeenThisLap ? LapKind.OutLap
+                            : _entrySeenThisLap ? LapKind.InLap
+                            : LapKind.Normal;
+
+            // ---- 2) LastLapTime changed => the previous lap just finished: latch now ----
+            bool lastLapUpdated = (lastLapSec > 0.0) && (lastLapSec != _lastLapCached);
+            if (lastLapUpdated)
             {
-                // First S/F after entry -> PIT lap
-                if (_armed && InLapSec <= 0.0 && completedLaps == _entryLap + 1)
+                // Prefer OutLap over InLap if both happened in the same lap (drive-through)
+                if (_exitSeenThisLap && OutLapSec <= 0.0)
                 {
-                    if (lastLapSec > 0.0) InLapSec = lastLapSec;
+                    OutLapSec = lastLapSec;
+                    LastLapType = LapKind.OutLap;
+                }
+                else if (_entrySeenThisLap && InLapSec <= 0.0)
+                {
+                    InLapSec = lastLapSec;
+                    LastLapType = LapKind.InLap;
+                }
+                else
+                {
+                    LastLapType = LapKind.Normal;
                 }
 
-                // First S/F after exit -> OUT lap -> finalize
-                if (_armed && _exitLap >= 0 && OutLapSec <= 0.0 && completedLaps == _exitLap + 1)
+                // Simple DTL as soon as both laps + baseline exist
+                if (InLapSec > 0.0 && OutLapSec > 0.0 && avgLapSec > 0.0)
                 {
-                    if (lastLapSec > 0.0) OutLapSec = lastLapSec;
-
-                    // Compute DTL if baseline is known
-                    if (InLapSec > 0.0 && OutLapSec > 0.0 && avgLapSec > 0.0)
-                    {
-                        // DTL = (Lpit - Stop + Lout) - 2*Avg
-                        DTLSec = Math.Max(0.0, (InLapSec - TimePitBoxSec + OutLapSec) - (2.0 * avgLapSec));
-                    }
-
-                    // Stay latched until the next arm; ResetCycle() happens on next lane entry
-                    // (so the dash continues to show this result)
+                    DTLSec = (InLapSec + OutLapSec) - (2.0 * avgLapSec) - TimePitBoxSec;
                 }
+
+                // New lap begins: clear per-lap flags and reset current-lap type
+                _entrySeenThisLap = false;
+                _exitSeenThisLap = false;
+                CurrentLapType = LapKind.Normal;
+
+                _lastLapCached = lastLapSec;
             }
 
+            // ---- 3) Housekeeping for next frame ----
             _wasInLane = isInPitLane;
-            _prevCompletedLaps = completedLaps;
+
+            // Initialize cache on first valid value
+            if (_lastLapCached <= 0.0 && lastLapSec > 0.0)
+                _lastLapCached = lastLapSec;
         }
     }
 }
