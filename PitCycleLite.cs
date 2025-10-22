@@ -35,7 +35,7 @@ namespace LaunchPlugin
         // Per-lap flags (cleared when LastLapTime updates)
         private bool _entrySeenThisLap = false;
         private bool _exitSeenThisLap = false;
-
+        
         // We key latching off LastLapTime changes
         private double _lastLapCached = 0.0;
 
@@ -49,7 +49,15 @@ namespace LaunchPlugin
         public double TimePitBoxSec { get; private set; } = 0.0; // stall total        (latched at EXIT)
         public double DirectSec { get; private set; } = 0.0; // lane - stop
         public double DTLSec { get; private set; } = 0.0; // (In + Out) - 2*Avg - Stop
+        public double DeltaInSec { get; private set; } = 0.0;
+        public double DeltaOutSec { get; private set; } = 0.0;
 
+        private bool _candidateReady = false;
+        public bool CandidateReady => _candidateReady;
+        private double _totalLossSec = 0.0;
+        public double TotalLossSec { get => _totalLossSec; }
+        private string _totalLossSource = "direct";
+        public string TotalLossSource { get => _totalLossSource; }
         public StatusKind Status { get; private set; } = StatusKind.None;
 
         // Lap typing
@@ -77,6 +85,35 @@ namespace LaunchPlugin
         }
 
         /// <summary>
+        /// Returns true exactly once when the OUT-LAP finishes (at S/F).
+        /// Publishes DTL if > 0, else Direct. Clears its internal latch.
+        /// </summary>
+        public bool TryGetFinishedOutlap(out double lossSec, out string src)
+        {
+            if (!_candidateReady)
+            {
+                lossSec = 0.0;
+                src = null;
+                return false;
+            }
+
+            lossSec = _totalLossSec;
+            src = _totalLossSource;
+            _candidateReady = false; // one-shot
+            return true;
+        }
+
+        /// <summary>
+        /// Back-compat alias used by LalaLaunch’s DataUpdate block.
+        /// </summary>
+        public bool ConsumeCandidate(out double lossSec, out string src)
+        {
+            return TryGetFinishedOutlap(out lossSec, out src);
+        }
+
+
+
+        /// <summary>
         /// Call once per frame, AFTER:
         ///   1) _pit.Update(...)
         ///   2) you've computed the baseline (AvgLapSec) you display on the dash.
@@ -92,6 +129,8 @@ namespace LaunchPlugin
             {
                 // Pit ENTRY this lap
                 _entrySeenThisLap = true;
+                SimHub.Logging.Current.Info("[PitLite] ENTRY edge this lap – arming cycle.");
+
                 _armed = true;
 
                 // New cycle: clear previous latched values so we start fresh
@@ -108,6 +147,7 @@ namespace LaunchPlugin
             {
                 // Pit EXIT this lap
                 _exitSeenThisLap = true;
+                SimHub.Logging.Current.Info("[PitLite] EXIT edge this lap – timers latched (lane/box).");
 
                 // Latch timers immediately from PitEngine
                 double tPit = Math.Max(0.0, _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
@@ -132,11 +172,17 @@ namespace LaunchPlugin
                 {
                     OutLapSec = lastLapSec;
                     LastLapType = LapKind.OutLap;
+                    // ---- S/F of OUT-LAP: one-shot latch for save ----
+                    
+                    var chosenSrc = string.IsNullOrEmpty(TotalLossSource) ? "?" : TotalLossSource;
+                    SimHub.Logging.Current.Info($"[PitLite] Latched Out-lap = {OutLapSec:F2}s. Chosen={TotalLossSec:F2}s ({chosenSrc}).");
+
                 }
                 else if (_entrySeenThisLap && InLapSec <= 0.0)
                 {
                     InLapSec = lastLapSec;
                     LastLapType = LapKind.InLap;
+                    SimHub.Logging.Current.Info($"[PitLite] Latched In-lap = {InLapSec:F2}s.");
                 }
                 else
                 {
@@ -147,6 +193,11 @@ namespace LaunchPlugin
                 if (InLapSec > 0.0 && OutLapSec > 0.0 && avgLapSec > 0.0)
                 {
                     DTLSec = (InLapSec + OutLapSec) - (2.0 * avgLapSec) - TimePitBoxSec;
+
+                    double chosen = (DTLSec > 0.0) ? DTLSec : DirectSec;
+                    _totalLossSec = Math.Max(0.0, chosen);
+                    _totalLossSource = (DTLSec > 0.0) ? "dtl" : "direct";
+                    _candidateReady = true;   // one-shot for LalaLaunch
                 }
 
                 // New lap begins: clear per-lap flags and reset current-lap type
@@ -159,6 +210,17 @@ namespace LaunchPlugin
 
             // ---- 3) Housekeeping for next frame ----
             _wasInLane = isInPitLane;
+
+            // Recompute deltas vs baseline each frame when data is available
+            if (InLapSec > 0.0 && avgLapSec > 0.0)
+                DeltaInSec = InLapSec - avgLapSec;
+            else
+                DeltaInSec = 0.0;
+
+            if (OutLapSec > 0.0 && avgLapSec > 0.0)
+                DeltaOutSec = OutLapSec - avgLapSec;
+            else
+                DeltaOutSec = 0.0;
 
             // Initialize cache on first valid value
             if (_lastLapCached <= 0.0 && lastLapSec > 0.0)
