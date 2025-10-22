@@ -217,6 +217,23 @@ namespace LaunchPlugin
         [JsonProperty] public double? PitLaneLossSeconds { get => _pitLaneLossSeconds; set { if (_pitLaneLossSeconds != value) { _pitLaneLossSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PitLaneLossSecondsText)); } } }
         public string PitLaneLossSecondsText { get => _pitLaneLossSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => PitLaneLossSeconds = StringToNullableDouble(value); }
 
+        private string _pitLaneLossSource;
+        [JsonProperty]
+        public string PitLaneLossSource
+        {
+            get => _pitLaneLossSource;
+            set { if (_pitLaneLossSource != value) { _pitLaneLossSource = value; OnPropertyChanged(); } }
+        }
+
+        private DateTime? _pitLaneLossUpdatedUtc;
+        [JsonProperty]
+        public DateTime? PitLaneLossUpdatedUtc
+        {
+            get => _pitLaneLossUpdatedUtc;
+            set { if (_pitLaneLossUpdatedUtc != value) { _pitLaneLossUpdatedUtc = value; OnPropertyChanged(); } }
+        }
+
+
         /// --- Dry Conditions Data ---
         private double? _avgFuelPerLapDry;
         private string _avgFuelPerLapDryText;
@@ -234,7 +251,7 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressDryFuelSync)
                     {
-                        AvgFuelPerLapDryText = _avgFuelPerLapDry?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        AvgFuelPerLapDryText = _avgFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
                     }
                 }
             }
@@ -336,7 +353,7 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressWetFuelSync)
                     {
-                        AvgFuelPerLapWetText = _avgFuelPerLapWet?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                        AvgFuelPerLapWetText = _avgFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
                     }
                 }
             }
