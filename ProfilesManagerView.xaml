@@ -132,7 +132,7 @@
                                 <TextBlock Text="Core Data" FontWeight="Bold" Margin="0,5,0,2"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                     <TextBlock Text="Best Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Width="100">
+                                    <TextBox Width="100" TextAlignment="Right">
                                         <TextBox.Text>
                                             <Binding Path="BestLapMsText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
                                                 <Binding.ValidationRules>
@@ -142,70 +142,98 @@
                                         </TextBox.Text>
                                     </TextBox>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                    <TextBlock Text="Pit Lane Time Loss (s):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                <!-- inside the track details pane -->
+                                <StackPanel Margin="0,8,0,0">
+                                    <!-- Pit Lane Loss row (identical layout to other rows) -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                        <!-- same label width + gap as other rows -->
+                                        <TextBlock Text="Pit Lane Loss (s):"
+                                             Width="150" Margin="0,0,10,0"
+                                             VerticalAlignment="Center"/>
+                                        <TextBox Width="100"
+                                           TextAlignment="Right"
+                                           Padding="2,0,2,0"
+                                           Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </StackPanel>
+
+                                    <!-- meta line: sits under the input, indented to the input column -->
+                                    <TextBlock Margin="160,2,0,0" 
+                                       FontStyle="Italic"
+                                       Foreground="#FF9AA0A6"
+                                       TextWrapping="Wrap">
+                                      <Run Text="{Binding PitLaneLossSource, TargetNullValue=unknown}"/>
+                                      <Run Text=" — Updated (UTC): "/>
+                                      <Run Text="{Binding PitLaneLossUpdatedUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
+                                    </TextBlock>
+
+                                    <!-- Actions: equal width, perfect vertical spacing -->
+                                    <StackPanel Orientation="Vertical"
+                                        Margin="160,8,0,0"
+                                        SnapsToDevicePixels="True"
+                                        UseLayoutRounding="True">
+                                        <styles:SHButtonPrimary x:Name="BtnPitA"
+                                          Content="RECOMPUTE FROM LAST STOP"
+                                          Width="200" Height="28"
+                                          Margin="0,0,0,4" HorizontalAlignment="Left"
+                                          Command="{Binding DataContext.RecomputeFromLastStopCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                        <styles:SHButtonPrimary Content="USE SIMPLE PIT LANE TIME"
+                                          Width="{Binding ElementName=BtnPitA, Path=ActualWidth}"
+                                          Height="{Binding ElementName=BtnPitA, Path=Height}"
+                                          Margin="0"
+                                          HorizontalAlignment="Left"
+                                          Command="{Binding DataContext.UseDirectForTrackCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                    </StackPanel>
                                 </StackPanel>
 
+                                <!-- Dry Conditions Data -->
                                 <TextBlock Text="Dry Conditions Data" FontWeight="Bold" Margin="0,10,0,2"/>
+
+                                <!-- Avg Fuel/Lap (2dp, right-aligned) -->
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                     <TextBlock Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                    <TextBox Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        TextAlignment="Right" Width="100"/>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                    <TextBlock Text="Sample Laps (Fuel):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding DryFuelSampleCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                                </StackPanel>
+
+                                <!-- Avg Lap Time (m:ss.fff), right-aligned -->
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                     <TextBlock Text="Avg Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Width="100">
+                                    <TextBox TextAlignment="Right" Width="100">
                                         <TextBox.Text>
                                             <Binding Path="AvgLapTimeDryText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
                                                 <Binding.ValidationRules>
-                                                    <local:LapTimeValidationRule />
+                                                    <local:LapTimeValidationRule/>
                                                 </Binding.ValidationRules>
                                             </Binding>
                                         </TextBox.Text>
                                     </TextBox>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                    <TextBlock Text="Sample Laps (Lap Time):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding DryLapTimeSampleCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                    <TextBlock Text="Avg Track Temp:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding AvgDryTrackTempText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                                </StackPanel>
 
+
+                                <!-- Wet Conditions Data -->
                                 <TextBlock Text="Wet Conditions Data" FontWeight="Bold" Margin="0,10,0,2"/>
+
+                                <!-- Avg Fuel/Lap (2dp, right-aligned) -->
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                     <TextBlock Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                                    <TextBox Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        TextAlignment="Right" Width="100"/>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                    <TextBlock Text="Sample Laps (Fuel):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding WetFuelSampleCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                                </StackPanel>
+
+                                <!-- Avg Lap Time (m:ss.fff), right-aligned -->
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                     <TextBlock Text="Avg Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Width="100">
+                                    <TextBox TextAlignment="Right" Width="100">
                                         <TextBox.Text>
                                             <Binding Path="AvgLapTimeWetText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
                                                 <Binding.ValidationRules>
-                                                    <local:LapTimeValidationRule />
+                                                    <local:LapTimeValidationRule/>
                                                 </Binding.ValidationRules>
                                             </Binding>
                                         </TextBox.Text>
                                     </TextBox>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                    <TextBlock Text="Sample Laps (Lap Time):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding WetLapTimeSampleCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                    <TextBlock Text="Avg Track Temp:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding AvgWetTrackTempText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
-                                </StackPanel>
+
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
