@@ -790,7 +790,36 @@ namespace LaunchPlugin
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
             // The Action for "Apply to Live" in the Profiles tab is now simplified: just update the ActiveProfile
-            ProfilesViewModel = new ProfilesManagerViewModel(this.PluginManager, (profile) => { this.ActiveProfile = profile; }, () => this.CurrentCarModel, () => this.CurrentTrackKey);
+            ProfilesViewModel = new ProfilesManagerViewModel(
+                this.PluginManager,
+                (profile) =>
+                {
+                    // 1) Switch active profile
+                    this.ActiveProfile = profile;
+
+                    // 2) Refresh anything that reads profile fuel/pace
+                    this.FuelCalculator?.ForceProfileDataReload();
+
+                    // Log so we can confirm it ran
+                    SimHub.Logging.Current.Info("[Profiles] Applied profile to live and refreshed Fuel.");
+                },
+                () => this.CurrentCarModel,
+                () => this.CurrentTrackKey,
+                // NEW actions:
+                recomputeFromLastStopAction: () =>
+                {
+                    var cand = _pitLite?.TotalLossSec ?? 0.0;
+                    var src = _pitLite?.TotalLossSource ?? "direct";
+                    Pit_OnValidPitStopTimeLossCalculated(cand, src);
+                },
+                useDirectForThisTrackAction: () =>
+                {
+                    var direct = Math.Max(0.0, _pit?.LastDirectTravelTime ?? 0.0);
+                    Pit_OnValidPitStopTimeLossCalculated(direct, "direct");
+                }
+            );
+
+
             ProfilesViewModel.LoadProfiles();
 
             // --- Set the initial ActiveProfile on startup ---
@@ -1126,6 +1155,10 @@ namespace LaunchPlugin
             var trackRecord = ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);
             trackRecord.PitLaneLossSeconds = rounded;
 
+            // NEW: persist source + timestamp for Profiles page
+            trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
+            trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+
             // Push to Fuel tab immediately
             FuelCalculator?.ForceProfileDataReload();
 
@@ -1137,7 +1170,26 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"LalaLaunch: Saved PitLaneLoss = {rounded:0.00}s ({src}).");
         }
 
-        
+        public bool SavePendingPitLaneLossIfAny(out string source, out double seconds)
+        {
+            source = "none";
+            seconds = 0;
+
+            // Defensive: only act if PitLite exists and can yield a candidate
+            if (_pitLite == null) return false;
+
+            if (_pitLite.TryGetFinishedOutlap(out var loss, out var src))
+            {
+                // Mirrors your existing per-tick consume+save path:
+                Pit_OnValidPitStopTimeLossCalculated(loss, src);
+                source = src;
+                seconds = loss;
+                return true;
+            }
+
+            return false;
+        }
+
         public void End(PluginManager pluginManager)
         {
             // --- Cleanup trace logger for current run ---
