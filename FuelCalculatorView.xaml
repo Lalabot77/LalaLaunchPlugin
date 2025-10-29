@@ -221,10 +221,41 @@
                             <ui:TitledSlider Title="Contingency Laps:" Minimum="0" Maximum="5" Value="{Binding ContingencyValue, Mode=TwoWay}" Visibility="{Binding IsContingencyInLaps, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"/>
                             <ui:TitledSlider Title="Contingency Litres:" Minimum="0" Maximum="20" Value="{Binding ContingencyValue, Mode=TwoWay}" Visibility="{Binding IsContingencyLitres, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"/>
                         </StackPanel>
+                        <!-- Pit Strategy: header + checkbox on one line -->
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,6">
+                            <TextBlock Text="Pit Strategy" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <CheckBox Content="Mandatory pit stop required"
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding MandatoryStopRequired, Mode=TwoWay}"
+                                ToolTip="Force at least one pit stop. Stop time = Drive-Through Loss + Tyre Change Time (if any)."/>
+                        </StackPanel>
 
-                        <ui:TitledSlider Title="Pit Lane Time Loss (s):" Minimum="10" Maximum="60" Value="{Binding PitLaneTimeLoss, Mode=TwoWay}" Margin="0,10,0,0"/>
+                        <!-- Full-width sliders (restored to original single-column layout) -->
+                        <ui:TitledSlider
+                            Title="Pit Drive-Through Loss (s):"
+                            Minimum="0" Maximum="60"
+                            Value="{Binding PitLaneTimeLoss, Mode=TwoWay}"
+                            Margin="0,0,0,6">
+                            <ui:TitledSlider.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="Total pit lane delta per stop (entry + box + exit)."
+                                        TextWrapping="Wrap" Width="260"/>
+                                </ToolTip>
+                            </ui:TitledSlider.ToolTip>
+                        </ui:TitledSlider>
 
-                        <ui:TitledSlider Title="Tire Change Time (seconds):" Minimum="0" Maximum="60" Value="{Binding TireChangeTime, Mode=TwoWay}" Margin="0,10,0,0"/>
+                        <ui:TitledSlider
+                            Title="Tyre Change Time (s): [Default is 22s]"
+                            Minimum="0" Maximum="60"
+                            Value="{Binding TireChangeTime, Mode=TwoWay}">
+                            <ui:TitledSlider.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="Additional time if tyres are changed. Set to 0s for a drive-through-only stop."
+                                        TextWrapping="Wrap" Width="260"/>
+                                </ToolTip>
+                            </ui:TitledSlider.ToolTip>
+                        </ui:TitledSlider>
 
                     </StackPanel>
 

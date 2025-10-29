@@ -44,26 +44,139 @@
             <TabControl>
                 <styles:SHTabItem Header="DASH">
                     <StackPanel Margin="10" DataContext="{Binding SelectedProfile}">
-                        <ui:TitledSlider Title="Rejoin Assist Linger Time (sec)" Minimum="1" Maximum="30" Value="{Binding RejoinWarningLingerTime, Mode=TwoWay}" />
-                        <ui:TitledSlider Title="Rejoin Assist Clear Speed (kph)" Minimum="10" Maximum="250" Value="{Binding RejoinWarningMinSpeed, Mode=TwoWay}" />
-                        <ui:TitledSlider Title="Spin Yaw Rate Threshold" Minimum="10" Maximum="100" Value="{Binding SpinYawRateThreshold, Mode=TwoWay}" />
-                        <ui:TitledSlider Title="Overtake Alert Time (sec)" Minimum="1" Maximum="20" Value="{Binding TrafficApproachWarnSeconds, Mode=TwoWay}" />
+
+                        <ui:TitledSlider Title="Rejoin Assist Linger Time (sec)"
+                         Minimum="1" Maximum="30"
+                         Value="{Binding RejoinWarningLingerTime, Mode=TwoWay}">
+                            <ui:TitledSlider.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="How long the rejoin warning remains visible after returning to the track (in seconds)." TextWrapping="Wrap" Width="240"/>
+                                </ToolTip>
+                            </ui:TitledSlider.ToolTip>
+                        </ui:TitledSlider>
+
+                        <ui:TitledSlider Title="Rejoin Assist Clear Speed (kph)"
+                         Minimum="10" Maximum="250"
+                         Value="{Binding RejoinWarningMinSpeed, Mode=TwoWay}">
+                            <ui:TitledSlider.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="The minimum speed (in km/h) above which the rejoin warning automatically clears." TextWrapping="Wrap" Width="240"/>
+                                </ToolTip>
+                            </ui:TitledSlider.ToolTip>
+                        </ui:TitledSlider>
+
+                        <ui:TitledSlider Title="Spin Yaw Rate Threshold"
+                         Minimum="10" Maximum="100"
+                         Value="{Binding SpinYawRateThreshold, Mode=TwoWay}">
+                            <ui:TitledSlider.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="Yaw rate (degrees per second) above which a spin event is detected and triggers rejoin assist." TextWrapping="Wrap" Width="240"/>
+                                </ToolTip>
+                            </ui:TitledSlider.ToolTip>
+                        </ui:TitledSlider>
+
+                        <ui:TitledSlider Title="Overtake Alert Time (sec)"
+                         Minimum="1" Maximum="20"
+                         Value="{Binding TrafficApproachWarnSeconds, Mode=TwoWay}">
+                            <ui:TitledSlider.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="How many seconds behind an approaching car must be projected to trigger the overtake alert." TextWrapping="Wrap" Width="240"/>
+                                </ToolTip>
+                            </ui:TitledSlider.ToolTip>
+                        </ui:TitledSlider>
+
                     </StackPanel>
                 </styles:SHTabItem>
+
+
                 <styles:SHTabItem Header="LAUNCH">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="10" DataContext="{Binding SelectedProfile}">
-                            <ui:TitledSlider Title="Target Launch RPM" Minimum="1000" Maximum="10000" Value="{Binding TargetLaunchRPM, Mode=TwoWay}" />
-                            <ui:TitledSlider Title="Optimal RPM Tolerance" Minimum="100" Maximum="2000" Value="{Binding OptimalRPMTolerance, Mode=TwoWay}" />
-                            <ui:TitledSlider Title="Target Launch Throttle (%)" Minimum="1" Maximum="100" Value="{Binding TargetLaunchThrottle, Mode=TwoWay}" />
-                            <ui:TitledSlider Title="Optimal Throttle Tolerance (%)" Minimum="0" Maximum="20" Value="{Binding OptimalThrottleTolerance, Mode=TwoWay}" />
-                            <ui:TitledSlider Title="Target Bite Point (%)" Minimum="0" Maximum="100" Value="{Binding TargetBitePoint, Mode=TwoWay}" />
-                            <ui:TitledSlider Title="Bite Point Tolerance (%)" Minimum="1" Maximum="10" Value="{Binding BitePointTolerance, Mode=TwoWay}" />
-                            <ui:TitledSlider Title="Bog Down Factor (%)" Minimum="0" Maximum="100" Value="{Binding BogDownFactorPercent, Mode=TwoWay}" />
-                            <ui:TitledSlider Title="Anti-Stall Alert Threshold (%)" Minimum="0" Maximum="100" Value="{Binding AntiStallThreshold, Mode=TwoWay}" />
+
+                            <ui:TitledSlider Title="Target Launch RPM"
+                             Minimum="1000" Maximum="10000"
+                             Value="{Binding TargetLaunchRPM, Mode=TwoWay}">
+                                <ui:TitledSlider.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="The target engine RPM to hold during launch control activation." TextWrapping="Wrap" Width="240"/>
+                                    </ToolTip>
+                                </ui:TitledSlider.ToolTip>
+                            </ui:TitledSlider>
+
+                            <ui:TitledSlider Title="Optimal RPM Tolerance"
+                             Minimum="100" Maximum="2000"
+                             Value="{Binding OptimalRPMTolerance, Mode=TwoWay}">
+                                <ui:TitledSlider.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="Allowed deviation (±RPM) from the target launch RPM before the system flags it as out of range." TextWrapping="Wrap" Width="240"/>
+                                    </ToolTip>
+                                </ui:TitledSlider.ToolTip>
+                            </ui:TitledSlider>
+
+                            <ui:TitledSlider Title="Target Launch Throttle (%)"
+                             Minimum="1" Maximum="100"
+                             Value="{Binding TargetLaunchThrottle, Mode=TwoWay}">
+                                <ui:TitledSlider.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="Throttle percentage to apply when holding the launch RPM target." TextWrapping="Wrap" Width="240"/>
+                                    </ToolTip>
+                                </ui:TitledSlider.ToolTip>
+                            </ui:TitledSlider>
+
+                            <ui:TitledSlider Title="Optimal Throttle Tolerance (%)"
+                             Minimum="0" Maximum="20"
+                             Value="{Binding OptimalThrottleTolerance, Mode=TwoWay}">
+                                <ui:TitledSlider.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="Accepted throttle percentage deviation from target before launch control gives a warning." TextWrapping="Wrap" Width="240"/>
+                                    </ToolTip>
+                                </ui:TitledSlider.ToolTip>
+                            </ui:TitledSlider>
+
+                            <ui:TitledSlider Title="Target Bite Point (%)"
+                             Minimum="0" Maximum="100"
+                             Value="{Binding TargetBitePoint, Mode=TwoWay}">
+                                <ui:TitledSlider.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="Clutch engagement percentage considered the ideal bite point for launch." TextWrapping="Wrap" Width="240"/>
+                                    </ToolTip>
+                                </ui:TitledSlider.ToolTip>
+                            </ui:TitledSlider>
+
+                            <ui:TitledSlider Title="Bite Point Tolerance (%)"
+                             Minimum="1" Maximum="10"
+                             Value="{Binding BitePointTolerance, Mode=TwoWay}">
+                                <ui:TitledSlider.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="Allowed deviation (±%) around the target bite point during launch setup." TextWrapping="Wrap" Width="240"/>
+                                    </ToolTip>
+                                </ui:TitledSlider.ToolTip>
+                            </ui:TitledSlider>
+
+                            <ui:TitledSlider Title="Bog Down Factor (%)"
+                             Minimum="0" Maximum="100"
+                             Value="{Binding BogDownFactorPercent, Mode=TwoWay}">
+                                <ui:TitledSlider.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="Launch performance reduction factor to simulate clutch bog or wheel slip." TextWrapping="Wrap" Width="240"/>
+                                    </ToolTip>
+                                </ui:TitledSlider.ToolTip>
+                            </ui:TitledSlider>
+
+                            <ui:TitledSlider Title="Anti-Stall Alert Threshold (%)"
+                             Minimum="0" Maximum="100"
+                             Value="{Binding AntiStallThreshold, Mode=TwoWay}">
+                                <ui:TitledSlider.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock Text="Throttle or clutch percentage threshold below which an anti-stall warning is triggered." TextWrapping="Wrap" Width="240"/>
+                                    </ToolTip>
+                                </ui:TitledSlider.ToolTip>
+                            </ui:TitledSlider>
+
                         </StackPanel>
                     </ScrollViewer>
                 </styles:SHTabItem>
+
 
                 <styles:SHTabItem Header="FUEL">
                     <StackPanel Margin="10" DataContext="{Binding SelectedProfile}">
@@ -172,16 +285,47 @@
                                         SnapsToDevicePixels="True"
                                         UseLayoutRounding="True">
                                         <styles:SHButtonPrimary x:Name="BtnPitA"
-                                          Content="RECOMPUTE FROM LAST STOP"
-                                          Width="200" Height="28"
-                                          Margin="0,0,0,4" HorizontalAlignment="Left"
-                                          Command="{Binding DataContext.RecomputeFromLastStopCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                        <styles:SHButtonPrimary Content="USE SIMPLE PIT LANE TIME"
-                                          Width="{Binding ElementName=BtnPitA, Path=ActualWidth}"
-                                          Height="{Binding ElementName=BtnPitA, Path=Height}"
-                                          Margin="0"
-                                          HorizontalAlignment="Left"
-                                          Command="{Binding DataContext.UseDirectForTrackCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                            Content="RECOMPUTE FROM LAST STOP"
+                                            Width="200" Height="28"
+                                            Margin="0,0,0,4"
+                                            HorizontalAlignment="Left"
+                                            Command="{Binding DataContext.RecomputeFromLastStopCommand,
+                                            RelativeSource={RelativeSource AncestorType=UserControl}}">
+
+                                            <styles:SHButtonPrimary.ToolTip>
+                                                <ToolTip>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Recompute from last stop" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="• Uses the latched candidate at out-lap S/F (one-shot)."/>
+                                                        <TextBlock Text="• Prefers DTL; falls back to Direct if avg lap = 0."/>
+                                                        <TextBlock Text="• Saves to this track’s profile and stamps UTC time."/>
+                                                        <TextBlock Text="• Updates the Fuel tab immediately."/>
+                                                        <TextBlock Text="• No effect if no candidate is currently latched."/>
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </styles:SHButtonPrimary.ToolTip>
+
+                                        </styles:SHButtonPrimary>
+
+                                        <styles:SHButtonPrimary
+                                            Content="USE SIMPLE PIT LANE TIME"
+                                            Width="{Binding ElementName=BtnPitA, Path=ActualWidth}"
+                                            Height="{Binding ElementName=BtnPitA, Path=Height}"
+                                            Margin="0" HorizontalAlignment="Left"
+                                            Command="{Binding DataContext.UseDirectForTrackCommand,
+                                            RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                            <styles:SHButtonPrimary.ToolTip>
+                                                <ToolTip>
+                                                    <StackPanel>
+                                                        <TextBlock Text="Use Direct (simple pit-lane time)" FontWeight="SemiBold"/>
+                                                        <TextBlock Text="• Writes the current Direct lane time for this track."/>
+                                                        <TextBlock Text="• Ignores DTL (no pace weighting)." />
+                                                        <TextBlock Text="• Intended after a clean in/out pass."/>
+                                                        <TextBlock Text="• Saves immediately with UTC timestamp and updates Fuel."/>
+                                                    </StackPanel>
+                                                </ToolTip>
+                                            </styles:SHButtonPrimary.ToolTip>
+                                        </styles:SHButtonPrimary>
                                     </StackPanel>
                                 </StackPanel>
 

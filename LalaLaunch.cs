@@ -251,7 +251,6 @@ namespace LaunchPlugin
                 _pitFreezeUntilNextCycle = false;
             }
 
-            // --- Add this block right after 'lapCrossed' is calculated ---
             if (lapCrossed)
             {
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
@@ -636,6 +635,24 @@ namespace LaunchPlugin
             }
         }
 
+        // Save the refuel rate into the active car profile and persist profiles.json
+        public void SaveRefuelRateToActiveProfile(double rateLps)
+        {
+            try
+            {
+                if (rateLps > 0 && ActiveProfile != null)
+                {
+                    ActiveProfile.RefuelRate = rateLps;   // property already exists on CarProfile
+                    ProfilesViewModel?.SaveProfiles();    // persist immediately
+                    SimHub.Logging.Current.Info($"[Profiles] RefuelRate saved for '{ActiveProfile.ProfileName}': {rateLps:F3} L/s");
+                }
+            }
+            catch (Exception ex)
+            {
+                SimHub.Logging.Current.Info($"[Profiles] SaveRefuelRateToActiveProfile failed: {ex.Message}");
+            }
+        }
+
         public string CurrentTrackKey { get; private set; } = "unknown";
 
         public enum ProfileEditMode { ActiveCar, CarProfile, Template }
@@ -775,6 +792,35 @@ namespace LaunchPlugin
         // --- Already added earlier for MaxFuel throttling ---
         private double _lastAnnouncedMaxFuel = -1;
 
+        // ==== Refuel learning state (hardened) ====
+        private bool _isRefuelling = false;
+        private double _refuelStartFuel = 0.0;
+        private double _refuelStartTime = 0.0;
+
+        // Hysteresis / debounce
+        private double _refuelLastFuel = 0.0;         // last sample
+        private double _refuelWindowStart = 0.0;      // window used to decide "start"
+        private double _refuelWindowRise = 0.0;       // liters accumulated in start window
+        private double _refuelLastRiseTime = 0.0;     // sessionTime when we last saw a positive rise
+
+        // Tunables (conservative defaults)
+        private const double FuelNoiseEps = 0.02;  // ignore < 0.02 L ticks
+        private const double StartWindowSec = 0.50;  // require rise inside this window
+        private const double StartRiseLiters = 0.40;  // need ≥ 0.4 L to start
+        private const double EndIdleSec = 0.50;  // stop if no rise for this long
+        private const double MaxDeltaPerTickLit = 2.00;  // clamp corrupted spikes
+        private const double MinValidAddLiters = 1.00;  // discard tiny fills
+        private const double MinValidDurSec = 2.00;  // discard ultra-short
+        private const double MinRateLps = 0.05;  // plausible range
+        private const double MaxRateLps = 10.0;
+        // --- Refuel learning smoothing + cooldown ---
+        private double _refuelRateEmaLps = 0.0;           // smoothed learned rate (EMA)
+        private double _refuelLearnCooldownEnd = 0.0;     // sessionTime when we can learn again
+
+        private const double EmaAlpha = 0.35;             // 0..1; higher = follow raw rate more
+        private const double LearnCooldownSec = 20.0;     // block new learn saves for N seconds
+
+        private double _lastFuel = 0.0;
 
         // ---Temporary for Testing Purposes ---
 
@@ -1376,6 +1422,122 @@ namespace LaunchPlugin
             }
 
             _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
+
+            // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
+            double currentFuel = data.NewData?.Fuel ?? 0.0;
+
+            // Pull raw session time from SimHub property engine
+            double sessionTime = 0.0;
+            try
+            {
+                sessionTime = Convert.ToDouble(
+                    pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionTime") ?? 0.0
+                );
+            }
+            catch { sessionTime = 0.0; }
+
+            bool inPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
+            
+            // Cooldown: avoid re-learning immediately after a save
+            bool onCooldown = sessionTime < _refuelLearnCooldownEnd;
+            if (onCooldown)
+            {
+                _lastFuel = currentFuel;   // keep last fuel fresh
+                return;
+            }
+
+            // Clamp per-tick delta, ignore noise
+            double delta = currentFuel - _refuelLastFuel;
+            if (delta > MaxDeltaPerTickLit) delta = MaxDeltaPerTickLit;
+            if (delta < -MaxDeltaPerTickLit) delta = -MaxDeltaPerTickLit;
+
+            bool rising = delta > FuelNoiseEps;
+
+            // Guard: ignore session start / garage / not in pits
+            bool learningEnabled = sessionTime > 5.0 && inPitLaneFlag;
+
+            // ---- Not refuelling yet: look for a “start” window
+            if (learningEnabled && !_isRefuelling)
+            {
+                // Start or advance window
+                if (_refuelWindowStart <= 0.0) _refuelWindowStart = sessionTime;
+
+                if (rising) _refuelWindowRise += delta;
+
+                // If window aged out, evaluate & maybe start
+                double winAge = sessionTime - _refuelWindowStart;
+                if (winAge >= StartWindowSec)
+                {
+                    if (_refuelWindowRise >= StartRiseLiters)
+                    {
+                        // Start refuel
+                        _isRefuelling = true;
+                        _refuelStartFuel = _refuelLastFuel;   // fuel level before rise
+                        _refuelStartTime = _refuelWindowStart;
+                        _refuelLastRiseTime = sessionTime;
+
+                        SimHub.Logging.Current.Info($"[LalaLaunch] Refuel started at {_refuelStartTime:F1}s (Fuel={_refuelStartFuel:F1})");
+                    }
+
+                    // Reset window (whether we started or not)
+                    _refuelWindowStart = sessionTime;
+                    _refuelWindowRise = 0.0;
+                }
+            }
+            // ---- Already refuelling: track and look for “end”
+            else if (_isRefuelling)
+            {
+                if (rising) _refuelLastRiseTime = sessionTime;
+
+                bool idleTooLong = (sessionTime - _refuelLastRiseTime) >= EndIdleSec;
+                bool leftPit = !inPitLaneFlag;
+
+                if (idleTooLong || leftPit)
+                {
+                    // Finalize using last positive-rise time for duration
+                    double stopTime = _refuelLastRiseTime;
+                    if (stopTime <= _refuelStartTime) stopTime = sessionTime; // fallback
+
+                    double fuelAdded = currentFuel - _refuelStartFuel;
+                    double duration = Math.Max(0.0, stopTime - _refuelStartTime);
+
+                    if (fuelAdded >= MinValidAddLiters && duration >= MinValidDurSec)
+                    {
+                        double rate = fuelAdded / duration;
+                        if (rate >= MinRateLps && rate <= MaxRateLps)
+                        {
+                            // Exponential moving average for stability
+                            if (_refuelRateEmaLps <= 0.0) _refuelRateEmaLps = rate;
+                            else _refuelRateEmaLps = (EmaAlpha * rate) + ((1.0 - EmaAlpha) * _refuelRateEmaLps);
+
+                            var savedRate = _refuelRateEmaLps;
+
+                            SaveRefuelRateToActiveProfile(savedRate);
+                            _refuelLearnCooldownEnd = sessionTime + LearnCooldownSec;
+
+                            SimHub.Logging.Current.Info(
+                                $"[LaLaLaunch] Learned refuel rate (smoothed): {savedRate:F2} L/s  [raw {rate:F2}] (Δfuel={fuelAdded:F1}, t={duration:F1}s). " +
+                                $"Cooldown until {_refuelLearnCooldownEnd:F1}s");
+                        }
+
+                    }
+
+                    SimHub.Logging.Current.Info($"[LalaLaunch] Refuel ended at {stopTime:F1}s");
+
+                    // Reset state
+                    _isRefuelling = false;
+                    _refuelStartFuel = 0.0;
+                    _refuelStartTime = 0.0;
+                    _refuelWindowStart = 0.0;
+                    _refuelWindowRise = 0.0;
+                    _refuelLastRiseTime = 0.0;
+                }
+            }
+
+            // Track last fuel for next tick (always)
+            _refuelLastFuel = currentFuel;
+
+
             // Save exactly once at the S/F that ended the OUT-LAP
             if (_pitLite != null && _pitLite.ConsumeCandidate(out var lossSec, out var src))
             {
