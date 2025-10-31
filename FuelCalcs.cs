@@ -1477,7 +1477,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 ClampStintSplits(adjustedLaps, pitAtLap);
 
             // First-stint fuel to reach pit (cap-aware)
-            double firstFuel = Math.Min(MaxFuelOverride, fuelPerLap * firstStintLaps);
+            double firstFuel = Math.Min(MaxFuelOverride, (fuelPerLap * firstStintLaps) + FormationLapFuelLiters);
             result.FirstStintFuel = Math.Round(firstFuel, 1);
 
             // How much fuel would be added for stint 2 (display-only if you keep tyres-only strategy)
@@ -1508,7 +1508,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 estStopTime = lane + Math.Max(tyres, pourTime);
 
                 result.TotalFuel = Math.Round(fuelPerLap * adjustedLaps, 1);
-                result.FirstStintFuel = Math.Round(Math.Min(MaxFuelOverride, fuelPerLap * firstStintLaps), 1);
+                result.FirstStintFuel = Math.Round(Math.Min(MaxFuelOverride, (fuelPerLap * firstStintLaps) + FormationLapFuelLiters), 1);
             }
 
             // Totals & per-stop
