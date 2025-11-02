@@ -1295,6 +1295,22 @@ public class FuelCalcs : INotifyPropertyChanged
         CalculateStrategy();
     }
 
+    private static double ComputeExtraSecondsAfterTimerZero(double leaderLapSec, double yourLapSec, double raceSeconds)
+    {
+        if (leaderLapSec <= 0.0 || yourLapSec <= 0.0 || raceSeconds <= 0.0) return 0.0;
+
+        double phaseL = raceSeconds % leaderLapSec;
+        double tL_rem = leaderLapSec - phaseL;
+        if (tL_rem >= leaderLapSec - 1e-6) tL_rem = 0.0;
+
+        double phaseYouAtZero = raceSeconds % yourLapSec;
+        double phaseYouAtFlag = (phaseYouAtZero + tL_rem) % yourLapSec;
+        double tYou_finish_after_flag = yourLapSec - phaseYouAtFlag;
+        if (tYou_finish_after_flag >= yourLapSec - 1e-6) tYou_finish_after_flag = 0.0;
+
+        return tL_rem + tYou_finish_after_flag;
+    }
+
 
     public void CalculateStrategy()
     {
@@ -1363,8 +1379,12 @@ public class FuelCalcs : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsPitstopRequired));
         if (IsTimeLimitedRace && num3 > 0.0)
         {
-            double value = Math.Max(0.0, num6 * num3 - RaceMinutes * 60.0);
-            ExtraTimeAfterLeader = TimeSpan.FromSeconds(value).ToString("m\\:ss");
+            double extra = ComputeExtraSecondsAfterTimerZero(
+                leaderLapSec: num2,   // leader pace (your pace - delta)
+                yourLapSec: num3,   // your estimated pace
+                raceSeconds: RaceMinutes * 60.0
+            );
+            ExtraTimeAfterLeader = TimeSpan.FromSeconds(extra).ToString("m\\:ss");
         }
         else { ExtraTimeAfterLeader = "N/A"; }
         double num24 = fuelPerLap - FuelSaveTarget;
@@ -1473,12 +1493,15 @@ public class FuelCalcs : INotifyPropertyChanged
             }
 
             // ----- Split using the clamp helper -----
-            var (firstStintLaps, secondStintLaps, showSecondStint) =
-                ClampStintSplits(adjustedLaps, pitAtLap);
+            var (firstStintLaps, secondStintLaps, showSecondStint) = ClampStintSplits(adjustedLaps, pitAtLap);
 
-            // First-stint fuel to reach pit (cap-aware)
-            double firstFuel = Math.Min(MaxFuelOverride, (fuelPerLap * firstStintLaps) + FormationLapFuelLiters);
-            result.FirstStintFuel = Math.Round(firstFuel, 1);
+            // Start grid is FULL, but the stint laps must reflect formation burn
+            double effectiveStartFuel2 = Math.Max(0.0, MaxFuelOverride - FormationLapFuelLiters);
+            firstStintLaps = (fuelPerLap > 0.0) ? Math.Floor(effectiveStartFuel2 / fuelPerLap) : 0.0;
+
+            // Display always shows a full tank on the grid
+            result.FirstStintFuel = Math.Round(MaxFuelOverride, 1);
+
 
             // How much fuel would be added for stint 2 (display-only if you keep tyres-only strategy)
             double addLitres = showSecondStint ? Math.Max(0.0, fuelPerLap * secondStintLaps) : 0.0;
@@ -1560,11 +1583,21 @@ public class FuelCalcs : INotifyPropertyChanged
         result.Stops = (int)Math.Ceiling(fuelNeededFromPits / MaxFuelOverride);
 
         // Stint 1 (starting stint)
-        result.FirstStintFuel = MaxFuelOverride;
-        double lapsInFirstStint = Math.Floor(MaxFuelOverride / fuelPerLap);
+        // Include formation fuel in the starting load, but respect the tank cap.
+        // Start grid is FULL, but we already BURN formation fuel before Lap 1 starts.
+        double effectiveStartFuel = Math.Max(0.0, MaxFuelOverride - FormationLapFuelLiters);
+
+        // First-stint laps must be based on *effective* fuel at Lap 1 start
+        double lapsInFirstStint = (fuelPerLap > 0.0) ? Math.Floor(effectiveStartFuel / fuelPerLap) : 0.0;
+
+        // UI should always show a full tank at the start of the race
+        result.FirstStintFuel = Math.Round(MaxFuelOverride, 1);
+
         lapsRemaining -= lapsInFirstStint;
-        // Fuel left when you arrive for the first stop (could be >0 if Stint 1 didn’t end exactly at empty)
-        double fuelAtPitIn = Math.Max(0.0, MaxFuelOverride - (lapsInFirstStint * fuelPerLap));
+
+        // Fuel actually in the tank when you reach pit-in (after formation burn + first-stint laps)
+        double fuelAtPitIn = Math.Max(0.0, effectiveStartFuel - (lapsInFirstStint * fuelPerLap));
+
 
         body.Append($"STINT 1:  {lapsInFirstStint:F0} L   Est {TimeSpan.FromSeconds(lapsInFirstStint * playerPaceSeconds):hh\\:mm\\:ss}   Start {result.FirstStintFuel:F1} L");
 
