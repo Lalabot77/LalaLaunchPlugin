@@ -1299,16 +1299,31 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         if (leaderLapSec <= 0.0 || yourLapSec <= 0.0 || raceSeconds <= 0.0) return 0.0;
 
+        // Phase within each lap when the clock hits zero
         double phaseL = raceSeconds % leaderLapSec;
-        double tL_rem = leaderLapSec - phaseL;
+        double tL_rem = leaderLapSec - phaseL;        // leader time-to-line
         if (tL_rem >= leaderLapSec - 1e-6) tL_rem = 0.0;
 
-        double phaseYouAtZero = raceSeconds % yourLapSec;
-        double phaseYouAtFlag = (phaseYouAtZero + tL_rem) % yourLapSec;
-        double tYou_finish_after_flag = yourLapSec - phaseYouAtFlag;
-        if (tYou_finish_after_flag >= yourLapSec - 1e-6) tYou_finish_after_flag = 0.0;
+        double phaseY = raceSeconds % yourLapSec;
+        double tY_rem = yourLapSec - phaseY;          // your time-to-line
+        if (tY_rem >= yourLapSec - 1e-6) tY_rem = 0.0;
 
-        return tL_rem + tYou_finish_after_flag;
+        // Baseline: assume one additional lap after zero
+        double extra = tY_rem + yourLapSec;
+
+        // Edge case: leader crosses nearly immediately and you narrowly AVOID being lapped,
+        // which can force you into two full laps after your next line crossing.
+        // If the leader will complete their next lap before you can reach the line once,
+        // you likely owe a second full lap.
+        bool leaderNextLapBeatsYouToLine = (tL_rem + leaderLapSec) < tY_rem;
+
+        if (leaderNextLapBeatsYouToLine)
+        {
+            // Two-lap overrun: you finish current partial + two full laps
+            extra = tY_rem + (2.0 * yourLapSec);
+        }
+
+        return Math.Max(0.0, extra);
     }
 
 
@@ -1416,7 +1431,7 @@ public class FuelCalcs : INotifyPropertyChanged
             result.FirstStintFuel = result.TotalFuel;
 
             var bodyNoStop = new StringBuilder();
-            bodyNoStop.Append($"STINT 1:  {totalLaps:F0} Laps   Est {TimeSpan.FromSeconds(totalLaps * playerPaceSeconds):hh\\:mm\\:ss}   Start {result.TotalFuel:F1} L");
+            bodyNoStop.Append($"STINT 1:  {totalLaps:F0} Laps   Est {TimeSpan.FromSeconds(totalLaps * playerPaceSeconds):hh\\:mm\\:ss}   Start {result.TotalFuel:F1} litres");
 
             var lappedEventsNoStop = new List<int>();
             double cumP = 0, cumL = 0;          // player and leader clocks (same wall time)
@@ -1548,16 +1563,16 @@ public class FuelCalcs : INotifyPropertyChanged
             sb.AppendLine();
 
             var stint1Time = TimeSpan.FromSeconds(Math.Floor(firstStintLaps * playerPaceSeconds));
-            sb.AppendLine($"STINT 1:  {firstStintLaps:F0} Laps   Est {stint1Time:hh\\:mm\\:ss}   Start {result.FirstStintFuel:F1} L");
+            sb.AppendLine($"STINT 1:  {firstStintLaps:F0} Laps   Est {stint1Time:hh\\:mm\\:ss}   Start {result.FirstStintFuel:F1} litres");
 
             var stopTs = TimeSpan.FromSeconds(estStopTime);
             string suffix = BuildStopSuffix(tyres, pourTime);
-            sb.AppendLine($"STOP 1:   Est {stopTs:mm\\:ss}   Lane {lane:F1}   Tyres {tyres:F1}   Fuel {pourTime:F1}  {suffix}");
+            sb.AppendLine($"STOP 1:   Est {estStopTime:F1}s   Lane {lane:F1}s   Tyres {tyres:F1}s   Fuel {pourTime:F1}s  {suffix}");
 
             if (showSecondStint)
             {
                 var stint2Time = TimeSpan.FromSeconds(Math.Floor(secondStintLaps * playerPaceSeconds));
-                sb.AppendLine($"STINT 2:  {secondStintLaps:F0} Laps   Est {stint2Time:hh\\:mm\\:ss}   Add {addLitres:F1} L");
+                sb.AppendLine($"STINT 2:  {secondStintLaps:F0} Laps   Est {stint2Time:hh\\:mm\\:ss}   Add {addLitres:F1} litres");
             }
 
             result.Breakdown = header + Environment.NewLine + Environment.NewLine + sb.ToString();
@@ -1599,7 +1614,7 @@ public class FuelCalcs : INotifyPropertyChanged
         double fuelAtPitIn = Math.Max(0.0, effectiveStartFuel - (lapsInFirstStint * fuelPerLap));
 
 
-        body.Append($"STINT 1:  {lapsInFirstStint:F0} L   Est {TimeSpan.FromSeconds(lapsInFirstStint * playerPaceSeconds):hh\\:mm\\:ss}   Start {result.FirstStintFuel:F1} L");
+        body.Append($"STINT 1:  {lapsInFirstStint:F0} Laps   Est {TimeSpan.FromSeconds(lapsInFirstStint * playerPaceSeconds):hh\\:mm\\:ss}   Start {result.FirstStintFuel:F1} litres");
 
         // Stint 1: walk each lap so we can emit exact catch lap(s)
         if (anyLappingPossible)
@@ -1686,7 +1701,7 @@ public class FuelCalcs : INotifyPropertyChanged
             var stopTs = TimeSpan.FromSeconds(totalStopTime);
             body.AppendLine();
             string stopSuffix = BuildStopSuffix(this.TireChangeTime, refuelTime);
-            body.AppendLine($"STOP {i}:   Est {stopTs:mm\\:ss}   Lane {pitLaneTimeLoss:F1}   Tyres {this.TireChangeTime:F1}   Fuel {refuelTime:F1}  {stopSuffix}");
+            body.AppendLine($"STOP {i}:   Est {totalStopTime:F1}s   Lane {pitLaneTimeLoss:F1}s   Tyres {this.TireChangeTime:F1}s   Fuel {refuelTime:F1}s  {stopSuffix}");
             body.AppendLine();
 
             // Next stint length in laps — robustly clamped to [0, lapsRemaining]
@@ -1703,7 +1718,7 @@ public class FuelCalcs : INotifyPropertyChanged
 
             if (showNextStint)
             {
-                body.Append($"STINT {i + 1}:  {lapsInNextStint:F0} Laps   Est {TimeSpan.FromSeconds(lapsInNextStint * playerPaceSeconds):hh\\:mm\\:ss}   Add {fuelToFillTo:F1} L");
+                body.Append($"STINT {i + 1}:  {lapsInNextStint:F0} Laps   Est {TimeSpan.FromSeconds(lapsInNextStint * playerPaceSeconds):hh\\:mm\\:ss}   Add {fuelToFillTo:F1} litres");
             }
             else
             {
