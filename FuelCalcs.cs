@@ -186,6 +186,57 @@ public class FuelCalcs : INotifyPropertyChanged
         }
     }
 
+    // Presets — list exposed to UI
+    private List<RacePreset> _availablePresets = new List<RacePreset>();
+    public List<RacePreset> AvailablePresets
+    {
+        get { return _availablePresets; }
+    }
+
+    // Currently selected (in ComboBox). May be null at runtime.
+    private RacePreset _selectedPreset;
+    public RacePreset SelectedPreset
+    {
+        get { return _selectedPreset; }
+        set
+        {
+            if (!object.ReferenceEquals(_selectedPreset, value))
+            {
+                _selectedPreset = value;
+                OnPropertyChanged(nameof(SelectedPreset));
+                OnPropertyChanged(nameof(HasSelectedPreset));
+
+                // Auto-apply on selection change (removes need for an Apply button)
+                ApplySelectedPreset();
+            }
+        }
+    }
+
+
+    // Has selection (for button enable)
+    public bool HasSelectedPreset
+    {
+        get { return _selectedPreset != null; }
+    }
+
+    // Last applied preset (for badge + modified flag)
+    private RacePreset _appliedPreset;
+
+    // Badge text shown under the selector
+    public string PresetBadge
+    {
+        get
+        {
+            if (_appliedPreset == null) return "Preset: (none)";
+            return IsPresetModified() ? "Preset: " + _appliedPreset.Name + " (modified)"
+                                      : "Preset: " + _appliedPreset.Name;
+        }
+    }
+        public bool IsPresetModifiedFlag
+    {
+        get { return IsPresetModified(); }
+    }
+
     // Pit-lane live detection not implemented yet; hide the button for now
     public bool IsLivePitLaneLossAvailable => false;
 
@@ -200,6 +251,87 @@ public class FuelCalcs : INotifyPropertyChanged
     public ICommand SavePlannerDataToProfileCommand { get; }
     public ICommand UseProfileFuelPerLapCommand { get; }
     public ICommand UseMaxFuelPerLapCommand { get; }
+    public ICommand ApplyPresetCommand { get; private set; }
+    public ICommand ClearPresetCommand { get; private set; }
+
+    private void ApplySelectedPreset()
+    {
+        if (_selectedPreset == null) return;
+
+        var p = _selectedPreset;
+
+        // Race type + duration
+        if (p.Type == RacePresetType.TimeLimited)
+        {
+            IsTimeLimitedRace = true;   // your existing setters raise OnPropertyChanged
+            IsLapLimitedRace = false;
+            if (p.RaceMinutes.HasValue) RaceMinutes = p.RaceMinutes.Value;
+        }
+        else
+        {
+            IsTimeLimitedRace = false;
+            IsLapLimitedRace = true;
+            if (p.RaceLaps.HasValue) RaceLaps = p.RaceLaps.Value;
+        }
+
+        // Mandatory stop
+        MandatoryStopRequired = p.MandatoryStopRequired;
+
+        // Tyre change time: only when specified
+        if (p.TireChangeTimeSec.HasValue)
+            TireChangeTime = p.TireChangeTimeSec.Value;
+
+        // Max fuel override: only when specified
+        if (p.MaxFuelLitres.HasValue)
+            MaxFuelOverride = p.MaxFuelLitres.Value;
+
+        // Contingency
+        IsContingencyInLaps = p.ContingencyInLaps;
+        IsContingencyLitres = !p.ContingencyInLaps;
+        ContingencyValue = p.ContingencyValue;
+
+        _appliedPreset = p;
+        RaisePresetStateChanged();
+    }
+
+    private void ClearAppliedPreset()
+    {
+        _appliedPreset = null;
+        RaisePresetStateChanged();
+    }
+
+    private bool IsPresetModified()
+    {
+        if (_appliedPreset == null) return false;
+
+        bool typeDiff =
+            (_appliedPreset.Type == RacePresetType.TimeLimited && !IsTimeLimitedRace) ||
+            (_appliedPreset.Type == RacePresetType.LapLimited && !IsLapLimitedRace);
+
+        bool durDiff =
+            (_appliedPreset.Type == RacePresetType.TimeLimited && (_appliedPreset.RaceMinutes ?? RaceMinutes) != RaceMinutes) ||
+            (_appliedPreset.Type == RacePresetType.LapLimited && (_appliedPreset.RaceLaps ?? RaceLaps) != RaceLaps);
+
+        bool stopDiff = _appliedPreset.MandatoryStopRequired != MandatoryStopRequired;
+
+        bool tyreDiff = _appliedPreset.TireChangeTimeSec.HasValue &&
+                        Math.Abs(_appliedPreset.TireChangeTimeSec.Value - TireChangeTime) > 0.05;
+
+        bool fuelDiff = _appliedPreset.MaxFuelLitres.HasValue &&
+                        Math.Abs(_appliedPreset.MaxFuelLitres.Value - MaxFuelOverride) > 0.05;
+
+        bool contDiff =
+            (_appliedPreset.ContingencyInLaps != IsContingencyInLaps) ||
+            Math.Abs(_appliedPreset.ContingencyValue - ContingencyValue) > 0.05;
+
+        return typeDiff || durDiff || stopDiff || tyreDiff || fuelDiff || contDiff;
+    }
+
+    private void RaisePresetStateChanged()
+    {
+        OnPropertyChanged(nameof(PresetBadge));
+        OnPropertyChanged(nameof(IsPresetModifiedFlag));
+    }
 
     public string FuelPerLapText
     {
@@ -330,6 +462,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 OnPropertyChanged("IsLapLimitedRace");
                 OnPropertyChanged("IsTimeLimitedRace");
                 CalculateStrategy();
+                RaisePresetStateChanged();
             }
         }
     }
@@ -356,6 +489,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 _raceLaps = value;
                 OnPropertyChanged("RaceLaps");
                 CalculateStrategy();
+                RaisePresetStateChanged();
             }
         }
     }
@@ -370,6 +504,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 _raceMinutes = value;
                 OnPropertyChanged("RaceMinutes");
                 CalculateStrategy();
+                RaisePresetStateChanged();
             }
         }
     }
@@ -565,6 +700,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 OnPropertyChanged("MaxFuelOverride");
                 OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh)); // Notify UI to re-check the highlight
                 CalculateStrategy();
+                RaisePresetStateChanged();
             }
         }
     }
@@ -579,6 +715,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 _tireChangeTime = value;
                 OnPropertyChanged("TireChangeTime");
                 CalculateStrategy();
+                RaisePresetStateChanged();
             }
         }
     }
@@ -717,6 +854,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 _contingencyValue = value;
                 OnPropertyChanged();
                 CalculateStrategy(); // Recalculate when changed
+                RaisePresetStateChanged();
             }
         }
     }
@@ -732,6 +870,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsContingencyLitres));
                 CalculateStrategy();
+                RaisePresetStateChanged();
             }
         }
     }
@@ -754,6 +893,7 @@ public class FuelCalcs : INotifyPropertyChanged
                 _mandatoryStopRequired = value;
                 OnPropertyChanged();        // nameof(MandatoryStopRequired)
                 CalculateStrategy();
+                RaisePresetStateChanged();
             }
         }
     }
@@ -943,6 +1083,57 @@ public class FuelCalcs : INotifyPropertyChanged
             "Planner Data Saved", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
+    private void InitPresets()
+    {
+        _availablePresets = new List<RacePreset>
+    {
+        new RacePreset
+        {
+            Name = "SRI Thursday (50 min)",
+            Type = RacePresetType.TimeLimited,
+            RaceMinutes = 50,
+            MandatoryStopRequired = true,
+            TireChangeTimeSec = 0.0,    // fuel-only stop
+            MaxFuelLitres = 66.0,
+            ContingencyInLaps = true,
+            ContingencyValue = 1.0
+        },
+        new RacePreset
+        {
+            Name = "IMSA (40 min)",
+            Type = RacePresetType.TimeLimited,
+            RaceMinutes = 40,
+            MandatoryStopRequired = true,
+            TireChangeTimeSec = 0.0,    // fuel-only stop
+            MaxFuelLitres = 55.0,       // ~50%
+            ContingencyInLaps = true,
+            ContingencyValue = 1.0
+        },
+        new RacePreset
+        {
+            Name = "GT Sprint (40 min)",
+            Type = RacePresetType.TimeLimited,
+            RaceMinutes = 40,
+            MandatoryStopRequired = false,
+            TireChangeTimeSec = null,   // leave car default
+            MaxFuelLitres = 55.0,       // ~50%
+            ContingencyInLaps = true,
+            ContingencyValue = 1.0
+        },
+        new RacePreset
+        {
+            Name = "GT Sprint (20 min)",
+            Type = RacePresetType.TimeLimited,
+            RaceMinutes = 20,
+            MandatoryStopRequired = false,
+            TireChangeTimeSec = null,   // leave car default
+            MaxFuelLitres = 55.0,       // uniform; negligible at 20m
+            ContingencyInLaps = true,
+            ContingencyValue = 1.0
+        }
+    };
+        OnPropertyChanged(nameof(AvailablePresets));
+    }
 
     // Unique id to make sure the UI and the engine are the same instance
     public string InstanceTag { get; } = Guid.NewGuid().ToString("N").Substring(0, 6);
@@ -957,6 +1148,11 @@ public class FuelCalcs : INotifyPropertyChanged
         LoadProfileLapTimeCommand = new RelayCommand(_ => LoadProfileLapTime(),_ => SelectedCarProfile != null && !string.IsNullOrEmpty(SelectedTrack));
         UseProfileFuelPerLapCommand = new RelayCommand(_ => UseProfileFuelPerLap());
         UseMaxFuelPerLapCommand = new RelayCommand(_ => UseMaxFuelPerLap(), _ => IsMaxFuelAvailable);
+
+        ApplyPresetCommand = new RelayCommand(o => ApplySelectedPreset(), o => HasSelectedPreset);
+        ClearPresetCommand = new RelayCommand(o => ClearAppliedPreset());
+
+        InitPresets();  // populate AvailablePresets + default SelectedPreset
 
         _plugin.ProfilesViewModel.CarProfiles.CollectionChanged += (s, e) =>
         {
@@ -1112,6 +1308,40 @@ public class FuelCalcs : INotifyPropertyChanged
 
     }
 
+    public enum RacePresetType
+    {
+        TimeLimited,
+        LapLimited
+    }
+
+    public class RacePreset
+    {
+        public string Name { get; set; }              // e.g., "SRI Thursday (50 min)"
+        public RacePresetType Type { get; set; }      // TimeLimited or LapLimited
+
+        // Duration
+        public int? RaceMinutes { get; set; }         // used when Type == TimeLimited
+        public int? RaceLaps { get; set; }            // used when Type == LapLimited
+
+        // Strategy
+        public bool MandatoryStopRequired { get; set; }
+
+        // Tyres: null => leave current value unchanged; otherwise set (seconds)
+        public double? TireChangeTimeSec { get; set; }
+
+        // Max fuel override (litres): null => leave unchanged
+        public double? MaxFuelLitres { get; set; }
+
+        // Contingency
+        public bool ContingencyInLaps { get; set; }   // true = laps, false = litres
+        public double ContingencyValue { get; set; }
+
+        public RacePreset()
+        {
+            Name = "";
+            Type = RacePresetType.TimeLimited;
+        }
+    }
 
     private void SetUIDefaults()
     {

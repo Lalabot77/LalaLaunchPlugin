@@ -31,27 +31,6 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="10">
-
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                <TextBlock Text="Car Profile:" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
-                <ComboBox Width="250"
-                          ToolTip="Select a car profile to plan a strategy for." Margin="0,0,20,0"
-                          ItemsSource="{Binding AvailableCarProfiles}"
-                          SelectedItem="{Binding SelectedCarProfile, Mode=TwoWay}"
-                          DisplayMemberPath="ProfileName" />
-
-                <TextBlock Text="Track:" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
-                <ComboBox Width="250"
-                          ToolTip="Select the track and layout." ItemsSource="{Binding AvailableTrackStats}"
-                           DisplayMemberPath="DisplayName"
-                          SelectedItem="{Binding SelectedTrackStats, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                <TextBlock Text="{Binding SeenSessionSummary, Mode=OneWay}"
-                           Margin="12,0,0,0"
-                           VerticalAlignment="Center"
-                           Opacity="0.8" />
-            </StackPanel>
-
             <styles:SHSection Title="PRE-RACE PLANNER" ShowSeparator="True" Margin="0,5,0,0">
                 <Grid Margin="5,0,5,5">
                     <Grid.RowDefinitions>
@@ -62,20 +41,84 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-
+                    
                     <Grid Grid.Column="0" Margin="0,0,15,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <!-- 0: Section header -->
                             <RowDefinition Height="Auto"/>
+                            <!-- 1: Car + Track -->
                             <RowDefinition Height="Auto"/>
+                            <!-- 2: Track Condition + Wet factor -->
                             <RowDefinition Height="Auto"/>
+                            <!-- 3: Est Avg Lap Time -->
                             <RowDefinition Height="Auto"/>
+                            <!-- 4: Pace vs Leader / Race Pace vs PB -->
                             <RowDefinition Height="Auto"/>
+                            <!-- 5: Max Fuel Override -->
+                            <RowDefinition Height="Auto"/>
+                            <!-- 6: Fuel per Lap -->
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Text="Car and Track Parameters" FontWeight="Bold" Margin="0,5,0,5"/>
+                        <!-- Row 0: section header + live status on the same line -->
+                        <Grid Grid.Row="0" Margin="0,5,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Row="1" Margin="0,5,0,5">
+                            <TextBlock Grid.Column="0"
+                                 Text="Car and Track Parameters"
+                                 FontWeight="Bold"/>
+
+                            <TextBlock Grid.Column="1"
+                                 Text="{Binding SeenSessionSummary}"
+                                 FontStyle="Italic"
+                                 Opacity="0.8"
+                                 Margin="12,0,0,0"
+                                 VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <!-- NEW: Car + Track selectors inside the section -->
+                        <Grid Grid.Row="1" Margin="0,5,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="250"/>
+                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="250"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Car & Track, vertically aligned in a 2x2 Grid -->
+                            <Grid Grid.Row="1" Margin="0,5,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="100"/>
+                                    <!-- label column -->
+                                    <ColumnDefinition Width="260"/>
+                                    <!-- combo column -->
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Car Profile:"
+                                    VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
+                                <ComboBox  Grid.Row="0" Grid.Column="1" Width="260" Margin="0,0,0,6"
+                                     ItemsSource="{Binding AvailableCarProfiles}"
+                                     SelectedItem="{Binding SelectedCarProfile, Mode=TwoWay}"
+                                     DisplayMemberPath="ProfileName"
+                                     ToolTip="Select a car profile to plan a strategy for."/>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Track:"
+                                    VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
+                                <ComboBox  Grid.Row="1" Grid.Column="1" Width="260"
+                                     ItemsSource="{Binding AvailableTrackStats}"
+                                     DisplayMemberPath="DisplayName"
+                                     SelectedItem="{Binding SelectedTrackStats, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Select the track and layout."/>
+                            </Grid>
+                        </Grid>
+
+                        <StackPanel Grid.Row="2" Margin="0,5,0,5">
                             <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                 <TextBlock Text="Track Condition:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <RadioButton Content="Dry" IsChecked="{Binding IsDry, Mode=TwoWay}" GroupName="TrackCondition"/>
@@ -84,7 +127,7 @@
                             <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
                         </StackPanel>
 
-                        <Grid Grid.Row="2" Margin="0,15,0,0">
+                        <Grid Grid.Row="3" Margin="0,15,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="70"/>
@@ -117,46 +160,84 @@
                             <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding ProfileAvgDryLapTimeDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Saved average dry lap time from profile."/>
                         </Grid>
 
-                        <StackPanel Grid.Row="3" Margin="0,10,0,0">
-                            <Grid>
+                        <StackPanel Grid.Row="4" Margin="0,10,0,10" Grid.IsSharedSizeScope="True">
+
+                            <!-- Leader delta -->
+                            <Grid HorizontalAlignment="Stretch">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
+
                                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,5">
-                                    <TextBlock Text="Your Pace vs Leader (s):" ToolTip="How many seconds slower your average lap time is compared to the race leader."/>
-                                    <TextBlock Text="Avg Delta to Ldr: " Foreground="Gray" FontStyle="Italic" Margin="10,0,0,5"/>
+                                    <TextBlock Text="Your Pace vs Leader (s):"
+                 ToolTip="How many seconds slower your average lap time is compared to the race leader."/>
+                                    <TextBlock Text=" Avg Delta to Ldr: " Foreground="Gray" FontStyle="Italic" Margin="10,1,0,5"/>
                                     <TextBlock Text="{Binding AvgDeltaToLdrValue}" Foreground="Gray" FontStyle="Italic"/>
                                 </StackPanel>
-                                <Grid Grid.Row="1">
+
+                                <Grid Grid.Row="1" HorizontalAlignment="Stretch">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
+                                        <!-- Slider column: use * (NOT shared) -->
+                                        <ColumnDefinition Width="*"/>
+                                        <!-- Value column: Auto and SHARED across both rows -->
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="DeltaValueCol"/>
                                     </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding LeaderDeltaSeconds, Mode=TwoWay}" Margin="0,2,0,0" Minimum="0" Maximum="5" SmallChange="0.1" TickFrequency="0.1" IsSnapToTickEnabled="True" />
-                                    <TextBlock Grid.Column="1" Text="{Binding LeaderDeltaSeconds, StringFormat=N1}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
+
+                                    <Slider Grid.Column="0"
+              VerticalAlignment="Center"
+              Value="{Binding LeaderDeltaSeconds, Mode=TwoWay}"
+              Margin="0,2,0,0"
+              Minimum="0" Maximum="5"
+              SmallChange="0.1" TickFrequency="0.1"
+              IsSnapToTickEnabled="True" />
+
+                                    <TextBlock Grid.Column="1"
+                 Text="{Binding LeaderDeltaSeconds, StringFormat=N1}"
+                 VerticalAlignment="Center"
+                 Margin="10,0,0,0"
+                 MinWidth="35"
+                 TextAlignment="Right"/>
                                 </Grid>
                             </Grid>
 
-                            <Grid Margin="0,10,0,0" IsEnabled="{Binding IsPaceVsPbSliderActive}">
+                            <!-- PB delta -->
+                            <Grid Margin="0,10,0,0" IsEnabled="{Binding IsPaceVsPbSliderActive}" HorizontalAlignment="Stretch">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
+
                                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,5">
-                                    <TextBlock Text="Race Pace vs PB (s):" ToolTip="How many seconds slower your average race pace is compared to your personal best lap."/>
-                                    <TextBlock Text="Avg Delta to PB: " Foreground="Gray" FontStyle="Italic" Margin="10,0,0,5"/>
+                                    <TextBlock Text="Race Pace vs PB (s):"
+                 ToolTip="How many seconds slower your average race pace is compared to your personal best lap."/>
+                                    <TextBlock Text=" Avg Delta to PB: " Foreground="Gray" FontStyle="Italic" Margin="10,1,0,5"/>
                                     <TextBlock Text="{Binding AvgDeltaToPbValue}" Foreground="Gray" FontStyle="Italic"/>
                                 </StackPanel>
-                                <Grid Grid.Row="1">
+
+                                <Grid Grid.Row="1" HorizontalAlignment="Stretch">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="DeltaValueCol"/>
                                     </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RacePaceDeltaOverride, Mode=TwoWay}" Margin="0,2,0,0" Minimum="0" Maximum="5" SmallChange="0.1" TickFrequency="0.1" IsSnapToTickEnabled="True" />
-                                    <TextBlock Grid.Column="1" Text="{Binding RacePaceDeltaOverride, StringFormat=N1}" VerticalAlignment="Center" Margin="10,0,5,0" MinWidth="35" TextAlignment="Right"/>
+
+                                    <Slider Grid.Column="0"
+              VerticalAlignment="Center"
+              Value="{Binding RacePaceDeltaOverride, Mode=TwoWay}"
+              Margin="0,2,0,0"
+              Minimum="0" Maximum="5"
+              SmallChange="0.1" TickFrequency="0.1"
+              IsSnapToTickEnabled="True" />
+
+                                    <TextBlock Grid.Column="1"
+                 Text="{Binding RacePaceDeltaOverride, StringFormat=N1}"
+                 VerticalAlignment="Center"
+                 Margin="10,0,0,0"
+                 MinWidth="35"
+                 TextAlignment="Right"/>
                                 </Grid>
                             </Grid>
+
                         </StackPanel>
 
                         <StackPanel Grid.Row="4" Margin="0,15,0,0">
@@ -186,7 +267,7 @@
                             </TextBlock>
                         </StackPanel>
 
-                        <Grid Grid.Row="5" Margin="0,15,0,0">
+                        <Grid Grid.Row="6" Margin="0,15,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="70"/>
@@ -214,6 +295,40 @@
 
                     <StackPanel Grid.Row="0" Grid.Column="1" Margin="15,0,0,0">
                         <TextBlock Text="Race Strategy" FontWeight="Bold" Margin="0,5,0,5"/>
+
+                        <!-- Race Preset selector (inline, auto-apply) -->
+                        <Grid Margin="0,10,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="260"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                 Text="Race Preset:" VerticalAlignment="Center"
+                                 Margin="0,0,8,0" FontWeight="Bold"/>
+
+                            <ComboBox Grid.Column="1"
+                                ItemsSource="{Binding AvailablePresets}"
+                                SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                                DisplayMemberPath="Name"
+                                ToolTip="Select a preset to apply."/>
+
+                            <!-- Grey/italic right next to combo -->
+                            <TextBlock Grid.Column="2"
+                                 Text="modified"
+                                 Margin="10,0,0,0"
+                                 VerticalAlignment="Center"
+                                 FontStyle="Italic" Opacity="0.8">
+                            <TextBlock.Visibility>
+                               <Binding Path="IsPresetModifiedFlag"
+                                 Converter="{StaticResource BooleanToVisibilityConverter}"/>
+                            </TextBlock.Visibility>
+                            </TextBlock>
+                        </Grid>
+
+
 
                         <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
                             <TextBlock Text="Race Type:" VerticalAlignment="Center" Margin="0,0,10,0"/>
