@@ -93,6 +93,7 @@
     <Compile Include="CopyProfileDialog.xaml.cs">
       <DependentUpon>CopyProfileDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="EnumEqualsConverter.cs" />
     <Compile Include="FuelCalcs.cs" />
     <Compile Include="FuelCalculatorView.xaml.cs">
       <DependentUpon>FuelCalculatorView.xaml</DependentUpon>
@@ -112,15 +113,21 @@
       <DependentUpon>LaunchPluginSettingsUI.xaml</DependentUpon>
     </Compile>
     <Compile Include="MessagingSystem.cs" />
+    <Compile Include="NotBoolConverter.cs" />
     <Compile Include="ParsedSummary.cs" />
     <Compile Include="LalaLaunch.cs" />
     <Compile Include="PitCycleLite.cs" />
     <Compile Include="PitEngine.cs" />
+    <Compile Include="PresetsManagerView.xaml.cs">
+      <DependentUpon>PresetsManagerView.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ProfilesManagerView.xaml.cs">
       <DependentUpon>ProfilesManagerView.xaml</DependentUpon>
     </Compile>
     <Compile Include="ProfilesManagerViewModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RacePreset.cs" />
+    <Compile Include="RacePresetStore.cs" />
     <Compile Include="RejoinAssistEngine.cs" />
     <Compile Include="TelemetryLogger.cs" />
   </ItemGroup>
@@ -148,6 +155,10 @@
     <Page Include="LaunchPluginSettingsUI.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="PresetsManagerView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
     </Page>
     <Page Include="ProfilesManagerView.xaml">
       <Generator>MSBuild:Compile</Generator>

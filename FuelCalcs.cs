@@ -1083,56 +1083,187 @@ public class FuelCalcs : INotifyPropertyChanged
             "Planner Data Saved", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
+    public void ReloadPresetsFromDisk()
+    {
+        InitPresets();
+    }
+
     private void InitPresets()
     {
-        _availablePresets = new List<RacePreset>
-    {
-        new RacePreset
+        try
         {
-            Name = "SRI Thursday (50 min)",
-            Type = RacePresetType.TimeLimited,
-            RaceMinutes = 50,
-            MandatoryStopRequired = true,
-            TireChangeTimeSec = 0.0,    // fuel-only stop
-            MaxFuelLitres = 66.0,
-            ContingencyInLaps = true,
-            ContingencyValue = 1.0
-        },
-        new RacePreset
-        {
-            Name = "IMSA (40 min)",
-            Type = RacePresetType.TimeLimited,
-            RaceMinutes = 40,
-            MandatoryStopRequired = true,
-            TireChangeTimeSec = 0.0,    // fuel-only stop
-            MaxFuelLitres = 55.0,       // ~50%
-            ContingencyInLaps = true,
-            ContingencyValue = 1.0
-        },
-        new RacePreset
-        {
-            Name = "GT Sprint (40 min)",
-            Type = RacePresetType.TimeLimited,
-            RaceMinutes = 40,
-            MandatoryStopRequired = false,
-            TireChangeTimeSec = null,   // leave car default
-            MaxFuelLitres = 55.0,       // ~50%
-            ContingencyInLaps = true,
-            ContingencyValue = 1.0
-        },
-        new RacePreset
-        {
-            Name = "GT Sprint (20 min)",
-            Type = RacePresetType.TimeLimited,
-            RaceMinutes = 20,
-            MandatoryStopRequired = false,
-            TireChangeTimeSec = null,   // leave car default
-            MaxFuelLitres = 55.0,       // uniform; negligible at 20m
-            ContingencyInLaps = true,
-            ContingencyValue = 1.0
+            _availablePresets = LaunchPlugin.RacePresetStore.LoadAll();
+
+            // Do NOT auto-select anything on load.
+            // Leave both selection and applied preset null until the user picks one.
+            _selectedPreset = null;
+            _appliedPreset = null;
+
+            OnPropertyChanged(nameof(AvailablePresets));
+            OnPropertyChanged(nameof(SelectedPreset));
+            OnPropertyChanged(nameof(HasSelectedPreset));
+            RaisePresetStateChanged();
         }
-    };
+        catch (Exception ex)
+        {
+            SimHub.Logging.Current.Error("FuelCalcs.InitPresets: " + ex.Message);
+            _availablePresets = new List<RacePreset>();
+            _selectedPreset = null;
+            _appliedPreset = null;
+            OnPropertyChanged(nameof(AvailablePresets));
+            OnPropertyChanged(nameof(SelectedPreset));
+            OnPropertyChanged(nameof(HasSelectedPreset));
+            RaisePresetStateChanged();
+        }
+    }
+
+    public void SavePresetEdits(string originalName, RacePreset updated)
+    {
+        if (updated == null || string.IsNullOrWhiteSpace(updated.Name)) return;
+
+        var list = _availablePresets ?? new List<RacePreset>();
+
+        // Find by original name first (supports rename-on-save)
+        var existing = !string.IsNullOrWhiteSpace(originalName)
+            ? list.FirstOrDefault(x => string.Equals(x.Name, originalName, StringComparison.OrdinalIgnoreCase))
+            : list.FirstOrDefault(x => string.Equals(x.Name, updated.Name, StringComparison.OrdinalIgnoreCase));
+
+        var wasApplied =
+            _appliedPreset != null &&
+            existing != null &&
+            string.Equals(_appliedPreset.Name, existing.Name, StringComparison.OrdinalIgnoreCase);
+
+        if (existing == null)
+        {
+            // New entry (not found by original/new name) => add one and then update it in-place
+            existing = new RacePreset();
+            list.Add(existing);
+        }
+
+        // In-place update to keep references (ListBox selection etc.) stable
+        existing.Name = updated.Name;
+        existing.Type = updated.Type;
+        existing.RaceMinutes = updated.RaceMinutes;
+        existing.RaceLaps = updated.RaceLaps;
+        existing.MandatoryStopRequired = updated.MandatoryStopRequired;
+        existing.TireChangeTimeSec = updated.TireChangeTimeSec;
+        existing.MaxFuelLitres = updated.MaxFuelLitres;
+        existing.ContingencyInLaps = updated.ContingencyInLaps;
+        existing.ContingencyValue = updated.ContingencyValue;
+
+        // Persist
+        LaunchPlugin.RacePresetStore.SaveAll(list);
+
+        // Force the ItemsSource to refresh without touching _selectedPreset
+        _availablePresets = list.ToList();
+
+        // If the applied preset is the one we just edited, apply it live so Fuel values refresh
+        if (wasApplied)
+        {
+            _appliedPreset = existing;
+            ApplySelectedPreset();
+        }
+        else
+        {
+            RaisePresetStateChanged();
+        }
+
         OnPropertyChanged(nameof(AvailablePresets));
+        // We did NOT change SelectedPreset; no need to re-raise unless your UI requires it
+        OnPropertyChanged(nameof(HasSelectedPreset));
+    }
+
+    public void SaveCurrentAsPreset(string name, bool overwriteIfExists)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Preset name cannot be empty.", nameof(name));
+
+        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
+
+        var p = new RacePreset
+        {
+            Name = name,
+            Type = IsTimeLimitedRace ? RacePresetType.TimeLimited : RacePresetType.LapLimited,
+            RaceMinutes = IsTimeLimitedRace ? (int?)RaceMinutes : null,
+            RaceLaps = IsLapLimitedRace ? (int?)RaceLaps : null,
+
+            MandatoryStopRequired = MandatoryStopRequired,
+            TireChangeTimeSec = TireChangeTime,
+            MaxFuelLitres = MaxFuelOverride,
+
+            ContingencyInLaps = IsContingencyInLaps,
+            ContingencyValue = ContingencyValue
+        };
+
+        var existing = list.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing != null)
+        {
+            if (!overwriteIfExists)
+                throw new InvalidOperationException("A preset with that name already exists.");
+            var idx = list.IndexOf(existing);
+            list[idx] = p;
+        }
+        else
+        {
+            list.Add(p);
+        }
+
+        LaunchPlugin.RacePresetStore.SaveAll(list);
+
+        // Refresh the collection instance so UI lists redraw, but do NOT change Fuel tab selection
+        _availablePresets = list.ToList();
+
+        // DO NOT touch _selectedPreset or _appliedPreset here.
+        OnPropertyChanged(nameof(AvailablePresets));
+        OnPropertyChanged(nameof(HasSelectedPreset));
+        RaisePresetStateChanged();
+    }
+
+    public void DeletePreset(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
+        var match = list.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (match == null) return;
+
+        list.Remove(match);
+        LaunchPlugin.RacePresetStore.SaveAll(list);
+
+        _availablePresets = list;
+        if (_selectedPreset == match) _selectedPreset = list.FirstOrDefault();
+        if (_appliedPreset == match) _appliedPreset = null;
+
+        OnPropertyChanged(nameof(AvailablePresets));
+        OnPropertyChanged(nameof(SelectedPreset));
+        OnPropertyChanged(nameof(HasSelectedPreset));
+        RaisePresetStateChanged();
+    }
+
+    public void RenamePreset(string oldName, string newName)
+    {
+        if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName)) return;
+
+        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
+        var match = list.FirstOrDefault(x => string.Equals(x.Name, oldName, StringComparison.OrdinalIgnoreCase));
+        if (match == null) return;
+
+        if (list.Any(x => string.Equals(x.Name, newName, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("A preset with that name already exists.");
+
+        match.Name = newName;
+        LaunchPlugin.RacePresetStore.SaveAll(list);
+
+        // keep selection/applied pointers stable
+        _availablePresets = list;
+        if (_selectedPreset != null && string.Equals(_selectedPreset.Name, oldName, StringComparison.OrdinalIgnoreCase))
+            _selectedPreset = match;
+        if (_appliedPreset != null && string.Equals(_appliedPreset.Name, oldName, StringComparison.OrdinalIgnoreCase))
+            _appliedPreset = match;
+
+        OnPropertyChanged(nameof(AvailablePresets));
+        OnPropertyChanged(nameof(SelectedPreset));
+        OnPropertyChanged(nameof(HasSelectedPreset));
+        RaisePresetStateChanged();
     }
 
     // Unique id to make sure the UI and the engine are the same instance
@@ -1306,41 +1437,6 @@ public class FuelCalcs : INotifyPropertyChanged
                 this.SelectedTrackStats = AvailableTrackStats[0];
         }
 
-    }
-
-    public enum RacePresetType
-    {
-        TimeLimited,
-        LapLimited
-    }
-
-    public class RacePreset
-    {
-        public string Name { get; set; }              // e.g., "SRI Thursday (50 min)"
-        public RacePresetType Type { get; set; }      // TimeLimited or LapLimited
-
-        // Duration
-        public int? RaceMinutes { get; set; }         // used when Type == TimeLimited
-        public int? RaceLaps { get; set; }            // used when Type == LapLimited
-
-        // Strategy
-        public bool MandatoryStopRequired { get; set; }
-
-        // Tyres: null => leave current value unchanged; otherwise set (seconds)
-        public double? TireChangeTimeSec { get; set; }
-
-        // Max fuel override (litres): null => leave unchanged
-        public double? MaxFuelLitres { get; set; }
-
-        // Contingency
-        public bool ContingencyInLaps { get; set; }   // true = laps, false = litres
-        public double ContingencyValue { get; set; }
-
-        public RacePreset()
-        {
-            Name = "";
-            Type = RacePresetType.TimeLimited;
-        }
     }
 
     private void SetUIDefaults()

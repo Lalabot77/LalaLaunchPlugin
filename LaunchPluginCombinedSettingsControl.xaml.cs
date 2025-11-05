@@ -36,8 +36,8 @@ namespace LaunchPlugin
                 Header = "FUEL",
                 Content = new FuelCalculatorView(mainPluginInstance.FuelCalculator)
             };
-
             MainTabControl.Items.Add(fuelTab);
+
             // The Profiles tab now gets its content from a view that is given the new ViewModel
             var profilesTab = new SHTabItem
             {
@@ -45,7 +45,14 @@ namespace LaunchPlugin
                 Content = new ProfilesManagerView(mainPluginInstance.ProfilesViewModel)
             };
             MainTabControl.Items.Add(profilesTab);
-            
+
+            // NEW: PRESETS tab (management only)
+            var presetsTab = new SHTabItem
+            {
+                Header = "PRESETS",
+                Content = new PresetsManagerView(mainPluginInstance.FuelCalculator)
+            };
+            MainTabControl.Items.Add(presetsTab);
         }
     }
 }
