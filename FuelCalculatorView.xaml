@@ -240,7 +240,6 @@
 
                         </StackPanel>
 
-
                         <StackPanel Grid.Row="5" Margin="0,15,0,0">
                             <ui:TitledSlider Title="Max Fuel Override (litres):" Minimum="1" Maximum="150" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel.">
                                 <ui:TitledSlider.Resources>
@@ -369,7 +368,7 @@
                             Margin="0,0,0,6">
                             <ui:TitledSlider.ToolTip>
                                 <ToolTip>
-                                    <TextBlock Text="Total pit lane delta per stop (entry + box + exit)."
+                                    <TextBlock Text="Total pit lane delta per stop (In Lap and Out Lap deltas to Average Lap.)."
                                         TextWrapping="Wrap" Width="260"/>
                                 </ToolTip>
                             </ui:TitledSlider.ToolTip>
