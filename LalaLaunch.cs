@@ -1119,27 +1119,7 @@ namespace LaunchPlugin
 
             // --- ACTIONS & DELEGATES FOR FUTURE USE ---
             this.AddAction("PrimaryDashMode", (plugin, context) => { SimHub.Logging.Current.Info($"LalaLaunch: Primary Dash Mode action triggered."); });
-            
-            // --- Temporarily borrowing this button for testing ---
-            this.AddAction("SecondaryDashMode", (plugin, context) =>
-            {
-                try
-                {
-                    // Smoke test for presets JSON: create folder/file if missing and load defaults
-                    var presets = LaunchPlugin.RacePresetStore.LoadAll();
-                    var path = LaunchPlugin.RacePresetStore.GetFilePath();
-
-                    SimHub.Logging.Current.Info(
-                        $"LalaLaunch: Secondary Dash Mode action triggered. Presets loaded: {presets.Count}. File: {path}");
-                }
-                catch (System.Exception ex)
-                {
-                    SimHub.Logging.Current.Error("LalaLaunch: Preset smoke test failed: " + ex.Message);
-                }
-
-                // Keep your original log so behavior is unchanged
-                SimHub.Logging.Current.Info("LalaLaunch: Secondary Dash Mode action triggered.");
-            });
+            this.AddAction("SecondaryDashMode", (plugin, context) => { SimHub.Logging.Current.Info($"LalaLaunch: Secondary Dash Mode action triggered."); });
 
             //this.AttachDelegate("VirtualClutch", () => _virtualClutch);
 
