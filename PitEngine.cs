@@ -13,11 +13,7 @@ namespace LaunchPlugin
         // Live while in lane; frozen (latched) after exit until next pit event
         public TimeSpan TimeOnPitRoad => _pitRoadTimer.IsRunning ? _pitRoadTimer.Elapsed : _lastTimeOnPitRoad;
         public TimeSpan PitStopDuration => _lastPitStopDuration;
-        /// <summary>
-        /// Live-or-latched pit stop seconds for the dash:
-        /// - Counts up while the car is stationary in the pit box (stopwatch running)
-        /// - Freezes at the final value once you leave the box (latched TimeSpan)
-        /// </summary>
+
         public double PitStopElapsedSec
         {
             get
@@ -251,28 +247,104 @@ namespace LaunchPlugin
             _pitLapSeconds = 0.0;
         }
 
+        // Call this when a new session starts, car changes, or the sim connects.
+        // === PIT PHASE UPDATE ===
+        private bool _prevInPitLane;
+        private bool _prevInPitStall;
+        private bool _afterBoxThisLane;
+        private bool _pitPhaseSeeded;
+
+        public void ResetPitPhaseState()
+        {
+            _prevInPitLane = false;
+            _prevInPitStall = false;
+            _afterBoxThisLane = false;
+            _pitPhaseSeeded = false;
+            CurrentPitPhase = PitPhase.None;
+            if (_pitExitTimer != null) _pitExitTimer.Reset();
+        }
+
+        // Called once on the first tick of a session, or when car is already in the lane on startup
+        private void SeedPitPhaseIfNeeded(GameData data, PluginManager pluginManager)
+        {
+            if (_pitPhaseSeeded) return;
+
+            var isInPitLane = data.NewData.IsInPitLane != 0;
+            var isInPitStall = Convert.ToBoolean(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerCarInPitStall") ?? false);
+
+            _prevInPitLane = isInPitLane;
+            _prevInPitStall = isInPitStall;
+
+            if (isInPitLane)
+            {
+                if (isInPitStall)
+                {
+                    _afterBoxThisLane = true; // already in the box
+                }
+                else
+                {
+                    double carPct = data.NewData.TrackPositionPercent;
+                    var boxObj = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverPitTrkPct");
+                    double boxPct = (boxObj != null) ? Convert.ToDouble(boxObj) : -1.0;
+
+                    if (boxPct >= 0.0)
+                    {
+                        double delta = (boxPct - carPct + 1.0) % 1.0;
+                        _afterBoxThisLane = (delta >= 0.5); // box is behind → already passed it
+                    }
+                    else
+                    {
+                        _afterBoxThisLane = false;
+                    }
+                }
+            }
+            else
+            {
+                _afterBoxThisLane = false;
+            }
+
+            _pitPhaseSeeded = true;
+        }
+
         private void UpdatePitPhase(GameData data, PluginManager pluginManager)
         {
+            // Ensure the state is initialized
+            SeedPitPhaseIfNeeded(data, pluginManager);
+
             var isInPitLane = data.NewData.IsInPitLane != 0;
             var isInPitStall = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerCarInPitStall") ?? false);
+
+            // Reset "after box" latch on lane entry/exit
+            if (!_prevInPitLane && isInPitLane) _afterBoxThisLane = false; // entered lane
+            if (_prevInPitLane && !isInPitLane) _afterBoxThisLane = false; // exited lane
+
             var pitLimiterOn = data.NewData.PitLimiterOn != 0;
             var trackLocation = Convert.ToInt32(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerTrackSurface") ?? 0);
             var stintLength = data.NewData.StintOdo;
 
-            if ((pitLimiterOn || trackLocation == 2) && !isInPitLane && stintLength > 100)
+            // Entering pits (only if previously off-lane)
+            if (!_prevInPitLane && !isInPitLane && (pitLimiterOn || trackLocation == 2) && stintLength > 100)
             {
                 CurrentPitPhase = PitPhase.EnteringPits;
+                _prevInPitLane = isInPitLane;
+                _prevInPitStall = isInPitStall;
                 return;
             }
 
+            // Exiting linger
             if (_pitExitTimer.IsRunning)
             {
                 CurrentPitPhase = PitPhase.ExitingPits;
+                _prevInPitLane = isInPitLane;
+                _prevInPitStall = isInPitStall;
                 return;
             }
 
+            // Stall phases (take precedence)
             if (isInPitStall)
             {
+                _afterBoxThisLane = true;
                 var pitSvStatus = Convert.ToInt32(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerCarPitSvStatus") ?? -1);
                 switch (pitSvStatus)
                 {
@@ -285,20 +357,41 @@ namespace LaunchPlugin
             }
             else if (isInPitLane)
             {
-                var lapDistPct = data.NewData.TrackPositionPercent;
-                var pitBoxLocation = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverPitTrkPct") ?? -1.0);
-                var trackLength = data.NewData.TrackLength;
+                // Left stall this tick → definitely after box
+                if (_prevInPitStall && !isInPitStall)
+                    _afterBoxThisLane = true;
 
-                double distanceToPitBox = (pitBoxLocation - lapDistPct) * trackLength;
-                if (pitBoxLocation < 0.2 && lapDistPct > 0.8)
-                    distanceToPitBox = (pitBoxLocation + (1 - lapDistPct)) * trackLength;
+                if (_afterBoxThisLane)
+                {
+                    CurrentPitPhase = PitPhase.LeavingBox;
+                }
+                else
+                {
+                    double carPct = data.NewData.TrackPositionPercent;
+                    var boxObj = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverPitTrkPct");
+                    double boxPct = (boxObj != null) ? Convert.ToDouble(boxObj) : -1.0;
 
-                CurrentPitPhase = (distanceToPitBox >= 0) ? PitPhase.ApproachingBox : PitPhase.LeavingBox;
+                    if (boxPct >= 0.0)
+                    {
+                        double delta = (boxPct - carPct + 1.0) % 1.0;
+                        CurrentPitPhase = (delta < 0.5)
+                            ? PitPhase.ApproachingBox
+                            : PitPhase.LeavingBox;
+                    }
+                    else
+                    {
+                        CurrentPitPhase = PitPhase.ApproachingBox;
+                    }
+                }
             }
             else
             {
                 CurrentPitPhase = PitPhase.None;
             }
+
+            _prevInPitLane = isInPitLane;
+            _prevInPitStall = isInPitStall;
         }
+
     }
 }
