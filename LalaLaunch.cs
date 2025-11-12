@@ -748,8 +748,6 @@ namespace LaunchPlugin
         private MessagingSystem _msgSystem;
         private PitEngine _pit;
 
-
-
         private enum LaunchState
         {
             Idle,           // Resting state
@@ -844,7 +842,15 @@ namespace LaunchPlugin
         // private double _clutchRight = 0.0;
         // private double _virtualClutch = 0.0;
 
-        
+        // ---- SimHub publish controls ----------------------------------------------
+        internal static class SimhubPublish { public const bool VERBOSE = false; }
+
+        private void AttachCore(string name, Func<object> getter) => this.AttachDelegate(name, getter);
+        private void AttachVerbose(string name, Func<object> getter)
+        {
+            if (SimhubPublish.VERBOSE) this.AttachDelegate(name, getter);
+        }
+
         public void Init(PluginManager pluginManager)
         {
             // --- INITIALIZATION ---
@@ -898,280 +904,204 @@ namespace LaunchPlugin
             _poll500ms.Start();
 
             ResetAllValues();
+            _pit?.ResetPitPhaseState();
 
-            // --- DELEGATES FOR LIVE FUEL CALCULATOR ---
-            this.AttachDelegate("Fuel.LiveFuelPerLap", () => LiveFuelPerLap);
-            this.AttachDelegate("Fuel.LiveLapsRemainingInRace", () => LiveLapsRemainingInRace);
-            this.AttachDelegate("Fuel.DeltaLaps", () => DeltaLaps);
-            this.AttachDelegate("Fuel.TargetFuelPerLap", () => TargetFuelPerLap);
-            this.AttachDelegate("Fuel.IsPitWindowOpen", () => IsPitWindowOpen);
-            this.AttachDelegate("Fuel.PitWindowOpeningLap", () => PitWindowOpeningLap);
-            this.AttachDelegate("Fuel.LapsRemainingInTank", () => LapsRemainingInTank);
-            this.AttachDelegate("Fuel.Confidence", () => Confidence);
-            this.AttachDelegate("Fuel.Pit.TotalNeededToEnd", () => Pit_TotalNeededToEnd);
-            this.AttachDelegate("Fuel.Pit.NeedToAdd", () => Pit_NeedToAdd);
-            this.AttachDelegate("Fuel.Pit.TankSpaceAvailable", () => Pit_TankSpaceAvailable);
-            this.AttachDelegate("Fuel.Pit.WillAdd", () => Pit_WillAdd);
-            this.AttachDelegate("Fuel.Pit.DeltaAfterStop", () => Pit_DeltaAfterStop);
-            this.AttachDelegate("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
-            this.AttachDelegate("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
+            // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
+            AttachCore("Fuel.LiveFuelPerLap", () => LiveFuelPerLap);
+            AttachCore("Fuel.LiveLapsRemainingInRace", () => LiveLapsRemainingInRace);
+            AttachCore("Fuel.DeltaLaps", () => DeltaLaps);
+            AttachCore("Fuel.TargetFuelPerLap", () => TargetFuelPerLap);
+            AttachCore("Fuel.IsPitWindowOpen", () => IsPitWindowOpen);
+            AttachCore("Fuel.PitWindowOpeningLap", () => PitWindowOpeningLap);
+            AttachCore("Fuel.LapsRemainingInTank", () => LapsRemainingInTank);
+            AttachCore("Fuel.Confidence", () => Confidence);
 
-            // --- Expose all Pit Time Loss properties ---
-            this.AttachDelegate("Pit.LastDirectTravelTime", () => _pit.LastDirectTravelTime); // The final calculated value from the "Direct Stopwatch" method.
-            this.AttachDelegate("Pit.LastTotalPitCycleTimeLoss", () => _pit.LastTotalPitCycleTimeLoss); // The final calculated value from the "Race Pace Delta" method.
-            this.AttachDelegate("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds); // The raw timer for total time spent on pit road (tPit).
-            this.AttachDelegate("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0); // The raw timer for the last stationary pit stop duration (tStop).
-            this.AttachDelegate("Pit.Debug.LastTimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds);
-            this.AttachDelegate("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss); // --- The net loss from the Pace Delta method ---
-            // --- PIT TEST: inputs & outputs for replay validation ---
-            this.AttachDelegate("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
-            this.AttachDelegate("Lala.Pit.AvgPaceSource", () => _pitDbg_AvgPaceSource);
-            // Raw components / formula view
-            this.AttachDelegate("Lala.Pit.Raw.PitLapSec", () => _pitDbg_RawPitLapSec);
-            this.AttachDelegate("Lala.Pit.Raw.DTLFormulaSec", () => _pitDbg_RawDTLFormulaSec);
-            this.AttachDelegate("Lala.Pit.InLapSec", () => _pitDbg_InLapSec);
-            this.AttachDelegate("Lala.Pit.OutLapSec", () => _pitDbg_OutLapSec);
-            this.AttachDelegate("Lala.Pit.DeltaInSec", () => _pitDbg_DeltaInSec);
-            this.AttachDelegate("Lala.Pit.DeltaOutSec", () => _pitDbg_DeltaOutSec);
-            this.AttachDelegate("Lala.Pit.DriveThroughLossSec", () => _pit?.LastTotalPitCycleTimeLoss ?? 0.0);
-            this.AttachDelegate("Lala.Pit.DirectTravelSec", () => _pit?.LastDirectTravelTime ?? 0.0);
-            this.AttachDelegate("Lala.Pit.StopSeconds", () => _pit?.PitStopDuration.TotalSeconds ?? 0.0);
-            // Service stop loss = DTL (moving loss vs pace) + stationary stop time
-            this.AttachDelegate("Lala.Pit.ServiceStopLossSec", () =>
+            AttachCore("Fuel.Pit.TotalNeededToEnd", () => Pit_TotalNeededToEnd);
+            AttachCore("Fuel.Pit.NeedToAdd", () => Pit_NeedToAdd);
+            AttachCore("Fuel.Pit.TankSpaceAvailable", () => Pit_TankSpaceAvailable);
+            AttachCore("Fuel.Pit.WillAdd", () => Pit_WillAdd);
+            AttachCore("Fuel.Pit.DeltaAfterStop", () => Pit_DeltaAfterStop);
+            AttachCore("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
+            AttachCore("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
+
+            // --- Pit time-loss (finals kept CORE; raw & debug VERBOSE) ---
+            AttachCore("Pit.LastDirectTravelTime", () => _pit.LastDirectTravelTime);
+            AttachCore("Pit.LastTotalPitCycleTimeLoss", () => _pit.LastTotalPitCycleTimeLoss);
+            AttachCore("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss);
+
+            AttachVerbose("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds);
+            // REMOVED: duplicate of TimeOnPitRoad
+            // AttachVerbose("Pit.Debug.LastTimeOnPitRoad",  () => _pit.TimeOnPitRoad.TotalSeconds);
+
+            AttachVerbose("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0);
+
+            // --- PIT TEST / RAW (all VERBOSE) ---
+            AttachVerbose("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
+            AttachVerbose("Lala.Pit.AvgPaceSource", () => _pitDbg_AvgPaceSource);
+            AttachVerbose("Lala.Pit.Raw.PitLapSec", () => _pitDbg_RawPitLapSec);
+            AttachVerbose("Lala.Pit.Raw.DTLFormulaSec", () => _pitDbg_RawDTLFormulaSec);
+            AttachVerbose("Lala.Pit.InLapSec", () => _pitDbg_InLapSec);
+            AttachVerbose("Lala.Pit.OutLapSec", () => _pitDbg_OutLapSec);
+            AttachVerbose("Lala.Pit.DeltaInSec", () => _pitDbg_DeltaInSec);
+            AttachVerbose("Lala.Pit.DeltaOutSec", () => _pitDbg_DeltaOutSec);
+            AttachVerbose("Lala.Pit.DriveThroughLossSec", () => _pit?.LastTotalPitCycleTimeLoss ?? 0.0);
+            AttachVerbose("Lala.Pit.DirectTravelSec", () => _pit?.LastDirectTravelTime ?? 0.0);
+            AttachVerbose("Lala.Pit.StopSeconds", () => _pit?.PitStopDuration.TotalSeconds ?? 0.0);
+
+            // Service stop loss = DTL + stationary stop (VERBOSE)
+            AttachVerbose("Lala.Pit.ServiceStopLossSec", () =>
             {
-                var dtl = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;             // already >= 0
-                var stop = _pit?.PitStopDuration.TotalSeconds ?? 0.0;          // >= 0 once latched
+                var dtl = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
+                var stop = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
                 var val = dtl + stop;
                 return val < 0 ? 0.0 : val;
             });
 
-            // From profile: what’s currently stored as “Pit Lane Loss”
-            this.AttachDelegate("Lala.Pit.Profile.PitLaneLossSec", () =>
+            // Profile lane loss + “last saved” provenance (VERBOSE)
+            AttachVerbose("Lala.Pit.Profile.PitLaneLossSec", () =>
             {
                 var ts = ActiveProfile?.FindTrack(CurrentTrackKey);
                 return ts?.PitLaneLossSeconds ?? 0.0;
             });
-            // After a save, show what we saved and why
-            this.AttachDelegate("Lala.Pit.CandidateSavedSec", () => _pitDbg_CandidateSavedSec);
-            this.AttachDelegate("Lala.Pit.CandidateSource", () => _pitDbg_CandidateSource); // "total" or "direct"
+            AttachVerbose("Lala.Pit.CandidateSavedSec", () => _pitDbg_CandidateSavedSec);
+            AttachVerbose("Lala.Pit.CandidateSource", () => _pitDbg_CandidateSource);
 
-            // --- PitLite: minimal, deterministic outputs for the test dash ---
-            this.AttachDelegate("PitLite.InLapSec", () => _pitLite?.InLapSec ?? 0.0);
-            this.AttachDelegate("PitLite.OutLapSec", () => _pitLite?.OutLapSec ?? 0.0);
-            this.AttachDelegate("PitLite.DeltaInSec", () => _pitLite?.DeltaInSec ?? 0.0);
-            this.AttachDelegate("PitLite.DeltaOutSec", () => _pitLite?.DeltaOutSec ?? 0.0);
-            this.AttachDelegate("PitLite.TimePitLaneSec", () => _pitLite?.TimePitLaneSec ?? 0.0);
-            this.AttachDelegate("PitLite.TimePitBoxSec", () => _pitLite?.TimePitBoxSec ?? 0.0);
-            this.AttachDelegate("PitLite.DirectSec", () => _pitLite?.DirectSec ?? 0.0);
-            this.AttachDelegate("PitLite.DTLSec", () => _pitLite?.DTLSec ?? 0.0);
-            this.AttachDelegate("PitLite.Status", () => _pitLite?.Status.ToString() ?? "None");
-            this.AttachDelegate("PitLite.Live.TimeOnPitRoadSec", () => _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
-            this.AttachDelegate("PitLite.Live.TimeInBoxSec", () => _pit?.PitStopElapsedSec ?? 0.0);
-            this.AttachDelegate("PitLite.CurrentLapType", () => _pitLite?.CurrentLapType.ToString() ?? "Normal");
-            this.AttachDelegate("PitLite.LastLapType", () => _pitLite?.LastLapType.ToString() ?? "None");
-            this.AttachDelegate("PitLite.TotalLossSec", () => _pitLite?.TotalLossSec ?? 0.0);
-            this.AttachDelegate("PitLite.LossSource", () => _pitLite?.TotalLossSource ?? "None");
-            this.AttachDelegate("PitLite.LastSaved.Sec", () => _pitDbg_CandidateSavedSec);
-            this.AttachDelegate("PitLite.LastSaved.Source", () => _pitDbg_CandidateSource ?? "none");
+            // --- PitLite (test dash; VERBOSE) ---
+            AttachVerbose("PitLite.InLapSec", () => _pitLite?.InLapSec ?? 0.0);
+            AttachVerbose("PitLite.OutLapSec", () => _pitLite?.OutLapSec ?? 0.0);
+            AttachVerbose("PitLite.DeltaInSec", () => _pitLite?.DeltaInSec ?? 0.0);
+            AttachVerbose("PitLite.DeltaOutSec", () => _pitLite?.DeltaOutSec ?? 0.0);
+            AttachVerbose("PitLite.TimePitLaneSec", () => _pitLite?.TimePitLaneSec ?? 0.0);
+            AttachVerbose("PitLite.TimePitBoxSec", () => _pitLite?.TimePitBoxSec ?? 0.0);
+            AttachVerbose("PitLite.DirectSec", () => _pitLite?.DirectSec ?? 0.0);
+            AttachVerbose("PitLite.DTLSec", () => _pitLite?.DTLSec ?? 0.0);
+            AttachVerbose("PitLite.Status", () => _pitLite?.Status.ToString() ?? "None");
+            AttachVerbose("PitLite.Live.TimeOnPitRoadSec", () => _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
+            AttachVerbose("PitLite.Live.TimeInBoxSec", () => _pit?.PitStopElapsedSec ?? 0.0);
+            AttachVerbose("PitLite.CurrentLapType", () => _pitLite?.CurrentLapType.ToString() ?? "Normal");
+            AttachVerbose("PitLite.LastLapType", () => _pitLite?.LastLapType.ToString() ?? "None");
+            AttachVerbose("PitLite.TotalLossSec", () => _pitLite?.TotalLossSec ?? 0.0);
+            AttachVerbose("PitLite.LossSource", () => _pitLite?.TotalLossSource ?? "None");
+            AttachVerbose("PitLite.LastSaved.Sec", () => _pitDbg_CandidateSavedSec);
+            AttachVerbose("PitLite.LastSaved.Source", () => _pitDbg_CandidateSource ?? "none");
 
-            // Live edge flags (instant per-lap detection)
-            this.AttachDelegate("PitLite.Live.SeenEntryThisLap", () => _pitLite?.EntrySeenThisLap ?? false);
-            this.AttachDelegate("PitLite.Live.SeenExitThisLap", () => _pitLite?.ExitSeenThisLap ?? false);
+            // Live edge flags (VERBOSE)
+            AttachVerbose("PitLite.Live.SeenEntryThisLap", () => _pitLite?.EntrySeenThisLap ?? false);
+            AttachVerbose("PitLite.Live.SeenExitThisLap", () => _pitLite?.ExitSeenThisLap ?? false);
 
-            // --- DELEGATES FOR DASHBOARD STATE & OVERLAYS ---
-            this.AttachDelegate("CurrentDashPage", () => Screens.CurrentPage);
-            this.AttachDelegate("DashControlMode", () => Screens.Mode);
-            this.AttachDelegate("FalseStartDetected", () => _falseStartDetected);
-            this.AttachDelegate("LastSessionType", () => _lastSessionType);
-            this.AttachDelegate("MsgCxPressed", () => _msgCxPressed);
-            this.AttachDelegate("PitScreenActive", () => _pitScreenActive);
-            this.AttachDelegate("RejoinAlertReasonCode", () => (int)_rejoinEngine.CurrentLogicCode);
-            this.AttachDelegate("RejoinAlertReasonName", () => _rejoinEngine.CurrentLogicCode.ToString());
-            this.AttachDelegate("RejoinAlertMessage", () => _rejoinEngine.CurrentMessage);
-            this.AttachDelegate("RejoinIsExitingPits", () => _rejoinEngine.IsExitingPits);
-            this.AttachDelegate("RejoinCurrentPitPhaseName", () => _rejoinEngine.CurrentPitPhase.ToString());
-            this.AttachDelegate("RejoinCurrentPitPhase", () => (int)_rejoinEngine.CurrentPitPhase);
-            this.AttachDelegate("RejoinAssist_PitExitTime", () => _rejoinEngine.PitExitTimerSeconds);
-            this.AttachDelegate("RejoinThreatLevel", () => (int)_rejoinEngine.CurrentThreatLevel);
-            this.AttachDelegate("RejoinThreatLevelName", () => _rejoinEngine.CurrentThreatLevel.ToString());
-            this.AttachDelegate("RejoinTimeToThreat", () => _rejoinEngine.TimeToThreatSeconds);
+            // --- DELEGATES FOR DASHBOARD STATE & OVERLAYS (CORE) ---
+            AttachCore("CurrentDashPage", () => Screens.CurrentPage);
+            AttachCore("DashControlMode", () => Screens.Mode);
+            AttachCore("FalseStartDetected", () => _falseStartDetected);
+            AttachCore("LastSessionType", () => _lastSessionType);
+            AttachCore("MsgCxPressed", () => _msgCxPressed);
+            AttachCore("PitScreenActive", () => _pitScreenActive);
 
-            // --- LalaDash Options Delegates ---
-            this.AttachDelegate("LalaDashShowLaunchScreen", () => Settings.LalaDashShowLaunchScreen);
-            this.AttachDelegate("LalaDashShowPitLimiter", () => Settings.LalaDashShowPitLimiter);
-            this.AttachDelegate("LalaDashShowPitScreen", () => Settings.LalaDashShowPitScreen);
-            this.AttachDelegate("LalaDashShowRejoinAssist", () => Settings.LalaDashShowRejoinAssist);
-            this.AttachDelegate("LalaDashShowVerboseMessaging", () => Settings.LalaDashShowVerboseMessaging);
-            this.AttachDelegate("LalaDashShowRaceFlags", () => Settings.LalaDashShowRaceFlags);
-            this.AttachDelegate("LalaDashShowRadioMessages", () => Settings.LalaDashShowRadioMessages);
-            this.AttachDelegate("LalaDashShowTraffic", () => Settings.LalaDashShowTraffic);
+            AttachCore("RejoinAlertReasonCode", () => (int)_rejoinEngine.CurrentLogicCode);
+            AttachCore("RejoinAlertReasonName", () => _rejoinEngine.CurrentLogicCode.ToString());
+            AttachCore("RejoinAlertMessage", () => _rejoinEngine.CurrentMessage);
+            AttachCore("RejoinIsExitingPits", () => _rejoinEngine.IsExitingPits);
+            AttachCore("RejoinCurrentPitPhaseName", () => _rejoinEngine.CurrentPitPhase.ToString());
+            AttachCore("RejoinCurrentPitPhase", () => (int)_rejoinEngine.CurrentPitPhase);
+            // REMOVED: obsolete RejoinAssist_PitExitTime (always 0.0)
+            // AttachCore("RejoinAssist_PitExitTime",         () => _rejoinEngine.PitExitTimerSeconds);
 
-            // --- MsgDash Options Delegates ---
-            this.AttachDelegate("MsgDashShowLaunchScreen", () => Settings.MsgDashShowLaunchScreen);
-            this.AttachDelegate("MsgDashShowPitLimiter", () => Settings.MsgDashShowPitLimiter);
-            this.AttachDelegate("MsgDashShowPitScreen", () => Settings.MsgDashShowPitScreen);
-            this.AttachDelegate("MsgDashShowRejoinAssist", () => Settings.MsgDashShowRejoinAssist);
-            this.AttachDelegate("MsgDashShowVerboseMessaging", () => Settings.MsgDashShowVerboseMessaging);
-            this.AttachDelegate("MsgDashShowRaceFlags", () => Settings.MsgDashShowRaceFlags);
-            this.AttachDelegate("MsgDashShowRadioMessages", () => Settings.MsgDashShowRadioMessages);
-            this.AttachDelegate("MsgDashShowTraffic", () => Settings.MsgDashShowTraffic);
+            AttachCore("RejoinThreatLevel", () => (int)_rejoinEngine.CurrentThreatLevel);
+            AttachCore("RejoinThreatLevelName", () => _rejoinEngine.CurrentThreatLevel.ToString());
+            AttachCore("RejoinTimeToThreat", () => _rejoinEngine.TimeToThreatSeconds);
 
-            // --- Manual Timeout ---
-            this.AttachDelegate("ManualTimeoutRemaining", () =>
+            // --- LalaDash Options (CORE) ---
+            AttachCore("LalaDashShowLaunchScreen", () => Settings.LalaDashShowLaunchScreen);
+            AttachCore("LalaDashShowPitLimiter", () => Settings.LalaDashShowPitLimiter);
+            AttachCore("LalaDashShowPitScreen", () => Settings.LalaDashShowPitScreen);
+            AttachCore("LalaDashShowRejoinAssist", () => Settings.LalaDashShowRejoinAssist);
+            AttachCore("LalaDashShowVerboseMessaging", () => Settings.LalaDashShowVerboseMessaging);
+            AttachCore("LalaDashShowRaceFlags", () => Settings.LalaDashShowRaceFlags);
+            AttachCore("LalaDashShowRadioMessages", () => Settings.LalaDashShowRadioMessages);
+            AttachCore("LalaDashShowTraffic", () => Settings.LalaDashShowTraffic);
+
+            // --- MsgDash Options (CORE) ---
+            AttachCore("MsgDashShowLaunchScreen", () => Settings.MsgDashShowLaunchScreen);
+            AttachCore("MsgDashShowPitLimiter", () => Settings.MsgDashShowPitLimiter);
+            AttachCore("MsgDashShowPitScreen", () => Settings.MsgDashShowPitScreen);
+            AttachCore("MsgDashShowRejoinAssist", () => Settings.MsgDashShowRejoinAssist);
+            AttachCore("MsgDashShowVerboseMessaging", () => Settings.MsgDashShowVerboseMessaging);
+            AttachCore("MsgDashShowRaceFlags", () => Settings.MsgDashShowRaceFlags);
+            AttachCore("MsgDashShowRadioMessages", () => Settings.MsgDashShowRadioMessages);
+            AttachCore("MsgDashShowTraffic", () => Settings.MsgDashShowTraffic);
+
+            // --- Manual Timeout (CORE) ---
+            AttachCore("ManualTimeoutRemaining", () =>
             {
-                // If the manual start time hasn't been set, there's no countdown.
                 if (_manualPrimedStartedAt == DateTime.MinValue) return "";
-
-                // The countdown should only be visible while the launch is active.
                 if (!IsLaunchActive) return "";
-
                 var remaining = TimeSpan.FromSeconds(30) - (DateTime.Now - _manualPrimedStartedAt);
-
-                // If time has run out, return "0" but don't clear the property
-                // until the state changes (handled by the IsLaunchActive check).
-                return remaining.TotalSeconds > 0
-                    ? remaining.TotalSeconds.ToString("F0")
-                    : "0";
+                return remaining.TotalSeconds > 0 ? remaining.TotalSeconds.ToString("F0") : "0";
             });
 
-           
-            // --- DELEGATES FOR LAUNCH CONTROL ---
-            this.AttachDelegate("ActualRPMAtClutchRelease", () => _actualRpmAtClutchRelease.ToString("F0"));
-            this.AttachDelegate("ActualThrottleAtClutchRelease", () => _actualThrottleAtClutchRelease);
-            this.AttachDelegate("AntiStallActive", () => _isAntiStallActive);
-            this.AttachDelegate("AntiStallDetectedInLaunch", () => _antiStallDetectedThisRun);
-            this.AttachDelegate("AvgSessionLaunchRPM", () => _avgSessionLaunchRPM.ToString("F0"));
-            this.AttachDelegate("BitePointInTargetRange", () => _bitePointInTargetRange);
-            this.AttachDelegate("BoggedDown", () => _boggedDown);
-            this.AttachDelegate("BogDownFactorPercent", () => ActiveProfile.BogDownFactorPercent);
-            this.AttachDelegate("ClutchReleaseDelta", () => _clutchReleaseDelta.ToString("F0"));
-            this.AttachDelegate("ClutchReleaseTime", () => _hasValidClutchReleaseData ? _clutchReleaseLastTime : 0);
-            this.AttachDelegate("LastAvgLaunchRPM", () => _lastAvgSessionLaunchRPM);
-            this.AttachDelegate("LastLaunchRPM", () => _lastLaunchRPM);
-            this.AttachDelegate("LastMinRPM", () => _lastMinRPMDuringLaunch);
-            this.AttachDelegate("LaunchModeActive", () => IsLaunchVisible);
-            this.AttachDelegate("LaunchStateLabel", () => _currentLaunchState.ToString());
-            this.AttachDelegate("LaunchStateCode", () => ((int)_currentLaunchState).ToString());
-            this.AttachDelegate("LaunchRPM", () => _currentLaunchRPM);
-            this.AttachDelegate("MaxTractionLoss", () => _maxTractionLossDuringLaunch);
-            this.AttachDelegate("MinRPM", () => _minRPMDuringLaunch);
-            this.AttachDelegate("OptimalBitePoint", () => ActiveProfile.TargetBitePoint);
-            this.AttachDelegate("OptimalBitePointTolerance", () => ActiveProfile.BitePointTolerance);
-            this.AttachDelegate("OptimalRPMTolerance", () => ActiveProfile.OptimalRPMTolerance.ToString("F0"));
-            this.AttachDelegate("OptimalThrottleTolerance", () => ActiveProfile.OptimalThrottleTolerance.ToString("F0"));
-            this.AttachDelegate("ReactionTime", () => _reactionTimeMs);
-            this.AttachDelegate("RPMDeviationAtClutchRelease", () => _rpmDeviationAtClutchRelease.ToString("F0"));
-            this.AttachDelegate("RPMInTargetRange", () => _rpmInTargetRange);
-            this.AttachDelegate("TargetLaunchRPM", () => ActiveProfile.TargetLaunchRPM.ToString("F0"));
-            this.AttachDelegate("TargetLaunchThrottle", () => ActiveProfile.TargetLaunchThrottle.ToString("F0"));
-            this.AttachDelegate("ThrottleDeviationAtClutchRelease", () => _throttleDeviationAtClutchRelease);
-            this.AttachDelegate("ThrottleInTargetRange", () => _throttleInTargetRange);
-            this.AttachDelegate("ThrottleModulationDelta", () => _throttleModulationDelta);
-            this.AttachDelegate("WheelSpinDetected", () => _wheelSpinDetected);
-            this.AttachDelegate("ZeroTo100Delta", () => _zeroTo100Delta);
-            this.AttachDelegate("ZeroTo100Time", () => _hasValidLaunchData ? _zeroTo100LastTime : 0);
+            // --- LAUNCH CONTROL (CORE) ---
+            AttachCore("ActualRPMAtClutchRelease", () => _actualRpmAtClutchRelease.ToString("F0"));
+            AttachCore("ActualThrottleAtClutchRelease", () => _actualThrottleAtClutchRelease);
+            AttachCore("AntiStallActive", () => _isAntiStallActive);
+            AttachCore("AntiStallDetectedInLaunch", () => _antiStallDetectedThisRun);
+            AttachCore("AvgSessionLaunchRPM", () => _avgSessionLaunchRPM.ToString("F0"));
+            AttachCore("BitePointInTargetRange", () => _bitePointInTargetRange);
+            AttachCore("BoggedDown", () => _boggedDown);
+            AttachCore("BogDownFactorPercent", () => ActiveProfile.BogDownFactorPercent);
+            AttachCore("ClutchReleaseDelta", () => _clutchReleaseDelta.ToString("F0"));
+            AttachCore("ClutchReleaseTime", () => _hasValidClutchReleaseData ? _clutchReleaseLastTime : 0);
+            AttachCore("LastAvgLaunchRPM", () => _lastAvgSessionLaunchRPM);
+            AttachCore("LastLaunchRPM", () => _lastLaunchRPM);
+            AttachCore("LastMinRPM", () => _lastMinRPMDuringLaunch);
+            AttachCore("LaunchModeActive", () => IsLaunchVisible);
+            AttachCore("LaunchStateLabel", () => _currentLaunchState.ToString());
+            AttachCore("LaunchStateCode", () => ((int)_currentLaunchState).ToString());
+            AttachCore("LaunchRPM", () => _currentLaunchRPM);
+            AttachCore("MaxTractionLoss", () => _maxTractionLossDuringLaunch);
+            AttachCore("MinRPM", () => _minRPMDuringLaunch);
+            AttachCore("OptimalBitePoint", () => ActiveProfile.TargetBitePoint);
+            AttachCore("OptimalBitePointTolerance", () => ActiveProfile.BitePointTolerance);
+            AttachCore("OptimalRPMTolerance", () => ActiveProfile.OptimalRPMTolerance.ToString("F0"));
+            AttachCore("OptimalThrottleTolerance", () => ActiveProfile.OptimalThrottleTolerance.ToString("F0"));
+            AttachCore("ReactionTime", () => _reactionTimeMs);
+            AttachCore("RPMDeviationAtClutchRelease", () => _rpmDeviationAtClutchRelease.ToString("F0"));
+            AttachCore("RPMInTargetRange", () => _rpmInTargetRange);
+            AttachCore("TargetLaunchRPM", () => ActiveProfile.TargetLaunchRPM.ToString("F0"));
+            AttachCore("TargetLaunchThrottle", () => ActiveProfile.TargetLaunchThrottle.ToString("F0"));
+            AttachCore("ThrottleDeviationAtClutchRelease", () => _throttleDeviationAtClutchRelease);
+            AttachCore("ThrottleInTargetRange", () => _throttleInTargetRange);
+            AttachCore("ThrottleModulationDelta", () => _throttleModulationDelta);
+            AttachCore("WheelSpinDetected", () => _wheelSpinDetected);
+            AttachCore("ZeroTo100Delta", () => _zeroTo100Delta);
+            AttachCore("ZeroTo100Time", () => _hasValidLaunchData ? _zeroTo100LastTime : 0);
 
-            // --- ACTIONS FOR USER INPUT ---
+            // --- TESTING / DEBUGGING (VERBOSE) ---
+            // REMOVED: MSG.PitPhaseDebug (old vs new) — PitEngine is single source of truth now.
+            // AttachVerbose("MSG.PitPhaseDebug", ...);
 
-            this.AddAction("ClearResults", (a, b) =>
-            {
-                ResetAllValues();
-            });
-
-            this.AddAction("ToggleLaunchMode", (a, b) =>
-            {
-                if (IsLaunchActive)
-                {
-                    // If a launch is active (Primed, InProgress, Logging), this is a CANCEL request.
-                    SimHub.Logging.Current.Info("LaunchPlugin: Launch mode toggled OFF by user");
-                    _launchModeUserDisabled = true; // Keep the 'master off' functionality
-                    AbortLaunch();
-                }
-                else
-                {
-                    // If a launch is NOT active (Idle, Completed, Cancelled), this is a START request.
-                    SimHub.Logging.Current.Info("LaunchPlugin: Launch mode toggled ON by user");
-                    _launchModeUserDisabled = false; // Ensure the 'master off' is disabled
-                    SetLaunchState(LaunchState.ManualPrimed);
-                }
-            });
-
-            this.AddAction("MsgCx", (a, b) =>
-            {
-                // This part handles your other future dash module controls
-                _msgCxPressed = true;
-                SimHub.Logging.Current.Info("LaunchPlugin: MsgCx was triggered.");
-                Task.Delay(2000).ContinueWith(_ => _msgCxPressed = false);
-
-                // --- NEW: Conditional Rejoin Assist Override ---
-                // Only start the 30-second cooldown if a rejoin alert is currently active.
-                if ((int)_rejoinEngine.CurrentLogicCode >= 100)
-                {
-                    SimHub.Logging.Current.Info("MsgCx pressed during active rejoin alert, triggering override.");
-                    _rejoinEngine.TriggerMsgCxOverride();
-                }
-            });
-
-            this.AddAction("TogglePitScreen", (plugin, context) =>
-            {
-                _pitScreenDismissed = !_pitScreenDismissed;
-            });
-
-            // --- ACTIONS & DELEGATES FOR FUTURE USE ---
-            this.AddAction("PrimaryDashMode", (plugin, context) => { SimHub.Logging.Current.Info($"LalaLaunch: Primary Dash Mode action triggered."); });
-            this.AddAction("SecondaryDashMode", (plugin, context) => { SimHub.Logging.Current.Info($"LalaLaunch: Secondary Dash Mode action triggered."); });
-
-            //this.AttachDelegate("VirtualClutch", () => _virtualClutch);
-
-            // --- ACTIONS & DELEGATES FOR TESTING AND DEBUGGING ---
-            this.AttachDelegate("RejoinAssist_LingerTime", () => _rejoinEngine.LingerTimeSeconds);
-            this.AttachDelegate("RejoinAssist_OverrideTime", () => _rejoinEngine.OverrideTimeSeconds);
-            this.AttachDelegate("RejoinAssist_DelayTime", () => _rejoinEngine.DelayTimerSeconds);
-            this.AttachDelegate("RejoinAlertDetectedCode", () => (int)_rejoinEngine.DetectedReason);
-            this.AttachDelegate("RejoinAlertDetectedName", () => _rejoinEngine.DetectedReason.ToString());
-            this.AttachDelegate("RejoinThreatDebug", () => _rejoinEngine.ThreatDebug);
-            // Debug: compare Rejoin's pit phase vs PitEngine's phase (remove after testing)
-            this.AttachDelegate("MSG.PitPhaseDebug", () =>
-            {
-                if (_rejoinEngine == null || _pit == null) return "";
-
-                var oldPhase = _rejoinEngine.CurrentPitPhase; // Rejoin’s phase (existing)
-                var newPhase = _pit.CurrentPitPhase;          // PitEngine’s phase
-
-                // Keep the dash clean when nothing is happening
-                if (oldPhase == PitPhase.None && newPhase == PitPhase.None) return "";
-
-                var tPit = _pit.TimeOnPitRoad.TotalSeconds;
-                var tStop = _pit.PitStopDuration.TotalSeconds;
-                var onPit = _pit.IsOnPitRoad ? "Y" : "N";
-
-                return $"Old:{oldPhase} New:{newPhase} Pit:{onPit} tPit:{tPit:0.0}s tStop:{tStop:0.0}s";
-            });
-
-            // --- Link in The Rejoin Assist Engine Code ---
+            // --- Link engines (unchanged) ---
             _rejoinEngine = new RejoinAssistEngine(
                 () => ActiveProfile.RejoinWarningMinSpeed,
                 () => ActiveProfile.RejoinWarningLingerTime,
-                () => ActiveProfile.SpinYawRateThreshold / 10.0 // Divide the setting value by 10 here
+                () => ActiveProfile.SpinYawRateThreshold / 10.0
             );
 
             _msgSystem = new MessagingSystem();
-            this.AttachDelegate("MSG.OvertakeApproachLine", () => _msgSystem.OvertakeApproachLine);
-            this.AttachDelegate("MSG.OvertakeWarnSeconds", () => ActiveProfile.TrafficApproachWarnSeconds);
+            AttachCore("MSG.OvertakeApproachLine", () => _msgSystem.OvertakeApproachLine);
+            AttachCore("MSG.OvertakeWarnSeconds", () => ActiveProfile.TrafficApproachWarnSeconds);
 
             _pit = new PitEngine(() =>
             {
                 var s = ActiveProfile.RejoinWarningLingerTime;
                 if (double.IsNaN(s) || s < 0.5) s = 0.5;
-                if (s > 10.0) s = 10.0; // clamp to something sensible
+                if (s > 10.0) s = 10.0;
                 return s;
             });
             _pitLite = new PitCycleLite(_pit);
-            // Hand the PitEngine to Rejoin so it reads pit phases from the single source of truth
             _rejoinEngine.SetPitEngine(_pit);
 
-            // --- Attach a delegate for the new direct travel time property ---
-            this.AttachDelegate("Fuel.LastPitLaneTravelTime", () => LastDirectTravelTime);
+            // --- New direct travel time property (CORE) ---
+            AttachCore("Fuel.LastPitLaneTravelTime", () => LastDirectTravelTime);
 
         }
 
@@ -1402,7 +1332,8 @@ namespace LaunchPlugin
 
                 _rejoinEngine.Reset();
                 _pit.Reset();
-                _pitLite?.ResetCycle();  
+                _pitLite?.ResetCycle();
+                _pit?.ResetPitPhaseState();
                 _currentCarModel = "Unknown";
                 _lastSessionId = currentSessionId;
                 FuelCalculator.ForceProfileDataReload();
