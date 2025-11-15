@@ -125,8 +125,32 @@ namespace LaunchPlugin
         private double _lastFuelLevel = -1;
         private double _lapStartFuel = -1;
         private double _lastLapDistPct = -1;
-        private readonly List<double> _recentConsumptions = new List<double>();
-        private const int ConsumptionSampleCount = 3; // Number of clean laps to average
+
+        // New per-mode rolling windows
+        private readonly List<double> _recentDryFuelLaps = new List<double>();
+        private readonly List<double> _recentWetFuelLaps = new List<double>();
+        private const int FuelWindowSize = 5; // keep last N valid laps per mode
+
+        private double _avgDryFuelPerLap = 0.0;
+        private double _avgWetFuelPerLap = 0.0;
+        private double _maxDryFuelPerLap = 0.0;
+        private double _maxWetFuelPerLap = 0.0;
+        private int _validDryLaps = 0;
+        private int _validWetLaps = 0;
+
+        // Lap-context state for rejection logic
+        private int _lastCompletedFuelLap = -1;
+        private int _lapsSincePitExit = int.MaxValue; // big value so early race laps are not treated as pit warmup
+        private bool _wasInPitThisLap = false;
+        private bool _hadOffTrackThisLap = false; // placeholder; can be wired to incidents later
+
+        // --- Cross-session fuel seeds (for Race start) ---
+        private double _seedDryFuelPerLap = 0.0;
+        private int _seedDrySampleCount = 0;
+        private double _seedWetFuelPerLap = 0.0;
+        private int _seedWetSampleCount = 0;
+        private string _seedCarModel = "";
+        private string _seedTrackKey = "";
 
         // --- Live Fuel Calculation Outputs ---
         public double LiveFuelPerLap { get; private set; }
@@ -145,6 +169,11 @@ namespace LaunchPlugin
         public double Pit_FuelOnExit { get; private set; }
         public int Pit_StopsRequiredToEnd { get; private set; }
         public double LiveCarMaxFuel { get; private set; }
+        
+        // Push / max-burn guidance
+        public double PushFuelPerLap { get; private set; }
+        public double DeltaLapsIfPush { get; private set; }
+        public bool CanAffordToPush { get; private set; }
 
         private double _maxFuelPerLapSession = 0.0;
         public double MaxFuelPerLapDisplay => _maxFuelPerLapSession;
@@ -237,6 +266,245 @@ namespace LaunchPlugin
             catch { return 0.0; }
         }
 
+        // Returns dry/wet profile fuel baselines for the current car+track (0 if unknown)
+        private (double dry, double wet) GetProfileFuelBaselines()
+        {
+            try
+            {
+                var car = ActiveProfile;
+                if (car == null) return (0.0, 0.0);
+
+                var ts =
+                    car.ResolveTrackByNameOrKey(CurrentTrackKey) ??
+                    car.ResolveTrackByNameOrKey(CurrentTrackName);
+
+                if (ts == null) return (0.0, 0.0);
+
+                double dry = ts.AvgFuelPerLapDry ?? 0.0;
+                double wet = ts.AvgFuelPerLapWet ?? 0.0;
+                return (dry, wet);
+            }
+            catch
+            {
+                return (0.0, 0.0);
+            }
+        }
+
+        // 0–100 confidence for the current mode, based on lap count, baseline deviation, and variance
+        // 0–100 confidence for the current mode, based on lap count, baseline deviation, and variance
+        private int ComputeFuelModelConfidence(bool isWetMode)
+        {
+            var count = isWetMode ? _validWetLaps : _validDryLaps;
+            var window = isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
+            var avg = isWetMode ? _avgWetFuelPerLap : _avgDryFuelPerLap;
+
+            // Base confidence from sample count (C# 7.3-friendly)
+            int baseConf;
+            if (count <= 0)
+                baseConf = 0;
+            else if (count == 1)
+                baseConf = 40;
+            else if (count == 2)
+                baseConf = 65;
+            else if (count == 3 || count == 4)
+                baseConf = 80;
+            else
+                baseConf = 100;
+
+            // Penalty for deviation from profile baseline
+            var baselines = GetProfileFuelBaselines();
+            double baseline = isWetMode ? baselines.wet : baselines.dry; // or Item2/Item1 if you prefer
+            double penaltyBaseline = 0.0;
+
+            if (baseline > 0 && avg > 0)
+            {
+                var ratio = avg / baseline;
+                var absDev = Math.Abs(ratio - 1.0);
+
+                // No penalty in [0.9, 1.1]; then scale up to -50%
+                if (absDev > 0.1)
+                {
+                    penaltyBaseline = Math.Min(50.0, (absDev - 0.1) * 200.0);
+                }
+            }
+
+            // Penalty for high internal variance in the sliding window
+            double penaltyVar = 0.0;
+            if (window.Count >= 3 && avg > 0)
+            {
+                double min = window.Min();
+                double max = window.Max();
+                double spread = max - min;
+
+                if (spread / avg > 0.15) // >15% spread
+                {
+                    penaltyVar = 20.0;
+                }
+            }
+
+            double finalConf = baseConf - penaltyBaseline - penaltyVar;
+            if (finalConf < 0.0) finalConf = 0.0;
+            if (finalConf > 100.0) finalConf = 100.0;
+
+            return (int)Math.Round(finalConf);
+        }
+
+        private void CaptureFuelSeedForNextSession(string fromSessionType)
+        {
+            try
+            {
+                int totalValid = _validDryLaps + _validWetLaps;
+                if (totalValid <= 0)
+                    return;
+
+                if (string.IsNullOrEmpty(CurrentCarModel) || CurrentCarModel == "Unknown")
+                    return;
+                if (string.IsNullOrEmpty(CurrentTrackKey) || CurrentTrackKey == "unknown")
+                    return;
+
+                _seedCarModel = CurrentCarModel;
+                _seedTrackKey = CurrentTrackKey;
+
+                if (_validDryLaps > 0 && _avgDryFuelPerLap > 0.0)
+                {
+                    _seedDryFuelPerLap = _avgDryFuelPerLap;
+                    _seedDrySampleCount = Math.Min(_validDryLaps, FuelWindowSize);
+                }
+                else
+                {
+                    _seedDryFuelPerLap = 0.0;
+                    _seedDrySampleCount = 0;
+                }
+
+                if (_validWetLaps > 0 && _avgWetFuelPerLap > 0.0)
+                {
+                    _seedWetFuelPerLap = _avgWetFuelPerLap;
+                    _seedWetSampleCount = Math.Min(_validWetLaps, FuelWindowSize);
+                }
+                else
+                {
+                    _seedWetFuelPerLap = 0.0;
+                    _seedWetSampleCount = 0;
+                }
+
+                SimHub.Logging.Current.Info(
+                    $"LalaLaunch.LiveFuel: captured seed from session '{fromSessionType}' for car='{_seedCarModel}', track='{_seedTrackKey}': " +
+                    $"dry={_seedDryFuelPerLap:F3} (n={_seedDrySampleCount}), wet={_seedWetFuelPerLap:F3} (n={_seedWetSampleCount}).");
+            }
+            catch (Exception ex)
+            {
+                SimHub.Logging.Current.Info($"LalaLaunch.LiveFuel: CaptureFuelSeedForNextSession error: {ex.Message}");
+            }
+        }
+
+        private void ResetLiveFuelModelForNewSession(string newSessionType, bool applySeeds)
+        {
+            // Clear per-lap / model state
+            _recentDryFuelLaps.Clear();
+            _recentWetFuelLaps.Clear();
+            _validDryLaps = 0;
+            _validWetLaps = 0;
+            _avgDryFuelPerLap = 0.0;
+            _avgWetFuelPerLap = 0.0;
+            _maxDryFuelPerLap = 0.0;
+            _maxWetFuelPerLap = 0.0;
+            _lastFuelLevel = -1.0;
+            _lapStartFuel = -1.0;
+            _lastLapDistPct = -1.0;
+            _lastCompletedFuelLap = -1;
+            _lapsSincePitExit = int.MaxValue;
+            _wasInPitThisLap = false;
+            _hadOffTrackThisLap = false;
+
+            LiveFuelPerLap = 0.0;
+            Confidence = 0;
+            _maxFuelPerLapSession = 0.0;
+
+            // Only seed when entering Race with matching car/track
+            if (applySeeds &&
+                newSessionType == "Race" &&
+                _seedCarModel == CurrentCarModel &&
+                _seedTrackKey == CurrentTrackKey)
+            {
+                bool seededAny = false;
+
+                if (_seedDryFuelPerLap > 0.0)
+                {
+                    _recentDryFuelLaps.Add(_seedDryFuelPerLap);
+                    _validDryLaps = 1;
+                    _avgDryFuelPerLap = _seedDryFuelPerLap;
+                    seededAny = true;
+                }
+
+                if (_seedWetFuelPerLap > 0.0)
+                {
+                    _recentWetFuelLaps.Add(_seedWetFuelPerLap);
+                    _validWetLaps = 1;
+                    _avgWetFuelPerLap = _seedWetFuelPerLap;
+                    seededAny = true;
+                }
+
+                if (seededAny)
+                {
+                    bool isWetNow = FuelCalculator != null && FuelCalculator.IsWet;
+                    LiveFuelPerLap = isWetNow
+                        ? (_avgWetFuelPerLap > 0 ? _avgWetFuelPerLap : _avgDryFuelPerLap)
+                        : (_avgDryFuelPerLap > 0 ? _avgDryFuelPerLap : _avgWetFuelPerLap);
+
+                    Confidence = ComputeFuelModelConfidence(isWetNow);
+
+                    try
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"LalaLaunch.LiveFuel: seeded race model from previous session (car='{_seedCarModel}', track='{_seedTrackKey}'): " +
+                            $"dry={_seedDryFuelPerLap:F3}, wet={_seedWetFuelPerLap:F3}, conf={Confidence}%.");
+                    }
+                    catch { /* logging must not throw */ }
+                }
+            }
+        }
+
+        private void HandleSessionChangeForFuelModel(string fromSession, string toSession)
+        {
+            try
+            {
+                // If we don't know car/track yet, just reset without seeding.
+                if (string.IsNullOrEmpty(CurrentCarModel) || CurrentCarModel == "Unknown" ||
+                    string.IsNullOrEmpty(CurrentTrackKey) || CurrentTrackKey == "unknown")
+                {
+                    ResetLiveFuelModelForNewSession(toSession, false);
+                    return;
+                }
+
+                bool isDrivingFrom =
+                    fromSession == "Offline Testing" ||
+                    fromSession == "Practice" ||
+                    fromSession == "Open Qualify" ||
+                    fromSession == "Lone Qualify" ||
+                    fromSession == "Qualifying" ||
+                    fromSession == "Warmup" ||
+                    fromSession == "Race";
+
+                bool isEnteringRace = toSession == "Race";
+
+                if (isDrivingFrom && isEnteringRace)
+                {
+                    // Use fuel learnt in Practice/Qual/Warmup/etc as seed for Race.
+                    CaptureFuelSeedForNextSession(fromSession);
+                    ResetLiveFuelModelForNewSession(toSession, true);
+                }
+                else
+                {
+                    // Non-race transitions: just clear the model (no seeding).
+                    ResetLiveFuelModelForNewSession(toSession, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                SimHub.Logging.Current.Info($"LalaLaunch.LiveFuel: HandleSessionChangeForFuelModel error: {ex.Message}");
+            }
+        }
+
         private void UpdateLiveFuelCalcs(GameData data)
         {
             // --- 1) Gather required data ---
@@ -250,6 +518,12 @@ namespace LaunchPlugin
                 PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false
             );
             bool inPitArea = isInPitLaneFlag || isOnPitRoadFlag;
+
+            // Track per-lap pit involvement so we can reject any lap that touched pit lane
+            if (inPitArea)
+            {
+                _wasInPitThisLap = true;
+            }
 
             // Normalize lap % to 0..1 in case source is 0..100
             double curPct = rawLapPct;
@@ -385,7 +659,6 @@ namespace LaunchPlugin
                 }
             }
 
-            if (lapCrossed) { SimHub.Logging.Current.Debug("LalaLaunch.LiveFuel: Lap crossed."); }
             // First-time init: capture a starting fuel level and bail until we’ve completed one lap
             if (_lapStartFuel < 0)
             {
@@ -394,138 +667,188 @@ namespace LaunchPlugin
 
             if (lapCrossed)
             {
-                // Per-lap fuel sample (ignore pit-lane laps and obvious refuel spikes)
-                if (!inPitArea && _lapStartFuel > 0)
+                // Guard with CompletedLaps so we only process fully completed race laps
+                int completedLapsNow = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
+                if (completedLapsNow > _lastCompletedFuelLap)
                 {
-                    double consumed = _lapStartFuel - currentFuel;
+                    SimHub.Logging.Current.Info($"LalaLaunch.LiveFuel: Lap crossed. CompletedLaps={completedLapsNow}");
 
-                    // Sanity window: ignore negative, tiny, or absurdly high values
-                    // (0.1 L minimum; 0.1*maxFuel per lap maximum as a coarse upper bound)
-                    double maxPlausible = Math.Max(5.0, 0.10 * Math.Max(maxFuel, 50.0)); // at least 5 L, or 10% of tank
-                    if (consumed > 0.10 && consumed < maxPlausible)
+                    double fuelUsed = (_lapStartFuel > 0 && currentFuel >= 0)
+                        ? (_lapStartFuel - currentFuel)
+                        : 0.0;
+
+                    bool isWetMode = FuelCalculator?.IsWet ?? false;
+
+                    bool reject = false;
+                    string reason = "";
+
+                    // Global race warm-up: ignore very early race laps
+                    // CompletedLaps 0/1 = formation + first race lap (depending on series)
+                    if (!reject && completedLapsNow <= 1)
                     {
-                        SimHub.Logging.Current.Debug($"LalaLaunch.LiveFuel: Clean fuel sample taken: {consumed:F3} L."); // Log good samples
+                        reject = true;
+                        reason = "race-warmup";
+                    }
 
-                        // --- Update max fuel per lap for the session, rejecting outliers ---
-                        if (consumed > _maxFuelPerLapSession)
+                    // 1) Pit involvement – any lap that touched pit lane is rejected
+                    if (_wasInPitThisLap || inPitArea)
+                    {
+                        reject = true;
+                        reason = "pit-lap";
+                    }
+
+                    // 2) First lap after pit exit – tyres cold
+                    if (!reject && _lapsSincePitExit == 0)
+                    {
+                        reject = true;
+                        reason = "pit-warmup";
+                    }
+
+                    // 3) Incident/off-track laps (hook this when you wire incidents)
+                    if (!reject && _hadOffTrackThisLap)
+                    {
+                        reject = true;
+                        reason = "incident";
+                    }
+
+                    // 4) Obvious telemetry junk
+                    if (!reject)
+                    {
+                        // coarse cap: 20% of tank or 10 L, whichever is larger
+                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(maxFuel, 50.0));
+                        if (fuelUsed <= 0.05)
                         {
-                            // A simple outlier check: only accept a new max if it's within 150% of the current
-                            // rolling average, provided we have a stable average to compare against.
-                            bool isOutlier = (_recentConsumptions.Count >= ConsumptionSampleCount) && (consumed > _recentConsumptions.Average() * 1.5);
-                            if (!isOutlier)
+                            reject = true;
+                            reason = "fuel<=0";
+                        }
+                        else if (fuelUsed > maxPlausibleHard)
+                        {
+                            reject = true;
+                            reason = "fuelTooHigh";
+                        }
+                    }
+
+                    // 5) Profile-based sanity bracket [0.5, 1.5] × baseline
+                    if (!reject)
+                    {
+                        var (baselineDry, baselineWet) = GetProfileFuelBaselines();
+                        double baseline = isWetMode ? baselineWet : baselineDry;
+
+                        if (baseline > 0.0)
+                        {
+                            double ratio = fuelUsed / baseline;
+                            if (ratio < 0.5 || ratio > 1.5)
                             {
-                                _maxFuelPerLapSession = consumed;
-                                FuelCalculator?.SetMaxFuelPerLap(_maxFuelPerLapSession);
+                                reject = true;
+                                reason = $"profileBracket (r={ratio:F2})";
                             }
                         }
-                        _recentConsumptions.Add(consumed);
-                        while (_recentConsumptions.Count > ConsumptionSampleCount)
-                            _recentConsumptions.RemoveAt(0);
+                    }
 
-                        // We recompute the live average once per clean lap
-                        LiveFuelPerLap = _recentConsumptions.Average();
-                        Confidence = _recentConsumptions.Count;
+                    if (!reject)
+                    {
+                        var window = isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
+
+                        window.Add(fuelUsed);
+                        while (window.Count > FuelWindowSize)
+                            window.RemoveAt(0);
+
+                        if (isWetMode)
+                        {
+                            _avgWetFuelPerLap = window.Average();
+                            _validWetLaps = window.Count;
+
+                            // Max tracking with looser bounds [0.7, 1.8] × baseline
+                            var (_, baselineWet) = GetProfileFuelBaselines();
+                            double baseline = baselineWet > 0 ? baselineWet : _avgWetFuelPerLap;
+                            if (baseline > 0 && fuelUsed > _maxWetFuelPerLap)
+                            {
+                                double r = fuelUsed / baseline;
+                                if (r >= 0.7 && r <= 1.8)
+                                    _maxWetFuelPerLap = fuelUsed;
+                            }
+                        }
+                        else
+                        {
+                            _avgDryFuelPerLap = window.Average();
+                            _validDryLaps = window.Count;
+
+                            var (baselineDry, _) = GetProfileFuelBaselines();
+                            double baseline = baselineDry > 0 ? baselineDry : _avgDryFuelPerLap;
+                            if (baseline > 0 && fuelUsed > _maxDryFuelPerLap)
+                            {
+                                double r = fuelUsed / baseline;
+                                if (r >= 0.7 && r <= 1.8)
+                                    _maxDryFuelPerLap = fuelUsed;
+                            }
+                        }
+
+                        // Choose mode-aware LiveFuelPerLap, but allow cross-mode fallback if only one side has data
+                        LiveFuelPerLap = isWetMode
+                            ? (_avgWetFuelPerLap > 0 ? _avgWetFuelPerLap : _avgDryFuelPerLap)
+                            : (_avgDryFuelPerLap > 0 ? _avgDryFuelPerLap : _avgWetFuelPerLap);
+
+                        Confidence = ComputeFuelModelConfidence(isWetMode);
+
                         FuelCalculator?.SetLiveFuelPerLap(LiveFuelPerLap);
 
-                        // If we have a full sample set, update the active profile's track data
-                        if (_recentConsumptions.Count >= ConsumptionSampleCount && ActiveProfile != null)
+                        // Update session max for current mode if available
+                        double maxForMode = isWetMode ? _maxWetFuelPerLap : _maxDryFuelPerLap;
+                        if (maxForMode > 0)
+                        {
+                            _maxFuelPerLapSession = maxForMode;
+                            FuelCalculator?.SetMaxFuelPerLap(_maxFuelPerLapSession);
+                        }
+
+                        // Keep profile’s dry fuel updated from stable dry data only
+                        if (!isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
                         {
                             var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
                             if (trackRecord != null)
                             {
-                                // Update the dry average fuel per lap
-                                trackRecord.AvgFuelPerLapDry = LiveFuelPerLap;
+                                trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
                             }
                         }
 
+                        SimHub.Logging.Current.Info(
+                            $"LalaLaunch.LiveFuel: accepted {fuelUsed:F3} L (mode={(isWetMode ? "wet" : "dry")}, " +
+                            $"Live={LiveFuelPerLap:F3}, conf={Confidence}%, window={(_validDryLaps + _validWetLaps)}, " +
+                            $"lap={completedLapsNow})");
                     }
                     else
                     {
-                        // else: discarded sample
-                        SimHub.Logging.Current.Debug($"LalaLaunch.LiveFuel: Discarded invalid fuel sample: {consumed:F3} L. (inPit={inPitArea})");
+                        SimHub.Logging.Current.Info(
+                            $"LalaLaunch.LiveFuel: rejected {fuelUsed:F3} L (reason={reason}, pit={_wasInPitThisLap || inPitArea}, " +
+                            $"lap={completedLapsNow})");
                     }
-                    
+
+                    // Per-lap resets for next lap
+                    if (_wasInPitThisLap || inPitArea)
+                    {
+                        _lapsSincePitExit = 0;
+                    }
+                    else if (_lapsSincePitExit < int.MaxValue)
+                    {
+                        _lapsSincePitExit++;
+                    }
+
+                    _wasInPitThisLap = false;
+                    _hadOffTrackThisLap = false;
+                    _lastCompletedFuelLap = completedLapsNow;
                 }
 
                 // Start the next lap’s measurement window
                 _lapStartFuel = currentFuel;
-
-                // --- Live lap pace bookkeeping (only if your backing members exist) ---
-                // Prefer SimHub/iRacing last-lap if available; basic guard against out/in laps.
-                var lastLapTs = data.NewData?.LastLapTime ?? TimeSpan.Zero;
-                double lastLapSec = lastLapTs.TotalSeconds;
-                bool lastLapLooksClean = !inPitArea && lastLapSec > 20 && lastLapSec < 900; // 20s..15min
-
-
-                if (lastLapLooksClean)
-                {
-                    try
-                    {
-                        double sessionPBSeconds = _lastSeenBestLap.TotalSeconds;
-                        // Only count the lap if we have no PB yet, or if the lap is within 5s of the PB.
-                        bool isPaceLap = (sessionPBSeconds <= 0) || (lastLapSec < sessionPBSeconds + 10.0);
-
-                        if (isPaceLap)
-                        {
-                            _recentLapTimes.Add(lastLapSec);
-                            while (_recentLapTimes.Count > LapTimeSampleCount)
-                                _recentLapTimes.RemoveAt(0);
-
-                            var stableAvg = ComputeStableMedian(_recentLapTimes);
-                            FuelCalculator?.SetLiveLapPaceEstimate(stableAvg, _recentLapTimes.Count);
-
-                            FuelCalculator?.SetPersonalBestSeconds(sessionPBSeconds);
-                        }
-                        else
-                        {
-                            SimHub.Logging.Current.Debug($"LalaLaunch.LivePace: Discarded slow lap time sample: {lastLapSec:F3}s (delta to PB > 10s).");
-                        }
-                    }
-                    catch { /* ... */ }
-                }
-                else
-                {
-                    SimHub.Logging.Current.Debug($"LalaLaunch.LivePace: Discarded invalid lap time sample: {lastLapSec:F3} s. (inPit={inPitArea})");
-                }
-                // --- NEW: Live LEADER pace bookkeeping ---
-                try
-                {
-                    var leaderLastLapTs = (TimeSpan?)PluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime") ?? TimeSpan.Zero;
-                    double leaderLastLapSec = leaderLastLapTs.TotalSeconds;
-
-                    if (!inPitArea && leaderLastLapSec > 20 && leaderLastLapSec < 900)
-                    {
-                        var leaderBestLapTs = (TimeSpan?)PluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_BestLapTime") ?? TimeSpan.Zero;
-                        double leaderBestLapSec = leaderBestLapTs.TotalSeconds;
-
-                        // Only count the lap if the leader has no PB, or if their lap is within 5s of their PB.
-                        bool isLeaderPaceLap = (leaderBestLapSec <= 0) || (leaderLastLapSec < leaderBestLapSec + 10.0);
-
-                        if (isLeaderPaceLap)
-                        {
-                            _recentLeaderLapTimes.Add(leaderLastLapSec);
-                            while (_recentLeaderLapTimes.Count > 3)
-                                _recentLeaderLapTimes.RemoveAt(0);
-
-                            if (_recentLeaderLapTimes.Count > 0)
-                            {
-                                LiveLeaderAvgPaceSeconds = _recentLeaderLapTimes.Average();
-                            }
-                        }
-                    }
-                }
-                catch { /* if property is not available, do nothing */ }
             }
 
-            // If we haven’t accumulated any clean-lap samples yet, fall back to SimHub’s computed estimator
-            if (!_recentConsumptions.Any())
+            // If we haven’t accumulated any accepted laps yet, fall back to SimHub’s estimator
+            if ((_validDryLaps + _validWetLaps) == 0)
             {
                 LiveFuelPerLap = Convert.ToDouble(
                     PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
                 );
                 Confidence = 0;
 
-                // Ensure the UI can enable the Live button as soon as a non-zero estimate appears
                 if (LiveFuelPerLap > 0)
                     FuelCalculator?.OnLiveFuelPerLapUpdated();
             }
@@ -547,6 +870,9 @@ namespace LaunchPlugin
                 Pit_FuelOnExit = 0;
                 Pit_DeltaAfterStop = 0;
                 Pit_StopsRequiredToEnd = 0;
+                PushFuelPerLap = 0;
+                DeltaLapsIfPush = 0;
+                CanAffordToPush = false;
             }
             else
             {
@@ -559,9 +885,24 @@ namespace LaunchPlugin
                 double fuelNeededToEnd = LiveLapsRemainingInRace * LiveFuelPerLap;
                 DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace;
 
-                TargetFuelPerLap = (DeltaLaps < 0 && LiveLapsRemainingInRace > 0)
+                // Raw target fuel per lap if we're short on fuel
+                double rawTargetFuelPerLap = (DeltaLaps < 0 && LiveLapsRemainingInRace > 0)
                     ? currentFuel / LiveLapsRemainingInRace
-                    : 0;
+                    : 0.0;
+
+                // Apply 10% saving guard: don't assume better than 10% below live average
+                if (rawTargetFuelPerLap > 0.0 && LiveFuelPerLap > 0.0)
+                {
+                    double minAllowed = LiveFuelPerLap * 0.90; // max 10% fuel saving
+                    TargetFuelPerLap = (rawTargetFuelPerLap < minAllowed)
+                        ? minAllowed
+                        : rawTargetFuelPerLap;
+                }
+                else
+                {
+                    TargetFuelPerLap = 0.0;
+                }
+
 
                 // Pit math
                 Pit_TotalNeededToEnd = fuelNeededToEnd;
@@ -610,14 +951,40 @@ namespace LaunchPlugin
                         PitWindowOpeningLap = (int)Math.Floor(completedLaps + lapsUntilWindowOpens); ;
                     }
                 }
-            }
+                // --- Push / max-burn guidance ---
+                // Choose a push fuel rate:
+                //  - Prefer the observed session max if it's >= live average
+                //  - Otherwise, assume a small push margin (e.g. +2%)
+                double pushFuel = 0.0;
+                if (_maxFuelPerLapSession > 0.0 && _maxFuelPerLapSession >= LiveFuelPerLap)
+                {
+                    pushFuel = _maxFuelPerLapSession;
+                }
+                else
+                {
+                    pushFuel = LiveFuelPerLap * 1.02; // fallback: +2% if we don't have a proper max yet
+                }
 
-            // --- 4) Update "last" values for next tick ---
-            _lastFuelLevel = currentFuel;
+                PushFuelPerLap = pushFuel;
+
+                if (pushFuel > 0.0)
+                {
+                    double lapsRemainingIfPush = currentFuel / pushFuel;
+                    DeltaLapsIfPush = lapsRemainingIfPush - LiveLapsRemainingInRace;
+                    CanAffordToPush = DeltaLapsIfPush >= 0.0;
+                }
+                else
+                {
+                    DeltaLapsIfPush = 0.0;
+                    CanAffordToPush = false;
+                }
+        }
+
+        // --- 4) Update "last" values for next tick ---
+        _lastFuelLevel = currentFuel;
             _lastLapDistPct = rawLapPct; // keep original scale; we normalize on read
             if (_lapStartFuel < 0) _lapStartFuel = currentFuel;
         }
-
 
         // --- Settings / Car Profiles ---
 
@@ -787,7 +1154,8 @@ namespace LaunchPlugin
         private double _zeroTo100LastTime = 0.0;
 
         // --- Session State ---
-        private string _lastSessionType = "";
+        private string _lastSessionType = "";          // used by auto-dash & UI
+        private string _lastFuelSessionType = "";      // used only by fuel model seeding
 
         private string _lastSeenCar = "";
         private string _lastSeenTrack = "";
@@ -915,7 +1283,9 @@ namespace LaunchPlugin
             AttachCore("Fuel.PitWindowOpeningLap", () => PitWindowOpeningLap);
             AttachCore("Fuel.LapsRemainingInTank", () => LapsRemainingInTank);
             AttachCore("Fuel.Confidence", () => Confidence);
-
+            AttachCore("Fuel.PushFuelPerLap", () => PushFuelPerLap);
+            AttachCore("Fuel.DeltaLapsIfPush", () => DeltaLapsIfPush);
+            AttachCore("Fuel.CanAffordToPush", () => CanAffordToPush);
             AttachCore("Fuel.Pit.TotalNeededToEnd", () => Pit_TotalNeededToEnd);
             AttachCore("Fuel.Pit.NeedToAdd", () => Pit_NeedToAdd);
             AttachCore("Fuel.Pit.TankSpaceAvailable", () => Pit_TankSpaceAvailable);
@@ -976,11 +1346,11 @@ namespace LaunchPlugin
             AttachVerbose("PitLite.DirectSec", () => _pitLite?.DirectSec ?? 0.0);
             AttachVerbose("PitLite.DTLSec", () => _pitLite?.DTLSec ?? 0.0);
             AttachVerbose("PitLite.Status", () => _pitLite?.Status.ToString() ?? "None");
-            AttachVerbose("PitLite.Live.TimeOnPitRoadSec", () => _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
-            AttachVerbose("PitLite.Live.TimeInBoxSec", () => _pit?.PitStopElapsedSec ?? 0.0);
+            AttachCore("PitLite.Live.TimeOnPitRoadSec", () => _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
+            AttachCore("PitLite.Live.TimeInBoxSec", () => _pit?.PitStopElapsedSec ?? 0.0);
             AttachVerbose("PitLite.CurrentLapType", () => _pitLite?.CurrentLapType.ToString() ?? "Normal");
             AttachVerbose("PitLite.LastLapType", () => _pitLite?.LastLapType.ToString() ?? "None");
-            AttachVerbose("PitLite.TotalLossSec", () => _pitLite?.TotalLossSec ?? 0.0);
+            AttachCore("PitLite.TotalLossSec", () => _pitLite?.TotalLossSec ?? 0.0);
             AttachVerbose("PitLite.LossSource", () => _pitLite?.TotalLossSource ?? "None");
             AttachVerbose("PitLite.LastSaved.Sec", () => _pitDbg_CandidateSavedSec);
             AttachVerbose("PitLite.LastSaved.Source", () => _pitDbg_CandidateSource ?? "none");
@@ -1611,6 +1981,14 @@ namespace LaunchPlugin
             }
 
             string currentSession = data.NewData?.SessionTypeName ?? "";
+            // Fuel model session-change handling (independent of auto-dash setting)
+            if (!string.IsNullOrEmpty(_lastFuelSessionType) && currentSession != _lastFuelSessionType)
+            {
+                HandleSessionChangeForFuelModel(_lastFuelSessionType, currentSession);
+            }
+            _lastFuelSessionType = currentSession;
+
+            // --- AUTO DASH SWITCHING BASED ON ON-TRACK STATUS ---
             if (Settings.EnableAutoDashSwitch && isOnTrack && !_hasProcessedOnTrack)
             {
                 _hasProcessedOnTrack = true;
