@@ -187,6 +187,23 @@ namespace LaunchPlugin
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
+
+        // --- Stint / Pace tracking ---
+        public double Pace_StintAvgLapTimeSec { get; private set; }
+        public double Pace_Last5LapAvgSec { get; private set; }
+        public int PaceConfidence { get; private set; }
+
+        // Combined view of fuel & pace reliability (for dash use)
+        public int OverallConfidence
+        {
+            get
+            {
+                // If we have no pace confidence yet, fall back to fuel-only
+                if (PaceConfidence <= 0) return Confidence;
+                return (Confidence < PaceConfidence) ? Confidence : PaceConfidence;
+            }
+        }
+
         private PitCycleLite _pitLite; // simple, deterministic pit-cycle surface for the test dash
 
         // Freeze latched pit debug values after we finalize at the end of OUT LAP.
@@ -343,6 +360,45 @@ namespace LaunchPlugin
             }
 
             double finalConf = baseConf - penaltyBaseline - penaltyVar;
+            if (finalConf < 0.0) finalConf = 0.0;
+            if (finalConf > 100.0) finalConf = 100.0;
+
+            return (int)Math.Round(finalConf);
+        }
+
+        // 0–100 confidence for the lap-time model, based on clean sample count and variance
+        private int ComputePaceConfidence()
+        {
+            int count = _recentLapTimes.Count;
+            if (count <= 0) return 0;
+
+            int baseConf;
+            if (count == 1)
+                baseConf = 40;
+            else if (count == 2)
+                baseConf = 65;
+            else if (count == 3 || count == 4)
+                baseConf = 80;
+            else
+                baseConf = 100;
+
+            double avg = _recentLapTimes.Average();
+            double penaltyVar = 0.0;
+
+            if (count >= 3 && avg > 0.0)
+            {
+                double min = _recentLapTimes.Min();
+                double max = _recentLapTimes.Max();
+                double spread = max - min;
+
+                // If lap times vary more than 3% across the window, knock confidence down
+                if (spread / avg > 0.03)
+                {
+                    penaltyVar = 20.0;
+                }
+            }
+
+            double finalConf = baseConf - penaltyVar;
             if (finalConf < 0.0) finalConf = 0.0;
             if (finalConf > 100.0) finalConf = 100.0;
 
@@ -546,11 +602,11 @@ namespace LaunchPlugin
                 // provides it with the necessary data to finalize the calculation.
                 if (_pit != null && (_pit.CurrentPitPhase == PitPhase.None || _pit.CurrentPitPhase == PitPhase.ExitingPits)) // Ensure we are on track
                 {
-                    var lastLapTs = data.NewData?.LastLapTime ?? TimeSpan.Zero;
-                    double lastLapSec = lastLapTs.TotalSeconds;
+                    var lastLapTsPit = data.NewData?.LastLapTime ?? TimeSpan.Zero;
+                    double lastLapSecPit = lastLapTsPit.TotalSeconds;
 
                     // Basic validity check for the lap itself
-                    bool lastLapLooksClean = !inPitArea && lastLapSec > 20 && lastLapSec < 900;
+                    bool lastLapLooksClean = !inPitArea && lastLapSecPit > 20 && lastLapSecPit < 900;
 
                     // Get a stable average pace to compare against
                     double stableAvgPace = ComputeStableMedian(_recentLapTimes);
@@ -604,25 +660,25 @@ namespace LaunchPlugin
                     // Publish to dash
                     _pitDbg_AvgPaceUsedSec = stableAvgPace;
                     _pitDbg_AvgPaceSource = paceSource;
-                    
+
                     // Publish lap numbers to dash as soon as we cross S/F, based on pit state
                     var pitPhaseBefore = _pit?.CurrentState ?? PitEngine.PaceDeltaState.Idle;
 
                     if (pitPhaseBefore == PitEngine.PaceDeltaState.AwaitingPitLap)
                     {
                         // This crossing just completed the PIT LAP (includes the stop)
-                        _pitDbg_InLapSec = lastLapSec;
+                        _pitDbg_InLapSec = lastLapSecPit;
                         _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec;
                     }
                     else if (pitPhaseBefore == PitEngine.PaceDeltaState.AwaitingOutLap)
                     {
                         // This crossing just completed the OUT LAP
-                        _pitDbg_OutLapSec = lastLapSec;
+                        _pitDbg_OutLapSec = lastLapSecPit;
                         _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
                     }
 
                     // Call PitEngine to advance the state / compute totals when appropriate
-                    _pit.FinalizePaceDeltaCalculation(lastLapSec, stableAvgPace, lastLapLooksClean);
+                    _pit.FinalizePaceDeltaCalculation(lastLapSecPit, stableAvgPace, lastLapLooksClean);
 
                     // --- IMMEDIATE PUBLISH: only when we just completed the OUT LAP ---
                     if (pitPhaseBefore == PitEngine.PaceDeltaState.AwaitingOutLap)
@@ -636,7 +692,7 @@ namespace LaunchPlugin
 
                         // Lock the debug panel numbers to this event until the next cycle
                         _pitDbg_InLapSec = _lastLapTimeSec; // the lap we primed as IN-lap
-                        _pitDbg_OutLapSec = lastLapSec;      // the OUT-lap that just finished
+                        _pitDbg_OutLapSec = lastLapSecPit;   // the OUT-lap that just finished
 
                         _pitDbg_DeltaInSec = _pitDbg_InLapSec - _pitDbg_AvgPaceUsedSec;
                         _pitDbg_DeltaOutSec = _pitDbg_OutLapSec - _pitDbg_AvgPaceUsedSec;
@@ -653,9 +709,8 @@ namespace LaunchPlugin
                         _pitFreezeUntilNextCycle = true;
                     }
 
-
                     // Roll the "previous lap" pointer AFTER we used it as in-lap
-                    _lastLapTimeSec = lastLapSec;
+                    _lastLapTimeSec = lastLapSecPit;
                 }
             }
 
@@ -671,6 +726,127 @@ namespace LaunchPlugin
                 int completedLapsNow = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
                 if (completedLapsNow > _lastCompletedFuelLap)
                 {
+                    // --- Lap-time / pace tracking (clean laps only) ---
+                    var lastLapTs = data.NewData?.LastLapTime ?? TimeSpan.Zero;
+                    double lastLapSec = lastLapTs.TotalSeconds;
+
+                    bool paceReject = false;
+                    string paceReason = "";
+
+                    // 1) Global race warm-up: ignore very early race laps (same as fuel)
+                    if (completedLapsNow <= 2)
+                    {
+                        paceReject = true;
+                        paceReason = "race-warmup";
+                    }
+
+                    // 2) Any pit involvement this lap? Ignore for pace.
+                    if (!paceReject && (_wasInPitThisLap || inPitArea))
+                    {
+                        paceReject = true;
+                        paceReason = "pit-lap";
+                    }
+
+                    // 3) Serious off / incident laps
+                    if (!paceReject && _hadOffTrackThisLap)
+                    {
+                        paceReject = true;
+                        paceReason = "incident";
+                    }
+
+                    // 4) Obvious junk lap times
+                    if (!paceReject)
+                    {
+                        if (lastLapSec <= 20.0 || lastLapSec >= 900.0)
+                        {
+                            paceReject = true;
+                            paceReason = "bad-lap-time";
+                        }
+                    }
+
+                    // 5) Timing bracket: moderate + gross outliers
+                    if (!paceReject && _recentLapTimes.Count >= 3)
+                    {
+                        double recentAvg = _recentLapTimes.Average();
+                        double delta = lastLapSec - recentAvg; // +ve = slower than recent average
+
+                        // 5a) Gross outliers: >20s away from our current clean pace, either direction.
+                        //     This catches things like huge course cuts or tow / timing glitches.
+                        if (Math.Abs(delta) > 20.0)
+                        {
+                            // You can log this if you like:
+                            SimHub.Logging.Current.Info($"LalaLaunch.Pace: gross outlier lap {lastLapSec:F2}s (avg={recentAvg:F2}s, Δ={delta:F1}s)");
+                            paceReject = true;
+                        }
+                        // 5b) Normal too-slow laps: more than ~6s slower than our recent clean pace.
+                        //     Keeps spins / heavy traffic / yellows out of the model, but allows faster laps.
+                        else if (delta > 6.0)
+                        {
+                            SimHub.Logging.Current.Info($"LalaLaunch.Pace: rejected too-slow lap {lastLapSec:F2}s (avg={recentAvg:F2}s, Δ={delta:F1}s)");
+                            paceReject = true;
+                        }
+                    }
+
+
+                    if (!paceReject)
+                    {
+                        _recentLapTimes.Add(lastLapSec);
+                        // Trim to window
+                        while (_recentLapTimes.Count > LapTimeSampleCount)
+                        {
+                            _recentLapTimes.RemoveAt(0);
+                        }
+
+                        // Stint average: across all recent clean laps
+                        Pace_StintAvgLapTimeSec = _recentLapTimes.Average();
+
+                        // Last-5-laps average (or fewer if we haven't got 5 yet)
+                        int count = _recentLapTimes.Count;
+                        int take = (count >= 5) ? 5 : count;
+                        if (take > 0)
+                        {
+                            double sum = 0.0;
+                            for (int i = count - take; i < count; i++)
+                            {
+                                sum += _recentLapTimes[i];
+                            }
+                            Pace_Last5LapAvgSec = sum / take;
+                        }
+                        else
+                        {
+                            Pace_Last5LapAvgSec = 0.0;
+                        }
+
+                        // Update pace confidence
+                        PaceConfidence = ComputePaceConfidence();
+
+                        if (string.IsNullOrEmpty(paceReason))
+                        {
+                            paceReason = "accepted";
+                        }
+                    }
+                    else
+                    {
+                        // If we rejected the lap, keep existing averages, but make sure reason is not empty
+                        if (string.IsNullOrEmpty(paceReason))
+                        {
+                            paceReason = "rejected";
+                        }
+                    }
+
+                    // Log pace line every lap we cross S/F
+                    SimHub.Logging.Current.Info(
+                        string.Format(
+                            "LalaLaunch.Pace: lap={0}, time={1:F3}s, accepted={2}, reason={3}, stintAvg={4:F3}s, last5={5:F3}s, paceConf={6}%",
+                            completedLapsNow,
+                            lastLapSec,
+                            !paceReject,
+                            paceReason,
+                            Pace_StintAvgLapTimeSec,
+                            Pace_Last5LapAvgSec,
+                            PaceConfidence));
+
+                    // --- Fuel per lap calculation & rolling averages ---
                     SimHub.Logging.Current.Info($"LalaLaunch.LiveFuel: Lap crossed. CompletedLaps={completedLapsNow}");
 
                     double fuelUsed = (_lapStartFuel > 0 && currentFuel >= 0)
@@ -740,7 +916,7 @@ namespace LaunchPlugin
                             if (ratio < 0.5 || ratio > 1.5)
                             {
                                 reject = true;
-                                reason = $"profileBracket (r={ratio:F2})";
+                                reason = string.Format("profileBracket (r={0:F2})", ratio);
                             }
                         }
                     }
@@ -790,6 +966,8 @@ namespace LaunchPlugin
 
                         Confidence = ComputeFuelModelConfidence(isWetMode);
 
+                        // Overall confidence is computed in its getter from Confidence + PaceConfidence
+
                         FuelCalculator?.SetLiveFuelPerLap(LiveFuelPerLap);
 
                         // Update session max for current mode if available
@@ -811,15 +989,24 @@ namespace LaunchPlugin
                         }
 
                         SimHub.Logging.Current.Info(
-                            $"LalaLaunch.LiveFuel: accepted {fuelUsed:F3} L (mode={(isWetMode ? "wet" : "dry")}, " +
-                            $"Live={LiveFuelPerLap:F3}, conf={Confidence}%, window={(_validDryLaps + _validWetLaps)}, " +
-                            $"lap={completedLapsNow})");
+                            string.Format(
+                                "LalaLaunch.LiveFuel: accepted {0:F3} L (mode={1}, Live={2:F3}, conf={3}%, window={4}, lap={5})",
+                                fuelUsed,
+                                (isWetMode ? "wet" : "dry"),
+                                LiveFuelPerLap,
+                                Confidence,
+                                (_validDryLaps + _validWetLaps),
+                                completedLapsNow));
                     }
                     else
                     {
                         SimHub.Logging.Current.Info(
-                            $"LalaLaunch.LiveFuel: rejected {fuelUsed:F3} L (reason={reason}, pit={_wasInPitThisLap || inPitArea}, " +
-                            $"lap={completedLapsNow})");
+                            string.Format(
+                                "LalaLaunch.LiveFuel: rejected {0:F3} L (reason={1}, pit={2}, lap={3})",
+                                fuelUsed,
+                                reason,
+                                (_wasInPitThisLap || inPitArea),
+                                completedLapsNow));
                     }
 
                     // Per-lap resets for next lap
@@ -870,9 +1057,14 @@ namespace LaunchPlugin
                 Pit_FuelOnExit = 0;
                 Pit_DeltaAfterStop = 0;
                 Pit_StopsRequiredToEnd = 0;
+
                 PushFuelPerLap = 0;
                 DeltaLapsIfPush = 0;
                 CanAffordToPush = false;
+
+                Pace_StintAvgLapTimeSec = 0.0;
+                Pace_Last5LapAvgSec = 0.0;
+                PaceConfidence = 0;
             }
             else
             {
@@ -903,15 +1095,16 @@ namespace LaunchPlugin
                     TargetFuelPerLap = 0.0;
                 }
 
-
                 // Pit math
                 Pit_TotalNeededToEnd = fuelNeededToEnd;
                 Pit_NeedToAdd = Math.Max(0, fuelNeededToEnd - currentFuel);
-                Pit_TankSpaceAvailable = Math.Max(0, maxFuel - currentFuel);
-
                 double fuelToRequest = Convert.ToDouble(
-                    PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PitSvFuel") ?? 0.0
-                );
+                    PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PitSvFuel") ?? 0.0);
+
+                // Use the same session-max fuel the Fuel tab uses if available.
+                double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel;
+
+                Pit_TankSpaceAvailable = Math.Max(0, sessionMaxFuel - currentFuel);
                 Pit_WillAdd = Math.Min(fuelToRequest, Pit_TankSpaceAvailable);
 
                 Pit_FuelOnExit = currentFuel + Pit_WillAdd;
@@ -948,13 +1141,11 @@ namespace LaunchPlugin
                         // CompletedLaps is decimal? -> normalize to double
                         double completedLaps = Convert.ToDouble(data.NewData?.CompletedLaps ?? 0m);
 
-                        PitWindowOpeningLap = (int)Math.Floor(completedLaps + lapsUntilWindowOpens); ;
+                        PitWindowOpeningLap = (int)Math.Floor(completedLaps + lapsUntilWindowOpens);
                     }
                 }
+
                 // --- Push / max-burn guidance ---
-                // Choose a push fuel rate:
-                //  - Prefer the observed session max if it's >= live average
-                //  - Otherwise, assume a small push margin (e.g. +2%)
                 double pushFuel = 0.0;
                 if (_maxFuelPerLapSession > 0.0 && _maxFuelPerLapSession >= LiveFuelPerLap)
                 {
@@ -978,10 +1169,10 @@ namespace LaunchPlugin
                     DeltaLapsIfPush = 0.0;
                     CanAffordToPush = false;
                 }
-        }
+            }
 
-        // --- 4) Update "last" values for next tick ---
-        _lastFuelLevel = currentFuel;
+            // --- 4) Update "last" values for next tick ---
+            _lastFuelLevel = currentFuel;
             _lastLapDistPct = rawLapPct; // keep original scale; we normalize on read
             if (_lapStartFuel < 0) _lapStartFuel = currentFuel;
         }
@@ -1294,15 +1485,19 @@ namespace LaunchPlugin
             AttachCore("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
             AttachCore("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
 
+            // --- Pace metrics (CORE) ---
+            AttachCore("Pace.StintAvgLapTimeSec", () => Pace_StintAvgLapTimeSec);
+            AttachCore("Pace.Last5LapAvgSec", () => Pace_Last5LapAvgSec);
+            AttachCore("Pace.PaceConfidence", () => PaceConfidence);
+            AttachCore("Pace.OverallConfidence", () => OverallConfidence);
+
             // --- Pit time-loss (finals kept CORE; raw & debug VERBOSE) ---
             AttachCore("Pit.LastDirectTravelTime", () => _pit.LastDirectTravelTime);
             AttachCore("Pit.LastTotalPitCycleTimeLoss", () => _pit.LastTotalPitCycleTimeLoss);
             AttachCore("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss);
-
             AttachVerbose("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds);
-            // REMOVED: duplicate of TimeOnPitRoad
+            
             // AttachVerbose("Pit.Debug.LastTimeOnPitRoad",  () => _pit.TimeOnPitRoad.TotalSeconds);
-
             AttachVerbose("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0);
 
             // --- PIT TEST / RAW (all VERBOSE) ---
