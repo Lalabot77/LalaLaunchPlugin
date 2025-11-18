@@ -138,6 +138,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
                                 <TextBlock Text="Est Avg Lap Time:" VerticalAlignment="Center"/>
@@ -158,6 +159,8 @@
                             <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding HistoricalBestLapDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Personal Best lap time for this car/track."/>
                             <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding LiveLapPaceInfo}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Live rolling average lap time."/>
                             <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding ProfileAvgDryLapTimeDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Saved average dry lap time from profile."/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="4" Text="{Binding LiveConfidenceSummary}" Foreground="Gray" FontStyle="Italic" Margin="0,4,0,0" TextWrapping="Wrap"/>
                         </Grid>
 
                         <StackPanel Grid.Row="4" Margin="0,10,0,10" Grid.IsSharedSizeScope="True">

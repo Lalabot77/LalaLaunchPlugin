@@ -97,6 +97,23 @@ namespace LaunchPlugin
         public double OverrideTimeSeconds => _msgCxTimer.Elapsed.TotalSeconds;
         public double DelayTimerSeconds => _delayTimer.Elapsed.TotalSeconds;
         public RejoinReason DetectedReason => _detectedReason;
+
+        public bool IsSeriousIncidentActive =>
+            IsSeriousIncidentReason(_currentLogicReason) ||
+            IsSeriousIncidentReason(_detectedReason);
+
+        public static bool IsSeriousIncidentReason(RejoinReason reason)
+        {
+            switch (reason)
+            {
+                case RejoinReason.Spin:
+                case RejoinReason.StoppedOnTrack:
+                case RejoinReason.WrongWay:
+                    return true;
+                default:
+                    return false;
+            }
+        }
         //public bool IsEnteringPits => _isEnteringPits;
 
         public RejoinAssistEngine(Func<double> getSpeedThreshold, Func<double> getLingerTime, Func<double> getYawThreshold)
