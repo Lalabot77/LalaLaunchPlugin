@@ -59,6 +59,9 @@ public class FuelCalcs : INotifyPropertyChanged
     private bool _isLiveLapPaceAvailable;
     private string _liveLapPaceInfo = "-";
     private double _liveAvgLapSeconds = 0;   // internal cache of live estimate
+    private int _liveFuelConfidence;
+    private int _livePaceConfidence;
+    private int _liveOverallConfidence;
                                              
     // --- NEW: Local properties for "what-if" parameters ---
     private double _contingencyValue = 1.5;
