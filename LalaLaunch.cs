@@ -1,14 +1,8 @@
 ﻿// --- Using Directives ---
 using GameReaderCommon;
-using LaunchPlugin;
-using log4net.Repository.Hierarchy;
-using Newtonsoft.Json;
 using SimHub.Plugins;
-using SimHub.Plugins.OutputPlugins.GraphicalDash;
-using SimHubWPF;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -16,12 +10,8 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.Windows.Media;
-using static SimHub.Plugins.UI.SupportedGamePicker;
 
 
 namespace LaunchPlugin
@@ -97,7 +87,7 @@ namespace LaunchPlugin
                     {
                         ProfilesViewModel.SelectedProfile = _activeProfile;
                     }
-                    
+
                     IsActiveProfileDirty = false; // Reset dirty flag on profile switch
                 }
             }
@@ -117,7 +107,7 @@ namespace LaunchPlugin
             IsActiveProfileDirty = true;
         }
         public bool CanReturnToDefaults => ActiveProfile?.ProfileName != "Default Settings";
-        
+
         // --- Expose the direct travel time calculated by PitEngine ---
         public double LastDirectTravelTime => _pit?.LastDirectTravelTime ?? 0.0;
 
@@ -170,7 +160,7 @@ namespace LaunchPlugin
         public double Pit_FuelOnExit { get; private set; }
         public int Pit_StopsRequiredToEnd { get; private set; }
         public double LiveCarMaxFuel { get; private set; }
-        
+
         // Push / max-burn guidance
         public double PushFuelPerLap { get; private set; }
         public double DeltaLapsIfPush { get; private set; }
@@ -1272,7 +1262,7 @@ namespace LaunchPlugin
 
         public enum ProfileEditMode { ActiveCar, CarProfile, Template }
 
-        
+
         // --- Logging ---
         private string _currentLaunchTraceFilenameForSummary = "N/A";
         private TelemetryTraceLogger _telemetryTraceLogger;
@@ -1305,7 +1295,7 @@ namespace LaunchPlugin
         // --- Rejoin Assist Module State ---
         private readonly Stopwatch _offTrackHighSpeedTimer = new Stopwatch();
         private readonly Stopwatch _msgCxCooldownTimer = new Stopwatch();
-        
+
         // --- State: Timers ---
         private readonly Stopwatch _pittingTimer = new Stopwatch();
         private readonly Stopwatch _zeroTo100Stopwatch = new Stopwatch();
@@ -2008,7 +1998,7 @@ namespace LaunchPlugin
             catch { sessionTime = 0.0; }
 
             bool inPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
-            
+
             // Cooldown: avoid re-learning immediately after a save
             bool onCooldown = sessionTime < _refuelLearnCooldownEnd;
             if (onCooldown)
@@ -2324,7 +2314,7 @@ namespace LaunchPlugin
             // 3) As a last resort, keep it stable but explicit
             return "Unknown";
         }
-                
+
         /// Updates properties that need to be checked on every tick, like dash switching and anti-stall.
         private void UpdateLiveProperties(PluginManager pluginManager, ref GameData data)
         {
