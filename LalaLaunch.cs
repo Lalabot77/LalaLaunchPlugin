@@ -464,6 +464,13 @@ namespace LaunchPlugin
             _hadOffTrackThisLap = false;
             _latchedIncidentReason = null;
 
+            // Clear pace tracking alongside fuel model resets so session transitions don't carry stale data
+            _recentLapTimes.Clear();
+            _recentLeaderLapTimes.Clear();
+            Pace_StintAvgLapTimeSec = 0.0;
+            Pace_Last5LapAvgSec = 0.0;
+            PaceConfidence = 0;
+
             LiveFuelPerLap = 0.0;
             Confidence = 0;
             _maxFuelPerLapSession = 0.0;
