@@ -133,6 +133,7 @@ namespace LaunchPlugin
         private int _lapsSincePitExit = int.MaxValue; // big value so early race laps are not treated as pit warmup
         private bool _wasInPitThisLap = false;
         private bool _hadOffTrackThisLap = false; // placeholder; can be wired to incidents later
+        private RejoinReason? _latchedIncidentReason = null;
 
         // --- Cross-session fuel seeds (for Race start) ---
         private double _seedDryFuelPerLap = 0.0;
@@ -461,10 +462,13 @@ namespace LaunchPlugin
             _lapsSincePitExit = int.MaxValue;
             _wasInPitThisLap = false;
             _hadOffTrackThisLap = false;
+            _latchedIncidentReason = null;
 
             LiveFuelPerLap = 0.0;
             Confidence = 0;
             _maxFuelPerLapSession = 0.0;
+            FuelCalculator?.SetLiveConfidenceLevels(0, 0, 0);
+            FuelCalculator?.SetLiveLapPaceEstimate(0, 0);
 
             // Only seed when entering Race with matching car/track
             if (applySeeds &&
@@ -722,6 +726,20 @@ namespace LaunchPlugin
 
                     bool paceReject = false;
                     string paceReason = "";
+                    double paceBaselineForLog = 0.0;
+                    double paceDeltaForLog = 0.0;
+
+                    if (_recentLapTimes.Count > 0)
+                    {
+                        int baselineSamples = Math.Min(5, _recentLapTimes.Count);
+                        double sum = 0.0;
+                        for (int i = _recentLapTimes.Count - baselineSamples; i < _recentLapTimes.Count; i++)
+                        {
+                            sum += _recentLapTimes[i];
+                        }
+                        paceBaselineForLog = sum / baselineSamples;
+                        paceDeltaForLog = lastLapSec - paceBaselineForLog;
+                    }
 
                     // 1) Global race warm-up: ignore very early race laps (same as fuel)
                     if (completedLapsNow <= 2)
@@ -741,7 +759,9 @@ namespace LaunchPlugin
                     if (!paceReject && _hadOffTrackThisLap)
                     {
                         paceReject = true;
-                        paceReason = "incident";
+                        paceReason = _latchedIncidentReason.HasValue
+                            ? $"incident:{_latchedIncidentReason.Value}"
+                            : "incident";
                     }
 
                     // 4) Obvious junk lap times
@@ -755,25 +775,26 @@ namespace LaunchPlugin
                     }
 
                     // 5) Timing bracket: moderate + gross outliers
-                    if (!paceReject && _recentLapTimes.Count >= 3)
+                    if (!paceReject && _recentLapTimes.Count >= 3 && paceBaselineForLog > 0)
                     {
-                        double recentAvg = _recentLapTimes.Average();
-                        double delta = lastLapSec - recentAvg; // +ve = slower than recent average
+                        double delta = paceDeltaForLog; // +ve = slower than recent average
 
                         // 5a) Gross outliers: >20s away from our current clean pace, either direction.
                         //     This catches things like huge course cuts or tow / timing glitches.
                         if (Math.Abs(delta) > 20.0)
                         {
                             // You can log this if you like:
-                            SimHub.Logging.Current.Info($"LalaLaunch.Pace: gross outlier lap {lastLapSec:F2}s (avg={recentAvg:F2}s, Δ={delta:F1}s)");
+                            SimHub.Logging.Current.Info($"LalaLaunch.Pace: gross outlier lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
                             paceReject = true;
+                            paceReason = "gross-outlier";
                         }
                         // 5b) Normal too-slow laps: more than ~6s slower than our recent clean pace.
                         //     Keeps spins / heavy traffic / yellows out of the model, but allows faster laps.
                         else if (delta > 6.0)
                         {
-                            SimHub.Logging.Current.Info($"LalaLaunch.Pace: rejected too-slow lap {lastLapSec:F2}s (avg={recentAvg:F2}s, Δ={delta:F1}s)");
+                            SimHub.Logging.Current.Info($"LalaLaunch.Pace: rejected too-slow lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
                             paceReject = true;
+                            paceReason = "slow-outlier";
                         }
                     }
 
@@ -810,6 +831,11 @@ namespace LaunchPlugin
                         // Update pace confidence
                         PaceConfidence = ComputePaceConfidence();
 
+                        if (Pace_StintAvgLapTimeSec > 0)
+                        {
+                            FuelCalculator?.SetLiveLapPaceEstimate(Pace_StintAvgLapTimeSec, _recentLapTimes.Count);
+                        }
+
                         if (string.IsNullOrEmpty(paceReason))
                         {
                             paceReason = "accepted";
@@ -825,16 +851,25 @@ namespace LaunchPlugin
                     }
 
                     // Log pace line every lap we cross S/F
+                    string paceBaselineLog = (paceBaselineForLog > 0)
+                        ? paceBaselineForLog.ToString("F3")
+                        : "-";
+                    string paceDeltaLog = (paceBaselineForLog > 0)
+                        ? paceDeltaForLog.ToString("+0.000;-0.000;0.000")
+                        : "-";
+
                     SimHub.Logging.Current.Info(
                         string.Format(
-                            "LalaLaunch.Pace: lap={0}, time={1:F3}s, accepted={2}, reason={3}, stintAvg={4:F3}s, last5={5:F3}s, paceConf={6}%",
+                            "LalaLaunch.Pace: lap={0}, time={1:F3}s, accepted={2}, reason={3}, stintAvg={4:F3}s, last5={5:F3}s, paceConf={6}%, baseline={7}, delta={8}",
                             completedLapsNow,
                             lastLapSec,
                             !paceReject,
                             paceReason,
                             Pace_StintAvgLapTimeSec,
                             Pace_Last5LapAvgSec,
-                            PaceConfidence));
+                            PaceConfidence,
+                            paceBaselineLog,
+                            paceDeltaLog));
 
                     // --- Fuel per lap calculation & rolling averages ---
                     SimHub.Logging.Current.Info($"LalaLaunch.LiveFuel: Lap crossed. CompletedLaps={completedLapsNow}");
@@ -874,7 +909,9 @@ namespace LaunchPlugin
                     if (!reject && _hadOffTrackThisLap)
                     {
                         reject = true;
-                        reason = "incident";
+                        reason = _latchedIncidentReason.HasValue
+                            ? $"incident:{_latchedIncidentReason.Value}"
+                            : "incident";
                     }
 
                     // 4) Obvious telemetry junk
@@ -959,6 +996,7 @@ namespace LaunchPlugin
                         // Overall confidence is computed in its getter from Confidence + PaceConfidence
 
                         FuelCalculator?.SetLiveFuelPerLap(LiveFuelPerLap);
+                        FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
 
                         // Update session max for current mode if available
                         double maxForMode = isWetMode ? _maxWetFuelPerLap : _maxDryFuelPerLap;
@@ -1011,6 +1049,7 @@ namespace LaunchPlugin
 
                     _wasInPitThisLap = false;
                     _hadOffTrackThisLap = false;
+                    _latchedIncidentReason = null;
                     _lastCompletedFuelLap = completedLapsNow;
                 }
 
@@ -1025,6 +1064,7 @@ namespace LaunchPlugin
                     PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
                 );
                 Confidence = 0;
+                FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
 
                 if (LiveFuelPerLap > 0)
                     FuelCalculator?.OnLiveFuelPerLapUpdated();
@@ -1055,6 +1095,8 @@ namespace LaunchPlugin
                 Pace_StintAvgLapTimeSec = 0.0;
                 Pace_Last5LapAvgSec = 0.0;
                 PaceConfidence = 0;
+                FuelCalculator?.SetLiveLapPaceEstimate(0, 0);
+                FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
             }
             else
             {
@@ -1486,7 +1528,7 @@ namespace LaunchPlugin
             AttachCore("Pit.LastTotalPitCycleTimeLoss", () => _pit.LastTotalPitCycleTimeLoss);
             AttachCore("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss);
             AttachVerbose("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds);
-
+            
             // AttachVerbose("Pit.Debug.LastTimeOnPitRoad",  () => _pit.TimeOnPitRoad.TotalSeconds);
             AttachVerbose("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0);
 
@@ -1924,6 +1966,23 @@ namespace LaunchPlugin
             }
 
             _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
+
+            // --- Rejoin assist update & lap incident tracking ---
+            _rejoinEngine?.Update(data, pluginManager, IsLaunchActive);
+            if (_rejoinEngine != null && !_hadOffTrackThisLap)
+            {
+                var latchedReason = _rejoinEngine.CurrentLogicCode;
+                if (!RejoinAssistEngine.IsSeriousIncidentReason(latchedReason))
+                {
+                    latchedReason = _rejoinEngine.DetectedReason;
+                }
+
+                if (RejoinAssistEngine.IsSeriousIncidentReason(latchedReason))
+                {
+                    _hadOffTrackThisLap = true;
+                    _latchedIncidentReason = latchedReason;
+                }
+            }
 
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
             double currentFuel = data.NewData?.Fuel ?? 0.0;
