@@ -108,6 +108,11 @@ public class FuelCalcs : INotifyPropertyChanged
         private set { if (_liveLapPaceInfo != value) { _liveLapPaceInfo = value; OnPropertyChanged(nameof(LiveLapPaceInfo)); } }
     }
 
+    public int LiveFuelConfidence { get; private set; }
+    public int LivePaceConfidence { get; private set; }
+    public int LiveOverallConfidence { get; private set; }
+    public string LiveConfidenceSummary { get; private set; } = "Live reliability: n/a";
+
     public string ProfileAvgLapTimeDisplay { get; private set; }
     public string ProfileAvgFuelDisplay { get; private set; }
 
@@ -1386,6 +1391,49 @@ public class FuelCalcs : INotifyPropertyChanged
             AvgDeltaToPbValue = "-";
         }
         OnPropertyChanged(nameof(AvgDeltaToPbValue));
+    }
+
+    public void SetLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
+    {
+        var disp = System.Windows.Application.Current?.Dispatcher;
+        if (disp == null || disp.CheckAccess())
+        {
+            ApplyLiveConfidenceLevels(fuelConfidence, paceConfidence, overallConfidence);
+        }
+        else
+        {
+            disp.Invoke(() => ApplyLiveConfidenceLevels(fuelConfidence, paceConfidence, overallConfidence));
+        }
+    }
+
+    private void ApplyLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
+    {
+        LiveFuelConfidence = ClampConfidence(fuelConfidence);
+        LivePaceConfidence = ClampConfidence(paceConfidence);
+        LiveOverallConfidence = ClampConfidence(overallConfidence);
+        LiveConfidenceSummary = BuildConfidenceSummary();
+
+        OnPropertyChanged(nameof(LiveFuelConfidence));
+        OnPropertyChanged(nameof(LivePaceConfidence));
+        OnPropertyChanged(nameof(LiveOverallConfidence));
+        OnPropertyChanged(nameof(LiveConfidenceSummary));
+    }
+
+    private static int ClampConfidence(int value)
+    {
+        if (value < 0) return 0;
+        if (value > 100) return 100;
+        return value;
+    }
+
+    private string BuildConfidenceSummary()
+    {
+        if (LiveFuelConfidence <= 0 && LivePaceConfidence <= 0 && LiveOverallConfidence <= 0)
+        {
+            return "Live reliability: n/a";
+        }
+
+        return $"Live reliability: Fuel {LiveFuelConfidence}% | Pace {LivePaceConfidence}% | Overall {LiveOverallConfidence}%";
     }
 
     // Helper does the actual updates (runs on UI thread)
