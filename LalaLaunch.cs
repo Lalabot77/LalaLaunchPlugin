@@ -1434,7 +1434,10 @@ namespace LaunchPlugin
         // private double _virtualClutch = 0.0;
 
         // ---- SimHub publish controls ----------------------------------------------
-        internal static class SimhubPublish { public const bool VERBOSE = false; }
+        internal static class SimhubPublish
+        {
+            public static bool VERBOSE = false;
+        }
 
         private void AttachCore(string name, Func<object> getter) => this.AttachDelegate(name, getter);
         private void AttachVerbose(string name, Func<object> getter)
