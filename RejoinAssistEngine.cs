@@ -107,7 +107,6 @@ namespace LaunchPlugin
             switch (reason)
             {
                 case RejoinReason.Spin:
-                case RejoinReason.OffTrackHighSpeed:
                 case RejoinReason.StoppedOnTrack:
                 case RejoinReason.WrongWay:
                     return true;
