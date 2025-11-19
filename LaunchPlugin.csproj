@@ -14,6 +14,10 @@
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
+  <PropertyGroup>
+    <SimHubInstallPath Condition=" '$(SIMHUB_INSTALL_PATH)' != '' ">$(SIMHUB_INSTALL_PATH)</SimHubInstallPath>
+    <SimHubInstallPath Condition=" '$(SIMHUB_INSTALL_PATH)' == '' ">$(ProgramFiles(x86))\SimHub</SimHubInstallPath>
+  </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
@@ -36,44 +40,44 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="GameReaderCommon">
-      <HintPath>$(SIMHUB_INSTALL_PATH)\GameReaderCommon.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\GameReaderCommon.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="log4net">
-      <HintPath>$(SIMHUB_INSTALL_PATH)\log4net.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\log4net.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="NCalc">
-      <HintPath>$(SIMHUB_INSTALL_PATH)\NCalc.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\NCalc.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>..\..\..\..\..\..\..\..\Program Files (x86)\SimHub\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="SimHub.Logging">
-      <HintPath>$(SIMHUB_INSTALL_PATH)\SimHub.Logging.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\SimHub.Logging.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="SimHub.Plugins">
-      <HintPath>$(SIMHUB_INSTALL_PATH)\SimHub.Plugins.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\SimHub.Plugins.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="MahApps.Metro">
-      <HintPath>$(SIMHUB_INSTALL_PATH)\MahApps.Metro.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\MahApps.Metro.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="AvalonDock">
-      <HintPath>$(SIMHUB_INSTALL_PATH)\AvalonDock.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\AvalonDock.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="GongSolutions.WPF.DragDrop">
-      <HintPath>$(SIMHUB_INSTALL_PATH)\GongSolutions.WPF.DragDrop.dll</HintPath>
+      <HintPath>$(SimHubInstallPath)\GongSolutions.WPF.DragDrop.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="SimHubWPF">
-      <HintPath>..\..\..\..\..\..\..\..\..\..\Program Files (x86)\SimHub\SimHubWPF.exe</HintPath>
+      <HintPath>$(SimHubInstallPath)\SimHubWPF.exe</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
