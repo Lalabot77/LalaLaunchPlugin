@@ -1804,6 +1804,8 @@ namespace LaunchPlugin
                 source = src;
                 seconds = loss;
                 return true;
+
+                SimHub.Logging.Current.Info($"Pit Lite Data used for DTL.");
             }
 
             return false;
