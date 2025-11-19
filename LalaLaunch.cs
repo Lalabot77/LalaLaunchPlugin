@@ -698,6 +698,7 @@ namespace LaunchPlugin
                         // Prefer the DTL (Total) if available; else fall back to Direct
                         var dtlNow = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
                         var directNow = _pit?.LastDirectTravelTime ?? 0.0;
+                        FuelCalculator?.SetLastPitDriveThroughSeconds(directNow);
 
                         _pitDbg_CandidateSavedSec = (dtlNow > 0.0) ? dtlNow : directNow;
                         _pitDbg_CandidateSource = (dtlNow > 0.0) ? "total" : "direct";
@@ -714,6 +715,7 @@ namespace LaunchPlugin
                         // and Lpit (with stop included) can be reconstructed as:
                         // Lpit = DTL + (2*Avg) - Lout + Stop
                         double stopNow = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
+                        FuelCalculator?.SetLastTyreChangeSeconds(stopNow);
                         _pitDbg_RawPitLapSec = dtlNow + (2.0 * _pitDbg_AvgPaceUsedSec) - _pitDbg_OutLapSec + stopNow;
                         _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stopNow + _pitDbg_OutLapSec) - (2.0 * _pitDbg_AvgPaceUsedSec);
 
@@ -1806,6 +1808,8 @@ namespace LaunchPlugin
                 source = src;
                 seconds = loss;
                 return true;
+
+                SimHub.Logging.Current.Info($"Pit Lite Data used for DTL.");
             }
 
             return false;
