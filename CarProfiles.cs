@@ -55,7 +55,10 @@ namespace LaunchPlugin
                     OnPropertyChanged();
 
                     // Keep the legacy wet multiplier in sync with the condition overrides
-                    WetConditionMultipliers ??= ConditionMultipliers.CreateDefaultWet();
+                    if (WetConditionMultipliers == null)
+                    {
+                        WetConditionMultipliers = ConditionMultipliers.CreateDefaultWet();
+                    }
                     WetConditionMultipliers.WetFactorPercent = value;
                 }
             }
