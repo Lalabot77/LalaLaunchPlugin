@@ -44,7 +44,22 @@ namespace LaunchPlugin
         private bool _isContingencyInLaps = true;
         public bool IsContingencyInLaps { get => _isContingencyInLaps; set { if (_isContingencyInLaps != value) { _isContingencyInLaps = value; OnPropertyChanged(); } } }
         private double _wetFuelMultiplier = 90;
-        public double WetFuelMultiplier { get => _wetFuelMultiplier; set { if (_wetFuelMultiplier != value) { _wetFuelMultiplier = value; OnPropertyChanged(); } } }
+        public double WetFuelMultiplier
+        {
+            get => _wetFuelMultiplier;
+            set
+            {
+                if (_wetFuelMultiplier != value)
+                {
+                    _wetFuelMultiplier = value;
+                    OnPropertyChanged();
+
+                    // Keep the legacy wet multiplier in sync with the condition overrides
+                    WetConditionMultipliers ??= ConditionMultipliers.CreateDefaultWet();
+                    WetConditionMultipliers.WetFactorPercent = value;
+                }
+            }
+        }
         private double _tireChangeTime = 22;
         public double TireChangeTime { get => _tireChangeTime; set { if (_tireChangeTime != value) { _tireChangeTime = value; OnPropertyChanged(); } } }
         private double _racePaceDeltaSeconds = 1.2;
@@ -53,6 +68,46 @@ namespace LaunchPlugin
         // --- NEW Per-Car Property ---
         private double _refuelRate = 2.7;
         public double RefuelRate { get => _refuelRate; set { if (_refuelRate != value) { _refuelRate = value; OnPropertyChanged(); } } }
+
+        private ConditionMultipliers _dryConditionMultipliers = ConditionMultipliers.CreateDefaultDry();
+        private ConditionMultipliers _wetConditionMultipliers = ConditionMultipliers.CreateDefaultWet();
+
+        [JsonProperty]
+        public ConditionMultipliers DryConditionMultipliers
+        {
+            get => _dryConditionMultipliers;
+            set
+            {
+                var next = value ?? ConditionMultipliers.CreateDefaultDry();
+                if (!ReferenceEquals(_dryConditionMultipliers, next))
+                {
+                    _dryConditionMultipliers = next;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        [JsonProperty]
+        public ConditionMultipliers WetConditionMultipliers
+        {
+            get => _wetConditionMultipliers;
+            set
+            {
+                var next = value ?? ConditionMultipliers.CreateDefaultWet();
+                if (!ReferenceEquals(_wetConditionMultipliers, next))
+                {
+                    _wetConditionMultipliers = next;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public ConditionMultipliers GetConditionMultipliers(bool isWet)
+        {
+            return isWet
+                ? (WetConditionMultipliers ?? ConditionMultipliers.CreateDefaultWet())
+                : (DryConditionMultipliers ?? ConditionMultipliers.CreateDefaultDry());
+        }
 
         [JsonProperty]
         public Dictionary<string, TrackStats> TrackStats { get; set; } = new Dictionary<string, TrackStats>(System.StringComparer.OrdinalIgnoreCase);
@@ -115,7 +170,9 @@ namespace LaunchPlugin
                 var newRecord = new TrackStats
                 {
                     Key = trackKey,
-                    DisplayName = trackDisplay
+                    DisplayName = trackDisplay,
+                    DryConditionMultipliers = ConditionMultipliers.CreateDefaultDry(),
+                    WetConditionMultipliers = ConditionMultipliers.CreateDefaultWet()
                 };
                 TrackStats[trackKey] = newRecord;
                 return newRecord;
@@ -216,6 +273,46 @@ namespace LaunchPlugin
         private double? _pitLaneLossSeconds;
         [JsonProperty] public double? PitLaneLossSeconds { get => _pitLaneLossSeconds; set { if (_pitLaneLossSeconds != value) { _pitLaneLossSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PitLaneLossSecondsText)); } } }
         public string PitLaneLossSecondsText { get => _pitLaneLossSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => PitLaneLossSeconds = StringToNullableDouble(value); }
+
+        private ConditionMultipliers _dryConditionMultipliers = ConditionMultipliers.CreateDefaultDry();
+        private ConditionMultipliers _wetConditionMultipliers = ConditionMultipliers.CreateDefaultWet();
+
+        [JsonProperty]
+        public ConditionMultipliers DryConditionMultipliers
+        {
+            get => _dryConditionMultipliers;
+            set
+            {
+                var next = value ?? ConditionMultipliers.CreateDefaultDry();
+                if (!ReferenceEquals(_dryConditionMultipliers, next))
+                {
+                    _dryConditionMultipliers = next;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        [JsonProperty]
+        public ConditionMultipliers WetConditionMultipliers
+        {
+            get => _wetConditionMultipliers;
+            set
+            {
+                var next = value ?? ConditionMultipliers.CreateDefaultWet();
+                if (!ReferenceEquals(_wetConditionMultipliers, next))
+                {
+                    _wetConditionMultipliers = next;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public ConditionMultipliers GetConditionMultipliers(bool isWet)
+        {
+            return isWet
+                ? (WetConditionMultipliers ?? ConditionMultipliers.CreateDefaultWet())
+                : (DryConditionMultipliers ?? ConditionMultipliers.CreateDefaultDry());
+        }
 
         private string _pitLaneLossSource;
         [JsonProperty]
@@ -437,5 +534,116 @@ namespace LaunchPlugin
         private double? _avgWetTrackTemp;
         [JsonProperty] public double? AvgWetTrackTemp { get => _avgWetTrackTemp; set { if (_avgWetTrackTemp != value) { _avgWetTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgWetTrackTempText)); } } }
         public string AvgWetTrackTempText { get => _avgWetTrackTemp?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => AvgWetTrackTemp = StringToNullableDouble(value); }
+    }
+
+    public class ConditionMultipliers : INotifyPropertyChanged
+    {
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        private double? _wetFactorPercent;
+        [JsonProperty]
+        public double? WetFactorPercent
+        {
+            get => _wetFactorPercent;
+            set
+            {
+                if (_wetFactorPercent != value)
+                {
+                    _wetFactorPercent = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private double? _formationLapBurnLiters;
+        [JsonProperty]
+        public double? FormationLapBurnLiters
+        {
+            get => _formationLapBurnLiters;
+            set
+            {
+                if (_formationLapBurnLiters != value)
+                {
+                    _formationLapBurnLiters = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private double? _refuelSecondsBase;
+        [JsonProperty]
+        public double? RefuelSecondsBase
+        {
+            get => _refuelSecondsBase;
+            set
+            {
+                if (_refuelSecondsBase != value)
+                {
+                    _refuelSecondsBase = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private double? _refuelSecondsPerLiter;
+        [JsonProperty]
+        public double? RefuelSecondsPerLiter
+        {
+            get => _refuelSecondsPerLiter;
+            set
+            {
+                if (_refuelSecondsPerLiter != value)
+                {
+                    _refuelSecondsPerLiter = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private double? _refuelSecondsPerSquare;
+        [JsonProperty]
+        public double? RefuelSecondsPerSquare
+        {
+            get => _refuelSecondsPerSquare;
+            set
+            {
+                if (_refuelSecondsPerSquare != value)
+                {
+                    _refuelSecondsPerSquare = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public ConditionMultipliers Clone()
+        {
+            return new ConditionMultipliers
+            {
+                WetFactorPercent = this.WetFactorPercent,
+                FormationLapBurnLiters = this.FormationLapBurnLiters,
+                RefuelSecondsBase = this.RefuelSecondsBase,
+                RefuelSecondsPerLiter = this.RefuelSecondsPerLiter,
+                RefuelSecondsPerSquare = this.RefuelSecondsPerSquare
+            };
+        }
+
+        public static ConditionMultipliers CreateDefaultDry()
+        {
+            return new ConditionMultipliers
+            {
+                FormationLapBurnLiters = 1.5
+            };
+        }
+
+        public static ConditionMultipliers CreateDefaultWet()
+        {
+            var cm = CreateDefaultDry();
+            cm.WetFactorPercent = 90.0;
+            return cm;
+        }
     }
 }
