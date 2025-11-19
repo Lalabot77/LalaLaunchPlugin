@@ -138,6 +138,8 @@ namespace LaunchPlugin
                     car.TireChangeTime = defaultProfile.TireChangeTime;
                     car.RacePaceDeltaSeconds = defaultProfile.RacePaceDeltaSeconds;
                     car.RefuelRate = defaultProfile.RefuelRate;
+                    car.DryConditionMultipliers = defaultProfile.DryConditionMultipliers?.Clone() ?? ConditionMultipliers.CreateDefaultDry();
+                    car.WetConditionMultipliers = defaultProfile.WetConditionMultipliers?.Clone() ?? ConditionMultipliers.CreateDefaultWet();
                     car.RejoinWarningLingerTime = defaultProfile.RejoinWarningLingerTime;
                     car.RejoinWarningMinSpeed = defaultProfile.RejoinWarningMinSpeed;
                     car.SpinYawRateThreshold = defaultProfile.SpinYawRateThreshold;
@@ -163,12 +165,13 @@ namespace LaunchPlugin
 
 
 
-        public TrackStats EnsureCarTrack(string carProfileName, string trackName)
+        public TrackStats EnsureCarTrack(string carProfileName, string trackName, string trackDisplay = null)
         {
             SimHub.Logging.Current.Info($"[Profiles] EnsureCarTrack('{carProfileName}', '{trackName}')");
 
             var car = EnsureCar(carProfileName);
-            var ts = car.EnsureTrack(trackName, trackName);
+            var display = string.IsNullOrWhiteSpace(trackDisplay) ? trackName : trackDisplay;
+            var ts = car.EnsureTrack(trackName, display);
             SimHub.Logging.Current.Info($"[Profiles] Track resolved -> Key='{ts?.Key}', Disp='{ts?.DisplayName}'");
 
             // --- FIX: Manually initialize the text properties after creation ---
@@ -239,6 +242,53 @@ namespace LaunchPlugin
             else disp.Invoke(DoUiWork);
 
             return ts;
+        }
+
+        public void FocusTrack(string carProfileName, string trackKeyOrName, string trackDisplay = null)
+        {
+            if (string.IsNullOrWhiteSpace(carProfileName)) return;
+
+            var car = EnsureCar(carProfileName);
+            TrackStats track = null;
+
+            if (!string.IsNullOrWhiteSpace(trackKeyOrName))
+            {
+                track = car.ResolveTrackByNameOrKey(trackKeyOrName);
+            }
+
+            if (track == null && !string.IsNullOrWhiteSpace(trackDisplay))
+            {
+                track = car.ResolveTrackByNameOrKey(trackDisplay);
+            }
+
+            if (track == null && !string.IsNullOrWhiteSpace(trackKeyOrName))
+            {
+                track = car.EnsureTrack(trackKeyOrName, trackDisplay ?? trackKeyOrName);
+            }
+
+            var disp = System.Windows.Application.Current?.Dispatcher;
+            void DoFocus()
+            {
+                SelectedProfile = car;
+                RefreshTracksForSelectedProfile();
+
+                if (track == null) return;
+
+                var match = TracksForSelectedProfile.FirstOrDefault(x => x?.Key == track.Key)
+                           ?? TracksForSelectedProfile.FirstOrDefault(x => string.Equals(x?.DisplayName, track.DisplayName, StringComparison.OrdinalIgnoreCase));
+
+                if (match != null)
+                {
+                    SelectedTrack = match;
+                }
+                else
+                {
+                    SelectedTrack = track;
+                }
+            }
+
+            if (disp == null || disp.CheckAccess()) DoFocus();
+            else disp.Invoke((Action)DoFocus);
         }
 
         public TrackStats TryGetCarTrack(string carProfileName, string trackName)
