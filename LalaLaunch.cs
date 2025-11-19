@@ -1807,9 +1807,8 @@ namespace LaunchPlugin
                 Pit_OnValidPitStopTimeLossCalculated(loss, src);
                 source = src;
                 seconds = loss;
-                return true;
-
                 SimHub.Logging.Current.Info($"Pit Lite Data used for DTL.");
+                return true;
             }
 
             return false;
