@@ -698,6 +698,7 @@ namespace LaunchPlugin
                         // Prefer the DTL (Total) if available; else fall back to Direct
                         var dtlNow = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
                         var directNow = _pit?.LastDirectTravelTime ?? 0.0;
+                        FuelCalculator?.SetLastPitDriveThroughSeconds(directNow);
 
                         _pitDbg_CandidateSavedSec = (dtlNow > 0.0) ? dtlNow : directNow;
                         _pitDbg_CandidateSource = (dtlNow > 0.0) ? "total" : "direct";
@@ -714,6 +715,7 @@ namespace LaunchPlugin
                         // and Lpit (with stop included) can be reconstructed as:
                         // Lpit = DTL + (2*Avg) - Lout + Stop
                         double stopNow = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
+                        FuelCalculator?.SetLastTyreChangeSeconds(stopNow);
                         _pitDbg_RawPitLapSec = dtlNow + (2.0 * _pitDbg_AvgPaceUsedSec) - _pitDbg_OutLapSec + stopNow;
                         _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stopNow + _pitDbg_OutLapSec) - (2.0 * _pitDbg_AvgPaceUsedSec);
 
@@ -1408,6 +1410,8 @@ namespace LaunchPlugin
 
         private string _lastSeenCar = "";
         private string _lastSeenTrack = "";
+        private string _lastSnapshotCar = string.Empty;
+        private string _lastSnapshotTrack = string.Empty;
         private double _lastLapTimeSec = 0.0;   // last completed lap time
         private int _lastSavedLap = -1;   // last completedLaps value we saved against
 
@@ -1913,6 +1917,31 @@ namespace LaunchPlugin
 
         #region Core Update Method
 
+        private void PushLiveSnapshotIdentity()
+        {
+            string carName = (!string.IsNullOrWhiteSpace(CurrentCarModel) && !CurrentCarModel.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+                ? CurrentCarModel
+                : string.Empty;
+
+            string trackLabel = !string.IsNullOrWhiteSpace(CurrentTrackName)
+                ? CurrentTrackName
+                : (!string.IsNullOrWhiteSpace(CurrentTrackKey) ? CurrentTrackKey : string.Empty);
+
+            if (FuelCalculator == null)
+            {
+                return;
+            }
+
+            if (carName == _lastSnapshotCar && trackLabel == _lastSnapshotTrack)
+            {
+                return;
+            }
+
+            FuelCalculator.SetLiveSession(carName, trackLabel);
+            _lastSnapshotCar = carName;
+            _lastSnapshotTrack = trackLabel;
+        }
+
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
         {
             // ==== New, Simplified Car & Track Detection ====
@@ -1946,6 +1975,8 @@ namespace LaunchPlugin
                 {
                     CurrentTrackName = trackDisplay;
                 }
+
+                PushLiveSnapshotIdentity();
             }
             catch (Exception ex) { SimHub.Logging.Current.Warn($"[LalaLaunch] Simplified Car/Track probe failed: {ex.Message}"); }
 
@@ -1973,6 +2004,10 @@ namespace LaunchPlugin
                 _pitLite?.ResetCycle();
                 _pit?.ResetPitPhaseState();
                 _currentCarModel = "Unknown";
+                _lastSeenCar = string.Empty;
+                _lastSeenTrack = string.Empty;
+                _lastSnapshotCar = string.Empty;
+                _lastSnapshotTrack = string.Empty;
                 _lastSessionId = currentSessionId;
                 FuelCalculator.ForceProfileDataReload();
 
@@ -2246,7 +2281,7 @@ namespace LaunchPlugin
                         string trackNameForSnapshot = !string.IsNullOrWhiteSpace(CurrentTrackName)
                             ? CurrentTrackName
                             : trackIdentity;
-                        FuelCalculator.SetLiveSession(CurrentCarModel, trackNameForSnapshot);
+                        FuelCalculator?.SetLiveSession(CurrentCarModel, trackNameForSnapshot);
                     });
 
                 }
