@@ -74,7 +74,6 @@ public class FuelCalcs : INotifyPropertyChanged
     private string _dryFuelBurnSummary = "-";
     private string _wetFuelBurnSummary = "-";
     private string _lastPitDriveThroughDisplay = "-";
-    private string _lastTyreChangeDisplay = "-";
     private string _lastRefuelRateDisplay = "-";
     private string _liveBestLapDisplay = "-";
     private string _liveLeaderPaceInfo = "-";
@@ -223,11 +222,6 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         get => _lastPitDriveThroughDisplay;
         private set { if (_lastPitDriveThroughDisplay != value) { _lastPitDriveThroughDisplay = value; OnPropertyChanged(); } }
-    }
-    public string LastTyreChangeDisplay
-    {
-        get => _lastTyreChangeDisplay;
-        private set { if (_lastTyreChangeDisplay != value) { _lastTyreChangeDisplay = value; OnPropertyChanged(); } }
     }
     public string LastRefuelRateDisplay
     {
@@ -820,24 +814,6 @@ public class FuelCalcs : INotifyPropertyChanged
     private void ApplyLastPitDriveThroughSeconds(double seconds)
     {
         LastPitDriveThroughDisplay = seconds > 0 ? $"{seconds:F1}s" : "-";
-    }
-
-    public void SetLastTyreChangeSeconds(double seconds)
-    {
-        var disp = Application.Current?.Dispatcher;
-        if (disp == null || disp.CheckAccess())
-        {
-            ApplyLastTyreChangeSeconds(seconds);
-        }
-        else
-        {
-            disp.Invoke(() => ApplyLastTyreChangeSeconds(seconds));
-        }
-    }
-
-    private void ApplyLastTyreChangeSeconds(double seconds)
-    {
-        LastTyreChangeDisplay = seconds > 0 ? $"{seconds:F1}s" : "-";
     }
 
     public void SetLastRefuelRate(double litersPerSecond)
@@ -1684,7 +1660,6 @@ public class FuelCalcs : INotifyPropertyChanged
         WetFuelBurnSummary = "-";
         RacePaceVsLeaderSummary = "-";
         LastPitDriveThroughDisplay = "-";
-        LastTyreChangeDisplay = "-";
         LastRefuelRateDisplay = "-";
         SeenCarName = LiveCarName;
         SeenTrackName = LiveTrackName;
