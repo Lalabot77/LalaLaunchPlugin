@@ -1,5 +1,4 @@
-﻿using LaunchPlugin;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -12,6 +11,8 @@ using System.Windows;
 using System.Windows.Input;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.Tab;
 
+namespace LaunchPlugin
+{
 public class FuelCalcs : INotifyPropertyChanged
 {
     // --- Enums and Structs ---
@@ -2768,4 +2769,5 @@ public class FuelCalcs : INotifyPropertyChanged
             Delta = delta ?? string.Empty;
         }
     }
+}
 }
