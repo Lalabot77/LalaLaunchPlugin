@@ -262,6 +262,11 @@ public class FuelCalcs : INotifyPropertyChanged
     // Live availability (fuel per lap comes from LalaLaunch)
     public double LiveFuelPerLap { get; private set; }
     public bool IsLiveFuelPerLapAvailable => LiveFuelPerLap > 0;
+    public bool ApplyLiveFuelSuggestion
+    {
+        get => _applyLiveFuelSuggestion;
+        private set { if (_applyLiveFuelSuggestion != value) { _applyLiveFuelSuggestion = value; OnPropertyChanged(); } }
+    }
 
     public bool ApplyLiveFuelSuggestion
     {
@@ -777,6 +782,7 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         LiveFuelPerLap = value;
         LiveFuelPerLapDisplay = (value > 0) ? $"{value:F2} L" : "-";
+        ApplyLiveFuelSuggestion = value > 0;
         OnPropertyChanged(nameof(LiveFuelPerLap));
         OnPropertyChanged(nameof(LiveFuelPerLapDisplay));
         OnPropertyChanged(nameof(IsLiveFuelPerLapAvailable));
@@ -805,6 +811,7 @@ public class FuelCalcs : INotifyPropertyChanged
         {
             MaxFuelPerLapDisplay = "-";
         }
+        ApplyLiveMaxFuelSuggestion = value > 0;
         OnPropertyChanged(nameof(MaxFuelPerLapDisplay));
         OnPropertyChanged(nameof(IsMaxFuelAvailable));
     }
@@ -1358,6 +1365,10 @@ public class FuelCalcs : INotifyPropertyChanged
         // 2) Guard: we need a profile and a selected track string
         if (targetProfile == null || string.IsNullOrEmpty(_selectedTrack))
         {
+            _isMissingTrackValidation = true;
+            _missingCarName = uiCarName ?? liveCarName ?? _missingCarName;
+            _missingTrackDisplayName = _selectedTrack ?? _missingTrackDisplayName;
+            _missingTrackKey = "-";
             MessageBox.Show("Please select a car and track profile first.", "No Profile Selected",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -1375,6 +1386,10 @@ public class FuelCalcs : INotifyPropertyChanged
         // Non-live: if we still have no real key, stop the save so we don’t create junk
         if (!isLiveSession && (selectedTs == null || string.IsNullOrWhiteSpace(selectedTs.Key)))
         {
+            _isMissingTrackValidation = true;
+            _missingCarName = uiCarName ?? liveCarName ?? _missingCarName;
+            _missingTrackDisplayName = _selectedTrack ?? _missingTrackDisplayName;
+            _missingTrackKey = selectedTs?.Key ?? _missingTrackKey;
             MessageBox.Show(
                 "This track doesn’t exist in the selected profile. Create it on the Profiles tab or start a live session first.",
                 "Missing track key", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1433,6 +1448,8 @@ public class FuelCalcs : INotifyPropertyChanged
         MessageBox.Show(
             $"All planner settings have been saved to the '{targetProfile.ProfileName}' profile for the track '{trackRecord.DisplayName}'.",
             "Planner Data Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+
+        _isMissingTrackValidation = false;
     }
 
     public void ReloadPresetsFromDisk()
