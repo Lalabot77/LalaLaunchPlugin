@@ -1,9 +1,9 @@
 # Repository status and how to sync with GitHub
 
 ## What exists in this checkout right now
-- Only one local branch is present, and it is named `main` (this checkout was previously on `work` and has been renamed so you can keep working directly on `main`).
+- Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `main` is `1b8efb1` with the message “Ensure live snapshot car/track labels refresh.” Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
+- The latest commit on `work` is `1b8efb1` with the message “Ensure live snapshot car/track labels refresh.” Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
@@ -20,13 +20,13 @@
    ```
 
 ## How to push the current work to GitHub
-- To publish this local `main` to GitHub’s `main` (replacing or updating it):
+- If you want the `work` branch to become your GitHub `main` (replacing or updating it):
   ```bash
-  git push -u origin main
+  git push -u origin work:main
   ```
-- If you need a safety copy on GitHub before touching `main`, push the same commit under a temporary branch name and open a PR from it:
+- If you prefer to keep `work` separate and open a pull request later, push it as its own branch:
   ```bash
-  git push -u origin main:backup/main-work
+  git push -u origin work
   ```
 
 ## If GitHub already has different commits on `main`
