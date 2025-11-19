@@ -88,16 +88,16 @@ public class FuelCalcs : INotifyPropertyChanged
     private double _liveWetFuelMin;
     private double _liveWetFuelMax;
     private int _liveWetSamples;
-    private bool _applyLiveFuelSuggestion;
-    private bool _applyLiveMaxFuelSuggestion;
-    private double _conditionRefuelBaseSeconds;
-    private double _conditionRefuelSecondsPerLiter;
-    private double _conditionRefuelSecondsPerSquare;
+    private bool _applyLiveFuelSuggestion = false;
+    private bool _applyLiveMaxFuelSuggestion = false;
+    private double _conditionRefuelBaseSeconds = 0;
+    private double _conditionRefuelSecondsPerLiter = 0;
+    private double _conditionRefuelSecondsPerSquare = 0;
     private string _missingTrackDisplayName = "Unknown track";
     private string _missingCarName = "Unknown car";
     private string _missingTrackKey = "Unknown";
-    private bool _isMissingTrackValidation;
-    private bool _isRefreshingConditionParameters;
+    private bool _isMissingTrackValidation = false;
+    private bool _isRefreshingConditionParameters = false;
     private string _lastTyreChangeDisplay = "-";
                                              
     // --- NEW: Local properties for "what-if" parameters ---
@@ -194,6 +194,18 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         get => _liveLeaderPaceInfo;
         private set { if (_liveLeaderPaceInfo != value) { _liveLeaderPaceInfo = value; OnPropertyChanged(); } }
+    }
+
+    public void RefreshConditionRefuelParameters(double baseSeconds, double secondsPerLiter, double secondsPerSquare)
+    {
+        // Prevent UI-triggered loops if bindings update while we set the backing fields
+        if (_isRefreshingConditionParameters) return;
+
+        _isRefreshingConditionParameters = true;
+        ConditionRefuelBaseSeconds = Math.Max(0, baseSeconds);
+        ConditionRefuelSecondsPerLiter = Math.Max(0, secondsPerLiter);
+        ConditionRefuelSecondsPerSquare = Math.Max(0, secondsPerSquare);
+        _isRefreshingConditionParameters = false;
     }
     public string DryLapTimeSummary
     {
@@ -299,30 +311,21 @@ public class FuelCalcs : INotifyPropertyChanged
         private set { if (_applyLiveFuelSuggestion != value) { _applyLiveFuelSuggestion = value; OnPropertyChanged(); } }
     }
 
-    public bool ApplyLiveMaxFuelSuggestion
+    public void SetLiveFuelSuggestionFlags(bool applyFuelSuggestion, bool applyMaxFuelSuggestion)
     {
-        get => _applyLiveMaxFuelSuggestion;
-        set
-        {
-            if (_applyLiveMaxFuelSuggestion != value)
-            {
-                _applyLiveMaxFuelSuggestion = value;
-                OnPropertyChanged();
-                if (value)
-                {
-                    ApplyLiveMaxFuelSuggestionValue();
-                    _applyLiveMaxFuelSuggestion = false;
-                    OnPropertyChanged();
-                }
-            }
-        }
+        ApplyLiveFuelSuggestion = applyFuelSuggestion;
+        ApplyLiveMaxFuelSuggestion = applyMaxFuelSuggestion;
     }
 
     private double _liveMaxFuel;
     public bool IsMaxFuelOverrideTooHigh => MaxFuelOverride > _liveMaxFuel && _liveMaxFuel > 0;
     public string MaxFuelPerLapDisplay { get; private set; } = "-";
     public bool IsMaxFuelAvailable => _plugin?.MaxFuelPerLapDisplay > 0;
-    public bool HasLiveMaxFuelSuggestion => _liveMaxFuel > 0;
+    public bool ApplyLiveMaxFuelSuggestion
+    {
+        get => _applyLiveMaxFuelSuggestion;
+        private set { if (_applyLiveMaxFuelSuggestion != value) { _applyLiveMaxFuelSuggestion = value; OnPropertyChanged(); } }
+    }
 
     // Update profile if the incoming rate differs (> tiny epsilon), then recalc.
     public void SetRefuelRateLps(double rateLps)
@@ -828,6 +831,31 @@ public class FuelCalcs : INotifyPropertyChanged
         OnPropertyChanged(nameof(IsMaxFuelAvailable));
     }
 
+    public void SetConditionRefuelParameters(double baseSeconds, double secondsPerLiter, double secondsPerSquare)
+    {
+        var disp = Application.Current?.Dispatcher;
+        if (disp == null || disp.CheckAccess())
+        {
+            ApplyConditionRefuelParameters(baseSeconds, secondsPerLiter, secondsPerSquare);
+        }
+        else
+        {
+            disp.Invoke(() => ApplyConditionRefuelParameters(baseSeconds, secondsPerLiter, secondsPerSquare));
+        }
+    }
+
+    private void ApplyConditionRefuelParameters(double baseSeconds, double secondsPerLiter, double secondsPerSquare)
+    {
+        if (_isRefreshingConditionParameters) return;
+        _isRefreshingConditionParameters = true;
+
+        ConditionRefuelBaseSeconds = baseSeconds;
+        ConditionRefuelSecondsPerLiter = secondsPerLiter;
+        ConditionRefuelSecondsPerSquare = secondsPerSquare;
+
+        _isRefreshingConditionParameters = false;
+    }
+
     public void SetLiveFuelWindowStats(double avgDry, double minDry, double maxDry, int drySamples,
         double avgWet, double minWet, double maxWet, int wetSamples)
     {
@@ -892,6 +920,24 @@ public class FuelCalcs : INotifyPropertyChanged
     private void ApplyLastRefuelRate(double litersPerSecond)
     {
         LastRefuelRateDisplay = litersPerSecond > 0 ? $"{litersPerSecond:F2} L/s" : "-";
+    }
+
+    public void SetLastTyreChangeSeconds(double seconds)
+    {
+        var disp = Application.Current?.Dispatcher;
+        if (disp == null || disp.CheckAccess())
+        {
+            ApplyLastTyreChangeSeconds(seconds);
+        }
+        else
+        {
+            disp.Invoke(() => ApplyLastTyreChangeSeconds(seconds));
+        }
+    }
+
+    private void ApplyLastTyreChangeSeconds(double seconds)
+    {
+        LastTyreChangeDisplay = seconds > 0 ? $"{seconds:F1}s" : "-";
     }
 
     public TrackCondition SelectedTrackCondition
@@ -1959,9 +2005,6 @@ public class FuelCalcs : INotifyPropertyChanged
     private string FormatLabel(string value, string fallback)
     {
         return string.IsNullOrWhiteSpace(value) ? fallback : value;
-    private static string FormatLabel(string value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "Unknown" : value;
     }
 
     private void UpdateFuelBurnSummaries()
