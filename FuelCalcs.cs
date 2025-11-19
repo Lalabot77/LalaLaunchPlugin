@@ -62,16 +62,6 @@ public class FuelCalcs : INotifyPropertyChanged
     private int _liveFuelConfidence;
     private int _livePaceConfidence;
     private int _liveOverallConfidence;
-    private bool _applyLiveFuelSuggestion;
-    private bool _applyLiveMaxFuelSuggestion;
-    private string _missingTrackDisplayName;
-    private string _missingTrackKey;
-    private string _missingCarName;
-    private bool _isMissingTrackValidation;
-    private double? _conditionRefuelBaseSeconds;
-    private double? _conditionRefuelSecondsPerLiter;
-    private double? _conditionRefuelSecondsPerSquare;
-    private bool _isRefreshingConditionParameters;
     private bool _isLiveSessionActive;
     private string _liveCarName = "—";
     private string _liveTrackName = "—";
@@ -88,8 +78,6 @@ public class FuelCalcs : INotifyPropertyChanged
     private string _liveBestLapDisplay = "-";
     private string _liveLeaderPaceInfo = "-";
     private string _racePaceVsLeaderSummary = "-";
-    private string _lastTyreChangeDisplay = "-";
-    private string _lastRefuelRateDisplay = "-";
     private double _liveFuelTankLiters;
     private double _liveDryFuelAvg;
     private double _liveDryFuelMin;
@@ -234,11 +222,6 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         get => _lastPitDriveThroughDisplay;
         private set { if (_lastPitDriveThroughDisplay != value) { _lastPitDriveThroughDisplay = value; OnPropertyChanged(); } }
-    }
-    public string LastTyreChangeDisplay
-    {
-        get => _lastTyreChangeDisplay;
-        private set { if (_lastTyreChangeDisplay != value) { _lastTyreChangeDisplay = value; OnPropertyChanged(); } }
     }
     public string LastRefuelRateDisplay
     {
@@ -873,24 +856,6 @@ public class FuelCalcs : INotifyPropertyChanged
         LastPitDriveThroughDisplay = seconds > 0 ? $"{seconds:F1}s" : "-";
     }
 
-    public void SetLastTyreChangeSeconds(double seconds)
-    {
-        var disp = Application.Current?.Dispatcher;
-        if (disp == null || disp.CheckAccess())
-        {
-            ApplyLastTyreChangeSeconds(seconds);
-        }
-        else
-        {
-            disp.Invoke(() => ApplyLastTyreChangeSeconds(seconds));
-        }
-    }
-
-    private void ApplyLastTyreChangeSeconds(double seconds)
-    {
-        LastTyreChangeDisplay = seconds > 0 ? $"{seconds:F1}s" : "-";
-    }
-
     public void SetLastRefuelRate(double litersPerSecond)
     {
         var disp = Application.Current?.Dispatcher;
@@ -940,7 +905,6 @@ public class FuelCalcs : INotifyPropertyChanged
                     }
                 }
                 UpdateTrackDerivedSummaries();
-                UpdatePaceSummaries(ts);
                 UpdateSurfaceModeLabel();
             }
             OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
@@ -1784,7 +1748,6 @@ public class FuelCalcs : INotifyPropertyChanged
         }
         OnPropertyChanged(nameof(AvgDeltaToPbValue));
         UpdateTrackDerivedSummaries();
-        UpdatePaceSummaries(SelectedTrackStats ?? ResolveSelectedTrackStats());
     }
 
     public void SetLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
@@ -1856,9 +1819,6 @@ public class FuelCalcs : INotifyPropertyChanged
         SeenCarName = LiveCarName;
         SeenTrackName = LiveTrackName;
         SeenSessionSummary = "No Live Data";
-        LastPitDriveThroughDisplay = "-";
-        LastTyreChangeDisplay = "-";
-        LastRefuelRateDisplay = "-";
         UpdateSurfaceModeLabel();
     }
 
@@ -1941,57 +1901,6 @@ public class FuelCalcs : INotifyPropertyChanged
     private static string FormatLabel(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? "Unknown" : value;
-        var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
-        UpdateLapTimeSummaries(ts);
-        UpdatePaceSummaries(ts);
-    }
-
-    private void UpdateLapTimeSummaries(TrackStats ts)
-    {
-        string pbText = FormatLapTimeText(ts?.BestLapMs);
-        DryLapTimeSummary = BuildLapSummary(pbText, ts?.AvgLapTimeDry);
-        WetLapTimeSummary = BuildLapSummary(pbText, ts?.AvgLapTimeWet);
-    }
-
-    private void UpdatePaceSummaries(TrackStats ts)
-    {
-        DryPaceDeltaSummary = BuildPaceDeltaSummary(ts?.AvgLapTimeDry, includeLiveDelta: IsDry);
-        WetPaceDeltaSummary = BuildPaceDeltaSummary(ts?.AvgLapTimeWet, includeLiveDelta: IsWet);
-    }
-
-    private static string FormatLapTimeText(int? milliseconds)
-    {
-        if (!milliseconds.HasValue || milliseconds.Value <= 0) return "-";
-        return TimeSpan.FromMilliseconds(milliseconds.Value).ToString(@"m\:ss\.fff");
-    }
-
-    private string BuildLapSummary(string pbText, int? avgMilliseconds)
-    {
-        string avgText = FormatLapTimeText(avgMilliseconds);
-        if (pbText == "-" && avgText == "-") return "-";
-        return $"PB {pbText} | Avg {avgText}";
-    }
-
-    private string BuildPaceDeltaSummary(int? avgMilliseconds, bool includeLiveDelta)
-    {
-        string avgDelta = "-";
-
-        if (avgMilliseconds.HasValue && avgMilliseconds.Value > 0 && _loadedBestLapTimeSeconds > 0)
-        {
-            double avgSeconds = avgMilliseconds.Value / 1000.0;
-            double delta = avgSeconds - _loadedBestLapTimeSeconds;
-            avgDelta = $"Avg vs PB: {delta:+0.000;-0.000;0.000}s";
-        }
-
-        if (!includeLiveDelta) return avgDelta;
-
-        if (!string.IsNullOrWhiteSpace(AvgDeltaToPbValue) && AvgDeltaToPbValue != "-")
-        {
-            string liveDelta = $"Live Δ {AvgDeltaToPbValue}";
-            return avgDelta == "-" ? liveDelta : $"{avgDelta} | {liveDelta}";
-        }
-
-        return avgDelta;
     }
 
     private void UpdateFuelBurnSummaries()
@@ -2026,7 +1935,6 @@ public class FuelCalcs : INotifyPropertyChanged
         SeenSessionSummary = (hasCar || hasTrack)
             ? $"Live: {FormatLabel(carName)} @ {FormatLabel(trackName)}"
             : "No Live Data";
-        SeenSessionSummary = IsLiveSessionActive ? $"Live: {carName} @ {trackName}" : "No Live Data";
 
         // 1) Make sure the car profile object is selected (this will also rebuild AvailableTracks once below)
         var carProfile = AvailableCarProfiles.FirstOrDefault(
@@ -2283,8 +2191,6 @@ public class FuelCalcs : INotifyPropertyChanged
     public void UpdateLiveDisplay(double liveMaxFuel)
     {
         _liveMaxFuel = liveMaxFuel; // Store the latest value for the next check
-        if (liveMaxFuel > 0) { DetectedMaxFuelDisplay = $"(Suggested Max: {liveMaxFuel:F1} L)"; }
-        else { DetectedMaxFuelDisplay = "(Suggested Max: N/A)"; }
         _liveFuelTankLiters = liveMaxFuel;
         if (liveMaxFuel > 0) { DetectedMaxFuelDisplay = $"(Detected Max: {liveMaxFuel:F1} L)"; }
         else { DetectedMaxFuelDisplay = "(Detected Max: N/A)"; }

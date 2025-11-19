@@ -1927,15 +1927,19 @@ namespace LaunchPlugin
                 ? CurrentTrackName
                 : (!string.IsNullOrWhiteSpace(CurrentTrackKey) ? CurrentTrackKey : string.Empty);
 
+            if (FuelCalculator == null)
+            {
+                return;
+            }
+
             if (carName == _lastSnapshotCar && trackLabel == _lastSnapshotTrack)
             {
                 return;
             }
 
+            FuelCalculator.SetLiveSession(carName, trackLabel);
             _lastSnapshotCar = carName;
             _lastSnapshotTrack = trackLabel;
-
-            FuelCalculator?.SetLiveSession(carName, trackLabel);
         }
 
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
@@ -2277,7 +2281,7 @@ namespace LaunchPlugin
                         string trackNameForSnapshot = !string.IsNullOrWhiteSpace(CurrentTrackName)
                             ? CurrentTrackName
                             : trackIdentity;
-                        FuelCalculator.SetLiveSession(CurrentCarModel, trackNameForSnapshot);
+                        FuelCalculator?.SetLiveSession(CurrentCarModel, trackNameForSnapshot);
                     });
 
                 }
