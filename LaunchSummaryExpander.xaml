@@ -54,6 +54,7 @@
                                            VerticalAlignment="Center"
                                            FontSize="14"
                                            Margin="0,0,10,0"/>
+                                <Path Grid.Column="2"
                                 <Path x:Name="Arrow"
                                       Grid.Column="2"
                                       Margin="0,0,16,0"
@@ -62,6 +63,30 @@
                                       Stroke="White"
                                       StrokeThickness="2"
                                       Data="M 0 0 L 6 6 L 0 12"
+                                      Stretch="Uniform"
+                                      RenderTransformOrigin="0.5,0.5">
+                                    <Path.Style>
+                                        <Style TargetType="Path">
+                                            <Setter Property="RenderTransform">
+                                                <Setter.Value>
+                                                    <RotateTransform Angle="-90"/>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}"
+                                                             Value="True">
+                                                    <Setter Property="RenderTransform">
+                                                        <Setter.Value>
+                                                            <RotateTransform Angle="0"/>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Path.Style>
+                                </Path>
+                            </Grid>
+                        </Border>
                                       Stretch="Uniform">
                                     <Path.RenderTransform>
                                         <RotateTransform x:Name="ArrowRotate" Angle="-90" CenterX="5" CenterY="5"/>

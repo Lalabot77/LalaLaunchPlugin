@@ -84,6 +84,10 @@ public class FuelCalcs : INotifyPropertyChanged
     private string _dryFuelBurnSummary = "-";
     private string _wetFuelBurnSummary = "-";
     private string _lastPitDriveThroughDisplay = "-";
+    private string _lastRefuelRateDisplay = "-";
+    private string _liveBestLapDisplay = "-";
+    private string _liveLeaderPaceInfo = "-";
+    private string _racePaceVsLeaderSummary = "-";
     private string _lastTyreChangeDisplay = "-";
     private string _lastRefuelRateDisplay = "-";
     private double _liveFuelTankLiters;
@@ -181,6 +185,16 @@ public class FuelCalcs : INotifyPropertyChanged
         get => _liveFuelTankSizeDisplay;
         private set { if (_liveFuelTankSizeDisplay != value) { _liveFuelTankSizeDisplay = value; OnPropertyChanged(); } }
     }
+    public string LiveBestLapDisplay
+    {
+        get => _liveBestLapDisplay;
+        private set { if (_liveBestLapDisplay != value) { _liveBestLapDisplay = value; OnPropertyChanged(); } }
+    }
+    public string LiveLeaderPaceInfo
+    {
+        get => _liveLeaderPaceInfo;
+        private set { if (_liveLeaderPaceInfo != value) { _liveLeaderPaceInfo = value; OnPropertyChanged(); } }
+    }
     public string DryLapTimeSummary
     {
         get => _dryLapTimeSummary;
@@ -210,6 +224,11 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         get => _wetFuelBurnSummary;
         private set { if (_wetFuelBurnSummary != value) { _wetFuelBurnSummary = value; OnPropertyChanged(); } }
+    }
+    public string RacePaceVsLeaderSummary
+    {
+        get => _racePaceVsLeaderSummary;
+        private set { if (_racePaceVsLeaderSummary != value) { _racePaceVsLeaderSummary = value; OnPropertyChanged(); } }
     }
     public string LastPitDriveThroughDisplay
     {
@@ -727,10 +746,13 @@ public class FuelCalcs : INotifyPropertyChanged
         _loadedBestLapTimeSeconds = pbSeconds;
         IsPersonalBestAvailable = true;
 
-        // Update the label shown under the PB button
-        HistoricalBestLapDisplay = TimeSpan
+        var formatted = TimeSpan
             .FromSeconds(_loadedBestLapTimeSeconds)
             .ToString(@"m\:ss\.fff");
+
+        // Update the label shown under the PB button
+        HistoricalBestLapDisplay = formatted;
+        LiveBestLapDisplay = formatted;
 
         // If the user has ALREADY selected PB as the source, refresh the estimate and source label.
         if (LapTimeSourceInfo == "source: PB")
@@ -742,6 +764,7 @@ public class FuelCalcs : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(IsPersonalBestAvailable));
         OnPropertyChanged(nameof(HistoricalBestLapDisplay));
+        UpdateLapTimeSummaries();
     }
 
     private void UseMaxFuelPerLap()
@@ -897,6 +920,8 @@ public class FuelCalcs : INotifyPropertyChanged
                 OnPropertyChanged(nameof(SelectedTrackCondition));
                 OnPropertyChanged(nameof(IsDry));
                 OnPropertyChanged(nameof(IsWet));
+                OnPropertyChanged(nameof(ShowDrySnapshotRows));
+                OnPropertyChanged(nameof(ShowWetSnapshotRows));
 
                 // Apply fuel factor
                 if (IsWet) { ApplyWetFactor(); }
@@ -914,6 +939,7 @@ public class FuelCalcs : INotifyPropertyChanged
                         LapTimeSourceInfo = $"source: {(IsWet ? "wet avg" : "dry avg")}";
                     }
                 }
+                UpdateTrackDerivedSummaries();
                 UpdatePaceSummaries(ts);
                 UpdateSurfaceModeLabel();
             }
@@ -934,6 +960,8 @@ public class FuelCalcs : INotifyPropertyChanged
         get => SelectedTrackCondition == TrackCondition.Wet;
         set { if (value) SelectedTrackCondition = TrackCondition.Wet; }
     }
+    public bool ShowDrySnapshotRows => IsDry;
+    public bool ShowWetSnapshotRows => IsWet;
 
     public double MaxFuelOverride
     {
@@ -1722,8 +1750,17 @@ public class FuelCalcs : INotifyPropertyChanged
             LivePaceDeltaInfo = ""; // Clear delta info when not available
         }
 
-        // Update Delta to Leader Value
+        // Update Delta to Leader Value + store their rolling average pace
         double leaderAvgPace = _plugin.LiveLeaderAvgPaceSeconds;
+        if (leaderAvgPace > 0)
+        {
+            LiveLeaderPaceInfo = TimeSpan.FromSeconds(leaderAvgPace).ToString(@"m\:ss\.fff");
+        }
+        else
+        {
+            LiveLeaderPaceInfo = "-";
+        }
+
         if (avgSeconds > 0 && leaderAvgPace > 0)
         {
             double delta = avgSeconds - leaderAvgPace;
@@ -1746,6 +1783,7 @@ public class FuelCalcs : INotifyPropertyChanged
             AvgDeltaToPbValue = "-";
         }
         OnPropertyChanged(nameof(AvgDeltaToPbValue));
+        UpdateTrackDerivedSummaries();
         UpdatePaceSummaries(SelectedTrackStats ?? ResolveSelectedTrackStats());
     }
 
@@ -1804,12 +1842,20 @@ public class FuelCalcs : INotifyPropertyChanged
         LiveCarName = "—";
         LiveTrackName = "—";
         LiveFuelTankSizeDisplay = "-";
+        LiveBestLapDisplay = "-";
+        LiveLeaderPaceInfo = "-";
         DryLapTimeSummary = "-";
         WetLapTimeSummary = "-";
         DryPaceDeltaSummary = "-";
         WetPaceDeltaSummary = "-";
         DryFuelBurnSummary = "-";
         WetFuelBurnSummary = "-";
+        RacePaceVsLeaderSummary = "-";
+        LastPitDriveThroughDisplay = "-";
+        LastRefuelRateDisplay = "-";
+        SeenCarName = LiveCarName;
+        SeenTrackName = LiveTrackName;
+        SeenSessionSummary = "No Live Data";
         LastPitDriveThroughDisplay = "-";
         LastTyreChangeDisplay = "-";
         LastRefuelRateDisplay = "-";
@@ -1818,6 +1864,83 @@ public class FuelCalcs : INotifyPropertyChanged
 
     private void UpdateTrackDerivedSummaries()
     {
+        UpdateLapTimeSummaries();
+        UpdatePaceSummaries();
+        UpdateRacePaceVsLeaderSummary();
+    }
+
+    private void UpdateLapTimeSummaries()
+    {
+        DryLapTimeSummary = BuildLiveLapSummary(ShowDrySnapshotRows);
+        WetLapTimeSummary = BuildLiveLapSummary(ShowWetSnapshotRows);
+    }
+
+    private string BuildLiveLapSummary(bool isVisible)
+    {
+        if (!isVisible) return "-";
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(LiveBestLapDisplay) && LiveBestLapDisplay != "-")
+        {
+            parts.Add($"PB {LiveBestLapDisplay}");
+        }
+        if (!string.IsNullOrWhiteSpace(LiveLapPaceInfo) && LiveLapPaceInfo != "-")
+        {
+            parts.Add($"Avg {LiveLapPaceInfo}");
+        }
+        return parts.Count > 0 ? string.Join(" | ", parts) : "-";
+    }
+
+    private void UpdatePaceSummaries()
+    {
+        DryPaceDeltaSummary = BuildLivePaceDeltaSummary(ShowDrySnapshotRows);
+        WetPaceDeltaSummary = BuildLivePaceDeltaSummary(ShowWetSnapshotRows);
+    }
+
+    private void UpdateRacePaceVsLeaderSummary()
+    {
+        bool hasDriverAvg = !string.IsNullOrWhiteSpace(LiveLapPaceInfo) && LiveLapPaceInfo != "-";
+        bool hasLeaderAvg = !string.IsNullOrWhiteSpace(LiveLeaderPaceInfo) && LiveLeaderPaceInfo != "-";
+        if (!hasDriverAvg || !hasLeaderAvg)
+        {
+            RacePaceVsLeaderSummary = "-";
+            return;
+        }
+
+        var delta = NormalizeDelta(AvgDeltaToLdrValue);
+        RacePaceVsLeaderSummary = delta == null
+            ? $"Avg {LiveLapPaceInfo} vs Leader {LiveLeaderPaceInfo}"
+            : $"Avg {LiveLapPaceInfo} vs Leader {LiveLeaderPaceInfo} (Δ {delta})";
+    }
+
+    private string BuildLivePaceDeltaSummary(bool isVisible)
+    {
+        if (!isVisible) return "-";
+
+        var parts = new List<string>();
+        var pbDelta = NormalizeDelta(AvgDeltaToPbValue);
+        var leaderDelta = NormalizeDelta(AvgDeltaToLdrValue);
+
+        if (pbDelta != null)
+        {
+            parts.Add($"Δ PB: {pbDelta}");
+        }
+        if (leaderDelta != null)
+        {
+            parts.Add($"Δ Leader: {leaderDelta}");
+        }
+
+        return parts.Count > 0 ? string.Join(" | ", parts) : "-";
+    }
+
+    private static string NormalizeDelta(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) || value == "-" ? null : value;
+    }
+
+    private static string FormatLabel(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "Unknown" : value;
         var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
         UpdateLapTimeSummaries(ts);
         UpdatePaceSummaries(ts);
@@ -1900,6 +2023,9 @@ public class FuelCalcs : INotifyPropertyChanged
         SeenCarName = LiveCarName;
         SeenTrackName = LiveTrackName;
         IsLiveSessionActive = hasCar && hasTrack;
+        SeenSessionSummary = (hasCar || hasTrack)
+            ? $"Live: {FormatLabel(carName)} @ {FormatLabel(trackName)}"
+            : "No Live Data";
         SeenSessionSummary = IsLiveSessionActive ? $"Live: {carName} @ {trackName}" : "No Live Data";
 
         // 1) Make sure the car profile object is selected (this will also rebuild AvailableTracks once below)

@@ -1410,6 +1410,8 @@ namespace LaunchPlugin
 
         private string _lastSeenCar = "";
         private string _lastSeenTrack = "";
+        private string _lastSnapshotCar = string.Empty;
+        private string _lastSnapshotTrack = string.Empty;
         private double _lastLapTimeSec = 0.0;   // last completed lap time
         private int _lastSavedLap = -1;   // last completedLaps value we saved against
 
@@ -1779,7 +1781,8 @@ namespace LaunchPlugin
             trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
             trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
 
-            // Push to Fuel tab immediately
+            // Publish to the live snapshot + Fuel tab immediately
+            FuelCalculator?.SetLastPitDriveThroughSeconds(rounded);
             FuelCalculator?.ForceProfileDataReload();
 
             // Remember last save
@@ -1805,6 +1808,8 @@ namespace LaunchPlugin
                 source = src;
                 seconds = loss;
                 return true;
+
+                SimHub.Logging.Current.Info($"Pit Lite Data used for DTL.");
             }
 
             return false;
@@ -1912,6 +1917,27 @@ namespace LaunchPlugin
 
         #region Core Update Method
 
+        private void PushLiveSnapshotIdentity()
+        {
+            string carName = (!string.IsNullOrWhiteSpace(CurrentCarModel) && !CurrentCarModel.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+                ? CurrentCarModel
+                : string.Empty;
+
+            string trackLabel = !string.IsNullOrWhiteSpace(CurrentTrackName)
+                ? CurrentTrackName
+                : (!string.IsNullOrWhiteSpace(CurrentTrackKey) ? CurrentTrackKey : string.Empty);
+
+            if (carName == _lastSnapshotCar && trackLabel == _lastSnapshotTrack)
+            {
+                return;
+            }
+
+            _lastSnapshotCar = carName;
+            _lastSnapshotTrack = trackLabel;
+
+            FuelCalculator?.SetLiveSession(carName, trackLabel);
+        }
+
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
         {
             // ==== New, Simplified Car & Track Detection ====
@@ -1920,22 +1946,33 @@ namespace LaunchPlugin
             try
             {
                 string trackKey = Convert.ToString(pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackCode"));
-                string trackDisplay = Convert.ToString(pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_TrackDisplayName"));
+                string trackDisplay = FirstNonEmpty(
+                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_TrackDisplayName"),
+                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackNameWithConfig"),
+                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackName")
+                );
 
-                string carModel = "Unknown";
-                var carModelProbe = FirstNonEmpty(
+                string carModel = FirstNonEmpty(
                     pluginManager.GetPropertyValue("DataCorePlugin.GameData.CarModel"),
                     pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_CarModel")
                 );
-                if (!string.IsNullOrWhiteSpace(carModelProbe)) { carModel = carModelProbe; }
+
+                if (!string.IsNullOrWhiteSpace(carModel))
+                {
+                    CurrentCarModel = carModel;
+                }
 
                 if (!string.IsNullOrWhiteSpace(trackKey))
                 {
-                    if (string.IsNullOrWhiteSpace(trackDisplay)) { trackDisplay = Convert.ToString(pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackName")); }
-                    CurrentCarModel = carModel;
                     CurrentTrackKey = trackKey;
+                }
+
+                if (!string.IsNullOrWhiteSpace(trackDisplay))
+                {
                     CurrentTrackName = trackDisplay;
                 }
+
+                PushLiveSnapshotIdentity();
             }
             catch (Exception ex) { SimHub.Logging.Current.Warn($"[LalaLaunch] Simplified Car/Track probe failed: {ex.Message}"); }
 
@@ -1963,6 +2000,10 @@ namespace LaunchPlugin
                 _pitLite?.ResetCycle();
                 _pit?.ResetPitPhaseState();
                 _currentCarModel = "Unknown";
+                _lastSeenCar = string.Empty;
+                _lastSeenTrack = string.Empty;
+                _lastSnapshotCar = string.Empty;
+                _lastSnapshotTrack = string.Empty;
                 _lastSessionId = currentSessionId;
                 FuelCalculator.ForceProfileDataReload();
 
@@ -2202,15 +2243,18 @@ namespace LaunchPlugin
 
                 // Check if the currently detected car/track is different from the one we last auto-selected.
                 // ---- THIS IS THE FINAL, CORRECTED LOGIC ----
-                if (!string.IsNullOrEmpty(CurrentCarModel) && CurrentCarModel != "Unknown" && !string.IsNullOrEmpty(CurrentTrackKey) &&
-                    (CurrentCarModel != _lastSeenCar || CurrentTrackKey != _lastSeenTrack))
+                string trackIdentity = !string.IsNullOrWhiteSpace(CurrentTrackKey) ? CurrentTrackKey : CurrentTrackName;
+                bool hasCar = !string.IsNullOrEmpty(CurrentCarModel) && CurrentCarModel != "Unknown";
+                bool hasTrack = !string.IsNullOrWhiteSpace(trackIdentity);
+
+                if (hasCar && hasTrack && (CurrentCarModel != _lastSeenCar || trackIdentity != _lastSeenTrack))
                 {
                     // It's a new combo, so we'll perform the auto-selection.
-                    SimHub.Logging.Current.Info($"[LalaLaunch] New live combo detected. Auto-selecting profile for Car='{CurrentCarModel}', Track='{CurrentTrackName}'.");
+                    SimHub.Logging.Current.Info($"[LalaLaunch] New live combo detected. Auto-selecting profile for Car='{CurrentCarModel}', Track='{trackIdentity}'.");
 
                     // Store this combo's KEY so we don't trigger again for the same session.
                     _lastSeenCar = CurrentCarModel;
-                    _lastSeenTrack = CurrentTrackKey; // <-- This now correctly stores the key
+                    _lastSeenTrack = trackIdentity; // track key preferred, fall back to display name
 
                     // Dispatch UI updates to the main thread.
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -2226,10 +2270,14 @@ namespace LaunchPlugin
                         }
                         else
                         {
-                            SimHub.Logging.Current.Info("[LalaLaunch] Skipped EnsureCarTrack: live track key is empty/unknown.");
+                            SimHub.Logging.Current.Info($"[LalaLaunch] EnsureCarTrack fallback -> car='{CurrentCarModel}', trackName='{trackIdentity}'");
+                            ProfilesViewModel.EnsureCarTrack(CurrentCarModel, trackIdentity);
                         }
 
-                        FuelCalculator.SetLiveSession(CurrentCarModel, CurrentTrackName);
+                        string trackNameForSnapshot = !string.IsNullOrWhiteSpace(CurrentTrackName)
+                            ? CurrentTrackName
+                            : trackIdentity;
+                        FuelCalculator.SetLiveSession(CurrentCarModel, trackNameForSnapshot);
                     });
 
                 }
