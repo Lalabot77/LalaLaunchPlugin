@@ -76,6 +76,7 @@ public class FuelCalcs : INotifyPropertyChanged
     private string _lastPitDriveThroughDisplay = "-";
     private string _lastTyreChangeDisplay = "-";
     private string _lastRefuelRateDisplay = "-";
+    private string _liveBestLapDisplay = "-";
     private double _liveFuelTankLiters;
     private double _liveDryFuelAvg;
     private double _liveDryFuelMin;
@@ -170,6 +171,11 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         get => _liveFuelTankSizeDisplay;
         private set { if (_liveFuelTankSizeDisplay != value) { _liveFuelTankSizeDisplay = value; OnPropertyChanged(); } }
+    }
+    public string LiveBestLapDisplay
+    {
+        get => _liveBestLapDisplay;
+        private set { if (_liveBestLapDisplay != value) { _liveBestLapDisplay = value; OnPropertyChanged(); } }
     }
     public string DryLapTimeSummary
     {
@@ -677,10 +683,13 @@ public class FuelCalcs : INotifyPropertyChanged
         _loadedBestLapTimeSeconds = pbSeconds;
         IsPersonalBestAvailable = true;
 
-        // Update the label shown under the PB button
-        HistoricalBestLapDisplay = TimeSpan
+        var formatted = TimeSpan
             .FromSeconds(_loadedBestLapTimeSeconds)
             .ToString(@"m\:ss\.fff");
+
+        // Update the label shown under the PB button
+        HistoricalBestLapDisplay = formatted;
+        LiveBestLapDisplay = formatted;
 
         // If the user has ALREADY selected PB as the source, refresh the estimate and source label.
         if (LapTimeSourceInfo == "source: PB")
@@ -692,6 +701,7 @@ public class FuelCalcs : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(IsPersonalBestAvailable));
         OnPropertyChanged(nameof(HistoricalBestLapDisplay));
+        UpdateLapTimeSummaries();
     }
 
     private void UseMaxFuelPerLap()
@@ -847,6 +857,8 @@ public class FuelCalcs : INotifyPropertyChanged
                 OnPropertyChanged(nameof(SelectedTrackCondition));
                 OnPropertyChanged(nameof(IsDry));
                 OnPropertyChanged(nameof(IsWet));
+                OnPropertyChanged(nameof(ShowDrySnapshotRows));
+                OnPropertyChanged(nameof(ShowWetSnapshotRows));
 
                 // Apply fuel factor
                 if (IsWet) { ApplyWetFactor(); }
@@ -864,7 +876,7 @@ public class FuelCalcs : INotifyPropertyChanged
                         LapTimeSourceInfo = $"source: {(IsWet ? "wet avg" : "dry avg")}";
                     }
                 }
-                UpdatePaceSummaries(ts);
+                UpdateTrackDerivedSummaries();
                 UpdateSurfaceModeLabel();
             }
             OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
@@ -883,6 +895,8 @@ public class FuelCalcs : INotifyPropertyChanged
         get => SelectedTrackCondition == TrackCondition.Wet;
         set { if (value) SelectedTrackCondition = TrackCondition.Wet; }
     }
+    public bool ShowDrySnapshotRows => IsDry;
+    public bool ShowWetSnapshotRows => IsWet;
 
     public double MaxFuelOverride
     {
@@ -1581,7 +1595,7 @@ public class FuelCalcs : INotifyPropertyChanged
             AvgDeltaToPbValue = "-";
         }
         OnPropertyChanged(nameof(AvgDeltaToPbValue));
-        UpdatePaceSummaries(SelectedTrackStats ?? ResolveSelectedTrackStats());
+        UpdateTrackDerivedSummaries();
     }
 
     public void SetLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
@@ -1639,6 +1653,7 @@ public class FuelCalcs : INotifyPropertyChanged
         LiveCarName = "—";
         LiveTrackName = "—";
         LiveFuelTankSizeDisplay = "-";
+        LiveBestLapDisplay = "-";
         DryLapTimeSummary = "-";
         WetLapTimeSummary = "-";
         DryPaceDeltaSummary = "-";
@@ -1648,62 +1663,69 @@ public class FuelCalcs : INotifyPropertyChanged
         LastPitDriveThroughDisplay = "-";
         LastTyreChangeDisplay = "-";
         LastRefuelRateDisplay = "-";
+        SeenCarName = LiveCarName;
+        SeenTrackName = LiveTrackName;
+        SeenSessionSummary = "No Live Data";
         UpdateSurfaceModeLabel();
     }
 
     private void UpdateTrackDerivedSummaries()
     {
-        var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
-        UpdateLapTimeSummaries(ts);
-        UpdatePaceSummaries(ts);
+        UpdateLapTimeSummaries();
+        UpdatePaceSummaries();
     }
 
-    private void UpdateLapTimeSummaries(TrackStats ts)
+    private void UpdateLapTimeSummaries()
     {
-        string pbText = FormatLapTimeText(ts?.BestLapMs);
-        DryLapTimeSummary = BuildLapSummary(pbText, ts?.AvgLapTimeDry);
-        WetLapTimeSummary = BuildLapSummary(pbText, ts?.AvgLapTimeWet);
+        DryLapTimeSummary = BuildLiveLapSummary(ShowDrySnapshotRows);
+        WetLapTimeSummary = BuildLiveLapSummary(ShowWetSnapshotRows);
     }
 
-    private void UpdatePaceSummaries(TrackStats ts)
+    private string BuildLiveLapSummary(bool isVisible)
     {
-        DryPaceDeltaSummary = BuildPaceDeltaSummary(ts?.AvgLapTimeDry, includeLiveDelta: IsDry);
-        WetPaceDeltaSummary = BuildPaceDeltaSummary(ts?.AvgLapTimeWet, includeLiveDelta: IsWet);
-    }
+        if (!isVisible) return "-";
 
-    private static string FormatLapTimeText(int? milliseconds)
-    {
-        if (!milliseconds.HasValue || milliseconds.Value <= 0) return "-";
-        return TimeSpan.FromMilliseconds(milliseconds.Value).ToString(@"m\:ss\.fff");
-    }
-
-    private string BuildLapSummary(string pbText, int? avgMilliseconds)
-    {
-        string avgText = FormatLapTimeText(avgMilliseconds);
-        if (pbText == "-" && avgText == "-") return "-";
-        return $"PB {pbText} | Avg {avgText}";
-    }
-
-    private string BuildPaceDeltaSummary(int? avgMilliseconds, bool includeLiveDelta)
-    {
-        string avgDelta = "-";
-
-        if (avgMilliseconds.HasValue && avgMilliseconds.Value > 0 && _loadedBestLapTimeSeconds > 0)
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(LiveBestLapDisplay) && LiveBestLapDisplay != "-")
         {
-            double avgSeconds = avgMilliseconds.Value / 1000.0;
-            double delta = avgSeconds - _loadedBestLapTimeSeconds;
-            avgDelta = $"Avg vs PB: {delta:+0.000;-0.000;0.000}s";
+            parts.Add($"PB {LiveBestLapDisplay}");
+        }
+        if (!string.IsNullOrWhiteSpace(LiveLapPaceInfo) && LiveLapPaceInfo != "-")
+        {
+            parts.Add($"Avg {LiveLapPaceInfo}");
+        }
+        return parts.Count > 0 ? string.Join(" | ", parts) : "-";
+    }
+
+    private void UpdatePaceSummaries()
+    {
+        DryPaceDeltaSummary = BuildLivePaceDeltaSummary(ShowDrySnapshotRows);
+        WetPaceDeltaSummary = BuildLivePaceDeltaSummary(ShowWetSnapshotRows);
+    }
+
+    private string BuildLivePaceDeltaSummary(bool isVisible)
+    {
+        if (!isVisible) return "-";
+
+        var parts = new List<string>();
+        var pbDelta = NormalizeDelta(AvgDeltaToPbValue);
+        var leaderDelta = NormalizeDelta(AvgDeltaToLdrValue);
+
+        if (pbDelta != null)
+        {
+            parts.Add($"Δ PB: {pbDelta}");
+        }
+        if (leaderDelta != null)
+        {
+            parts.Add($"Δ Leader: {leaderDelta}");
         }
 
-        if (!includeLiveDelta) return avgDelta;
+        return parts.Count > 0 ? string.Join(" | ", parts) : "-";
+    }
 
-        if (!string.IsNullOrWhiteSpace(AvgDeltaToPbValue) && AvgDeltaToPbValue != "-")
-        {
-            string liveDelta = $"Live Δ {AvgDeltaToPbValue}";
-            return avgDelta == "-" ? liveDelta : $"{avgDelta} | {liveDelta}";
-        }
-
-        return avgDelta;
+    private static string NormalizeDelta(string value)
+    {
+        return string.IsNullOrWhiteSpace(value) || value == "-" ? null : value;
     }
 
     private void UpdateFuelBurnSummaries()
