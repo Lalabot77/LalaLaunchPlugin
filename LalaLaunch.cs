@@ -125,6 +125,8 @@ namespace LaunchPlugin
         private double _avgWetFuelPerLap = 0.0;
         private double _maxDryFuelPerLap = 0.0;
         private double _maxWetFuelPerLap = 0.0;
+        private double _minDryFuelPerLap = 0.0;
+        private double _minWetFuelPerLap = 0.0;
         private int _validDryLaps = 0;
         private int _validWetLaps = 0;
 
@@ -455,6 +457,8 @@ namespace LaunchPlugin
             _avgWetFuelPerLap = 0.0;
             _maxDryFuelPerLap = 0.0;
             _maxWetFuelPerLap = 0.0;
+            _minDryFuelPerLap = 0.0;
+            _minWetFuelPerLap = 0.0;
             _lastFuelLevel = -1.0;
             _lapStartFuel = -1.0;
             _lastLapDistPct = -1.0;
@@ -476,6 +480,7 @@ namespace LaunchPlugin
             _maxFuelPerLapSession = 0.0;
             FuelCalculator?.SetLiveConfidenceLevels(0, 0, 0);
             FuelCalculator?.SetLiveLapPaceEstimate(0, 0);
+            FuelCalculator?.SetLiveFuelWindowStats(0, 0, 0, 0, 0, 0, 0, 0);
 
             // Only seed when entering Race with matching car/track
             if (applySeeds &&
@@ -490,6 +495,8 @@ namespace LaunchPlugin
                     _recentDryFuelLaps.Add(_seedDryFuelPerLap);
                     _validDryLaps = 1;
                     _avgDryFuelPerLap = _seedDryFuelPerLap;
+                    _maxDryFuelPerLap = _seedDryFuelPerLap;
+                    _minDryFuelPerLap = _seedDryFuelPerLap;
                     seededAny = true;
                 }
 
@@ -498,6 +505,8 @@ namespace LaunchPlugin
                     _recentWetFuelLaps.Add(_seedWetFuelPerLap);
                     _validWetLaps = 1;
                     _avgWetFuelPerLap = _seedWetFuelPerLap;
+                    _maxWetFuelPerLap = _seedWetFuelPerLap;
+                    _minWetFuelPerLap = _seedWetFuelPerLap;
                     seededAny = true;
                 }
 
@@ -518,6 +527,8 @@ namespace LaunchPlugin
                     }
                     catch { /* logging must not throw */ }
                 }
+                FuelCalculator?.SetLiveFuelWindowStats(_avgDryFuelPerLap, _minDryFuelPerLap, _maxDryFuelPerLap, _validDryLaps,
+                    _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
             }
         }
 
@@ -687,6 +698,7 @@ namespace LaunchPlugin
                         // Prefer the DTL (Total) if available; else fall back to Direct
                         var dtlNow = _pit?.LastTotalPitCycleTimeLoss ?? 0.0;
                         var directNow = _pit?.LastDirectTravelTime ?? 0.0;
+                        FuelCalculator?.SetLastPitDriveThroughSeconds(directNow);
 
                         _pitDbg_CandidateSavedSec = (dtlNow > 0.0) ? dtlNow : directNow;
                         _pitDbg_CandidateSource = (dtlNow > 0.0) ? "total" : "direct";
@@ -703,6 +715,7 @@ namespace LaunchPlugin
                         // and Lpit (with stop included) can be reconstructed as:
                         // Lpit = DTL + (2*Avg) - Lout + Stop
                         double stopNow = _pit?.PitStopDuration.TotalSeconds ?? 0.0;
+                        FuelCalculator?.SetLastTyreChangeSeconds(stopNow);
                         _pitDbg_RawPitLapSec = dtlNow + (2.0 * _pitDbg_AvgPaceUsedSec) - _pitDbg_OutLapSec + stopNow;
                         _pitDbg_RawDTLFormulaSec = (_pitDbg_RawPitLapSec - stopNow + _pitDbg_OutLapSec) - (2.0 * _pitDbg_AvgPaceUsedSec);
 
@@ -967,6 +980,8 @@ namespace LaunchPlugin
                         {
                             _avgWetFuelPerLap = window.Average();
                             _validWetLaps = window.Count;
+                            if (window.Count > 0)
+                                _minWetFuelPerLap = window.Min();
 
                             // Max tracking with looser bounds [0.7, 1.8] × baseline
                             var (_, baselineWet) = GetProfileFuelBaselines();
@@ -982,6 +997,8 @@ namespace LaunchPlugin
                         {
                             _avgDryFuelPerLap = window.Average();
                             _validDryLaps = window.Count;
+                            if (window.Count > 0)
+                                _minDryFuelPerLap = window.Min();
 
                             var (baselineDry, _) = GetProfileFuelBaselines();
                             double baseline = baselineDry > 0 ? baselineDry : _avgDryFuelPerLap;
@@ -1012,6 +1029,10 @@ namespace LaunchPlugin
                             _maxFuelPerLapSession = maxForMode;
                             FuelCalculator?.SetMaxFuelPerLap(_maxFuelPerLapSession);
                         }
+
+                        FuelCalculator?.SetLiveFuelWindowStats(
+                            _avgDryFuelPerLap, _minDryFuelPerLap, _maxDryFuelPerLap, _validDryLaps,
+                            _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
 
                         // Keep profile’s dry fuel updated from stable dry data only
                         if (!isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
@@ -2084,6 +2105,7 @@ namespace LaunchPlugin
                             var savedRate = _refuelRateEmaLps;
 
                             SaveRefuelRateToActiveProfile(savedRate);
+                            FuelCalculator?.SetLastRefuelRate(savedRate);
                             _refuelLearnCooldownEnd = sessionTime + LearnCooldownSec;
 
                             SimHub.Logging.Current.Info(
