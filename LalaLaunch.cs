@@ -176,6 +176,7 @@ namespace LaunchPlugin
         private const int LapTimeSampleCount = 6;   // keep last N clean laps
         private TimeSpan _lastSeenBestLap = TimeSpan.Zero;
         private readonly List<double> _recentLeaderLapTimes = new List<double>(); // seconds
+        private double _lastLeaderLapTimeSec = 0.0;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
@@ -471,6 +472,8 @@ namespace LaunchPlugin
             // Clear pace tracking alongside fuel model resets so session transitions don't carry stale data
             _recentLapTimes.Clear();
             _recentLeaderLapTimes.Clear();
+            _lastLeaderLapTimeSec = 0.0;
+            LiveLeaderAvgPaceSeconds = 0.0;
             Pace_StintAvgLapTimeSec = 0.0;
             Pace_Last5LapAvgSec = 0.0;
             PaceConfidence = 0;
@@ -610,6 +613,8 @@ namespace LaunchPlugin
 
             if (lapCrossed)
             {
+                double leaderLastLapSec = ReadLeaderLapTimeSeconds(pluginManager, data);
+
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
                 // provides it with the necessary data to finalize the calculation.
                 if (_pit != null && (_pit.CurrentPitPhase == PitPhase.None || _pit.CurrentPitPhase == PitPhase.ExitingPits)) // Ensure we are on track
@@ -743,6 +748,24 @@ namespace LaunchPlugin
                     // --- Lap-time / pace tracking (clean laps only) ---
                     var lastLapTs = data.NewData?.LastLapTime ?? TimeSpan.Zero;
                     double lastLapSec = lastLapTs.TotalSeconds;
+
+                    // Refresh the leader rolling average whenever we see a new lap time
+                    if (leaderLastLapSec > 20.0 && leaderLastLapSec < 900.0 &&
+                        Math.Abs(leaderLastLapSec - _lastLeaderLapTimeSec) > 1e-6)
+                    {
+                        _recentLeaderLapTimes.Add(leaderLastLapSec);
+                        while (_recentLeaderLapTimes.Count > LapTimeSampleCount)
+                        {
+                            _recentLeaderLapTimes.RemoveAt(0);
+                        }
+
+                        _lastLeaderLapTimeSec = leaderLastLapSec;
+                        LiveLeaderAvgPaceSeconds = _recentLeaderLapTimes.Average();
+                    }
+                    else if (_recentLeaderLapTimes.Count == 0)
+                    {
+                        LiveLeaderAvgPaceSeconds = 0.0;
+                    }
 
                     bool paceReject = false;
                     string paceReason = "";
@@ -1807,9 +1830,8 @@ namespace LaunchPlugin
                 Pit_OnValidPitStopTimeLossCalculated(loss, src);
                 source = src;
                 seconds = loss;
-                return true;
-
                 SimHub.Logging.Current.Info($"Pit Lite Data used for DTL.");
+                return true;
             }
 
             return false;
@@ -1925,7 +1947,9 @@ namespace LaunchPlugin
 
             string trackLabel = !string.IsNullOrWhiteSpace(CurrentTrackName)
                 ? CurrentTrackName
-                : (!string.IsNullOrWhiteSpace(CurrentTrackKey) ? CurrentTrackKey : string.Empty);
+                : (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase)
+                    ? CurrentTrackKey
+                    : string.Empty);
 
             if (FuelCalculator == null)
             {
@@ -2247,7 +2271,10 @@ namespace LaunchPlugin
 
                 // Check if the currently detected car/track is different from the one we last auto-selected.
                 // ---- THIS IS THE FINAL, CORRECTED LOGIC ----
-                string trackIdentity = !string.IsNullOrWhiteSpace(CurrentTrackKey) ? CurrentTrackKey : CurrentTrackName;
+                string trackIdentity =
+                    (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+                        ? CurrentTrackKey
+                        : CurrentTrackName;
                 bool hasCar = !string.IsNullOrEmpty(CurrentCarModel) && CurrentCarModel != "Unknown";
                 bool hasTrack = !string.IsNullOrWhiteSpace(trackIdentity);
 
@@ -2373,6 +2400,41 @@ namespace LaunchPlugin
         #endregion
 
         #region Private Helper Methods for DataUpdate
+
+        private static double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
+        {
+            double TryReadSeconds(object raw)
+            {
+                if (raw == null) return 0.0;
+
+                try
+                {
+                    if (raw is TimeSpan ts) return ts.TotalSeconds;
+                    if (raw is double d) return d;
+                    if (raw is float f) return (double)f;
+                    if (raw is IConvertible c) return Convert.ToDouble(c);
+                }
+                catch { /* ignore parse errors, fall through to 0 */ }
+
+                return 0.0;
+            }
+
+            // Try a small set of common property names (works across iRacing/ACC)
+            var candidates = new object[]
+            {
+                pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime"),
+                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime"),
+                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")
+            };
+
+            foreach (var candidate in candidates)
+            {
+                double seconds = TryReadSeconds(candidate);
+                if (seconds > 0.0) return seconds;
+            }
+
+            return 0.0;
+        }
 
         private static string GetString(object o) => Convert.ToString(o, CultureInfo.InvariantCulture) ?? "";
 
