@@ -619,6 +619,7 @@ namespace LaunchPlugin
                 {
                     var lastLapTsPit = data.NewData?.LastLapTime ?? TimeSpan.Zero;
                     double lastLapSecPit = lastLapTsPit.TotalSeconds;
+                    double leaderLastLapSec = ReadLeaderLapTimeSeconds(pluginManager, data);
 
                     // Basic validity check for the lap itself
                     bool lastLapLooksClean = !inPitArea && lastLapSecPit > 20 && lastLapSecPit < 900;
