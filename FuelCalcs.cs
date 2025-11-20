@@ -308,7 +308,7 @@ public class FuelCalcs : INotifyPropertyChanged
     public bool ApplyLiveFuelSuggestion
     {
         get => _applyLiveFuelSuggestion;
-        private set { if (_applyLiveFuelSuggestion != value) { _applyLiveFuelSuggestion = value; OnPropertyChanged(); } }
+        set { if (_applyLiveFuelSuggestion != value) { _applyLiveFuelSuggestion = value; OnPropertyChanged(); } }
     }
 
     public bool HasLiveMaxFuelSuggestion => _liveMaxFuel > 0;
@@ -326,7 +326,7 @@ public class FuelCalcs : INotifyPropertyChanged
     public bool ApplyLiveMaxFuelSuggestion
     {
         get => _applyLiveMaxFuelSuggestion;
-        private set { if (_applyLiveMaxFuelSuggestion != value) { _applyLiveMaxFuelSuggestion = value; OnPropertyChanged(); } }
+        set { if (_applyLiveMaxFuelSuggestion != value) { _applyLiveMaxFuelSuggestion = value; OnPropertyChanged(); } }
     }
 
     // Update profile if the incoming rate differs (> tiny epsilon), then recalc.
