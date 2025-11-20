@@ -308,8 +308,10 @@ public class FuelCalcs : INotifyPropertyChanged
     public bool ApplyLiveFuelSuggestion
     {
         get => _applyLiveFuelSuggestion;
-        private set { if (_applyLiveFuelSuggestion != value) { _applyLiveFuelSuggestion = value; OnPropertyChanged(); } }
+        set { if (_applyLiveFuelSuggestion != value) { _applyLiveFuelSuggestion = value; OnPropertyChanged(); } }
     }
+
+    public bool HasLiveMaxFuelSuggestion => _liveMaxFuel > 0;
 
     public void SetLiveFuelSuggestionFlags(bool applyFuelSuggestion, bool applyMaxFuelSuggestion)
     {
@@ -324,7 +326,7 @@ public class FuelCalcs : INotifyPropertyChanged
     public bool ApplyLiveMaxFuelSuggestion
     {
         get => _applyLiveMaxFuelSuggestion;
-        private set { if (_applyLiveMaxFuelSuggestion != value) { _applyLiveMaxFuelSuggestion = value; OnPropertyChanged(); } }
+        set { if (_applyLiveMaxFuelSuggestion != value) { _applyLiveMaxFuelSuggestion = value; OnPropertyChanged(); } }
     }
 
     // Update profile if the incoming rate differs (> tiny epsilon), then recalc.
@@ -1118,12 +1120,12 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         if (fuelToAdd <= 0.0) return 0.0;
 
-        double baseSeconds = _conditionRefuelBaseSeconds ?? 0.0;
+        double baseSeconds = _conditionRefuelBaseSeconds;
 
         double pourSeconds;
-        if (_conditionRefuelSecondsPerLiter.HasValue)
+        if (_conditionRefuelSecondsPerLiter > 0.0)
         {
-            pourSeconds = _conditionRefuelSecondsPerLiter.Value * fuelToAdd;
+            pourSeconds = _conditionRefuelSecondsPerLiter * fuelToAdd;
         }
         else
         {
@@ -1132,9 +1134,9 @@ public class FuelCalcs : INotifyPropertyChanged
         }
 
         double curveSeconds = 0.0;
-        if (_conditionRefuelSecondsPerSquare.HasValue)
+        if (_conditionRefuelSecondsPerSquare > 0.0)
         {
-            curveSeconds = _conditionRefuelSecondsPerSquare.Value * fuelToAdd * fuelToAdd;
+            curveSeconds = _conditionRefuelSecondsPerSquare * fuelToAdd * fuelToAdd;
         }
 
         double total = baseSeconds + pourSeconds + curveSeconds;
@@ -2282,9 +2284,9 @@ public class FuelCalcs : INotifyPropertyChanged
                 }
             }
 
-            _conditionRefuelBaseSeconds = trackMultipliers?.RefuelSecondsBase ?? carMultipliers?.RefuelSecondsBase;
-            _conditionRefuelSecondsPerLiter = trackMultipliers?.RefuelSecondsPerLiter ?? carMultipliers?.RefuelSecondsPerLiter;
-            _conditionRefuelSecondsPerSquare = trackMultipliers?.RefuelSecondsPerSquare ?? carMultipliers?.RefuelSecondsPerSquare;
+            _conditionRefuelBaseSeconds = trackMultipliers?.RefuelSecondsBase ?? carMultipliers?.RefuelSecondsBase ?? 0.0;
+            _conditionRefuelSecondsPerLiter = trackMultipliers?.RefuelSecondsPerLiter ?? carMultipliers?.RefuelSecondsPerLiter ?? 0.0;
+            _conditionRefuelSecondsPerSquare = trackMultipliers?.RefuelSecondsPerSquare ?? carMultipliers?.RefuelSecondsPerSquare ?? 0.0;
         }
         finally
         {
