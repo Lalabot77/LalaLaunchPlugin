@@ -1807,9 +1807,8 @@ namespace LaunchPlugin
                 Pit_OnValidPitStopTimeLossCalculated(loss, src);
                 source = src;
                 seconds = loss;
-                return true;
-
                 SimHub.Logging.Current.Info($"Pit Lite Data used for DTL.");
+                return true;
             }
 
             return false;
@@ -1925,7 +1924,9 @@ namespace LaunchPlugin
 
             string trackLabel = !string.IsNullOrWhiteSpace(CurrentTrackName)
                 ? CurrentTrackName
-                : (!string.IsNullOrWhiteSpace(CurrentTrackKey) ? CurrentTrackKey : string.Empty);
+                : (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase)
+                    ? CurrentTrackKey
+                    : string.Empty);
 
             if (FuelCalculator == null)
             {
@@ -2247,7 +2248,10 @@ namespace LaunchPlugin
 
                 // Check if the currently detected car/track is different from the one we last auto-selected.
                 // ---- THIS IS THE FINAL, CORRECTED LOGIC ----
-                string trackIdentity = !string.IsNullOrWhiteSpace(CurrentTrackKey) ? CurrentTrackKey : CurrentTrackName;
+                string trackIdentity =
+                    (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+                        ? CurrentTrackKey
+                        : CurrentTrackName;
                 bool hasCar = !string.IsNullOrEmpty(CurrentCarModel) && CurrentCarModel != "Unknown";
                 bool hasTrack = !string.IsNullOrWhiteSpace(trackIdentity);
 

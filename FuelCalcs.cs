@@ -308,8 +308,10 @@ public class FuelCalcs : INotifyPropertyChanged
     public bool ApplyLiveFuelSuggestion
     {
         get => _applyLiveFuelSuggestion;
-        private set { if (_applyLiveFuelSuggestion != value) { _applyLiveFuelSuggestion = value; OnPropertyChanged(); } }
+        set { if (_applyLiveFuelSuggestion != value) { _applyLiveFuelSuggestion = value; OnPropertyChanged(); } }
     }
+
+    public bool HasLiveMaxFuelSuggestion => _liveMaxFuel > 0;
 
     public void SetLiveFuelSuggestionFlags(bool applyFuelSuggestion, bool applyMaxFuelSuggestion)
     {
@@ -324,7 +326,7 @@ public class FuelCalcs : INotifyPropertyChanged
     public bool ApplyLiveMaxFuelSuggestion
     {
         get => _applyLiveMaxFuelSuggestion;
-        private set { if (_applyLiveMaxFuelSuggestion != value) { _applyLiveMaxFuelSuggestion = value; OnPropertyChanged(); } }
+        set { if (_applyLiveMaxFuelSuggestion != value) { _applyLiveMaxFuelSuggestion = value; OnPropertyChanged(); } }
     }
 
     // Update profile if the incoming rate differs (> tiny epsilon), then recalc.
@@ -1118,12 +1120,12 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         if (fuelToAdd <= 0.0) return 0.0;
 
-        double baseSeconds = _conditionRefuelBaseSeconds ?? 0.0;
+        double baseSeconds = _conditionRefuelBaseSeconds;
 
         double pourSeconds;
-        if (_conditionRefuelSecondsPerLiter.HasValue)
+        if (_conditionRefuelSecondsPerLiter > 0.0)
         {
-            pourSeconds = _conditionRefuelSecondsPerLiter.Value * fuelToAdd;
+            pourSeconds = _conditionRefuelSecondsPerLiter * fuelToAdd;
         }
         else
         {
@@ -1132,9 +1134,9 @@ public class FuelCalcs : INotifyPropertyChanged
         }
 
         double curveSeconds = 0.0;
-        if (_conditionRefuelSecondsPerSquare.HasValue)
+        if (_conditionRefuelSecondsPerSquare > 0.0)
         {
-            curveSeconds = _conditionRefuelSecondsPerSquare.Value * fuelToAdd * fuelToAdd;
+            curveSeconds = _conditionRefuelSecondsPerSquare * fuelToAdd * fuelToAdd;
         }
 
         double total = baseSeconds + pourSeconds + curveSeconds;
@@ -2028,18 +2030,6 @@ public class FuelCalcs : INotifyPropertyChanged
     // Helper does the actual updates (runs on UI thread)
     private void ApplyLiveSession(string carName, string trackName)
     {
-        bool hasCar = !string.IsNullOrWhiteSpace(carName) && !carName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
-        bool hasTrack = !string.IsNullOrWhiteSpace(trackName) && !trackName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
-
-        LiveCarName = hasCar ? carName : _missingCarName;
-        LiveTrackName = hasTrack ? trackName : _missingTrackDisplayName;
-        SeenCarName = LiveCarName;
-        SeenTrackName = LiveTrackName;
-        IsLiveSessionActive = hasCar && hasTrack;
-        SeenSessionSummary = (hasCar || hasTrack)
-            ? $"Live: {FormatLabel(carName, _missingCarName)} @ {FormatLabel(trackName, _missingTrackDisplayName)}"
-            : "No Live Data";
-
         // 1) Make sure the car profile object is selected (this will also rebuild AvailableTracks once below)
         var carProfile = AvailableCarProfiles.FirstOrDefault(
             p => p.ProfileName.Equals(carName, StringComparison.OrdinalIgnoreCase));
@@ -2085,6 +2075,26 @@ public class FuelCalcs : INotifyPropertyChanged
 
             SetMissingTrackWarning(carName, trackName);
         }
+
+        // Prefer the same properties used by the Car/Track selectors so the snapshot mirrors the dropdowns
+        var displayCarName = !string.IsNullOrWhiteSpace(SelectedCarProfile?.ProfileName)
+            ? SelectedCarProfile.ProfileName
+            : carName;
+        var displayTrackName = !string.IsNullOrWhiteSpace(SelectedTrackStats?.DisplayName)
+            ? SelectedTrackStats.DisplayName
+            : trackName;
+
+        bool hasCar = !string.IsNullOrWhiteSpace(displayCarName) && !displayCarName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
+        bool hasTrack = !string.IsNullOrWhiteSpace(displayTrackName) && !displayTrackName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
+
+        LiveCarName = hasCar ? displayCarName : _missingCarName;
+        LiveTrackName = hasTrack ? displayTrackName : _missingTrackDisplayName;
+        SeenCarName = LiveCarName;
+        SeenTrackName = LiveTrackName;
+        IsLiveSessionActive = hasCar && hasTrack;
+        SeenSessionSummary = (hasCar || hasTrack)
+            ? $"Live: {FormatLabel(displayCarName, _missingCarName)} @ {FormatLabel(displayTrackName, _missingTrackDisplayName)}"
+            : "No Live Data";
 
         UpdateTrackDerivedSummaries();
     }
@@ -2282,9 +2292,9 @@ public class FuelCalcs : INotifyPropertyChanged
                 }
             }
 
-            _conditionRefuelBaseSeconds = trackMultipliers?.RefuelSecondsBase ?? carMultipliers?.RefuelSecondsBase;
-            _conditionRefuelSecondsPerLiter = trackMultipliers?.RefuelSecondsPerLiter ?? carMultipliers?.RefuelSecondsPerLiter;
-            _conditionRefuelSecondsPerSquare = trackMultipliers?.RefuelSecondsPerSquare ?? carMultipliers?.RefuelSecondsPerSquare;
+            _conditionRefuelBaseSeconds = trackMultipliers?.RefuelSecondsBase ?? carMultipliers?.RefuelSecondsBase ?? 0.0;
+            _conditionRefuelSecondsPerLiter = trackMultipliers?.RefuelSecondsPerLiter ?? carMultipliers?.RefuelSecondsPerLiter ?? 0.0;
+            _conditionRefuelSecondsPerSquare = trackMultipliers?.RefuelSecondsPerSquare ?? carMultipliers?.RefuelSecondsPerSquare ?? 0.0;
         }
         finally
         {
