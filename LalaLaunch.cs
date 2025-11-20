@@ -611,6 +611,8 @@ namespace LaunchPlugin
                 _pitFreezeUntilNextCycle = false;
             }
 
+            double leaderLastLapSec = 0.0;
+
             if (lapCrossed)
             {
                 double leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
