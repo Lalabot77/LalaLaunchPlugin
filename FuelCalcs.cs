@@ -2214,6 +2214,7 @@ public class FuelCalcs : INotifyPropertyChanged
         if (ts?.PitLaneLossSeconds is double pll && pll > 0)
         {
             PitLaneTimeLoss = pll;
+            SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
         }
 
         // --- CONSOLIDATED: Populate all display properties ---
