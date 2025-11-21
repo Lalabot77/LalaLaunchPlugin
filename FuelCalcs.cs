@@ -93,10 +93,6 @@ public class FuelCalcs : INotifyPropertyChanged
     private double _conditionRefuelBaseSeconds = 0;
     private double _conditionRefuelSecondsPerLiter = 0;
     private double _conditionRefuelSecondsPerSquare = 0;
-    private string _missingTrackDisplayName = "Unknown track";
-    private string _missingCarName = "Unknown car";
-    private string _missingTrackKey = "Unknown";
-    private bool _isMissingTrackValidation = false;
     private bool _isRefreshingConditionParameters = false;
     private string _lastTyreChangeDisplay = "-";
                                              
@@ -326,7 +322,19 @@ public class FuelCalcs : INotifyPropertyChanged
     public bool ApplyLiveMaxFuelSuggestion
     {
         get => _applyLiveMaxFuelSuggestion;
-        set { if (_applyLiveMaxFuelSuggestion != value) { _applyLiveMaxFuelSuggestion = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_applyLiveMaxFuelSuggestion != value)
+            {
+                _applyLiveMaxFuelSuggestion = value;
+                OnPropertyChanged();
+
+                if (value)
+                {
+                    ApplyLiveMaxFuelSuggestionValue();
+                }
+            }
+        }
     }
 
     // Update profile if the incoming rate differs (> tiny epsilon), then recalc.
@@ -436,7 +444,6 @@ public class FuelCalcs : INotifyPropertyChanged
     public ICommand UseMaxFuelPerLapCommand { get; }
     public ICommand ApplyPresetCommand { get; private set; }
     public ICommand ClearPresetCommand { get; private set; }
-    public ICommand OpenMissingTrackCommand { get; }
 
     private void ApplySelectedPreset()
     {
@@ -799,7 +806,10 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         LiveFuelPerLap = value;
         LiveFuelPerLapDisplay = (value > 0) ? $"{value:F2} L" : "-";
-        ApplyLiveFuelSuggestion = value > 0;
+        if (value <= 0)
+        {
+            ApplyLiveFuelSuggestion = false;
+        }
         OnPropertyChanged(nameof(LiveFuelPerLap));
         OnPropertyChanged(nameof(LiveFuelPerLapDisplay));
         OnPropertyChanged(nameof(IsLiveFuelPerLapAvailable));
@@ -828,7 +838,10 @@ public class FuelCalcs : INotifyPropertyChanged
         {
             MaxFuelPerLapDisplay = "-";
         }
-        ApplyLiveMaxFuelSuggestion = value > 0;
+        if (value <= 0)
+        {
+            ApplyLiveMaxFuelSuggestion = false;
+        }
         OnPropertyChanged(nameof(MaxFuelPerLapDisplay));
         OnPropertyChanged(nameof(IsMaxFuelAvailable));
     }
@@ -1275,11 +1288,6 @@ public class FuelCalcs : INotifyPropertyChanged
     public string AvgDeltaToLdrValue { get; private set; }
     public string AvgDeltaToPbValue { get; private set; }
     public bool IsValidationMessageVisible => !string.IsNullOrEmpty(ValidationMessage);
-    public bool IsMissingTrackActionVisible => !string.IsNullOrEmpty(_missingTrackDisplayName);
-    public string MissingTrackActionLabel => string.IsNullOrEmpty(_missingTrackDisplayName)
-        ? string.Empty
-        : $"Open '{_missingTrackDisplayName}' in Profiles";
-
     public event PropertyChangedEventHandler PropertyChanged;
     protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null) => this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
@@ -1332,61 +1340,6 @@ public class FuelCalcs : INotifyPropertyChanged
         }
     }
 
-    private void SetMissingTrackWarning(string carName, string trackDisplay)
-    {
-        _missingCarName = string.IsNullOrWhiteSpace(carName) ? SelectedCarProfile?.ProfileName : carName;
-        _missingTrackDisplayName = string.IsNullOrWhiteSpace(trackDisplay) ? "Unknown Track" : trackDisplay;
-        var liveKey = _plugin?.CurrentTrackKey;
-        if (string.Equals(liveKey, "Unknown", StringComparison.OrdinalIgnoreCase)) liveKey = null;
-        _missingTrackKey = string.IsNullOrWhiteSpace(liveKey) ? null : liveKey;
-        _isMissingTrackValidation = true;
-        ValidationMessage = $"Live track '{_missingTrackDisplayName}' was not found in the selected profile. Use the button below to add it.";
-        RaiseMissingTrackActionStateChanged();
-    }
-
-    private void ClearMissingTrackWarning(bool resetValidation)
-    {
-        var wasMissing = _isMissingTrackValidation;
-        _missingCarName = null;
-        _missingTrackDisplayName = null;
-        _missingTrackKey = null;
-
-        if (resetValidation && wasMissing)
-        {
-            ValidationMessage = string.Empty;
-        }
-
-        _isMissingTrackValidation = false;
-
-        RaiseMissingTrackActionStateChanged();
-    }
-
-    private void RaiseMissingTrackActionStateChanged()
-    {
-        OnPropertyChanged(nameof(IsMissingTrackActionVisible));
-        OnPropertyChanged(nameof(MissingTrackActionLabel));
-        System.Windows.Input.CommandManager.InvalidateRequerySuggested();
-    }
-
-    private bool CanOpenMissingTrackAction(object _ = null)
-    {
-        var carName = _missingCarName ?? SelectedCarProfile?.ProfileName ?? _plugin?.CurrentCarModel;
-        return _plugin?.ProfilesViewModel != null
-            && !string.IsNullOrWhiteSpace(carName)
-            && (!string.IsNullOrWhiteSpace(_missingTrackDisplayName) || !string.IsNullOrWhiteSpace(_missingTrackKey));
-    }
-
-    private void OpenMissingTrackInProfiles()
-    {
-        if (!CanOpenMissingTrackAction()) return;
-
-        var carName = _missingCarName ?? SelectedCarProfile?.ProfileName ?? _plugin?.CurrentCarModel;
-        var trackKey = _missingTrackKey ?? _missingTrackDisplayName;
-        var display = _missingTrackDisplayName ?? trackKey;
-
-        _plugin?.ProfilesViewModel?.FocusTrack(carName, trackKey, display);
-    }
-
     private void ResetStrategyInputs()
     {
         // Reset race-specific parameters to sensible defaults
@@ -1425,10 +1378,6 @@ public class FuelCalcs : INotifyPropertyChanged
         // 2) Guard: we need a profile and a selected track string
         if (targetProfile == null || string.IsNullOrEmpty(_selectedTrack))
         {
-            _isMissingTrackValidation = true;
-            _missingCarName = uiCarName ?? liveCarName ?? _missingCarName;
-            _missingTrackDisplayName = _selectedTrack ?? _missingTrackDisplayName;
-            _missingTrackKey = "-";
             MessageBox.Show("Please select a car and track profile first.", "No Profile Selected",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -1446,10 +1395,6 @@ public class FuelCalcs : INotifyPropertyChanged
         // Non-live: if we still have no real key, stop the save so we don’t create junk
         if (!isLiveSession && (selectedTs == null || string.IsNullOrWhiteSpace(selectedTs.Key)))
         {
-            _isMissingTrackValidation = true;
-            _missingCarName = uiCarName ?? liveCarName ?? _missingCarName;
-            _missingTrackDisplayName = _selectedTrack ?? _missingTrackDisplayName;
-            _missingTrackKey = selectedTs?.Key ?? _missingTrackKey;
             MessageBox.Show(
                 "This track doesn’t exist in the selected profile. Create it on the Profiles tab or start a live session first.",
                 "Missing track key", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1509,7 +1454,6 @@ public class FuelCalcs : INotifyPropertyChanged
             $"All planner settings have been saved to the '{targetProfile.ProfileName}' profile for the track '{trackRecord.DisplayName}'.",
             "Planner Data Saved", MessageBoxButton.OK, MessageBoxImage.Information);
 
-        _isMissingTrackValidation = false;
     }
 
     public void ReloadPresetsFromDisk()
@@ -1704,7 +1648,6 @@ public class FuelCalcs : INotifyPropertyChanged
         RebuildAvailableCarProfiles();
 
         ResetLiveSnapshotGuards();
-        ResetMissingTrackPlaceholders();
 
         UseLiveLapPaceCommand = new RelayCommand(_ => UseLiveLapPace(),_ => IsLiveLapPaceAvailable);
         UseLiveFuelPerLapCommand = new RelayCommand(_ => UseLiveFuelPerLap());
@@ -1714,7 +1657,6 @@ public class FuelCalcs : INotifyPropertyChanged
 
         ApplyPresetCommand = new RelayCommand(o => ApplySelectedPreset(), o => HasSelectedPreset);
         ClearPresetCommand = new RelayCommand(o => ClearAppliedPreset());
-        OpenMissingTrackCommand = new RelayCommand(_ => OpenMissingTrackInProfiles(), CanOpenMissingTrackAction);
 
         InitPresets();  // populate AvailablePresets + default SelectedPreset
 
@@ -1741,13 +1683,6 @@ public class FuelCalcs : INotifyPropertyChanged
         _isRefreshingConditionParameters = false;
     }
 
-    private void ResetMissingTrackPlaceholders()
-    {
-        _missingCarName = "Unknown car";
-        _missingTrackDisplayName = "Unknown track";
-        _missingTrackKey = "Unknown";
-        _isMissingTrackValidation = false;
-    }
     public void SetLiveSession(string carName, string trackName)
     {
         // Always push these UI-bound mutations to the Dispatcher thread
@@ -1829,6 +1764,7 @@ public class FuelCalcs : INotifyPropertyChanged
         {
             double delta = avgSeconds - leaderAvgPace;
             AvgDeltaToLdrValue = $"{delta:F2}s";
+            LeaderDeltaSeconds = Math.Max(0.0, delta);
         }
         else
         {
@@ -1848,6 +1784,11 @@ public class FuelCalcs : INotifyPropertyChanged
         }
         OnPropertyChanged(nameof(AvgDeltaToPbValue));
         UpdateTrackDerivedSummaries();
+
+        if (IsLiveSessionActive && IsLiveLapPaceAvailable && LapTimeSourceInfo != "source: manual")
+        {
+            UseLiveLapPace();
+        }
     }
 
     public void SetLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
@@ -1902,11 +1843,16 @@ public class FuelCalcs : INotifyPropertyChanged
     private void ResetSnapshotDisplays()
     {
         IsLiveSessionActive = false;
-        LiveCarName = "—";
-        LiveTrackName = "—";
+        LiveCarName = "-";
+        LiveTrackName = "-";
         LiveFuelTankSizeDisplay = "-";
         LiveBestLapDisplay = "-";
         LiveLeaderPaceInfo = "-";
+        LiveLapPaceInfo = "-";
+        AvgDeltaToLdrValue = "-";
+        AvgDeltaToPbValue = "-";
+        _liveMaxFuel = 0;
+        _liveFuelTankLiters = 0;
         DryLapTimeSummary = "-";
         WetLapTimeSummary = "-";
         DryPaceDeltaSummary = "-";
@@ -1917,6 +1863,7 @@ public class FuelCalcs : INotifyPropertyChanged
         LastPitDriveThroughDisplay = "-";
         LastRefuelRateDisplay = "-";
         LastTyreChangeDisplay = "-";
+        LiveSurfaceModeDisplay = "-";
         ApplyLiveFuelSuggestion = false;
         ApplyLiveMaxFuelSuggestion = false;
         ConditionRefuelBaseSeconds = 0;
@@ -1925,7 +1872,8 @@ public class FuelCalcs : INotifyPropertyChanged
         SeenCarName = LiveCarName;
         SeenTrackName = LiveTrackName;
         SeenSessionSummary = "No Live Data";
-        UpdateSurfaceModeLabel();
+        OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
+        OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh));
     }
 
     private void UpdateTrackDerivedSummaries()
@@ -2030,6 +1978,15 @@ public class FuelCalcs : INotifyPropertyChanged
     // Helper does the actual updates (runs on UI thread)
     private void ApplyLiveSession(string carName, string trackName)
     {
+        bool hasCar = !string.IsNullOrWhiteSpace(carName) && !carName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
+        bool hasTrack = !string.IsNullOrWhiteSpace(trackName) && !trackName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
+
+        if (!hasCar && !hasTrack)
+        {
+            ResetSnapshotDisplays();
+            return;
+        }
+
         // 1) Make sure the car profile object is selected (this will also rebuild AvailableTracks once below)
         var carProfile = AvailableCarProfiles.FirstOrDefault(
             p => p.ProfileName.Equals(carName, StringComparison.OrdinalIgnoreCase));
@@ -2059,44 +2016,32 @@ public class FuelCalcs : INotifyPropertyChanged
                 .FirstOrDefault(t => t.DisplayName?.Equals(trackName, StringComparison.OrdinalIgnoreCase) == true);
 
         // 4) Select it by instance (this triggers LoadProfileData via SelectedTrackStats setter)
-        if (ts != null)
+        if (ts != null && !ReferenceEquals(this.SelectedTrackStats, ts))
         {
-            if (!ReferenceEquals(this.SelectedTrackStats, ts))
-            {
-                this.SelectedTrackStats = ts;
-            }
-            ClearMissingTrackWarning(true);
-        }
-        else
-        {
-            // Fallback: select the first available instance. Critically: DO NOT push raw live strings.
-            if (AvailableTrackStats.Count > 0 && !ReferenceEquals(this.SelectedTrackStats, AvailableTrackStats[0]))
-                this.SelectedTrackStats = AvailableTrackStats[0];
-
-            SetMissingTrackWarning(carName, trackName);
+            this.SelectedTrackStats = ts;
         }
 
-        // Prefer the same properties used by the Car/Track selectors so the snapshot mirrors the dropdowns
-        var displayCarName = !string.IsNullOrWhiteSpace(SelectedCarProfile?.ProfileName)
-            ? SelectedCarProfile.ProfileName
-            : carName;
-        var displayTrackName = !string.IsNullOrWhiteSpace(SelectedTrackStats?.DisplayName)
-            ? SelectedTrackStats.DisplayName
-            : trackName;
-
-        bool hasCar = !string.IsNullOrWhiteSpace(displayCarName) && !displayCarName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
-        bool hasTrack = !string.IsNullOrWhiteSpace(displayTrackName) && !displayTrackName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
-
-        LiveCarName = hasCar ? displayCarName : _missingCarName;
-        LiveTrackName = hasTrack ? displayTrackName : _missingTrackDisplayName;
+        LiveCarName = hasCar ? carName : "-";
+        LiveTrackName = hasTrack ? trackName : "-";
+        var displayCarName = hasCar ? carName : "-";
+        var displayTrackName = hasTrack ? trackName : "-";
         SeenCarName = LiveCarName;
         SeenTrackName = LiveTrackName;
         IsLiveSessionActive = hasCar && hasTrack;
         SeenSessionSummary = (hasCar || hasTrack)
-            ? $"Live: {FormatLabel(displayCarName, _missingCarName)} @ {FormatLabel(displayTrackName, _missingTrackDisplayName)}"
+            ? $"Live: {FormatLabel(displayCarName, "-")} @ {FormatLabel(displayTrackName, "-")}"
             : "No Live Data";
 
         UpdateTrackDerivedSummaries();
+
+        if (IsLiveSessionActive)
+        {
+            UpdateSurfaceModeLabel();
+        }
+        else
+        {
+            LiveSurfaceModeDisplay = "-";
+        }
     }
 
     private void SetUIDefaults()
@@ -2118,7 +2063,6 @@ public class FuelCalcs : INotifyPropertyChanged
         HistoricalBestLapDisplay = "-";
         ProfileAvgDryLapTimeDisplay = "-";
         ProfileAvgDryFuelDisplay = "-";
-        ClearMissingTrackWarning(true);
     }
 
     public void ForceProfileDataReload()
@@ -2139,11 +2083,6 @@ public class FuelCalcs : INotifyPropertyChanged
         // Keep an internal object reference in sync with the dropdown string
         SelectedTrackStats = ResolveSelectedTrackStats();
         var ts = SelectedTrackStats;
-
-        if (ts != null)
-        {
-            ClearMissingTrackWarning(true);
-        }
 
         // --- Load Refuel Rate from profile ---
         this._refuelRate = car.RefuelRate;
@@ -2310,7 +2249,14 @@ public class FuelCalcs : INotifyPropertyChanged
         if (liveMaxFuel > 0) { DetectedMaxFuelDisplay = $"(Detected Max: {liveMaxFuel:F1} L)"; }
         else { DetectedMaxFuelDisplay = "(Detected Max: N/A)"; }
         LiveFuelTankSizeDisplay = liveMaxFuel > 0 ? $"{liveMaxFuel:F1} L" : "-";
-        ApplyLiveMaxFuelSuggestion = liveMaxFuel > 0;
+        if (liveMaxFuel <= 0)
+        {
+            ApplyLiveMaxFuelSuggestion = false;
+        }
+        else if (ApplyLiveMaxFuelSuggestion)
+        {
+            ApplyLiveMaxFuelSuggestionValue();
+        }
         OnPropertyChanged(nameof(DetectedMaxFuelDisplay));
         OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh)); // Notify UI to re-check the highlight
         OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
@@ -2381,16 +2327,35 @@ public class FuelCalcs : INotifyPropertyChanged
         double num3 = ParseLapTime(EstimatedLapTime);
         double num2 = num3 - LeaderDeltaSeconds;
         double num4 = ParseLapTime(TimeLossPerLapOfFuelSave);
-        _isMissingTrackValidation = false;
-        if (!_isMissingTrackValidation)
+        if (double.IsNaN(num4) || double.IsInfinity(num4) || num4 < 0.0)
         {
-            ValidationMessage = "";
-            if (num3 <= 0.0) { ValidationMessage = "Error: Your Estimated Lap Time cannot be zero or invalid."; }
-            else if (num2 <= 0.0) { ValidationMessage = "Error: Leader's pace cannot be zero or negative (check your delta)."; }
-            else if (fuelPerLap <= 0.0) { ValidationMessage = "Error: Fuel per Lap must be greater than zero."; }
-            else if (MaxFuelOverride <= 0.0) { ValidationMessage = "Error: Max Fuel Override must be greater than zero."; }
+            num4 = 0.0;
         }
-        if (IsValidationMessageVisible && !_isMissingTrackValidation)
+        ValidationMessage = "";
+
+        bool lapInvalid = double.IsNaN(num3) || double.IsInfinity(num3) || num3 <= 0.0 || num3 < 20.0 || num3 > 900.0;
+        bool leaderInvalid = double.IsNaN(num2) || double.IsInfinity(num2) || num2 <= 0.0 || num2 < 20.0 || num2 > 900.0;
+        bool fuelInvalid = double.IsNaN(fuelPerLap) || double.IsInfinity(fuelPerLap) || fuelPerLap <= 0.0 || fuelPerLap > 50.0;
+        bool tankInvalid = double.IsNaN(MaxFuelOverride) || double.IsInfinity(MaxFuelOverride) || MaxFuelOverride <= 0.0 || MaxFuelOverride > 500.0;
+
+        if (lapInvalid)
+        {
+            ValidationMessage = "Error: Your Estimated Lap Time must be between 20s and 900s.";
+        }
+        else if (leaderInvalid)
+        {
+            ValidationMessage = "Error: Leader pace must be between 20s and 900s (check your delta).";
+        }
+        else if (fuelInvalid)
+        {
+            ValidationMessage = "Error: Fuel per Lap must be greater than zero and under 50L.";
+        }
+        else if (tankInvalid)
+        {
+            ValidationMessage = "Error: Max Fuel Override must be between 0 and 500 litres.";
+        }
+
+        if (IsValidationMessageVisible)
         {
             TotalFuelNeeded = 0.0; RequiredPitStops = 0; StintBreakdown = ""; StopsSaved = 0;
             TotalTimeDifference = "N/A"; ExtraTimeAfterLeader = "N/A"; FirstStintFuel = 0.0;
