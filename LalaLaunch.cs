@@ -179,6 +179,7 @@ namespace LaunchPlugin
         private double _lastLeaderLapTimeSec = 0.0;
         private double _lastLoggedLeaderAvgPaceSeconds = 0.0;
         private int _lastLoggedLeaderLapCount = 0;
+        private bool _leaderSourceUnavailableLogged = false;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
@@ -476,6 +477,7 @@ namespace LaunchPlugin
             _recentLeaderLapTimes.Clear();
             _lastLeaderLapTimeSec = 0.0;
             LiveLeaderAvgPaceSeconds = 0.0;
+            _leaderSourceUnavailableLogged = false;
             Pace_StintAvgLapTimeSec = 0.0;
             Pace_Last5LapAvgSec = 0.0;
             PaceConfidence = 0;
@@ -2441,6 +2443,7 @@ namespace LaunchPlugin
 
         private static double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
         {
+            // Local helper to normalise any raw value to seconds
             double TryReadSeconds(object raw)
             {
                 if (raw == null) return 0.0;
@@ -2450,29 +2453,52 @@ namespace LaunchPlugin
                     if (raw is TimeSpan ts) return ts.TotalSeconds;
                     if (raw is double d) return d;
                     if (raw is float f) return (double)f;
-                    if (raw is IConvertible c) return Convert.ToDouble(c);
+                    if (raw is IConvertible c) return Convert.ToDouble(c, CultureInfo.InvariantCulture);
                 }
-                catch { /* ignore parse errors, fall through to 0 */ }
+                catch (Exception ex)
+                {
+                    SimHub.Logging.Current.Info($"[FuelLeader] TryReadSeconds error for value '{raw}': {ex.Message}");
+                }
 
                 return 0.0;
             }
 
-            // Try a small set of common property names (works across iRacing/ACC)
-            var candidates = new object[]
+            // Candidate sources – ordered by preference
+            var candidates = new (string Name, object Raw)[]
             {
-                pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime"),
-                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime"),
-                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")
+        // Verified working class-leader property:
+        ("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime",
+            pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime")),
+
+        // Legacy / fallback properties (may or may not exist in your SimHub version):
+        ("IRacingExtraProperties.iRacing_LeaderLastLapTime",
+            pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime")),
+        ("DataCorePlugin.GameData.LeaderLastLapTime",
+            pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime")),
+        ("DataCorePlugin.GameData.LeaderAverageLapTime",
+            pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")),
             };
 
             foreach (var candidate in candidates)
             {
-                double seconds = TryReadSeconds(candidate);
-                if (seconds > 0.0) return seconds;
+                double seconds = TryReadSeconds(candidate.Raw);
+
+                // Debug trace for inspection in SimHub log
+                SimHub.Logging.Current.Info(
+                    $"[FuelLeader] candidate {candidate.Name} raw='{candidate.Raw}' seconds={seconds:F3}");
+
+                if (seconds > 0.0)
+                {
+                    SimHub.Logging.Current.Info(
+                        $"[FuelLeader] using leader lap from {candidate.Name} = {seconds:F3}s");
+                    return seconds;
+                }
             }
 
+            SimHub.Logging.Current.Info("[FuelLeader] no valid leader lap time from any candidate – returning 0");
             return 0.0;
         }
+
 
         private static string GetString(object o) => Convert.ToString(o, CultureInfo.InvariantCulture) ?? "";
 

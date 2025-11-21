@@ -1,7 +1,7 @@
 # Fuel Tab Leader Pace Data Flow
 
 ## Source (LalaLaunch.UpdateLiveFuelCalcs)
-- **Helper:** `ReadLeaderLapTimeSeconds(PluginManager, data)` reads the leader's most recent lap time from telemetry when a lap crossing is detected.
+- **Helper:** `ReadLeaderLapTimeSeconds(PluginManager, data)` reads the leader's most recent lap time from the RSC class-leader integration when a lap crossing is detected.
 - **Trigger:** Executed inside `UpdateLiveFuelCalcs(GameData data)` when `lapCrossed` is true (start/finish line crossed based on track percent).
 - **Raw storage:** `_recentLeaderLapTimes` keeps a rolling list of recent leader lap times (seconds) and `_lastLeaderLapTimeSec` tracks the most recent sample.
 
@@ -9,6 +9,7 @@
 - **Add sample:** When `leaderLastLapSec` is between 20s and 900s and differs from the last stored value, it is appended to `_recentLeaderLapTimes`; the list is trimmed to `LapTimeSampleCount` entries.
 - **Average:** `LiveLeaderAvgPaceSeconds` is set to the average of `_recentLeaderLapTimes`; if no samples exist, it is set to 0.
 - **Reset on feed drop:** If `leaderLastLapSec <= 0` while `_recentLeaderLapTimes` has entries, the plugin treats this as a telemetry dropout and clears `_recentLeaderLapTimes`, `_lastLeaderLapTimeSec`, and `LiveLeaderAvgPaceSeconds`.
+- **Unavailable source:** If the RSC/class-leader feed is missing or cannot be read, the helper returns `0.0` (no leader pace) and logs a single `[FuelLeader]` info line for the session.
 
 ## Hand-off to FuelCalcs
 - **Exposed value:** `LalaLaunch.LiveLeaderAvgPaceSeconds` is read inside `FuelCalcs.ApplyLiveLapPaceEstimate` as `leaderAvgPace`.
@@ -28,6 +29,13 @@
 - **Session change / snapshot reset:** `ResetSnapshotDisplays()` clears `LiveLeaderPaceInfo`, `AvgDeltaToLdrValue`, and sets `LeaderDeltaSeconds` to 0.0 along with other live snapshot fields.
 - **Feed loss:** In `UpdateLiveFuelCalcs`, if leader timing drops (`leaderLastLapSec <= 0` with stored samples), leader pace state is cleared so downstream calculations do not reuse stale values.
 - **No live pace:** When `avgSeconds <= 0` or `leaderAvgPace <= 0` in `ApplyLiveLapPaceEstimate`, leader delta text is set to "-" and `LeaderDeltaSeconds` is reset.
+- **No RSC / no leader:** When no class-leader sample is available, UI fields stay at "-", `LeaderDeltaSeconds` remains 0, and strategy validation treats leader pace as unavailable rather than invalid.
+
+## Known current symptom
+- On this branch, SimHub replay shows no leader delta on the Fuel tab even though telemetry contains leader information. For the UI to display a value, `LiveLeaderAvgPaceSeconds` must be > 0 and `LeaderDeltaSeconds` / `AvgDeltaToLdrValue` must be populated in `ApplyLiveLapPaceEstimate`.
+
+## Unsupported sources (documented only)
+- SimHub exposes `GameRawData.SessionData.DriverInfo.DriversXX.CarClassEstLapTime`, but these are **not** used because the plugin cannot reliably identify the correct class leader in multi-class sessions. Only the RSC class-leader integration is supported for leader pace.
 
 ## Known current symptom
 - On this branch, SimHub replay shows no leader delta on the Fuel tab even though telemetry contains leader information. For the UI to display a value, `LiveLeaderAvgPaceSeconds` must be > 0 and `LeaderDeltaSeconds` / `AvgDeltaToLdrValue` must be populated in `ApplyLiveLapPaceEstimate`.
