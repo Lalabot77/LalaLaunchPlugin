@@ -1890,7 +1890,7 @@ public class FuelCalcs : INotifyPropertyChanged
         AvgDeltaToLdrValue = "-";
         LeaderDeltaSeconds = 0.0;
         _hasLiveLeaderDelta = false;
-        SimHub.Logging.Current.Debug("[FuelLeader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
+        SimHub.Logging.Current.Info("[Leader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
         AvgDeltaToPbValue = "-";
         _liveMaxFuel = 0;
         _liveFuelTankLiters = 0;
@@ -2367,6 +2367,26 @@ public class FuelCalcs : INotifyPropertyChanged
                 : num3;                                           // fall back to your pace when no leader data
 
             if (LeaderDeltaSeconds > 0.0 && leaderPaceAvailable && num3 > 0.0)
+            {
+                double leaderLap = num2;
+                bool shouldLog = Math.Abs(leaderLap - _lastLoggedStrategyLeaderLap) > 0.01 ||
+                                 Math.Abs(num3 - _lastLoggedStrategyEstLap) > 0.01 ||
+                                 Math.Abs(LeaderDeltaSeconds - _lastLoggedLeaderDeltaSeconds) > 0.01;
+                if (shouldLog)
+                {
+                    SimHub.Logging.Current.Debug(string.Format(
+                        "[FuelLeader] CalculateStrategy: estLap={0:F3}, leaderDelta={1:F3}, leaderLap={2:F3}",
+                        num3,
+                        LeaderDeltaSeconds,
+                        leaderLap));
+
+                    _lastLoggedStrategyLeaderLap = leaderLap;
+                    _lastLoggedStrategyEstLap = num3;
+                    _lastLoggedLeaderDeltaSeconds = LeaderDeltaSeconds;
+                }
+            }
+
+            if (LeaderDeltaSeconds > 0.0 && num3 > 0.0)
             {
                 double leaderLap = num2;
                 bool shouldLog = Math.Abs(leaderLap - _lastLoggedStrategyLeaderLap) > 0.01 ||

@@ -36,3 +36,6 @@
 
 ## Unsupported sources (documented only)
 - SimHub exposes `GameRawData.SessionData.DriverInfo.DriversXX.CarClassEstLapTime`, but these are **not** used because the plugin cannot reliably identify the correct class leader in multi-class sessions. Only the RSC class-leader integration is supported for leader pace.
+
+## Known current symptom
+- On this branch, SimHub replay shows no leader delta on the Fuel tab even though telemetry contains leader information. For the UI to display a value, `LiveLeaderAvgPaceSeconds` must be > 0 and `LeaderDeltaSeconds` / `AvgDeltaToLdrValue` must be populated in `ApplyLiveLapPaceEstimate`.
