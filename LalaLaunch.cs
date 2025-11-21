@@ -615,8 +615,7 @@ namespace LaunchPlugin
 
             if (lapCrossed)
             {
-                leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
-
+                
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
                 // provides it with the necessary data to finalize the calculation.
                 if (_pit != null && (_pit.CurrentPitPhase == PitPhase.None || _pit.CurrentPitPhase == PitPhase.ExitingPits)) // Ensure we are on track

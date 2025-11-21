@@ -2253,10 +2253,6 @@ public class FuelCalcs : INotifyPropertyChanged
         {
             ApplyLiveMaxFuelSuggestion = false;
         }
-        else if (ApplyLiveMaxFuelSuggestion)
-        {
-            ApplyLiveMaxFuelSuggestionValue();
-        }
         OnPropertyChanged(nameof(DetectedMaxFuelDisplay));
         OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh)); // Notify UI to re-check the highlight
         OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
@@ -2330,6 +2326,33 @@ public class FuelCalcs : INotifyPropertyChanged
         if (double.IsNaN(num4) || double.IsInfinity(num4) || num4 < 0.0)
         {
             num4 = 0.0;
+        }
+        _isMissingTrackValidation = false;
+        if (!_isMissingTrackValidation)
+        {
+            ValidationMessage = "";
+
+            bool lapInvalid = double.IsNaN(num3) || double.IsInfinity(num3) || num3 <= 0.0 || num3 < 20.0 || num3 > 900.0;
+            bool leaderInvalid = double.IsNaN(num2) || double.IsInfinity(num2) || num2 <= 0.0 || num2 < 20.0 || num2 > 900.0;
+            bool fuelInvalid = double.IsNaN(fuelPerLap) || double.IsInfinity(fuelPerLap) || fuelPerLap <= 0.0 || fuelPerLap > 50.0;
+            bool tankInvalid = double.IsNaN(MaxFuelOverride) || double.IsInfinity(MaxFuelOverride) || MaxFuelOverride <= 0.0 || MaxFuelOverride > 500.0;
+
+            if (lapInvalid)
+            {
+                ValidationMessage = "Error: Your Estimated Lap Time must be between 20s and 900s.";
+            }
+            else if (leaderInvalid)
+            {
+                ValidationMessage = "Error: Leader pace must be between 20s and 900s (check your delta).";
+            }
+            else if (fuelInvalid)
+            {
+                ValidationMessage = "Error: Fuel per Lap must be greater than zero and under 50L.";
+            }
+            else if (tankInvalid)
+            {
+                ValidationMessage = "Error: Max Fuel Override must be between 0 and 500 litres.";
+            }
         }
         ValidationMessage = "";
 
