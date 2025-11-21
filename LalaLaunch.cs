@@ -2441,8 +2441,9 @@ namespace LaunchPlugin
 
         #region Private Helper Methods for DataUpdate
 
-        private double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
+        private static double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
         {
+            // Local helper to normalise any raw value to seconds
             double TryReadSeconds(object raw)
             {
                 if (raw == null) return 0.0;
@@ -2452,51 +2453,52 @@ namespace LaunchPlugin
                     if (raw is TimeSpan ts) return ts.TotalSeconds;
                     if (raw is double d) return d;
                     if (raw is float f) return (double)f;
-                    if (raw is IConvertible c) return Convert.ToDouble(c);
+                    if (raw is IConvertible c) return Convert.ToDouble(c, CultureInfo.InvariantCulture);
                 }
-                catch { /* ignore parse errors, fall through to 0 */ }
+                catch (Exception ex)
+                {
+                    SimHub.Logging.Current.Info($"[FuelLeader] TryReadSeconds error for value '{raw}': {ex.Message}");
+                }
 
                 return 0.0;
             }
 
-            bool sawCandidate = false;
-
-            try
+            // Candidate sources – ordered by preference
+            var candidates = new (string Name, object Raw)[]
             {
-                // RSC / class-leader integration provides the authoritative source for leader lap time.
-                var candidates = new object[]
-                {
-                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderLastLapTime"),
-                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderAverageLapTime"),
-                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime"),
-                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime"),
-                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")
-                };
+        // Verified working class-leader property:
+        ("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime",
+            pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime")),
 
-                foreach (var candidate in candidates)
-                {
-                    if (candidate != null) sawCandidate = true;
+        // Legacy / fallback properties (may or may not exist in your SimHub version):
+        ("IRacingExtraProperties.iRacing_LeaderLastLapTime",
+            pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime")),
+        ("DataCorePlugin.GameData.LeaderLastLapTime",
+            pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime")),
+        ("DataCorePlugin.GameData.LeaderAverageLapTime",
+            pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")),
+            };
 
-                    double seconds = TryReadSeconds(candidate);
-                    if (seconds > 0.0) return seconds;
+            foreach (var candidate in candidates)
+            {
+                double seconds = TryReadSeconds(candidate.Raw);
+
+                // Debug trace for inspection in SimHub log
+                SimHub.Logging.Current.Info(
+                    $"[FuelLeader] candidate {candidate.Name} raw='{candidate.Raw}' seconds={seconds:F3}");
+
+                if (seconds > 0.0)
+                {
+                    SimHub.Logging.Current.Info(
+                        $"[FuelLeader] using leader lap from {candidate.Name} = {seconds:F3}s");
+                    return seconds;
                 }
             }
-            catch (Exception ex)
-            {
-                SimHub.Logging.Current.Debug($"[FuelLeader] ReadLeaderLapTimeSeconds error: {ex.Message}");
-            }
 
-            if (!_leaderSourceUnavailableLogged)
-            {
-                string reason = sawCandidate
-                    ? "Class-leader lap time unavailable (no class leader lap yet or zero timing sample)."
-                    : "Class-leader lap time unavailable (RSC not loaded or no class leader). Disabling leader delta.";
-                SimHub.Logging.Current.Info($"[FuelLeader] {reason}");
-                _leaderSourceUnavailableLogged = true;
-            }
-
+            SimHub.Logging.Current.Info("[FuelLeader] no valid leader lap time from any candidate – returning 0");
             return 0.0;
         }
+
 
         private static string GetString(object o) => Convert.ToString(o, CultureInfo.InvariantCulture) ?? "";
 
