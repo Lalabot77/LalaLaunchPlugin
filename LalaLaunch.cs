@@ -617,6 +617,14 @@ namespace LaunchPlugin
             {
                 leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
 
+                if (leaderLastLapSec <= 0.0 && _recentLeaderLapTimes.Count > 0)
+                {
+                    // Feed dropped: clear leader pace so downstream calcs don't reuse stale values
+                    _recentLeaderLapTimes.Clear();
+                    _lastLeaderLapTimeSec = 0.0;
+                    LiveLeaderAvgPaceSeconds = 0.0;
+                }
+
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
                 // provides it with the necessary data to finalize the calculation.
                 if (_pit != null && (_pit.CurrentPitPhase == PitPhase.None || _pit.CurrentPitPhase == PitPhase.ExitingPits)) // Ensure we are on track

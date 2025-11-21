@@ -1770,6 +1770,7 @@ public class FuelCalcs : INotifyPropertyChanged
         else
         {
             AvgDeltaToLdrValue = "-";
+            LeaderDeltaSeconds = 0.0; // Clear stale leader delta when pace is unavailable
         }
         OnPropertyChanged(nameof(AvgDeltaToLdrValue));
 
@@ -1851,6 +1852,7 @@ public class FuelCalcs : INotifyPropertyChanged
         LiveLeaderPaceInfo = "-";
         LiveLapPaceInfo = "-";
         AvgDeltaToLdrValue = "-";
+        LeaderDeltaSeconds = 0.0;
         AvgDeltaToPbValue = "-";
         _liveMaxFuel = 0;
         _liveFuelTankLiters = 0;
