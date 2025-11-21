@@ -1789,20 +1789,7 @@ public class FuelCalcs : INotifyPropertyChanged
         else
         {
             AvgDeltaToLdrValue = "-";
-            if (LeaderDeltaSeconds != 0.0)
-            {
-                LeaderDeltaSeconds = 0.0; // Clear stale leader delta when pace is unavailable
-            }
-
-            if (!_leaderDeltaClearLogged)
-            {
-                SimHub.Logging.Current.Debug(string.Format(
-                    "[FuelLeader] clearing leader delta (no leader pace), avgSeconds={0:F3}, leaderAvg={1:F3}",
-                    avgSeconds,
-                    leaderAvgPace));
-                _leaderDeltaClearLogged = true;
-                _lastLoggedLeaderDeltaSeconds = 0.0;
-            }
+            LeaderDeltaSeconds = 0.0; // Clear stale leader delta when pace is unavailable
         }
         OnPropertyChanged(nameof(AvgDeltaToLdrValue));
 
@@ -1885,7 +1872,7 @@ public class FuelCalcs : INotifyPropertyChanged
         LiveLapPaceInfo = "-";
         AvgDeltaToLdrValue = "-";
         LeaderDeltaSeconds = 0.0;
-        SimHub.Logging.Current.Debug("[FuelLeader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
+        SimHub.Logging.Current.Info("[Leader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
         AvgDeltaToPbValue = "-";
         _liveMaxFuel = 0;
         _liveFuelTankLiters = 0;

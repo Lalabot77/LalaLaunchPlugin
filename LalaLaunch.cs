@@ -622,8 +622,8 @@ namespace LaunchPlugin
                 if (leaderLastLapSec <= 0.0 && _recentLeaderLapTimes.Count > 0)
                 {
                     // Feed dropped: clear leader pace so downstream calcs don't reuse stale values
-                    SimHub.Logging.Current.Debug(string.Format(
-                        "[FuelLeader] clearing leader pace (feed dropped), lastAvg={0:F3}",
+                    SimHub.Logging.Current.Info(string.Format(
+                        "[Leader] clearing leader pace (feed dropped), lastAvg={0:F3}",
                         LiveLeaderAvgPaceSeconds));
                     _recentLeaderLapTimes.Clear();
                     _lastLeaderLapTimeSec = 0.0;
