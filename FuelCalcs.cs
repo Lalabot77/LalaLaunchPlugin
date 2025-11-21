@@ -2304,44 +2304,45 @@ public class FuelCalcs : INotifyPropertyChanged
     }
 
 
-    public void CalculateStrategy()
-    {
-        var ts = _plugin.ProfilesViewModel.TryGetCarTrack(SelectedCarProfile?.ProfileName, SelectedTrack);
-        bool usingDefaultProfile = false;
-        if (ts == null)
+        public void CalculateStrategy()
         {
-            // fall back to default profile track (if you have one), or leave current values
-            var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
-            ts = defaultProfile?.FindTrack("default");
-            usingDefaultProfile = (ts != null);
-        }
+            var ts = _plugin.ProfilesViewModel.TryGetCarTrack(SelectedCarProfile?.ProfileName, SelectedTrack);
+            bool usingDefaultProfile = false;
+            if (ts == null)
+            {
+                // fall back to default profile track (if you have one), or leave current values
+                var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
+                ts = defaultProfile?.FindTrack("default");
+                usingDefaultProfile = (ts != null);
+            }
 
-        double fuelPerLap = FuelPerLap;
+            double fuelPerLap = FuelPerLap;
 
-        double num = PitLaneTimeLoss; // use the current value directly
+            double num = PitLaneTimeLoss; // use the current value directly
 
+            double num3 = ParseLapTime(EstimatedLapTime);          // your estimated lap time
+            double num2 = num3 - LeaderDeltaSeconds;               // leader pace (your pace - delta)
 
-        double num3 = ParseLapTime(EstimatedLapTime);
-        double num2 = num3 - LeaderDeltaSeconds;
-        double num4 = ParseLapTime(TimeLossPerLapOfFuelSave);
-        if (double.IsNaN(num4) || double.IsInfinity(num4) || num4 < 0.0)
-        {
-            num4 = 0.0;
-        }
-        _isMissingTrackValidation = false;
+            double num4 = ParseLapTime(TimeLossPerLapOfFuelSave);  // fuel-save lap time loss
+            if (double.IsNaN(num4) || double.IsInfinity(num4) || num4 < 0.0)
+            {
+                num4 = 0.0;
+            }
 
-        if (lapInvalid)
-        {
-            ValidationMessage = "Error: Your Estimated Lap Time must be between 20s and 900s.";
-        }
-        else if (leaderInvalid)
-        {
-            ValidationMessage = "";
+            // --- Validation guards ---------------------------------------------------
+            _isMissingTrackValidation = false;
 
-            bool lapInvalid = double.IsNaN(num3) || double.IsInfinity(num3) || num3 <= 0.0 || num3 < 20.0 || num3 > 900.0;
-            bool leaderInvalid = double.IsNaN(num2) || double.IsInfinity(num2) || num2 <= 0.0 || num2 < 20.0 || num2 > 900.0;
-            bool fuelInvalid = double.IsNaN(fuelPerLap) || double.IsInfinity(fuelPerLap) || fuelPerLap <= 0.0 || fuelPerLap > 50.0;
-            bool tankInvalid = double.IsNaN(MaxFuelOverride) || double.IsInfinity(MaxFuelOverride) || MaxFuelOverride <= 0.0 || MaxFuelOverride > 500.0;
+            bool lapInvalid = double.IsNaN(num3) || double.IsInfinity(num3) ||
+                              num3 <= 0.0 || num3 < 20.0 || num3 > 900.0;
+
+            bool leaderInvalid = double.IsNaN(num2) || double.IsInfinity(num2) ||
+                                 num2 <= 0.0 || num2 < 20.0 || num2 > 900.0;
+
+            bool fuelInvalid = double.IsNaN(fuelPerLap) || double.IsInfinity(fuelPerLap) ||
+                               fuelPerLap <= 0.0 || fuelPerLap > 50.0;
+
+            bool tankInvalid = double.IsNaN(MaxFuelOverride) || double.IsInfinity(MaxFuelOverride) ||
+                               MaxFuelOverride <= 0.0 || MaxFuelOverride > 500.0;
 
             if (lapInvalid)
             {
@@ -2359,91 +2360,110 @@ public class FuelCalcs : INotifyPropertyChanged
             {
                 ValidationMessage = "Error: Max Fuel Override must be between 0 and 500 litres.";
             }
-        }
-        ValidationMessage = "";
-
-        bool lapInvalid = double.IsNaN(num3) || double.IsInfinity(num3) || num3 <= 0.0 || num3 < 20.0 || num3 > 900.0;
-        bool leaderInvalid = double.IsNaN(num2) || double.IsInfinity(num2) || num2 <= 0.0 || num2 < 20.0 || num2 > 900.0;
-        bool fuelInvalid = double.IsNaN(fuelPerLap) || double.IsInfinity(fuelPerLap) || fuelPerLap <= 0.0 || fuelPerLap > 50.0;
-        bool tankInvalid = double.IsNaN(MaxFuelOverride) || double.IsInfinity(MaxFuelOverride) || MaxFuelOverride <= 0.0 || MaxFuelOverride > 500.0;
-
-        if (lapInvalid)
-        {
-            ValidationMessage = "Error: Your Estimated Lap Time must be between 20s and 900s.";
-        }
-        else if (leaderInvalid)
-        {
-            ValidationMessage = "Error: Leader pace must be between 20s and 900s (check your delta).";
-        }
-        else if (fuelInvalid)
-        {
-            ValidationMessage = "Error: Fuel per Lap must be greater than zero and under 50L.";
-        }
-        else if (tankInvalid)
-        {
-            ValidationMessage = "Error: Max Fuel Override must be between 0 and 500 litres.";
-        }
-
-        if (IsValidationMessageVisible)
-        {
-            TotalFuelNeeded = 0.0; RequiredPitStops = 0; StintBreakdown = ""; StopsSaved = 0;
-            TotalTimeDifference = "N/A"; ExtraTimeAfterLeader = "N/A"; FirstStintFuel = 0.0;
-            return;
-        }
-        double num6 = 0.0;
-        if (IsTimeLimitedRace)
-        {
-            int num7 = 0; int num8 = -1; int num9 = 0;
-            double num10 = fuelPerLap; // already includes wet factor when IsWet
-            double num11 = RaceMinutes * 60.0;
-            while (num7 != num8 && num9 < 10)
+            else
             {
-                num9++; num8 = num7;
-                double num12 = (double)num7 * (num + TireChangeTime);
-                double num13 = num11 - num12;
-                if (num13 < 0.0) { num13 = 0.0; }
-                double num14 = num13 / num2;
-                int num15 = 0;
-                if (num3 - num2 > 0.0 && num3 > 0.0) { num15 = (int)Math.Floor(num14 / (num2 / (num3 - num2))); }
-                num6 = Math.Max(0.0, num14 - (double)num15);
-                double num17 = num6 * num10;
-                double num18 = (IsContingencyInLaps ? (ContingencyValue * num10) : ContingencyValue);
-                double num19 = num17 + num18;
-                num7 = ((num19 > MaxFuelOverride) ? ((int)Math.Ceiling((num19 - MaxFuelOverride) / MaxFuelOverride)) : 0);
+                ValidationMessage = "";
             }
-        }
-        else
-        {
-            int num20 = 0;
-            if (num3 - num2 > 0.0 && num3 > 0.0) { num20 = (int)Math.Floor(RaceLaps / (num2 / (num3 - num2))); }
-            num6 = Math.Max(0.0, RaceLaps - (double)num20);
-        }
-        StrategyResult strategyResult = CalculateSingleStrategy(num6, fuelPerLap, num3, num2, num, RaceMinutes * 60.0);
 
-        TotalFuelNeeded = strategyResult.TotalFuel; RequiredPitStops = strategyResult.Stops;
-        StintBreakdown = strategyResult.Breakdown; FirstStintFuel = strategyResult.FirstStintFuel;
-        FirstStopTimeLoss = strategyResult.FirstStopTimeLoss;
-        OnPropertyChanged(nameof(IsPitstopRequired));
-        if (IsTimeLimitedRace && num3 > 0.0)
-        {
-            double extra = ComputeExtraSecondsAfterTimerZero(
-                leaderLapSec: num2,   // leader pace (your pace - delta)
-                yourLapSec: num3,   // your estimated pace
-                raceSeconds: RaceMinutes * 60.0
-            );
-            ExtraTimeAfterLeader = TimeSpan.FromSeconds(extra).ToString("m\\:ss");
+            if (IsValidationMessageVisible)
+            {
+                TotalFuelNeeded = 0.0;
+                RequiredPitStops = 0;
+                StintBreakdown = "";
+                StopsSaved = 0;
+                TotalTimeDifference = "N/A";
+                ExtraTimeAfterLeader = "N/A";
+                FirstStintFuel = 0.0;
+                return;
+            }
+            // ------------------------------------------------------------------------
+
+            double num6 = 0.0;
+            if (IsTimeLimitedRace)
+            {
+                int num7 = 0;
+                int num8 = -1;
+                int num9 = 0;
+                double num10 = fuelPerLap; // already includes wet factor when IsWet
+                double num11 = RaceMinutes * 60.0;
+                while (num7 != num8 && num9 < 10)
+                {
+                    num9++;
+                    num8 = num7;
+                    double num12 = (double)num7 * (num + TireChangeTime);
+                    double num13 = num11 - num12;
+                    if (num13 < 0.0)
+                    {
+                        num13 = 0.0;
+                    }
+                    double num14 = num13 / num2;
+                    int num15 = 0;
+                    if (num3 - num2 > 0.0 && num3 > 0.0)
+                    {
+                        num15 = (int)Math.Floor(num14 / (num2 / (num3 - num2)));
+                    }
+                    num6 = Math.Max(0.0, num14 - (double)num15);
+                    double num17 = num6 * num10;
+                    double num18 = (IsContingencyInLaps ? (ContingencyValue * num10) : ContingencyValue);
+                    double num19 = num17 + num18;
+                    num7 = ((num19 > MaxFuelOverride)
+                        ? (int)Math.Ceiling((num19 - MaxFuelOverride) / MaxFuelOverride)
+                        : 0);
+                }
+            }
+            else
+            {
+                int num20 = 0;
+                if (num3 - num2 > 0.0 && num3 > 0.0)
+                {
+                    num20 = (int)Math.Floor(RaceLaps / (num2 / (num3 - num2)));
+                }
+                num6 = Math.Max(0.0, RaceLaps - (double)num20);
+            }
+
+            StrategyResult strategyResult = CalculateSingleStrategy(
+                num6, fuelPerLap, num3, num2, num, RaceMinutes * 60.0);
+
+            TotalFuelNeeded = strategyResult.TotalFuel;
+            RequiredPitStops = strategyResult.Stops;
+            StintBreakdown = strategyResult.Breakdown;
+            FirstStintFuel = strategyResult.FirstStintFuel;
+            FirstStopTimeLoss = strategyResult.FirstStopTimeLoss;
+            OnPropertyChanged(nameof(IsPitstopRequired));
+
+            if (IsTimeLimitedRace && num3 > 0.0)
+            {
+                double extra = ComputeExtraSecondsAfterTimerZero(
+                    leaderLapSec: num2,   // leader pace (your pace - delta)
+                    yourLapSec: num3,     // your estimated pace
+                    raceSeconds: RaceMinutes * 60.0
+                );
+                ExtraTimeAfterLeader = TimeSpan.FromSeconds(extra).ToString("m\\:ss");
+            }
+            else
+            {
+                ExtraTimeAfterLeader = "N/A";
+            }
+
+            double num24 = fuelPerLap - FuelSaveTarget;
+            if (num24 <= 0.0)
+            {
+                StopsSaved = 0;
+                TotalTimeDifference = "N/A";
+                return;
+            }
+
+            StrategyResult strategyResult2 = CalculateSingleStrategy(
+                num6, num24, num3 + num4, num2, num, RaceMinutes * 60.0);
+
+            StopsSaved = strategyResult.Stops - strategyResult2.Stops;
+            double num25 = strategyResult2.TotalTime - strategyResult.TotalTime;
+            TotalTimeDifference =
+                $"{(num25 >= 0.0 ? "+" : "-")}{TimeSpan.FromSeconds(Math.Abs(num25)):m\\:ss\\.fff}";
         }
-        else { ExtraTimeAfterLeader = "N/A"; }
-        double num24 = fuelPerLap - FuelSaveTarget;
-        if (num24 <= 0.0) { StopsSaved = 0; TotalTimeDifference = "N/A"; return; }
-        StrategyResult strategyResult2 = CalculateSingleStrategy(num6, num24, num3 + num4, num2, num, RaceMinutes * 60.0);
 
-        StopsSaved = strategyResult.Stops - strategyResult2.Stops;
-        double num25 = strategyResult2.TotalTime - strategyResult.TotalTime;
-        TotalTimeDifference = $"{(num25 >= 0.0 ? "+" : "-")}{TimeSpan.FromSeconds(Math.Abs(num25)):m\\:ss\\.fff}";
-    }
 
-    private StrategyResult CalculateSingleStrategy(double totalLaps, double fuelPerLap, double playerPaceSeconds, double leaderPaceSeconds, double pitLaneTimeLoss, double raceClockSeconds)
+        private StrategyResult CalculateSingleStrategy(double totalLaps, double fuelPerLap, double playerPaceSeconds, double leaderPaceSeconds, double pitLaneTimeLoss, double raceClockSeconds)
     {
         StrategyResult result = new StrategyResult { PlayerLaps = totalLaps };
         // Can the leader ever get at least +1 lap within the race clock?
