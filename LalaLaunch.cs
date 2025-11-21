@@ -615,7 +615,7 @@ namespace LaunchPlugin
 
             if (lapCrossed)
             {
-                double leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
+                leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
 
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
                 // provides it with the necessary data to finalize the calculation.
@@ -623,7 +623,6 @@ namespace LaunchPlugin
                 {
                     var lastLapTsPit = data.NewData?.LastLapTime ?? TimeSpan.Zero;
                     double lastLapSecPit = lastLapTsPit.TotalSeconds;
-                    leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
 
                     // Basic validity check for the lap itself
                     bool lastLapLooksClean = !inPitArea && lastLapSecPit > 20 && lastLapSecPit < 900;

@@ -52,6 +52,7 @@ public class FuelCalcs : INotifyPropertyChanged
     private string _extraTimeAfterLeader;
     private double _firstStintFuel;
     private string _validationMessage;
+    private bool _isMissingTrackValidation;
     private double _firstStopTimeLoss;
     private double _refuelRate;
     private double _baseDryFuelPerLap;
@@ -2328,7 +2329,12 @@ public class FuelCalcs : INotifyPropertyChanged
             num4 = 0.0;
         }
         _isMissingTrackValidation = false;
-        if (!_isMissingTrackValidation)
+
+        if (lapInvalid)
+        {
+            ValidationMessage = "Error: Your Estimated Lap Time must be between 20s and 900s.";
+        }
+        else if (leaderInvalid)
         {
             ValidationMessage = "";
 
