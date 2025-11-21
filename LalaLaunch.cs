@@ -232,7 +232,7 @@ namespace LaunchPlugin
         private void ReturnToDefaults()
         {
             ActiveProfile = ProfilesViewModel.GetProfileForCar("Default Settings") ?? ProfilesViewModel.CarProfiles.FirstOrDefault();
-            _currentCarModel = "Unknown"; // Reset car model state to match
+            _currentCarModel = string.Empty; // Reset car model state to match
         }
         private void SaveActiveProfile()
         {
@@ -611,9 +611,11 @@ namespace LaunchPlugin
                 _pitFreezeUntilNextCycle = false;
             }
 
+            double leaderLastLapSec = 0.0;
+
             if (lapCrossed)
             {
-                double leaderLastLapSec = ReadLeaderLapTimeSeconds(pluginManager, data);
+                leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
 
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
                 // provides it with the necessary data to finalize the calculation.
@@ -621,7 +623,6 @@ namespace LaunchPlugin
                 {
                     var lastLapTsPit = data.NewData?.LastLapTime ?? TimeSpan.Zero;
                     double lastLapSecPit = lastLapTsPit.TotalSeconds;
-                    double leaderLastLapSec = ReadLeaderLapTimeSeconds(pluginManager, data);
 
                     // Basic validity check for the lap itself
                     bool lastLapLooksClean = !inPitArea && lastLapSecPit > 20 && lastLapSecPit < 900;
@@ -1263,7 +1264,7 @@ namespace LaunchPlugin
 
         // --- Settings / Car Profiles ---
 
-        private string _currentCarModel = "Unknown";
+        private string _currentCarModel = string.Empty;
         private string _currentSettingsProfileName = "Default Settings";
         public string CurrentCarModel
         {
@@ -1278,7 +1279,7 @@ namespace LaunchPlugin
             }
         }
 
-        public string CurrentTrackName { get; private set; } = "Unknown";
+        public string CurrentTrackName { get; private set; } = string.Empty;
         public string CurrentSettingsProfileName
         {
             get => _currentSettingsProfileName;
@@ -1310,7 +1311,7 @@ namespace LaunchPlugin
             }
         }
 
-        public string CurrentTrackKey { get; private set; } = "unknown";
+        public string CurrentTrackKey { get; private set; } = string.Empty;
 
         public enum ProfileEditMode { ActiveCar, CarProfile, Template }
 
@@ -1946,7 +1947,7 @@ namespace LaunchPlugin
                 ? CurrentCarModel
                 : string.Empty;
 
-            string trackLabel = !string.IsNullOrWhiteSpace(CurrentTrackName)
+            string trackLabel = (!string.IsNullOrWhiteSpace(CurrentTrackName) && !CurrentTrackName.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
                 ? CurrentTrackName
                 : (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase)
                     ? CurrentTrackKey
@@ -1985,6 +1986,10 @@ namespace LaunchPlugin
                     pluginManager.GetPropertyValue("DataCorePlugin.GameData.CarModel"),
                     pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_CarModel")
                 );
+
+                if (string.Equals(trackKey, "unknown", StringComparison.OrdinalIgnoreCase)) trackKey = string.Empty;
+                if (string.Equals(trackDisplay, "unknown", StringComparison.OrdinalIgnoreCase)) trackDisplay = string.Empty;
+                if (string.Equals(carModel, "unknown", StringComparison.OrdinalIgnoreCase)) carModel = string.Empty;
 
                 if (!string.IsNullOrWhiteSpace(carModel))
                 {
@@ -2028,7 +2033,9 @@ namespace LaunchPlugin
                 _pit.Reset();
                 _pitLite?.ResetCycle();
                 _pit?.ResetPitPhaseState();
-                _currentCarModel = "Unknown";
+                _currentCarModel = string.Empty;
+                CurrentTrackName = string.Empty;
+                CurrentTrackKey = string.Empty;
                 _lastSeenCar = string.Empty;
                 _lastSeenTrack = string.Empty;
                 _lastSnapshotCar = string.Empty;
