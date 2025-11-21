@@ -177,6 +177,8 @@ namespace LaunchPlugin
         private TimeSpan _lastSeenBestLap = TimeSpan.Zero;
         private readonly List<double> _recentLeaderLapTimes = new List<double>(); // seconds
         private double _lastLeaderLapTimeSec = 0.0;
+        private double _lastLoggedLeaderAvgPaceSeconds = 0.0;
+        private int _lastLoggedLeaderLapCount = 0;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
@@ -620,9 +622,14 @@ namespace LaunchPlugin
                 if (leaderLastLapSec <= 0.0 && _recentLeaderLapTimes.Count > 0)
                 {
                     // Feed dropped: clear leader pace so downstream calcs don't reuse stale values
+                    SimHub.Logging.Current.Info(string.Format(
+                        "[Leader] clearing leader pace (feed dropped), lastAvg={0:F3}",
+                        LiveLeaderAvgPaceSeconds));
                     _recentLeaderLapTimes.Clear();
                     _lastLeaderLapTimeSec = 0.0;
                     LiveLeaderAvgPaceSeconds = 0.0;
+                    _lastLoggedLeaderAvgPaceSeconds = 0.0;
+                    _lastLoggedLeaderLapCount = 0;
                 }
 
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
@@ -775,6 +782,21 @@ namespace LaunchPlugin
                     else if (_recentLeaderLapTimes.Count == 0)
                     {
                         LiveLeaderAvgPaceSeconds = 0.0;
+                    }
+
+                    double currentAvgLeader = LiveLeaderAvgPaceSeconds;
+                    int currentLeaderCount = _recentLeaderLapTimes.Count;
+                    if (currentLeaderCount != _lastLoggedLeaderLapCount ||
+                        Math.Abs(currentAvgLeader - _lastLoggedLeaderAvgPaceSeconds) > 0.01)
+                    {
+                        SimHub.Logging.Current.Debug(string.Format(
+                            "[FuelLeader] lapCrossed: leaderLastLapSec={0:F3}, count={1}, avgLeader={2:F3}",
+                            leaderLastLapSec,
+                            currentLeaderCount,
+                            currentAvgLeader));
+
+                        _lastLoggedLeaderLapCount = currentLeaderCount;
+                        _lastLoggedLeaderAvgPaceSeconds = currentAvgLeader;
                     }
 
                     bool paceReject = false;
