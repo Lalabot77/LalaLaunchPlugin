@@ -57,6 +57,11 @@ public class FuelCalcs : INotifyPropertyChanged
     private double _refuelRate;
     private double _baseDryFuelPerLap;
     private double _leaderDeltaSeconds;
+    private double _lastLoggedLeaderDeltaSeconds = 0.0;
+    private bool _hasLiveLeaderDelta = false;
+    private bool _leaderDeltaClearLogged = false;
+    private double _lastLoggedStrategyLeaderLap = 0.0;
+    private double _lastLoggedStrategyEstLap = 0.0;
     private string _lapTimeSourceInfo = "source: manual";
     private bool _isLiveLapPaceAvailable;
     private string _liveLapPaceInfo = "-";
@@ -1766,10 +1771,42 @@ public class FuelCalcs : INotifyPropertyChanged
             double delta = avgSeconds - leaderAvgPace;
             AvgDeltaToLdrValue = $"{delta:F2}s";
             LeaderDeltaSeconds = Math.Max(0.0, delta);
+            _hasLiveLeaderDelta = true;
+
+            bool shouldLog = Math.Abs(LeaderDeltaSeconds - _lastLoggedLeaderDeltaSeconds) > 0.01 ||
+                             (LeaderDeltaSeconds == 0.0 && _lastLoggedLeaderDeltaSeconds != 0.0);
+            if (shouldLog)
+            {
+                SimHub.Logging.Current.Debug(string.Format(
+                    "[FuelLeader] avgSeconds={0:F3}, leaderAvg={1:F3}, delta={2:F3}, LeaderDeltaSeconds={3:F3}",
+                    avgSeconds,
+                    leaderAvgPace,
+                    delta,
+                    LeaderDeltaSeconds));
+
+                _lastLoggedLeaderDeltaSeconds = LeaderDeltaSeconds;
+                _leaderDeltaClearLogged = false;
+            }
         }
         else
         {
             AvgDeltaToLdrValue = "-";
+            if (LeaderDeltaSeconds != 0.0)
+            {
+                LeaderDeltaSeconds = 0.0; // Clear stale leader delta when pace is unavailable
+            }
+
+            _hasLiveLeaderDelta = false;
+
+            if (!_leaderDeltaClearLogged)
+            {
+                SimHub.Logging.Current.Debug(string.Format(
+                    "[FuelLeader] clearing leader delta (no leader pace), avgSeconds={0:F3}, leaderAvg={1:F3}",
+                    avgSeconds,
+                    leaderAvgPace));
+                _leaderDeltaClearLogged = true;
+                _lastLoggedLeaderDeltaSeconds = 0.0;
+            }
         }
         OnPropertyChanged(nameof(AvgDeltaToLdrValue));
 
@@ -1851,6 +1888,9 @@ public class FuelCalcs : INotifyPropertyChanged
         LiveLeaderPaceInfo = "-";
         LiveLapPaceInfo = "-";
         AvgDeltaToLdrValue = "-";
+        LeaderDeltaSeconds = 0.0;
+        _hasLiveLeaderDelta = false;
+        SimHub.Logging.Current.Debug("[FuelLeader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
         AvgDeltaToPbValue = "-";
         _liveMaxFuel = 0;
         _liveFuelTankLiters = 0;
@@ -2321,7 +2361,30 @@ public class FuelCalcs : INotifyPropertyChanged
             double num = PitLaneTimeLoss; // use the current value directly
 
             double num3 = ParseLapTime(EstimatedLapTime);          // your estimated lap time
-            double num2 = num3 - LeaderDeltaSeconds;               // leader pace (your pace - delta)
+            bool leaderPaceAvailable = _hasLiveLeaderDelta;
+            double num2 = leaderPaceAvailable
+                ? num3 - LeaderDeltaSeconds                       // leader pace (your pace - delta)
+                : num3;                                           // fall back to your pace when no leader data
+
+            if (LeaderDeltaSeconds > 0.0 && leaderPaceAvailable && num3 > 0.0)
+            {
+                double leaderLap = num2;
+                bool shouldLog = Math.Abs(leaderLap - _lastLoggedStrategyLeaderLap) > 0.01 ||
+                                 Math.Abs(num3 - _lastLoggedStrategyEstLap) > 0.01 ||
+                                 Math.Abs(LeaderDeltaSeconds - _lastLoggedLeaderDeltaSeconds) > 0.01;
+                if (shouldLog)
+                {
+                    SimHub.Logging.Current.Debug(string.Format(
+                        "[FuelLeader] CalculateStrategy: estLap={0:F3}, leaderDelta={1:F3}, leaderLap={2:F3}",
+                        num3,
+                        LeaderDeltaSeconds,
+                        leaderLap));
+
+                    _lastLoggedStrategyLeaderLap = leaderLap;
+                    _lastLoggedStrategyEstLap = num3;
+                    _lastLoggedLeaderDeltaSeconds = LeaderDeltaSeconds;
+                }
+            }
 
             double num4 = ParseLapTime(TimeLossPerLapOfFuelSave);  // fuel-save lap time loss
             if (double.IsNaN(num4) || double.IsInfinity(num4) || num4 < 0.0)
@@ -2335,8 +2398,8 @@ public class FuelCalcs : INotifyPropertyChanged
             bool lapInvalid = double.IsNaN(num3) || double.IsInfinity(num3) ||
                               num3 <= 0.0 || num3 < 20.0 || num3 > 900.0;
 
-            bool leaderInvalid = double.IsNaN(num2) || double.IsInfinity(num2) ||
-                                 num2 <= 0.0 || num2 < 20.0 || num2 > 900.0;
+            bool leaderInvalid = leaderPaceAvailable && (double.IsNaN(num2) || double.IsInfinity(num2) ||
+                                 num2 <= 0.0 || num2 < 20.0 || num2 > 900.0);
 
             bool fuelInvalid = double.IsNaN(fuelPerLap) || double.IsInfinity(fuelPerLap) ||
                                fuelPerLap <= 0.0 || fuelPerLap > 50.0;
