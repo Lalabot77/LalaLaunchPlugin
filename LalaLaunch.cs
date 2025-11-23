@@ -177,6 +177,9 @@ namespace LaunchPlugin
         private TimeSpan _lastSeenBestLap = TimeSpan.Zero;
         private readonly List<double> _recentLeaderLapTimes = new List<double>(); // seconds
         private double _lastLeaderLapTimeSec = 0.0;
+        private double _lastLoggedLeaderAvgPaceSeconds = 0.0;
+        private int _lastLoggedLeaderLapCount = 0;
+        private bool _leaderSourceUnavailableLogged = false;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
@@ -232,7 +235,7 @@ namespace LaunchPlugin
         private void ReturnToDefaults()
         {
             ActiveProfile = ProfilesViewModel.GetProfileForCar("Default Settings") ?? ProfilesViewModel.CarProfiles.FirstOrDefault();
-            _currentCarModel = "Unknown"; // Reset car model state to match
+            _currentCarModel = string.Empty; // Reset car model state to match
         }
         private void SaveActiveProfile()
         {
@@ -474,6 +477,7 @@ namespace LaunchPlugin
             _recentLeaderLapTimes.Clear();
             _lastLeaderLapTimeSec = 0.0;
             LiveLeaderAvgPaceSeconds = 0.0;
+            _leaderSourceUnavailableLogged = false;
             Pace_StintAvgLapTimeSec = 0.0;
             Pace_Last5LapAvgSec = 0.0;
             PaceConfidence = 0;
@@ -611,9 +615,24 @@ namespace LaunchPlugin
                 _pitFreezeUntilNextCycle = false;
             }
 
+            double leaderLastLapSec = 0.0;
+
             if (lapCrossed)
             {
-                double leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
+                leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
+
+                if (leaderLastLapSec <= 0.0 && _recentLeaderLapTimes.Count > 0)
+                {
+                    // Feed dropped: clear leader pace so downstream calcs don't reuse stale values
+                    SimHub.Logging.Current.Info(string.Format(
+                        "[Leader] clearing leader pace (feed dropped), lastAvg={0:F3}",
+                        LiveLeaderAvgPaceSeconds));
+                    _recentLeaderLapTimes.Clear();
+                    _lastLeaderLapTimeSec = 0.0;
+                    LiveLeaderAvgPaceSeconds = 0.0;
+                    _lastLoggedLeaderAvgPaceSeconds = 0.0;
+                    _lastLoggedLeaderLapCount = 0;
+                }
 
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
                 // provides it with the necessary data to finalize the calculation.
@@ -621,7 +640,6 @@ namespace LaunchPlugin
                 {
                     var lastLapTsPit = data.NewData?.LastLapTime ?? TimeSpan.Zero;
                     double lastLapSecPit = lastLapTsPit.TotalSeconds;
-                    leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
 
                     // Basic validity check for the lap itself
                     bool lastLapLooksClean = !inPitArea && lastLapSecPit > 20 && lastLapSecPit < 900;
@@ -766,6 +784,21 @@ namespace LaunchPlugin
                     else if (_recentLeaderLapTimes.Count == 0)
                     {
                         LiveLeaderAvgPaceSeconds = 0.0;
+                    }
+
+                    double currentAvgLeader = LiveLeaderAvgPaceSeconds;
+                    int currentLeaderCount = _recentLeaderLapTimes.Count;
+                    if (currentLeaderCount != _lastLoggedLeaderLapCount ||
+                        Math.Abs(currentAvgLeader - _lastLoggedLeaderAvgPaceSeconds) > 0.01)
+                    {
+                        SimHub.Logging.Current.Debug(string.Format(
+                            "[FuelLeader] lapCrossed: leaderLastLapSec={0:F3}, count={1}, avgLeader={2:F3}",
+                            leaderLastLapSec,
+                            currentLeaderCount,
+                            currentAvgLeader));
+
+                        _lastLoggedLeaderLapCount = currentLeaderCount;
+                        _lastLoggedLeaderAvgPaceSeconds = currentAvgLeader;
                     }
 
                     bool paceReject = false;
@@ -1263,7 +1296,7 @@ namespace LaunchPlugin
 
         // --- Settings / Car Profiles ---
 
-        private string _currentCarModel = "Unknown";
+        private string _currentCarModel = string.Empty;
         private string _currentSettingsProfileName = "Default Settings";
         public string CurrentCarModel
         {
@@ -1278,7 +1311,7 @@ namespace LaunchPlugin
             }
         }
 
-        public string CurrentTrackName { get; private set; } = "Unknown";
+        public string CurrentTrackName { get; private set; } = string.Empty;
         public string CurrentSettingsProfileName
         {
             get => _currentSettingsProfileName;
@@ -1310,7 +1343,7 @@ namespace LaunchPlugin
             }
         }
 
-        public string CurrentTrackKey { get; private set; } = "unknown";
+        public string CurrentTrackKey { get; private set; } = string.Empty;
 
         public enum ProfileEditMode { ActiveCar, CarProfile, Template }
 
@@ -1946,7 +1979,7 @@ namespace LaunchPlugin
                 ? CurrentCarModel
                 : string.Empty;
 
-            string trackLabel = !string.IsNullOrWhiteSpace(CurrentTrackName)
+            string trackLabel = (!string.IsNullOrWhiteSpace(CurrentTrackName) && !CurrentTrackName.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
                 ? CurrentTrackName
                 : (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase)
                     ? CurrentTrackKey
@@ -1985,6 +2018,10 @@ namespace LaunchPlugin
                     pluginManager.GetPropertyValue("DataCorePlugin.GameData.CarModel"),
                     pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_CarModel")
                 );
+
+                if (string.Equals(trackKey, "unknown", StringComparison.OrdinalIgnoreCase)) trackKey = string.Empty;
+                if (string.Equals(trackDisplay, "unknown", StringComparison.OrdinalIgnoreCase)) trackDisplay = string.Empty;
+                if (string.Equals(carModel, "unknown", StringComparison.OrdinalIgnoreCase)) carModel = string.Empty;
 
                 if (!string.IsNullOrWhiteSpace(carModel))
                 {
@@ -2028,7 +2065,9 @@ namespace LaunchPlugin
                 _pit.Reset();
                 _pitLite?.ResetCycle();
                 _pit?.ResetPitPhaseState();
-                _currentCarModel = "Unknown";
+                _currentCarModel = string.Empty;
+                CurrentTrackName = string.Empty;
+                CurrentTrackKey = string.Empty;
                 _lastSeenCar = string.Empty;
                 _lastSeenTrack = string.Empty;
                 _lastSnapshotCar = string.Empty;
@@ -2404,6 +2443,7 @@ namespace LaunchPlugin
 
         private static double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
         {
+            // Local helper to normalise any raw value to seconds
             double TryReadSeconds(object raw)
             {
                 if (raw == null) return 0.0;
@@ -2413,29 +2453,52 @@ namespace LaunchPlugin
                     if (raw is TimeSpan ts) return ts.TotalSeconds;
                     if (raw is double d) return d;
                     if (raw is float f) return (double)f;
-                    if (raw is IConvertible c) return Convert.ToDouble(c);
+                    if (raw is IConvertible c) return Convert.ToDouble(c, CultureInfo.InvariantCulture);
                 }
-                catch { /* ignore parse errors, fall through to 0 */ }
+                catch (Exception ex)
+                {
+                    SimHub.Logging.Current.Info($"[FuelLeader] TryReadSeconds error for value '{raw}': {ex.Message}");
+                }
 
                 return 0.0;
             }
 
-            // Try a small set of common property names (works across iRacing/ACC)
-            var candidates = new object[]
+            // Candidate sources – ordered by preference
+            var candidates = new (string Name, object Raw)[]
             {
-                pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime"),
-                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime"),
-                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")
+        // Verified working class-leader property:
+        ("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime",
+            pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime")),
+
+        // Legacy / fallback properties (may or may not exist in your SimHub version):
+        ("IRacingExtraProperties.iRacing_LeaderLastLapTime",
+            pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime")),
+        ("DataCorePlugin.GameData.LeaderLastLapTime",
+            pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime")),
+        ("DataCorePlugin.GameData.LeaderAverageLapTime",
+            pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")),
             };
 
             foreach (var candidate in candidates)
             {
-                double seconds = TryReadSeconds(candidate);
-                if (seconds > 0.0) return seconds;
+                double seconds = TryReadSeconds(candidate.Raw);
+
+                // Debug trace for inspection in SimHub log
+                SimHub.Logging.Current.Info(
+                    $"[FuelLeader] candidate {candidate.Name} raw='{candidate.Raw}' seconds={seconds:F3}");
+
+                if (seconds > 0.0)
+                {
+                    SimHub.Logging.Current.Info(
+                        $"[FuelLeader] using leader lap from {candidate.Name} = {seconds:F3}s");
+                    return seconds;
+                }
             }
 
+            SimHub.Logging.Current.Info("[FuelLeader] no valid leader lap time from any candidate – returning 0");
             return 0.0;
         }
+
 
         private static string GetString(object o) => Convert.ToString(o, CultureInfo.InvariantCulture) ?? "";
 
