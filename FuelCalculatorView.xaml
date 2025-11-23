@@ -149,13 +149,15 @@
                             <RowDefinition Height="Auto"/>
                             <!-- 2: Track Condition + Wet factor -->
                             <RowDefinition Height="Auto"/>
-                            <!-- 3: Est Avg Lap Time -->
+                            <!-- 3: Planning Source -->
                             <RowDefinition Height="Auto"/>
-                            <!-- 4: Pace vs Leader / Race Pace vs PB -->
+                            <!-- 4: Est Avg Lap Time -->
                             <RowDefinition Height="Auto"/>
-                            <!-- 5: Max Fuel Override -->
+                            <!-- 5: Pace vs Leader / Race Pace vs PB -->
                             <RowDefinition Height="Auto"/>
-                            <!-- 6: Fuel per Lap -->
+                            <!-- 6: Max Fuel Override -->
+                            <RowDefinition Height="Auto"/>
+                            <!-- 7: Fuel per Lap -->
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: section header + live status on the same line -->
@@ -225,7 +227,20 @@
                             <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
                         </StackPanel>
 
-                        <Grid Grid.Row="3" Margin="0,15,0,0">
+                        <GroupBox Grid.Row="3" Header="Planning Source" Margin="0,0,0,8">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <RadioButton Content="Profile"
+                                             Margin="0,0,16,0"
+                                             IsChecked="{Binding IsPlanningSourceProfile, Mode=TwoWay}" />
+                                <RadioButton Content="Live snapshot"
+                                             Margin="0,0,16,0"
+                                             IsChecked="{Binding IsPlanningSourceLiveSnapshot, Mode=TwoWay}" />
+                                <Button Content="Refresh live snapshot"
+                                        Command="{Binding RefreshLiveSnapshotCommand}" />
+                            </StackPanel>
+                        </GroupBox>
+
+                        <Grid Grid.Row="4" Margin="0,15,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="70"/>
@@ -260,7 +275,7 @@
 
                         </Grid>
 
-                        <StackPanel Grid.Row="4" Margin="0,10,0,10" Grid.IsSharedSizeScope="True">
+                        <StackPanel Grid.Row="5" Margin="0,10,0,10" Grid.IsSharedSizeScope="True">
 
                             <!-- Leader delta -->
                             <Grid HorizontalAlignment="Stretch">
@@ -340,7 +355,7 @@
 
                         </StackPanel>
 
-                        <StackPanel Grid.Row="5" Margin="0,15,0,0">
+                        <StackPanel Grid.Row="6" Margin="0,15,0,0">
                             <ui:TitledSlider Title="Max Fuel Override (litres):" Minimum="1" Maximum="150" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel.">
                                 <ui:TitledSlider.Resources>
                                     <Style TargetType="TextBlock">
@@ -372,7 +387,7 @@
                                       IsEnabled="{Binding HasLiveMaxFuelSuggestion}"/>
                         </StackPanel>
 
-                        <Grid Grid.Row="6" Margin="0,15,0,0">
+                        <Grid Grid.Row="7" Margin="0,15,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="70"/>

@@ -13,11 +13,12 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement.Tab;
 
 namespace LaunchPlugin
 {
-public class FuelCalcs : INotifyPropertyChanged
-{
-    // --- Enums and Structs ---
-    public enum RaceType { LapLimited, TimeLimited }
-    public enum TrackCondition { Dry, Wet }
+    public class FuelCalcs : INotifyPropertyChanged
+    {
+        // --- Enums and Structs ---
+        public enum RaceType { LapLimited, TimeLimited }
+        public enum TrackCondition { Dry, Wet }
+        public enum PlanningSourceMode { Profile, LiveSnapshot }
     private struct StrategyResult
     {
         public int Stops;
@@ -150,6 +151,30 @@ public class FuelCalcs : INotifyPropertyChanged
     {
         get => _fuelPerLapSourceInfo;
         set { if (_fuelPerLapSourceInfo != value) { _fuelPerLapSourceInfo = value; OnPropertyChanged(); } }
+    }
+
+    private PlanningSourceMode _planningSourceMode = PlanningSourceMode.Profile;
+    public PlanningSourceMode PlanningSourceMode
+    {
+        get => _planningSourceMode;
+        set
+        {
+            if (_planningSourceMode == value) return;
+            _planningSourceMode = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsPlanningSourceProfile
+    {
+        get => PlanningSourceMode == PlanningSourceMode.Profile;
+        set { if (value) PlanningSourceMode = PlanningSourceMode.Profile; }
+    }
+
+    public bool IsPlanningSourceLiveSnapshot
+    {
+        get => PlanningSourceMode == PlanningSourceMode.LiveSnapshot;
+        set { if (value) PlanningSourceMode = PlanningSourceMode.LiveSnapshot; }
     }
     public bool IsLiveLapPaceAvailable
     {
@@ -461,6 +486,7 @@ public class FuelCalcs : INotifyPropertyChanged
     public ICommand SavePlannerDataToProfileCommand { get; }
     public ICommand UseProfileFuelPerLapCommand { get; }
     public ICommand UseMaxFuelPerLapCommand { get; }
+    public ICommand RefreshLiveSnapshotCommand { get; }
     public ICommand ApplyPresetCommand { get; private set; }
     public ICommand ClearPresetCommand { get; private set; }
 
@@ -1726,6 +1752,7 @@ public class FuelCalcs : INotifyPropertyChanged
         LoadProfileLapTimeCommand = new RelayCommand(_ => LoadProfileLapTime(),_ => SelectedCarProfile != null && !string.IsNullOrEmpty(SelectedTrack));
         UseProfileFuelPerLapCommand = new RelayCommand(_ => UseProfileFuelPerLap());
         UseMaxFuelPerLapCommand = new RelayCommand(_ => UseMaxFuelPerLap(), _ => IsMaxFuelAvailable);
+        RefreshLiveSnapshotCommand = new RelayCommand(_ => RefreshLiveSnapshot());
 
         ApplyPresetCommand = new RelayCommand(o => ApplySelectedPreset(), o => HasSelectedPreset);
         ClearPresetCommand = new RelayCommand(o => ClearAppliedPreset());
@@ -1753,6 +1780,11 @@ public class FuelCalcs : INotifyPropertyChanged
         ConditionRefuelSecondsPerLiter = 0;
         ConditionRefuelSecondsPerSquare = 0;
         _isRefreshingConditionParameters = false;
+    }
+
+    private void RefreshLiveSnapshot()
+    {
+        // Behaviour will be implemented in a later task.
     }
 
     public void SetLiveSession(string carName, string trackName)
