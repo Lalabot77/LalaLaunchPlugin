@@ -56,14 +56,27 @@ public class FuelCalcs : INotifyPropertyChanged
     private double _firstStopTimeLoss;
     private double _refuelRate;
     private double _baseDryFuelPerLap;
-    private double _leaderDeltaSeconds;
+    
     private double _lastLoggedLeaderDeltaSeconds = 0.0;
-    private bool _hasLiveLeaderDelta = false;
+   
     private bool _leaderDeltaClearLogged = false;
     private double _lastLoggedStrategyLeaderLap = 0.0;
     private double _lastLoggedStrategyEstLap = 0.0;
+
+    // Leader delta handling
+    private double _leaderDeltaSeconds;          // effective delta used by strategy & UI
+
+    // Separate storage for live vs manual deltas
+    private double _liveLeaderDeltaSeconds;      // from telemetry
+    private double _manualLeaderDeltaSeconds;    // from the slider
+
+    private bool _hasLiveLeaderDelta;
+    private bool _hasManualLeaderDelta;
+
     private string _lapTimeSourceInfo = "source: manual";
     private bool _isLiveLapPaceAvailable;
+
+
     private string _liveLapPaceInfo = "-";
     private double _liveAvgLapSeconds = 0;   // internal cache of live estimate
     private int _liveFuelConfidence;
@@ -721,21 +734,74 @@ public class FuelCalcs : INotifyPropertyChanged
         }
     }
 
-    public double LeaderDeltaSeconds
-    {
-        get => _leaderDeltaSeconds;
-        set
+        // Effective leader delta (seconds), exposed to UI.
+        // Setter is treated as **manual** input from the slider.
+        public double LeaderDeltaSeconds
         {
-            if (_leaderDeltaSeconds != value)
+            get => _leaderDeltaSeconds;
+            set
             {
-                _leaderDeltaSeconds = value;
-                OnPropertyChanged(nameof(LeaderDeltaSeconds));
-                CalculateStrategy();
+                // Slider writes the manual delta
+                if (Math.Abs(_manualLeaderDeltaSeconds - value) < 0.001 &&
+                    _hasManualLeaderDelta == (value > 0.0))
+                {
+                    return;
+                }
+
+                _manualLeaderDeltaSeconds = value;
+                _hasManualLeaderDelta = value > 0.0;
+
+                UpdateEffectiveLeaderDelta();
             }
         }
-    }
 
-    public double FuelPerLap
+        /// <summary>
+        /// Recomputes the effective leader delta based on live and manual sources.
+        /// Live telemetry wins if available; otherwise manual is used.
+        /// </summary>
+        private void UpdateEffectiveLeaderDelta()
+        {
+            double newDelta;
+            
+            if (_hasManualLeaderDelta && _manualLeaderDeltaSeconds > 0.0)
+            {
+                newDelta = _manualLeaderDeltaSeconds;
+            }
+            else if (_hasLiveLeaderDelta && _liveLeaderDeltaSeconds > 0.0)
+            {
+                newDelta = _liveLeaderDeltaSeconds;
+            }
+            else
+            {
+                newDelta = 0.0;
+            }
+
+            if (Math.Abs(_leaderDeltaSeconds - newDelta) < 0.001)
+            {
+                return;
+            }
+
+            _leaderDeltaSeconds = newDelta;
+
+            // Same behaviour as before: changing the effective delta recalculates the strategy.
+            CalculateStrategy();
+            OnPropertyChanged(nameof(LeaderDeltaSeconds));
+        }
+
+        /// <summary>
+        /// Fully clears all leader-delta state (live + manual) without calling the public setter.
+        /// </summary>
+        private void ClearLeaderDeltaState()
+        {
+            _liveLeaderDeltaSeconds = 0.0;
+            _manualLeaderDeltaSeconds = 0.0;
+            _hasLiveLeaderDelta = false;
+            _hasManualLeaderDelta = false;
+            _leaderDeltaSeconds = 0.0;
+            OnPropertyChanged(nameof(LeaderDeltaSeconds));
+        }
+
+        public double FuelPerLap
     {
         get => _fuelPerLap;
         set
@@ -1766,49 +1832,27 @@ public class FuelCalcs : INotifyPropertyChanged
             LiveLeaderPaceInfo = "-";
         }
 
-        if (avgSeconds > 0 && leaderAvgPace > 0)
-        {
-            double delta = avgSeconds - leaderAvgPace;
-            AvgDeltaToLdrValue = $"{delta:F2}s";
-            LeaderDeltaSeconds = Math.Max(0.0, delta);
-            _hasLiveLeaderDelta = true;
-
-            bool shouldLog = Math.Abs(LeaderDeltaSeconds - _lastLoggedLeaderDeltaSeconds) > 0.01 ||
-                             (LeaderDeltaSeconds == 0.0 && _lastLoggedLeaderDeltaSeconds != 0.0);
-            if (shouldLog)
+            if (avgSeconds > 0 && leaderAvgPace > 0)
             {
-                SimHub.Logging.Current.Debug(string.Format(
-                    "[FuelLeader] avgSeconds={0:F3}, leaderAvg={1:F3}, delta={2:F3}, LeaderDeltaSeconds={3:F3}",
-                    avgSeconds,
-                    leaderAvgPace,
-                    delta,
-                    LeaderDeltaSeconds));
+                double delta = avgSeconds - leaderAvgPace;
+                AvgDeltaToLdrValue = $"{delta:F2}s";
 
-                _lastLoggedLeaderDeltaSeconds = LeaderDeltaSeconds;
-                _leaderDeltaClearLogged = false;
+                _liveLeaderDeltaSeconds = Math.Max(0.0, delta);
+                _hasLiveLeaderDelta = _liveLeaderDeltaSeconds > 0.0;
             }
-        }
-        else
-        {
-            AvgDeltaToLdrValue = "-";
-            if (LeaderDeltaSeconds != 0.0)
+            else
             {
-                LeaderDeltaSeconds = 0.0; // Clear stale leader delta when pace is unavailable
+                // No usable live leader pace – clear live delta only,
+                // but leave any manual slider value alone.
+                AvgDeltaToLdrValue = "-";
+                _liveLeaderDeltaSeconds = 0.0;
+                _hasLiveLeaderDelta = false;
             }
 
-            _hasLiveLeaderDelta = false;
+            // Recompute effective delta (live if available, otherwise manual)
+            UpdateEffectiveLeaderDelta();
 
-            if (!_leaderDeltaClearLogged)
-            {
-                SimHub.Logging.Current.Debug(string.Format(
-                    "[FuelLeader] clearing leader delta (no leader pace), avgSeconds={0:F3}, leaderAvg={1:F3}",
-                    avgSeconds,
-                    leaderAvgPace));
-                _leaderDeltaClearLogged = true;
-                _lastLoggedLeaderDeltaSeconds = 0.0;
-            }
-        }
-        OnPropertyChanged(nameof(AvgDeltaToLdrValue));
+            OnPropertyChanged(nameof(AvgDeltaToLdrValue));
 
         // Update Delta to PB Value
         if (avgSeconds > 0 && _loadedBestLapTimeSeconds > 0)
@@ -1888,7 +1932,7 @@ public class FuelCalcs : INotifyPropertyChanged
         LiveLeaderPaceInfo = "-";
         LiveLapPaceInfo = "-";
         AvgDeltaToLdrValue = "-";
-        LeaderDeltaSeconds = 0.0;
+        ClearLeaderDeltaState();
         _hasLiveLeaderDelta = false;
         SimHub.Logging.Current.Info("[Leader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
         AvgDeltaToPbValue = "-";
