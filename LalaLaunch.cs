@@ -177,6 +177,9 @@ namespace LaunchPlugin
         private TimeSpan _lastSeenBestLap = TimeSpan.Zero;
         private readonly List<double> _recentLeaderLapTimes = new List<double>(); // seconds
         private double _lastLeaderLapTimeSec = 0.0;
+        private double _lastLoggedLeaderAvgPaceSeconds = 0.0;
+        private int _lastLoggedLeaderLapCount = 0;
+        private bool _leaderSourceUnavailableLogged = false;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
@@ -474,6 +477,7 @@ namespace LaunchPlugin
             _recentLeaderLapTimes.Clear();
             _lastLeaderLapTimeSec = 0.0;
             LiveLeaderAvgPaceSeconds = 0.0;
+            _leaderSourceUnavailableLogged = false;
             Pace_StintAvgLapTimeSec = 0.0;
             Pace_Last5LapAvgSec = 0.0;
             PaceConfidence = 0;
@@ -616,6 +620,19 @@ namespace LaunchPlugin
             if (lapCrossed)
             {
                 leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
+
+                if (leaderLastLapSec <= 0.0 && _recentLeaderLapTimes.Count > 0)
+                {
+                    // Feed dropped: clear leader pace so downstream calcs don't reuse stale values
+                    SimHub.Logging.Current.Debug(string.Format(
+                        "[FuelLeader] clearing leader pace (feed dropped), lastAvg={0:F3}",
+                        LiveLeaderAvgPaceSeconds));
+                    _recentLeaderLapTimes.Clear();
+                    _lastLeaderLapTimeSec = 0.0;
+                    LiveLeaderAvgPaceSeconds = 0.0;
+                    _lastLoggedLeaderAvgPaceSeconds = 0.0;
+                    _lastLoggedLeaderLapCount = 0;
+                }
 
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
                 // provides it with the necessary data to finalize the calculation.
@@ -767,6 +784,21 @@ namespace LaunchPlugin
                     else if (_recentLeaderLapTimes.Count == 0)
                     {
                         LiveLeaderAvgPaceSeconds = 0.0;
+                    }
+
+                    double currentAvgLeader = LiveLeaderAvgPaceSeconds;
+                    int currentLeaderCount = _recentLeaderLapTimes.Count;
+                    if (currentLeaderCount != _lastLoggedLeaderLapCount ||
+                        Math.Abs(currentAvgLeader - _lastLoggedLeaderAvgPaceSeconds) > 0.01)
+                    {
+                        SimHub.Logging.Current.Debug(string.Format(
+                            "[FuelLeader] lapCrossed: leaderLastLapSec={0:F3}, count={1}, avgLeader={2:F3}",
+                            leaderLastLapSec,
+                            currentLeaderCount,
+                            currentAvgLeader));
+
+                        _lastLoggedLeaderLapCount = currentLeaderCount;
+                        _lastLoggedLeaderAvgPaceSeconds = currentAvgLeader;
                     }
 
                     bool paceReject = false;
@@ -2409,7 +2441,7 @@ namespace LaunchPlugin
 
         #region Private Helper Methods for DataUpdate
 
-        private static double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
+        private double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
         {
             double TryReadSeconds(object raw)
             {
@@ -2427,18 +2459,35 @@ namespace LaunchPlugin
                 return 0.0;
             }
 
-            // Try a small set of common property names (works across iRacing/ACC)
-            var candidates = new object[]
-            {
-                pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime"),
-                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime"),
-                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")
-            };
+            bool sawCandidate = false;
 
-            foreach (var candidate in candidates)
+            try
             {
-                double seconds = TryReadSeconds(candidate);
-                if (seconds > 0.0) return seconds;
+                // RSC / class-leader integration provides the authoritative source for leader lap time.
+                // Only use the RSC class-leader integration; skip generic SimHub leader values
+                var classLeaderLast = pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderLastLapTime");
+                var classLeaderAvg = pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderAverageLapTime");
+
+                if (classLeaderLast != null) sawCandidate = true;
+                double lastSeconds = TryReadSeconds(classLeaderLast);
+                if (lastSeconds > 0.0) return lastSeconds;
+
+                if (classLeaderAvg != null) sawCandidate = true;
+                double avgSeconds = TryReadSeconds(classLeaderAvg);
+                if (avgSeconds > 0.0) return avgSeconds;
+            }
+            catch (Exception ex)
+            {
+                SimHub.Logging.Current.Debug($"[FuelLeader] ReadLeaderLapTimeSeconds error: {ex.Message}");
+            }
+
+            if (!_leaderSourceUnavailableLogged)
+            {
+                string reason = sawCandidate
+                    ? "RSC class-leader lap time unavailable (no class leader lap yet or zero timing sample)."
+                    : "Class-leader lap time unavailable (RSC not loaded or no class leader). Disabling leader delta.";
+                SimHub.Logging.Current.Info($"[FuelLeader] {reason}");
+                _leaderSourceUnavailableLogged = true;
             }
 
             return 0.0;
