@@ -17,10 +17,5 @@ namespace LaunchPlugin
             this.DataContext = _fuelCalcs;
         }
 
-        private void PersonalBestButton_Click(object sender, RoutedEventArgs e)
-        {
-            _fuelCalcs.LoadPersonalBestAsRacePace();
-        }
-
     }
 }
