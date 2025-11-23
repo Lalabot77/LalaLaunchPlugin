@@ -197,7 +197,7 @@ namespace LaunchPlugin
             {
                 if (_planningSourceMode == value) return;
                 _planningSourceMode = value;
-                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedPlanningSourceMode));
                 OnPropertyChanged(nameof(IsPlanningSourceProfile));
                 OnPropertyChanged(nameof(IsPlanningSourceLiveSnapshot));
                 ApplyPlanningSourceToAutoFields();
