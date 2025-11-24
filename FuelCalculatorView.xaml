@@ -46,7 +46,7 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="10">
-            <local:LaunchSummaryExpander Header="LIVE SESSION SNAPSHOT"
+            <local:LaunchSummaryExpander Header="{Binding LiveSessionHeader}"
                                          Margin="0,0,0,15"
                                          IsExpanded="{Binding IsLiveSessionSnapshotExpanded}"
                                          IsHighlighted="{Binding IsLiveSessionActive}">
@@ -66,57 +66,46 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Car" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LiveCarName}" Style="{StaticResource SnapshotValueStyle}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel Tank Size (max factored)" Style="{StaticResource SnapshotLabelStyle}"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LiveFuelTankSizeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Track" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LiveTrackName}" Style="{StaticResource SnapshotValueStyle}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Surface" Style="{StaticResource SnapshotLabelStyle}"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LiveSurfaceModeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Fuel Tank Size (max factored)" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LiveFuelTankSizeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Surface" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LiveSurfaceModeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
-
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Dry Lap Times" Style="{StaticResource SnapshotLabelStyle}"
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Dry Lap Times" Style="{StaticResource SnapshotLabelStyle}"
                                    Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding DryLapTimeSummary}" Style="{StaticResource SnapshotValueStyle}"
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DryLapTimeSummary}" Style="{StaticResource SnapshotValueStyle}"
                                    Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Wet Lap Times" Style="{StaticResource SnapshotLabelStyle}"
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Wet Lap Times" Style="{StaticResource SnapshotLabelStyle}"
                                    Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding WetLapTimeSummary}" Style="{StaticResource SnapshotValueStyle}"
-                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Dry Pace Delta" Style="{StaticResource SnapshotLabelStyle}"
-                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding DryPaceDeltaSummary}" Style="{StaticResource SnapshotValueStyle}"
-                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Wet Pace Delta" Style="{StaticResource SnapshotLabelStyle}"
-                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding WetPaceDeltaSummary}" Style="{StaticResource SnapshotValueStyle}"
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding WetLapTimeSummary}" Style="{StaticResource SnapshotValueStyle}"
                                    Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                        <TextBlock Grid.Row="9" Grid.Column="0" Text="Dry Fuel Burn" Style="{StaticResource SnapshotLabelStyle}"
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Dry Pace Delta" Style="{StaticResource SnapshotLabelStyle}"
                                    Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding DryFuelBurnSummary}" Style="{StaticResource SnapshotValueStyle}"
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DryPaceDeltaSummary}" Style="{StaticResource SnapshotValueStyle}"
                                    Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                        <TextBlock Grid.Row="10" Grid.Column="0" Text="Wet Fuel Burn" Style="{StaticResource SnapshotLabelStyle}"
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Wet Pace Delta" Style="{StaticResource SnapshotLabelStyle}"
                                    Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding WetFuelBurnSummary}" Style="{StaticResource SnapshotValueStyle}"
+                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding WetPaceDeltaSummary}" Style="{StaticResource SnapshotValueStyle}"
                                    Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                        <TextBlock Grid.Row="13" Grid.Column="0" Text="Live Reliability" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="13" Grid.Column="1" Text="{Binding LiveConfidenceSummary}" Style="{StaticResource SnapshotValueStyle}" TextWrapping="Wrap"/>
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Dry Fuel Burn" Style="{StaticResource SnapshotLabelStyle}"
+                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding DryFuelBurnSummary}" Style="{StaticResource SnapshotValueStyle}"
+                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Wet Fuel Burn" Style="{StaticResource SnapshotLabelStyle}"
+                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding WetFuelBurnSummary}" Style="{StaticResource SnapshotValueStyle}"
+                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Live Reliability" Style="{StaticResource SnapshotLabelStyle}"/>
+                        <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding LiveConfidenceSummary}" Style="{StaticResource SnapshotValueStyle}" TextWrapping="Wrap"/>
                     </Grid>
                 </local:LaunchSummaryExpander.BodyContent>
             </local:LaunchSummaryExpander>
