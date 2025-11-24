@@ -257,8 +257,14 @@
                             <Button Grid.Row="0" Grid.Column="2" Content="↺" Command="{Binding ResetEstimatedLapTimeToSourceCommand}" Margin="4,0,0,0" ToolTip="Reset to planning source" Visibility="{Binding IsEstimatedLapTimeManual, Converter={StaticResource BoolToVisibilityConverter}}" />
                             <TextBlock Grid.Row="0" Grid.Column="3" Grid.ColumnSpan="2" Text="{Binding LapTimeSourceInfo}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                             <StackPanel Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,2,0,0">
-                                <TextBlock Text="{Binding LiveLapPaceInfo}" Foreground="Gray" FontStyle="Italic" Margin="0,0,12,0" VerticalAlignment="Center" ToolTip="Live rolling average lap time."/>
-                                <TextBlock Text="{Binding ProfileAvgDryLapTimeDisplay}" Foreground="Gray" FontStyle="Italic" VerticalAlignment="Center" ToolTip="Saved average dry lap time from profile."/>
+                                <TextBlock Foreground="Gray" FontStyle="Italic" Margin="0,0,12,0" VerticalAlignment="Center" ToolTip="Live rolling average lap time.">
+                                    <Run Text="Live avg: " />
+                                    <Run Text="{Binding LiveLapPaceInfo}" />
+                                </TextBlock>
+                                <TextBlock Foreground="Gray" FontStyle="Italic" VerticalAlignment="Center" ToolTip="Saved average dry lap time from profile.">
+                                    <Run Text="Profile avg: " />
+                                    <Run Text="{Binding ProfileAvgDryLapTimeDisplay}" />
+                                </TextBlock>
                             </StackPanel>
 
                         </Grid>
@@ -303,11 +309,6 @@
                 Margin="10,0,0,0"
                 MinWidth="35"
                 TextAlignment="Right"/>
-
-                                    <TextBlock Grid.Column="2"
-                 Text="{Binding LiveLeaderDeltaSeconds, StringFormat='Live delta: {0:0.000}s'}"
-                 VerticalAlignment="Center"
-                 Margin="8,0,0,0" />
 
                                     <Button Grid.Column="3"
                         Content="Reset to live"
