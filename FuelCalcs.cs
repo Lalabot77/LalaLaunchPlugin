@@ -93,6 +93,13 @@ namespace LaunchPlugin
     private string _liveCarName = "—";
     private string _liveTrackName = "—";
     private string _liveSurfaceModeDisplay = "Dry";
+    // Live weather cache for the surface summary line
+    private bool? _liveWeatherIsWet;
+    private double? _liveAirTempC;
+    private double? _liveTrackTempC;
+    private double? _liveHumidityPct;
+    private string _liveRubberState;
+    private string _livePrecipitation;
     private string _liveFuelTankSizeDisplay = "-";
     private string _dryLapTimeSummary = "-";
     private string _wetLapTimeSummary = "-";
@@ -993,6 +1000,43 @@ namespace LaunchPlugin
         ConditionRefuelSecondsPerSquare = secondsPerSquare;
 
         _isRefreshingConditionParameters = false;
+    }
+
+    public void SetLiveWeatherConditions(
+        bool isDeclaredWet,
+        double airTempC,
+        double trackTempC,
+        double humidityPercent,
+        string rubberState,
+        string precipitation)
+    {
+        var disp = System.Windows.Application.Current?.Dispatcher;
+        if (disp == null || disp.CheckAccess())
+        {
+            ApplyLiveWeatherConditions(isDeclaredWet, airTempC, trackTempC, humidityPercent, rubberState, precipitation);
+        }
+        else
+        {
+            disp.Invoke(() => ApplyLiveWeatherConditions(isDeclaredWet, airTempC, trackTempC, humidityPercent, rubberState, precipitation));
+        }
+    }
+
+    private void ApplyLiveWeatherConditions(
+        bool isDeclaredWet,
+        double airTempC,
+        double trackTempC,
+        double humidityPercent,
+        string rubberState,
+        string precipitation)
+    {
+        _liveWeatherIsWet = isDeclaredWet;
+        _liveAirTempC = airTempC > -200 ? airTempC : (double?)null;
+        _liveTrackTempC = trackTempC > -200 ? trackTempC : (double?)null;
+        _liveHumidityPct = humidityPercent >= 0 ? humidityPercent : (double?)null;
+        _liveRubberState = string.IsNullOrWhiteSpace(rubberState) ? null : rubberState;
+        _livePrecipitation = string.IsNullOrWhiteSpace(precipitation) ? null : precipitation;
+
+        UpdateSurfaceModeLabel();
     }
 
     public void SetLiveFuelWindowStats(double avgDry, double minDry, double maxDry, int drySamples,
@@ -2126,8 +2170,55 @@ namespace LaunchPlugin
 
     private void UpdateSurfaceModeLabel()
     {
-        string mode = IsWet ? "Wet" : "Dry";
-        LiveSurfaceModeDisplay = IsLiveSessionActive ? $"{mode} • Live" : mode;
+        // If we’re not in a live session, just show nothing useful
+        if (!IsLiveSessionActive)
+        {
+            LiveSurfaceModeDisplay = "-";
+            return;
+        }
+
+        var parts = new List<string>();
+
+        // 1) Base condition: prefer actual live flag if we have one, otherwise fall back to planner condition
+        bool wet = _liveWeatherIsWet ?? IsWet;
+        parts.Add(wet ? "Wet" : "Dry");
+
+        // 2) Temperatures: Air/Track
+        if (_liveAirTempC.HasValue || _liveTrackTempC.HasValue)
+        {
+            if (_liveAirTempC.HasValue && _liveTrackTempC.HasValue)
+            {
+                parts.Add($"{_liveAirTempC.Value:F0}/{_liveTrackTempC.Value:F0}°C");
+            }
+            else if (_liveAirTempC.HasValue)
+            {
+                parts.Add($"{_liveAirTempC.Value:F0}°C air");
+            }
+            else if (_liveTrackTempC.HasValue)
+            {
+                parts.Add($"{_liveTrackTempC.Value:F0}°C track");
+            }
+        }
+
+        // 3) Humidity
+        if (_liveHumidityPct.HasValue)
+        {
+            parts.Add($"{_liveHumidityPct.Value:F0}% RH");
+        }
+
+        // 4) Rubber state
+        if (!string.IsNullOrWhiteSpace(_liveRubberState))
+        {
+            parts.Add($"Rubber { _liveRubberState }");
+        }
+
+        // 5) Rain strength (only interesting when wet)
+        if (wet && !string.IsNullOrWhiteSpace(_livePrecipitation))
+        {
+            parts.Add($"Rain { _livePrecipitation }");
+        }
+
+        LiveSurfaceModeDisplay = parts.Count > 0 ? string.Join(" | ", parts) : "-";
     }
 
     private void ResetSnapshotDisplays()
