@@ -190,7 +190,7 @@ namespace LaunchPlugin
     }
 
     private PlanningSourceMode _planningSourceMode = PlanningSourceMode.Profile;
-    public PlanningSourceMode PlanningSourceMode
+    public PlanningSourceMode SelectedPlanningSourceMode
     {
         get => _planningSourceMode;
         set
@@ -198,22 +198,26 @@ namespace LaunchPlugin
             if (_planningSourceMode == value) return;
             _planningSourceMode = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedPlanningSourceMode));
+            OnPropertyChanged(nameof(IsPlanningSourceProfile));
+            OnPropertyChanged(nameof(IsPlanningSourceLiveSnapshot));
             ApplyPlanningSourceToAutoFields();
         }
     }
 
     public bool IsPlanningSourceProfile
     {
-        get => PlanningSourceMode == PlanningSourceMode.Profile;
-        set { if (value) PlanningSourceMode = PlanningSourceMode.Profile; }
+        get => SelectedPlanningSourceMode == PlanningSourceMode.Profile;
+        set { if (value) SelectedPlanningSourceMode = PlanningSourceMode.Profile; }
     }
 
     public bool IsPlanningSourceLiveSnapshot
     {
-        get => PlanningSourceMode == PlanningSourceMode.LiveSnapshot;
-        set { if (value) PlanningSourceMode = PlanningSourceMode.LiveSnapshot; }
+        get => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot;
+        set { if (value) SelectedPlanningSourceMode = PlanningSourceMode.LiveSnapshot; }
     }
-    public bool IsLiveLapPaceAvailable
+
+        public bool IsLiveLapPaceAvailable
     {
         get => _isLiveLapPaceAvailable;
         private set { if (_isLiveLapPaceAvailable != value) { _isLiveLapPaceAvailable = value; OnPropertyChanged(nameof(IsLiveLapPaceAvailable)); } }
@@ -1792,7 +1796,7 @@ namespace LaunchPlugin
             {
                 TimeSpan? lap = null;
 
-                if (PlanningSourceMode == PlanningSourceMode.Profile)
+                if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
                 {
                     lap = GetProfileAverageLapTimeForCurrentCondition();
                 }
@@ -1804,7 +1808,7 @@ namespace LaunchPlugin
                 if (lap.HasValue)
                 {
                     EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
-                    LapTimeSourceInfo = PlanningSourceMode == PlanningSourceMode.Profile
+                    LapTimeSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
                         ? "source: profile average"
                         : "source: live average";
                 }
@@ -1814,7 +1818,7 @@ namespace LaunchPlugin
             {
                 double? fuel = null;
 
-                if (PlanningSourceMode == PlanningSourceMode.Profile)
+                if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
                 {
                     fuel = GetProfileAverageFuelPerLapForCurrentCondition();
                 }
@@ -1827,7 +1831,7 @@ namespace LaunchPlugin
                 {
                     FuelPerLap = fuel.Value;
                     FuelPerLapText = fuel.Value.ToString("0.000", CultureInfo.InvariantCulture);
-                    FuelPerLapSourceInfo = PlanningSourceMode == PlanningSourceMode.Profile
+                    FuelPerLapSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
                         ? "source: profile average"
                         : "source: live average";
                 }
