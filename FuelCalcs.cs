@@ -1920,21 +1920,36 @@ namespace LaunchPlugin
     }
 
     // Called by the Live button
-        public void UseLiveLapPace()
-        {
-            if (_liveAvgLapSeconds <= 0) return;
+    // Called by the Live button AND by live auto-updates
+    public void UseLiveLapPace()
+    {
+        if (_liveAvgLapSeconds <= 0) return;
 
+        // Treat this as a controlled source update, not a manual edit
+        _isApplyingPlanningSourceUpdates = true;
+        try
+        {
             double estSeconds = _liveAvgLapSeconds;
             EstimatedLapTime = TimeSpan.FromSeconds(estSeconds).ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = "source: live average";
 
+            // This is explicitly “live average”, not manual
+            LapTimeSourceInfo = "source: live average";
+            IsEstimatedLapTimeManual = false;
+        }
+        finally
+        {
+            _isApplyingPlanningSourceUpdates = false;
+        }
+
+        // These are arguably redundant because the setter already raises
+        // change notifications and calls CalculateStrategy, but we can
+        // keep them for now to avoid side-effects.
         OnPropertyChanged(nameof(EstimatedLapTime));
         OnPropertyChanged(nameof(LapTimeSourceInfo));
         CalculateStrategy();
     }
 
-
-    public void SetLiveLapPaceEstimate(double avgSeconds, int sampleCount)
+        public void SetLiveLapPaceEstimate(double avgSeconds, int sampleCount)
     {
         // Ensure all UI updates happen on the UI thread
         var disp = System.Windows.Application.Current?.Dispatcher;
@@ -1981,27 +1996,27 @@ namespace LaunchPlugin
             LiveLeaderPaceInfo = "-";
         }
 
-            if (avgSeconds > 0 && leaderAvgPace > 0)
-            {
-                double delta = avgSeconds - leaderAvgPace;
-                AvgDeltaToLdrValue = $"{delta:F2}s";
+        if (avgSeconds > 0 && leaderAvgPace > 0)
+        {
+            double delta = avgSeconds - leaderAvgPace;
+            AvgDeltaToLdrValue = $"{delta:F2}s";
 
-                LiveLeaderDeltaSeconds = Math.Max(0.0, delta);
-                _hasLiveLeaderDelta = LiveLeaderDeltaSeconds > 0.0;
-            }
-            else
-            {
-                // No usable live leader pace – clear live delta only,
-                // but leave any manual slider value alone.
-                AvgDeltaToLdrValue = "-";
-                LiveLeaderDeltaSeconds = 0.0;
-                _hasLiveLeaderDelta = false;
-            }
+            LiveLeaderDeltaSeconds = Math.Max(0.0, delta);
+            _hasLiveLeaderDelta = LiveLeaderDeltaSeconds > 0.0;
+        }
+        else
+        {
+            // No usable live leader pace – clear live delta only,
+            // but leave any manual slider value alone.
+            AvgDeltaToLdrValue = "-";
+            LiveLeaderDeltaSeconds = 0.0;
+            _hasLiveLeaderDelta = false;
+        }
 
-            // Recompute effective delta (live if available, otherwise manual)
-            UpdateEffectiveLeaderDelta();
+        // Recompute effective delta (live if available, otherwise manual)
+        UpdateEffectiveLeaderDelta();
 
-            OnPropertyChanged(nameof(AvgDeltaToLdrValue));
+        OnPropertyChanged(nameof(AvgDeltaToLdrValue));
 
         // Update Delta to PB Value
         if (avgSeconds > 0 && _loadedBestLapTimeSeconds > 0)
@@ -2016,10 +2031,13 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(AvgDeltaToPbValue));
         UpdateTrackDerivedSummaries();
 
-        if (IsLiveSessionActive && IsLiveLapPaceAvailable && LapTimeSourceInfo != "source: manual")
-        {
+        if (IsLiveSessionActive
+        && IsLiveLapPaceAvailable
+        && !IsEstimatedLapTimeManual
+        && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+            {
             UseLiveLapPace();
-        }
+            }
     }
 
     public void SetLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
