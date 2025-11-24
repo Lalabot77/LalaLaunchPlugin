@@ -89,6 +89,7 @@ namespace LaunchPlugin
     private int _livePaceConfidence;
     private int _liveOverallConfidence;
     private bool _isLiveSessionActive;
+    private bool _isLiveSessionSnapshotExpanded;
     private string _liveCarName = "—";
     private string _liveTrackName = "—";
     private string _liveSurfaceModeDisplay = "Dry";
@@ -208,6 +209,13 @@ namespace LaunchPlugin
             IsEstimatedLapTimeManual = false;
             IsFuelPerLapManual = false;
 
+            // When the user switches to Live snapshot planning, automatically expand
+            // the Live Session Snapshot panel so the live data becomes visible.
+            if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+            {
+                IsLiveSessionSnapshotExpanded = true;
+            }
+
             ApplyPlanningSourceToAutoFields();
         }
     }
@@ -251,6 +259,16 @@ namespace LaunchPlugin
                 OnPropertyChanged();
                 UpdateSurfaceModeLabel();
             }
+        }
+    }
+    public bool IsLiveSessionSnapshotExpanded
+    {
+        get => _isLiveSessionSnapshotExpanded;
+        set
+        {
+            if (_isLiveSessionSnapshotExpanded == value) return;
+            _isLiveSessionSnapshotExpanded = value;
+            OnPropertyChanged();
         }
     }
     public string LiveCarName
