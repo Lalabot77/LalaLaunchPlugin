@@ -1481,6 +1481,20 @@ namespace LaunchPlugin
         private set { if (_seenTrackName != value) { _seenTrackName = value; OnPropertyChanged(nameof(SeenTrackName)); } }
     }
 
+    private string _liveSessionHeader = "LIVE SESSION TELEMETRY (no live data)";
+    public string LiveSessionHeader
+    {
+        get => _liveSessionHeader;
+        private set
+        {
+            if (_liveSessionHeader != value)
+            {
+                _liveSessionHeader = value;
+                OnPropertyChanged(nameof(LiveSessionHeader));
+            }
+        }
+    }
+
     private string _seenSessionSummary = "No Live Data";
     public string SeenSessionSummary
     {
@@ -2258,6 +2272,7 @@ namespace LaunchPlugin
         SeenCarName = LiveCarName;
         SeenTrackName = LiveTrackName;
         SeenSessionSummary = "No Live Data";
+        LiveSessionHeader = "LIVE SESSION TELEMETRY (no live data)";
         OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
         OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh));
     }
@@ -2417,6 +2432,9 @@ namespace LaunchPlugin
         SeenSessionSummary = (hasCar || hasTrack)
             ? $"Live: {FormatLabel(displayCarName, "-")} @ {FormatLabel(displayTrackName, "-")}"
             : "No Live Data";
+        LiveSessionHeader = (IsLiveSessionActive && (hasCar || hasTrack))
+            ? $"LIVE SESSION TELEMETRY FOR {FormatLabel(displayCarName, "-")} @ {FormatLabel(displayTrackName, "-")}"
+            : "LIVE SESSION TELEMETRY (no live data)";
 
         UpdateTrackDerivedSummaries();
 
