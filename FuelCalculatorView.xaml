@@ -48,7 +48,7 @@
         <StackPanel Margin="10">
             <local:LaunchSummaryExpander Header="LIVE SESSION SNAPSHOT"
                                          Margin="0,0,0,15"
-                                         IsExpanded="True"
+                                         IsExpanded="{Binding IsLiveSessionSnapshotExpanded}"
                                          IsHighlighted="{Binding IsLiveSessionActive}">
                 <local:LaunchSummaryExpander.BodyContent>
                     <Grid>
@@ -85,9 +85,6 @@
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Surface" Style="{StaticResource SnapshotLabelStyle}"/>
                         <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LiveSurfaceModeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
 
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Race Pace vs Leader" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding RacePaceVsLeaderSummary}" Style="{StaticResource SnapshotValueStyle}"/>
-
                         <TextBlock Grid.Row="5" Grid.Column="0" Text="Dry Lap Times" Style="{StaticResource SnapshotLabelStyle}"
                                    Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding DryLapTimeSummary}" Style="{StaticResource SnapshotValueStyle}"
@@ -117,12 +114,6 @@
                                    Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding WetFuelBurnSummary}" Style="{StaticResource SnapshotValueStyle}"
                                    Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="11" Grid.Column="0" Text="Last Pit Drive-Through" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="11" Grid.Column="1" Text="{Binding LastPitDriveThroughDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
-
-                        <TextBlock Grid.Row="12" Grid.Column="0" Text="Last Refuel Rate" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="12" Grid.Column="1" Text="{Binding LastRefuelRateDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
 
                         <TextBlock Grid.Row="13" Grid.Column="0" Text="Live Reliability" Style="{StaticResource SnapshotLabelStyle}"/>
                         <TextBlock Grid.Row="13" Grid.Column="1" Text="{Binding LiveConfidenceSummary}" Style="{StaticResource SnapshotValueStyle}" TextWrapping="Wrap"/>
