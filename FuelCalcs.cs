@@ -74,7 +74,7 @@ namespace LaunchPlugin
         private bool _hasLiveLeaderDelta;
         private bool _isLeaderDeltaManual;
 
-    private string _lapTimeSourceInfo = "source: manual";
+    private string _lapTimeSourceInfo = "source: manual (user entry)";
     private bool _isLiveLapPaceAvailable;
 
     private bool _isEstimatedLapTimeManual;
@@ -777,7 +777,7 @@ namespace LaunchPlugin
                 if (!_isApplyingPlanningSourceUpdates)
                 {
                     IsEstimatedLapTimeManual = true;
-                    LapTimeSourceInfo = "source: manual";
+                    LapTimeSourceInfo = "source: manual (user entry)";
                 }
                 CalculateStrategy();
             }
@@ -1099,7 +1099,7 @@ namespace LaunchPlugin
                     if (lapTimeMs.HasValue && lapTimeMs > 0)
                     {
                         EstimatedLapTime = TimeSpan.FromMilliseconds(lapTimeMs.Value).ToString(@"m\:ss\.fff");
-                        LapTimeSourceInfo = $"source: {(IsWet ? "wet avg" : "dry avg")}";
+                        LapTimeSourceInfo = "source: profile avg (dry)";
                     }
                 }
                 UpdateTrackDerivedSummaries();
@@ -1285,7 +1285,7 @@ namespace LaunchPlugin
         if (lapMs.HasValue && lapMs.Value > 0)
         {
             EstimatedLapTime = TimeSpan.FromMilliseconds(lapMs.Value).ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = "source: profile";
+            LapTimeSourceInfo = "source: profile avg (dry)";
             OnPropertyChanged(nameof(EstimatedLapTime));
             OnPropertyChanged(nameof(LapTimeSourceInfo));
             CalculateStrategy();
@@ -1842,8 +1842,8 @@ namespace LaunchPlugin
                     EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
                     IsEstimatedLapTimeManual = false;
                     LapTimeSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
-                        ? "source: profile average"
-                        : "source: live average";
+                        ? "source: profile avg (dry)"
+                        : "source: live avg";
                 }
             }
 
@@ -1967,7 +1967,7 @@ namespace LaunchPlugin
             EstimatedLapTime = TimeSpan.FromSeconds(estSeconds).ToString(@"m\:ss\.fff");
 
             // This is explicitly “live average”, not manual
-            LapTimeSourceInfo = "source: live average";
+            LapTimeSourceInfo = "source: live avg";
             IsEstimatedLapTimeManual = false;
         }
         finally
@@ -2398,13 +2398,13 @@ namespace LaunchPlugin
         if (ts?.AvgLapTimeDry is int dryMs && dryMs > 0)
         {
             EstimatedLapTime = TimeSpan.FromMilliseconds(dryMs).ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = "source: dry avg";
+            LapTimeSourceInfo = "source: profile avg (dry)";
         }
         else
         {
             // If there's no data at all, use the UI default
             EstimatedLapTime = "2:45.500";
-            LapTimeSourceInfo = "source: manual";
+            LapTimeSourceInfo = "source: manual (user entry)";
         }
 
         // --- Load historical/track-specific data ---
