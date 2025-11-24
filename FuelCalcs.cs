@@ -196,16 +196,23 @@ namespace LaunchPlugin
         set
         {
             if (_planningSourceMode == value) return;
+
             _planningSourceMode = value;
+
             OnPropertyChanged();
-            OnPropertyChanged(nameof(SelectedPlanningSourceMode));
             OnPropertyChanged(nameof(IsPlanningSourceProfile));
             OnPropertyChanged(nameof(IsPlanningSourceLiveSnapshot));
+
+            // When the user changes the global planning source,
+            // drop any manual overrides so the new source fully takes over.
+            IsEstimatedLapTimeManual = false;
+            IsFuelPerLapManual = false;
+
             ApplyPlanningSourceToAutoFields();
         }
     }
 
-    public bool IsPlanningSourceProfile
+        public bool IsPlanningSourceProfile
     {
         get => SelectedPlanningSourceMode == PlanningSourceMode.Profile;
         set { if (value) SelectedPlanningSourceMode = PlanningSourceMode.Profile; }
