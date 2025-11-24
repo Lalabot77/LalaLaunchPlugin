@@ -257,14 +257,17 @@
                             <Button Grid.Row="0" Grid.Column="2" Content="↺" Command="{Binding ResetEstimatedLapTimeToSourceCommand}" Margin="4,0,0,0" ToolTip="Reset to planning source" Visibility="{Binding IsEstimatedLapTimeManual, Converter={StaticResource BoolToVisibilityConverter}}" />
                             <TextBlock Grid.Row="0" Grid.Column="3" Grid.ColumnSpan="2" Text="{Binding LapTimeSourceInfo}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                             <StackPanel Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,2,0,0">
-                                <TextBlock Foreground="Gray" FontStyle="Italic" Margin="0,0,12,0" VerticalAlignment="Center" ToolTip="Live rolling average lap time.">
-                                    <Run Text="Live avg: " />
-                                    <Run Text="{Binding LiveLapPaceInfo}" />
-                                </TextBlock>
-                                <TextBlock Foreground="Gray" FontStyle="Italic" VerticalAlignment="Center" ToolTip="Saved average dry lap time from profile.">
-                                    <Run Text="Profile avg: " />
-                                    <Run Text="{Binding ProfileAvgDryLapTimeDisplay}" />
-                                </TextBlock>
+                                <TextBlock Text="{Binding LiveLapPaceInfo, StringFormat=Live avg: {0}}"
+                                   Foreground="Gray"
+                                   FontStyle="Italic"
+                                   Margin="0,0,12,0"
+                                   VerticalAlignment="Center"
+                                   ToolTip="Live rolling average lap time." />
+                                <TextBlock Text="{Binding ProfileAvgDryLapTimeDisplay, StringFormat=Profile avg: {0}}"
+                                   Foreground="Gray"
+                                   FontStyle="Italic"
+                                   VerticalAlignment="Center"
+                                   ToolTip="Saved average dry lap time from profile." />
                             </StackPanel>
 
                         </Grid>
@@ -279,8 +282,7 @@
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,5">
-                                    <TextBlock Text="Your Pace vs Leader (s):"
-                 ToolTip="How many seconds slower your average lap time is compared to the race leader."/>
+                                    <TextBlock Text="Your Pace vs Leader (s):" ToolTip="How many seconds slower your average lap time is compared to the race leader."/>
                                     <TextBlock Text=" Avg Delta to Ldr: " Foreground="Gray" FontStyle="Italic" Margin="10,1,0,5"/>
                                     <TextBlock Text="{Binding AvgDeltaToLdrValue}" Foreground="Gray" FontStyle="Italic"/>
                                 </StackPanel>

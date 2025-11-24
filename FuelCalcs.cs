@@ -241,10 +241,17 @@ namespace LaunchPlugin
     public string LiveLapPaceInfo
     {
         get => _liveLapPaceInfo;
-        private set { if (_liveLapPaceInfo != value) { _liveLapPaceInfo = value; OnPropertyChanged(nameof(LiveLapPaceInfo)); } }
+        set
+        {
+            if (_liveLapPaceInfo != value)
+            {
+                _liveLapPaceInfo = value;
+                OnPropertyChanged(nameof(LiveLapPaceInfo));
+            }
+        }
     }
 
-    public int LiveFuelConfidence { get; private set; }
+        public int LiveFuelConfidence { get; private set; }
     public int LivePaceConfidence { get; private set; }
     public int LiveOverallConfidence { get; private set; }
     public string LiveConfidenceSummary { get; private set; } = "Live reliability: n/a";
