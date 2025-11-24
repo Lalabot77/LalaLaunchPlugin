@@ -2124,6 +2124,8 @@ namespace LaunchPlugin
                 }
             }
 
+            UpdateLiveWeather(pluginManager);
+
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
             double currentFuel = data.NewData?.Fuel ?? 0.0;
 
@@ -2523,6 +2525,41 @@ namespace LaunchPlugin
 
             // 3) As a last resort, keep it stable but explicit
             return "Unknown";
+        }
+
+        private void UpdateLiveWeather(PluginManager pluginManager)
+        {
+            if (FuelCalculator == null)
+            {
+                return;
+            }
+
+            if (!FuelCalculator.IsLiveSessionActive)
+            {
+                FuelCalculator.SetLiveWeatherConditions(false, double.NaN, double.NaN, double.NaN, null, null);
+                return;
+            }
+
+            bool isDeclaredWet = Convert.ToBoolean(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.WeatherDeclaredWet") ?? false);
+            double airTemp = Convert.ToDouble(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.AirTemp") ?? double.NaN);
+            double trackTemp = Convert.ToDouble(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.TrackTemp") ?? double.NaN);
+            double humidity = Convert.ToDouble(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackRelativeHumidity") ?? double.NaN);
+            string rubberState = Convert.ToString(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.SessionInfo.Sessions01.SessionTrackRubberState"));
+            string precipitation = Convert.ToString(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackPrecipitation"));
+
+            FuelCalculator.SetLiveWeatherConditions(
+                isDeclaredWet,
+                airTemp,
+                trackTemp,
+                humidity,
+                rubberState,
+                precipitation);
         }
 
         /// Updates properties that need to be checked on every tick, like dash switching and anti-stall.
