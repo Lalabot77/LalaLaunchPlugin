@@ -234,10 +234,8 @@
                                              Margin="0,0,16,0"
                                              IsChecked="{Binding IsPlanningSourceProfile, Mode=TwoWay}" />
                                 <RadioButton Content="Live snapshot"
-                                             Margin="0,0,16,0"
+                                             Margin="0,0,0,0"
                                              IsChecked="{Binding IsPlanningSourceLiveSnapshot, Mode=TwoWay}" />
-                                <Button Content="Refresh live snapshot"
-                                        Command="{Binding RefreshLiveSnapshotCommand}" />
                             </StackPanel>
                         </GroupBox>
 
@@ -246,12 +244,10 @@
                                 <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="70"/>
                                 <ColumnDefinition Width="30"/>
-                                <ColumnDefinition Width="140"/>
-                                <ColumnDefinition Width="75"/>
-                                <ColumnDefinition Width="75"/>
+                                <ColumnDefinition Width="200"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
@@ -268,11 +264,11 @@
                                 </TextBox.Text>
                             </TextBox>
                             <Button Grid.Row="0" Grid.Column="2" Content="↺" Command="{Binding ResetEstimatedLapTimeToSourceCommand}" Margin="4,0,0,0" ToolTip="Reset to planning source" Visibility="{Binding IsEstimatedLapTimeManual, Converter={StaticResource BoolToVisibilityConverter}}" />
-                            <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding LapTimeSourceInfo}" Margin="8,0,0,0" VerticalAlignment="Center"/>
-                            <Button Grid.Row="0" Grid.Column="4" Content="LIVE" Padding="8,2" Width="70" Foreground="White" Background="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" Command="{Binding UseLiveLapPaceCommand}" IsEnabled="{Binding IsLiveLapPaceAvailable}" ToolTip="Use the current live average pace." />
-                            <Button Grid.Row="0" Grid.Column="5" Content="PROFILE" Padding="8,2" Width="70" Foreground="White" Background="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" Command="{Binding LoadProfileLapTimeCommand}" IsEnabled="{Binding HasProfileFuelPerLap}" ToolTip="Use the saved average lap time from the current profile."/>
-                            <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding LiveLapPaceInfo}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Live rolling average lap time."/>
-                            <TextBlock Grid.Row="1" Grid.Column="5" Text="{Binding ProfileAvgDryLapTimeDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Saved average dry lap time from profile."/>
+                            <TextBlock Grid.Row="0" Grid.Column="3" Grid.ColumnSpan="2" Text="{Binding LapTimeSourceInfo}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            <StackPanel Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,2,0,0">
+                                <TextBlock Text="{Binding LiveLapPaceInfo}" Foreground="Gray" FontStyle="Italic" Margin="0,0,12,0" VerticalAlignment="Center" ToolTip="Live rolling average lap time."/>
+                                <TextBlock Text="{Binding ProfileAvgDryLapTimeDisplay}" Foreground="Gray" FontStyle="Italic" VerticalAlignment="Center" ToolTip="Saved average dry lap time from profile."/>
+                            </StackPanel>
 
                         </Grid>
 
@@ -366,11 +362,9 @@
                                 <ColumnDefinition Width="30"/>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="75"/>
-                                <ColumnDefinition Width="75"/>
-                                <ColumnDefinition Width="75"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
@@ -381,11 +375,11 @@
                             <Button Grid.Row="0" Grid.Column="2" Content="↺" Command="{Binding ResetFuelPerLapToSourceCommand}" Margin="4,0,0,0" ToolTip="Reset to planning source" Visibility="{Binding IsFuelPerLapManual, Converter={StaticResource BoolToVisibilityConverter}}" />
                             <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding FuelPerLapSourceInfo}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                             <Button Grid.Row="0" Grid.Column="4" Content="MAX" Padding="8,2" Width="70" Command="{Binding UseMaxFuelPerLapCommand}" IsEnabled="{Binding IsMaxFuelAvailable}" Foreground="White" Background="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" ToolTip="Use the highest valid fuel per lap value recorded in this session."/>
-                            <Button Grid.Row="0" Grid.Column="5" Content="LIVE" Padding="8,2" Width="70" Command="{Binding UseLiveFuelPerLapCommand}" IsEnabled="{Binding IsLiveFuelPerLapAvailable}" Foreground="White" Background="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" ToolTip="Use the current live average fuel per lap."/>
-                            <Button Grid.Row="0" Grid.Column="6" Content="PROFILE" Padding="8,2" Width="70" Command="{Binding UseProfileFuelPerLapCommand}" IsEnabled="{Binding HasProfileFuelPerLap}" Foreground="White" Background="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}" ToolTip="Use the saved average fuel per lap from the current profile."/>
-                            <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding MaxFuelPerLapDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Highest valid fuel per lap recorded in this session."/>
-                            <TextBlock Grid.Row="1" Grid.Column="5" Text="{Binding LiveFuelPerLapDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Live rolling average fuel per lap."/>
-                            <TextBlock Grid.Row="1" Grid.Column="6" Text="{Binding ProfileAvgDryFuelDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,2,0,0" HorizontalAlignment="Center" ToolTip="Saved average dry fuel per lap from profile."/>
+                            <StackPanel Grid.Row="1" Grid.Column="4" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,2,0,0">
+                                <TextBlock Text="{Binding MaxFuelPerLapDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,12,0" VerticalAlignment="Center" ToolTip="Highest valid fuel per lap recorded in this session."/>
+                                <TextBlock Text="{Binding LiveFuelPerLapDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,12,0" VerticalAlignment="Center" ToolTip="Live rolling average fuel per lap."/>
+                                <TextBlock Text="{Binding ProfileAvgDryFuelDisplay}" Foreground="Gray" FontStyle="Italic" VerticalAlignment="Center" ToolTip="Saved average dry fuel per lap from profile."/>
+                            </StackPanel>
                         </Grid>
                     </Grid>
 
