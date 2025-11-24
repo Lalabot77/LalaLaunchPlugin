@@ -902,6 +902,13 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(LiveFuelPerLap));
         OnPropertyChanged(nameof(LiveFuelPerLapDisplay));
         OnPropertyChanged(nameof(IsLiveFuelPerLapAvailable));
+
+        if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+            && !IsFuelPerLapManual
+            && value > 0)
+        {
+            ApplyPlanningSourceToAutoFields();
+        }
     }
 
     // This pair correctly handles UI thread updates for Max Fuel
@@ -1800,7 +1807,7 @@ namespace LaunchPlugin
                 {
                     lap = GetProfileAverageLapTimeForCurrentCondition();
                 }
-                else
+                else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
                 {
                     lap = GetLiveAverageLapTimeSnapshot();
                 }
@@ -1808,6 +1815,7 @@ namespace LaunchPlugin
                 if (lap.HasValue)
                 {
                     EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
+                    IsEstimatedLapTimeManual = false;
                     LapTimeSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
                         ? "source: profile average"
                         : "source: live average";
@@ -1822,7 +1830,7 @@ namespace LaunchPlugin
                 {
                     fuel = GetProfileAverageFuelPerLapForCurrentCondition();
                 }
-                else if (LiveFuelPerLap > 0)
+                else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot && LiveFuelPerLap > 0)
                 {
                     fuel = LiveFuelPerLap;
                 }
@@ -1831,6 +1839,7 @@ namespace LaunchPlugin
                 {
                     FuelPerLap = fuel.Value;
                     FuelPerLapText = fuel.Value.ToString("0.000", CultureInfo.InvariantCulture);
+                    IsFuelPerLapManual = false;
                     FuelPerLapSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
                         ? "source: profile average"
                         : "source: live average";
