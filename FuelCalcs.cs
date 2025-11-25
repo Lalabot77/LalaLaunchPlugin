@@ -89,11 +89,7 @@ namespace LaunchPlugin
     private int _livePaceConfidence;
     private int _liveOverallConfidence;
     private bool? _liveWeatherIsWet;
-    private double? _liveAirTempC;
-    private double? _liveTrackTempC;
-    private double? _liveHumidityPct;
-    private string _liveRubberState;
-    private string _livePrecipitation;
+    private string _liveSurfaceSummary;
     private bool _isLiveSessionActive;
     private bool _isLiveSessionSnapshotExpanded;
     private string _liveCarName = "—";
@@ -976,49 +972,25 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(IsMaxFuelAvailable));
     }
 
-    public void SetLiveWeatherConditions(bool isDeclaredWet, double airTempC, double trackTempC, double humidityPercent, string rubberState, string precipitation)
+    public void SetLiveSurfaceSummary(bool? isDeclaredWet, string summary)
     {
         var disp = Application.Current?.Dispatcher;
         if (disp == null || disp.CheckAccess())
         {
-            ApplyLiveWeatherConditions(isDeclaredWet, airTempC, trackTempC, humidityPercent, rubberState, precipitation);
+            ApplyLiveSurfaceSummary(isDeclaredWet, summary);
         }
         else
         {
-            disp.Invoke(() => ApplyLiveWeatherConditions(isDeclaredWet, airTempC, trackTempC, humidityPercent, rubberState, precipitation));
+            disp.Invoke(() => ApplyLiveSurfaceSummary(isDeclaredWet, summary));
         }
     }
 
-    private void ApplyLiveWeatherConditions(bool isDeclaredWet, double airTempC, double trackTempC, double humidityPercent, string rubberState, string precipitation)
+    private void ApplyLiveSurfaceSummary(bool? isDeclaredWet, string summary)
     {
         _liveWeatherIsWet = isDeclaredWet;
-        _liveAirTempC = NormalizeTemperature(airTempC);
-        _liveTrackTempC = NormalizeTemperature(trackTempC);
-        _liveHumidityPct = NormalizeHumidity(humidityPercent);
-        _liveRubberState = string.IsNullOrWhiteSpace(rubberState) ? null : rubberState.Trim();
-        _livePrecipitation = string.IsNullOrWhiteSpace(precipitation) ? null : precipitation.Trim();
+        _liveSurfaceSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
 
         UpdateSurfaceModeLabel();
-    }
-
-    private static double? NormalizeTemperature(double value)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value) || value < -200)
-        {
-            return null;
-        }
-
-        return value;
-    }
-
-    private static double? NormalizeHumidity(double value)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value) || value < 0)
-        {
-            return null;
-        }
-
-        return value;
     }
 
     public void SetConditionRefuelParameters(double baseSeconds, double secondsPerLiter, double secondsPerSquare)
@@ -2197,40 +2169,14 @@ namespace LaunchPlugin
             return;
         }
 
-        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(_liveSurfaceSummary))
+        {
+            LiveSurfaceModeDisplay = _liveSurfaceSummary;
+            return;
+        }
 
         bool isWet = _liveWeatherIsWet ?? IsWet;
-        parts.Add(isWet ? "Wet" : "Dry");
-
-        if (_liveAirTempC.HasValue && _liveTrackTempC.HasValue)
-        {
-            parts.Add($"{_liveAirTempC.Value:F0}/{_liveTrackTempC.Value:F0}°C");
-        }
-        else if (_liveAirTempC.HasValue)
-        {
-            parts.Add($"{_liveAirTempC.Value:F0}°C air");
-        }
-        else if (_liveTrackTempC.HasValue)
-        {
-            parts.Add($"{_liveTrackTempC.Value:F0}°C track");
-        }
-
-        if (_liveHumidityPct.HasValue)
-        {
-            parts.Add($"{_liveHumidityPct.Value:F0}% RH");
-        }
-
-        if (!string.IsNullOrWhiteSpace(_liveRubberState))
-        {
-            parts.Add($"Rubber {_liveRubberState}");
-        }
-
-        if (isWet && !string.IsNullOrWhiteSpace(_livePrecipitation))
-        {
-            parts.Add($"Rain {_livePrecipitation}");
-        }
-
-        LiveSurfaceModeDisplay = parts.Count > 0 ? string.Join(" | ", parts) : "-";
+        LiveSurfaceModeDisplay = isWet ? "Wet" : "Dry";
     }
 
     private void ResetSnapshotDisplays()
@@ -2260,11 +2206,7 @@ namespace LaunchPlugin
         LastRefuelRateDisplay = "-";
         LastTyreChangeDisplay = "-";
         _liveWeatherIsWet = null;
-        _liveAirTempC = null;
-        _liveTrackTempC = null;
-        _liveHumidityPct = null;
-        _liveRubberState = null;
-        _livePrecipitation = null;
+        _liveSurfaceSummary = null;
         LiveSurfaceModeDisplay = "-";
         ConditionRefuelBaseSeconds = 0;
         ConditionRefuelSecondsPerLiter = 0;
