@@ -2078,6 +2078,8 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info($"[LalaLaunch] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
             }
 
+            UpdateLiveSurfaceSummary(pluginManager);
+
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
             _pit.Update(data, pluginManager);
             // --- PitLite tick: after PitEngine update and baseline selection ---
@@ -2499,6 +2501,84 @@ namespace LaunchPlugin
             return 0.0;
         }
 
+
+        private void UpdateLiveSurfaceSummary(PluginManager pluginManager)
+        {
+            if (FuelCalculator == null) return;
+
+            bool? declaredWet = TryReadNullableBool(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.WeatherDeclaredWet"));
+
+            string airTemp = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackAirTemp"));
+            string trackTemp = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackSurfaceTemp"));
+            string humidity = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackRelativeHumidity"));
+            string rubberState = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackRubberState"));
+            string precipitation = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackPrecipitation"));
+
+            var parts = new List<string>();
+            bool isWet = declaredWet ?? FuelCalculator.IsWet;
+            parts.Add(isWet ? "Wet" : "Dry");
+
+            string tempSegment = ComposeTemperatureSegment(airTemp, trackTemp);
+            if (!string.IsNullOrWhiteSpace(tempSegment)) parts.Add(tempSegment);
+
+            if (!string.IsNullOrWhiteSpace(humidity)) parts.Add($"{humidity} humidity");
+            if (!string.IsNullOrWhiteSpace(rubberState)) parts.Add($"Rubber {rubberState}");
+            if (!string.IsNullOrWhiteSpace(precipitation)) parts.Add($"Precip: {precipitation}");
+
+            string summary = parts.Count > 0 ? string.Join(" | ", parts) : "-";
+
+            FuelCalculator.SetLiveSurfaceSummary(declaredWet, summary);
+        }
+
+        private static string GetSurfaceText(object value)
+        {
+            var text = Convert.ToString(value, CultureInfo.InvariantCulture)?.Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+
+        private static string ComposeTemperatureSegment(string airTemp, string trackTemp)
+        {
+            if (!string.IsNullOrWhiteSpace(airTemp) && !string.IsNullOrWhiteSpace(trackTemp))
+            {
+                return $"{airTemp} / {trackTemp}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(airTemp))
+            {
+                return $"{airTemp} air";
+            }
+
+            if (!string.IsNullOrWhiteSpace(trackTemp))
+            {
+                return $"{trackTemp} track";
+            }
+
+            return null;
+        }
+
+        private static bool? TryReadNullableBool(object value)
+        {
+            if (value == null) return null;
+
+            try
+            {
+                switch (value)
+                {
+                    case bool b:
+                        return b;
+                    case string s when bool.TryParse(s, out var parsedBool):
+                        return parsedBool;
+                    case string s when int.TryParse(s, out var parsedInt):
+                        return parsedInt != 0;
+                    default:
+                        return Convert.ToBoolean(value);
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         private static string GetString(object o) => Convert.ToString(o, CultureInfo.InvariantCulture) ?? "";
 
