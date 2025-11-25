@@ -46,70 +46,7 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="10">
-            <local:LaunchSummaryExpander Header="{Binding LiveSessionHeader}"
-                                         Margin="0,0,0,15"
-                                         IsExpanded="{Binding IsLiveSessionSnapshotExpanded}"
-                                         IsHighlighted="{Binding IsLiveSessionActive}">
-                <local:LaunchSummaryExpander.BodyContent>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="190"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel Tank Size (max factored)" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LiveFuelTankSizeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
-
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Surface" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LiveSurfaceModeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
-
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Dry Lap Times" Style="{StaticResource SnapshotLabelStyle}"
-                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DryLapTimeSummary}" Style="{StaticResource SnapshotValueStyle}"
-                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Wet Lap Times" Style="{StaticResource SnapshotLabelStyle}"
-                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding WetLapTimeSummary}" Style="{StaticResource SnapshotValueStyle}"
-                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Dry Pace Delta" Style="{StaticResource SnapshotLabelStyle}"
-                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DryPaceDeltaSummary}" Style="{StaticResource SnapshotValueStyle}"
-                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Wet Pace Delta" Style="{StaticResource SnapshotLabelStyle}"
-                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding WetPaceDeltaSummary}" Style="{StaticResource SnapshotValueStyle}"
-                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Dry Fuel Burn" Style="{StaticResource SnapshotLabelStyle}"
-                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding DryFuelBurnSummary}" Style="{StaticResource SnapshotValueStyle}"
-                                   Visibility="{Binding ShowDrySnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Wet Fuel Burn" Style="{StaticResource SnapshotLabelStyle}"
-                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding WetFuelBurnSummary}" Style="{StaticResource SnapshotValueStyle}"
-                                   Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Live Reliability" Style="{StaticResource SnapshotLabelStyle}"/>
-                        <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding LiveConfidenceSummary}" Style="{StaticResource SnapshotValueStyle}" TextWrapping="Wrap"/>
-                    </Grid>
-                </local:LaunchSummaryExpander.BodyContent>
-            </local:LaunchSummaryExpander>
-
+            
             <styles:SHSection Title="PRE-RACE PLANNER" ShowSeparator="True" Margin="0,5,0,0">
                 <StackPanel>
 
@@ -124,24 +61,24 @@
                     </Grid.ColumnDefinitions>
                     
                     <Grid Grid.Column="0" Margin="0,0,15,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <!-- 0: Section header -->
-                            <RowDefinition Height="Auto"/>
-                            <!-- 1: Car + Track -->
-                            <RowDefinition Height="Auto"/>
-                            <!-- 2: Track Condition + Wet factor -->
-                            <RowDefinition Height="Auto"/>
-                            <!-- 3: Planning Source -->
-                            <RowDefinition Height="Auto"/>
-                            <!-- 4: Est Avg Lap Time -->
-                            <RowDefinition Height="Auto"/>
-                            <!-- 5: Pace vs Leader / Race Pace vs PB -->
-                            <RowDefinition Height="Auto"/>
-                            <!-- 6: Max Fuel Override -->
-                            <RowDefinition Height="Auto"/>
-                            <!-- 7: Fuel per Lap -->
-                        </Grid.RowDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <!-- 0: Section header -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 1: Live Session telemetry -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 2: Car + Track -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 3: Track Condition + Wet factor -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 4: Est Avg Lap Time -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 5: Pace vs Leader / Race Pace vs PB -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 6: Max Fuel Override -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- 7: Fuel per Lap -->
+                            </Grid.RowDefinitions>
 
                             <!-- Row 0: Car/Track header + planning source toggle -->
                             <Grid Grid.Row="0" Margin="0,5,0,5">
@@ -168,9 +105,52 @@
                                          GroupName="PlanningSourceMode"/>
                                 </StackPanel>
                             </Grid>
+                            <!-- Live session telemetry moved into the left planner column -->
+                            <local:LaunchSummaryExpander Grid.Row="1"
+                             Header="{Binding LiveSessionHeader}"
+                             Margin="0,10,0,10"
+                             IsExpanded="{Binding IsLiveSessionSnapshotExpanded}"
+                             IsHighlighted="{Binding IsLiveSessionActive}">
+                                
+                                <local:LaunchSummaryExpander.BodyContent>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="190"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel Tank Size (max factored)" Style="{StaticResource SnapshotLabelStyle}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LiveFuelTankSizeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Surface" Style="{StaticResource SnapshotLabelStyle}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LiveSurfaceModeDisplay}" Style="{StaticResource SnapshotValueStyle}"/>
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Dry Lap Times" Style="{StaticResource SnapshotLabelStyle}"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DryLapTimeSummary}" Style="{StaticResource SnapshotValueStyle}"/>
+
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Dry Pace Delta" Style="{StaticResource SnapshotLabelStyle}"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DryPaceDeltaSummary}" Style="{StaticResource SnapshotValueStyle}"/>
+
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Dry Fuel Burn" Style="{StaticResource SnapshotLabelStyle}"/>
+                                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DryFuelBurnSummary}" Style="{StaticResource SnapshotValueStyle}"/>
+
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Live Reliability" Style="{StaticResource SnapshotLabelStyle}"/>
+                                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding LiveConfidenceSummary}" Style="{StaticResource SnapshotValueStyle}" TextWrapping="Wrap"/>
+                                    </Grid>
+                                </local:LaunchSummaryExpander.BodyContent>
+                            </local:LaunchSummaryExpander>
 
                             <!-- NEW: Car + Track selectors inside the section -->
-                            <Grid Grid.Row="1" Margin="0,5,0,10" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Grid Grid.Row="2" Margin="0,5,0,10" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="250"/>
@@ -209,7 +189,7 @@
                         </Grid>
 
                             <!-- Track condition (Profile planning only) -->
-                            <StackPanel Grid.Row="2" Margin="0,5,0,5" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Grid.Row="3" Margin="0,5,0,5" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                 <TextBlock Text="Track Condition:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <RadioButton Content="Dry" IsChecked="{Binding IsDry, Mode=TwoWay}" GroupName="TrackCondition"/>
@@ -217,8 +197,6 @@
                             </StackPanel>
                             <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
                             </StackPanel>
-
-                            <!-- Row 3 left intentionally empty; planning source is now in the header row -->
 
                             <Grid Grid.Row="4" Margin="0,15,0,0">
                                 <Grid.ColumnDefinitions>
