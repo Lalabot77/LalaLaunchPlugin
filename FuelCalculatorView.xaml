@@ -111,7 +111,9 @@
             </local:LaunchSummaryExpander>
 
             <styles:SHSection Title="PRE-RACE PLANNER" ShowSeparator="True" Margin="0,5,0,0">
-                <Grid Margin="5,0,5,5">
+                <StackPanel>
+
+                    <Grid Margin="5,0,5,5">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
@@ -141,28 +143,35 @@
                             <!-- 7: Fuel per Lap -->
                         </Grid.RowDefinitions>
 
-                        <!-- Row 0: section header + live status on the same line -->
-                        <Grid Grid.Row="0" Margin="0,5,0,5">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                            <!-- Row 0: Car/Track header + planning source toggle -->
+                            <Grid Grid.Row="0" Margin="0,5,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0"
-                                 Text="Car and Track Parameters"
-                                 FontWeight="Bold"/>
+                                <TextBlock Grid.Column="0"
+                                   Text="Car and Track Parameters"
+                                   FontWeight="Bold"/>
 
-                            <TextBlock Grid.Column="1"
-                                 Text="{Binding SeenSessionSummary}"
-                                 FontStyle="Italic"
-                                 Opacity="0.8"
-                                 Margin="12,0,0,0"
-                                 VerticalAlignment="Center"/>
-                        </Grid>
+                                <!-- Planning source selector (Profile / Live) -->
+                                <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center">
+                                    <RadioButton Content="Profile"
+                                         IsChecked="{Binding IsPlanningSourceProfile, Mode=TwoWay}"
+                                         GroupName="PlanningSourceMode"
+                                         Margin="0,0,8,0"/>
+                                    <RadioButton Content="Live snapshot"
+                                         IsChecked="{Binding IsPlanningSourceLiveSnapshot, Mode=TwoWay}"
+                                         GroupName="PlanningSourceMode"/>
+                                </StackPanel>
+                            </Grid>
 
-                        <!-- NEW: Car + Track selectors inside the section -->
-                        <Grid Grid.Row="1" Margin="0,5,0,10">
-                            <Grid.ColumnDefinitions>
+                            <!-- NEW: Car + Track selectors inside the section -->
+                            <Grid Grid.Row="1" Margin="0,5,0,10" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="250"/>
                                 <ColumnDefinition Width="20"/>
@@ -199,28 +208,20 @@
                             </Grid>
                         </Grid>
 
-                        <StackPanel Grid.Row="2" Margin="0,5,0,5">
-                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                            <!-- Track condition (Profile planning only) -->
+                            <StackPanel Grid.Row="2" Margin="0,5,0,5" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                                 <TextBlock Text="Track Condition:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                 <RadioButton Content="Dry" IsChecked="{Binding IsDry, Mode=TwoWay}" GroupName="TrackCondition"/>
                                 <RadioButton Content="Wet" IsChecked="{Binding IsWet, Mode=TwoWay}" GroupName="TrackCondition" Margin="10,0,0,0"/>
                             </StackPanel>
                             <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
-                        </StackPanel>
-
-                        <GroupBox Grid.Row="3" Header="Planning Source" Margin="0,0,0,8">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <RadioButton Content="Profile"
-                                             Margin="0,0,16,0"
-                                             IsChecked="{Binding IsPlanningSourceProfile, Mode=TwoWay}" />
-                                <RadioButton Content="Live snapshot"
-                                             Margin="0,0,0,0"
-                                             IsChecked="{Binding IsPlanningSourceLiveSnapshot, Mode=TwoWay}" />
                             </StackPanel>
-                        </GroupBox>
 
-                        <Grid Grid.Row="4" Margin="0,15,0,0">
-                            <Grid.ColumnDefinitions>
+                            <!-- Row 3 left intentionally empty; planning source is now in the header row -->
+
+                            <Grid Grid.Row="4" Margin="0,15,0,0">
+                                <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="70"/>
                                 <ColumnDefinition Width="30"/>
@@ -460,15 +461,15 @@
                         </ui:TitledSlider>
 
                     </StackPanel>
-
-                    <styles:SHButtonPrimary Grid.Row="1" Grid.Column="0"
-                                Content="Save All to Profile" 
-                                Command="{Binding SavePlannerDataToProfileCommand}" 
-                                Padding="8,2" 
-                                HorizontalAlignment="Left" 
-                                Margin="0,10,0,0" 
-                                ToolTip="Save the current Race and Strategy parameters to the selected car/track profile."/>
-                </Grid>
+                    </Grid>
+                    <styles:SHButtonPrimary
+                    Content="Save All to Profile" 
+                    Command="{Binding SavePlannerDataToProfileCommand}" 
+                    Padding="8,2" 
+                    HorizontalAlignment="Left" 
+                    Margin="0,10,0,0" 
+                    ToolTip="Save the current Race and Strategy parameters to the selected car/track profile."/>
+                </StackPanel>
             </styles:SHSection>
 
             <styles:SHSection Title="CALCULATED STRATEGY" ShowSeparator="True" Margin="0,10,0,0">

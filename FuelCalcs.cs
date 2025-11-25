@@ -211,16 +211,20 @@ namespace LaunchPlugin
             IsEstimatedLapTimeManual = false;
             IsFuelPerLapManual = false;
 
-            // When the user switches to Live snapshot planning, automatically expand
-            // the Live Session Snapshot panel so the live data becomes visible.
-            if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+            // Auto-expand/collapse the Live Session telemetry panel based on planning source.
+            if (value == PlanningSourceMode.LiveSnapshot)
             {
                 IsLiveSessionSnapshotExpanded = true;
             }
+            else if (value == PlanningSourceMode.Profile)
+            {
+                IsLiveSessionSnapshotExpanded = false;
+            }
 
             ApplyPlanningSourceToAutoFields();
+
+            }
         }
-    }
 
         public bool IsPlanningSourceProfile
     {
