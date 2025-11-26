@@ -130,11 +130,11 @@
                             <styles:SHExpander Grid.Row="1"
                                Header="{Binding LiveSessionHeader}"
                                IsExpanded="{Binding IsLiveSessionSnapshotExpanded}"
-                               Margin="0,10,0,10">
+                               Margin="0,0,0,10">
 
-                                <Grid Margin="10">
+                                <Grid Margin="5">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="190" />
+                                        <ColumnDefinition Width="125" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
@@ -150,7 +150,7 @@
                                     </Grid.RowDefinitions>
 
                                     <TextBlock Grid.Row="0" Grid.Column="0"
-                                       Text="Max Fuel Rule"
+                                       Text="Max Tank Limit"
                                        Style="{StaticResource SnapshotLabelStyle}" />
                                     <TextBlock Grid.Row="0" Grid.Column="1"
                                        Text="{Binding LiveFuelTankSizeDisplay}"
@@ -180,7 +180,7 @@
                                        Text="{Binding DryFuelBurnSummary}"
                                        Style="{StaticResource SnapshotValueStyle}" />
                                     <TextBlock Grid.Row="5" Grid.Column="0"
-                                       Text="Live Data Reliability"
+                                       Text="Data Confidence"
                                        Style="{StaticResource SnapshotLabelStyle}" />
                                     <TextBlock Grid.Row="5" Grid.Column="1"
                                        Text="{Binding LiveConfidenceSummary}"
@@ -262,6 +262,7 @@
                             <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
                             </StackPanel>
 
+                            <!-- Avg Lap Time -->
                             <Grid Grid.Row="4" Margin="0,15,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="100"/>
@@ -312,7 +313,7 @@
 
                                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,5">
                                     <TextBlock Text="Your Pace vs Leader (s):" ToolTip="How many seconds slower your average lap time is compared to the race leader."/>
-                                    <TextBlock Text=" Avg Delta to Ldr: " Foreground="Gray" FontStyle="Italic" Margin="10,1,0,5"/>
+                                    <TextBlock Text=" Live Avg Delta to Ldr: " Foreground="Gray" FontStyle="Italic" Margin="10,1,0,5"/>
                                     <TextBlock Text="{Binding AvgDeltaToLdrValue}" Foreground="Gray" FontStyle="Italic"/>
                                 </StackPanel>
 
@@ -413,7 +414,7 @@
                                                 <Setter Property="Text" Value="profile"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding IsPlanningSourceLiveSnapshot}" Value="True">
-                                                <Setter Property="Text" Value="live"/>
+                                                <Setter Property="Text" Value="Live"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>

@@ -74,7 +74,7 @@ namespace LaunchPlugin
         private bool _hasLiveLeaderDelta;
         private bool _isLeaderDeltaManual;
 
-    private string _lapTimeSourceInfo = "source: manual (user entry)";
+    private string _lapTimeSourceInfo = "Manual (user entry)";
     private bool _isLiveLapPaceAvailable;
 
     private bool _isEstimatedLapTimeManual;
@@ -157,7 +157,7 @@ namespace LaunchPlugin
         get => _isEstimatedLapTimeManual;
         set { if (_isEstimatedLapTimeManual != value) { _isEstimatedLapTimeManual = value; OnPropertyChanged(); } }
     }
-    private string _fuelPerLapSourceInfo = "source: manual";
+    private string _fuelPerLapSourceInfo = "Manual";
     public string FuelPerLapSourceInfo
     {
         get => _fuelPerLapSourceInfo;
@@ -173,16 +173,16 @@ namespace LaunchPlugin
     }
 
     public bool IsProfileFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.Profile
-        && FuelPerLapSourceInfo?.Contains("profile") == true;
+        && FuelPerLapSourceInfo?.Contains("Profile") == true;
 
     public bool IsLiveAverageFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
-        && FuelPerLapSourceInfo?.Contains("live average") == true;
+        && FuelPerLapSourceInfo?.Contains("Live avg") == true;
 
     public bool IsLiveSaveFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
-        && FuelPerLapSourceInfo?.Contains("live save") == true;
+        && FuelPerLapSourceInfo?.Contains("Live save") == true;
 
     public bool IsLiveMaxFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
-        && FuelPerLapSourceInfo?.Contains("max") == true;
+        && FuelPerLapSourceInfo?.Contains("Max") == true;
 
     private void RaiseFuelChoiceIndicators()
     {
@@ -303,7 +303,7 @@ namespace LaunchPlugin
         public int LiveFuelConfidence { get; private set; }
     public int LivePaceConfidence { get; private set; }
     public int LiveOverallConfidence { get; private set; }
-    public string LiveConfidenceSummary { get; private set; } = "Live reliability: n/a";
+    public string LiveConfidenceSummary { get; private set; } = "n/a";
     public bool IsLiveSessionActive
     {
         get => _isLiveSessionActive;
@@ -655,7 +655,7 @@ namespace LaunchPlugin
             if (!_isApplyingPlanningSourceUpdates)
             {
                 IsFuelPerLapManual = true;
-                FuelPerLapSourceInfo = "source: manual";
+                FuelPerLapSourceInfo = "Manual";
             }
 
             // Accept partial inputs like "2.", ".8", "2," while typing.
@@ -837,7 +837,7 @@ namespace LaunchPlugin
                 if (!_isApplyingPlanningSourceUpdates)
                 {
                     IsEstimatedLapTimeManual = true;
-                    LapTimeSourceInfo = "source: manual (user entry)";
+                    LapTimeSourceInfo = "Manual (user entry)";
                 }
                 CalculateStrategy();
             }
@@ -922,7 +922,7 @@ namespace LaunchPlugin
                 if (!_isApplyingPlanningSourceUpdates)
                 {
                     IsFuelPerLapManual = true;
-                    FuelPerLapSourceInfo = "source: manual";
+                    FuelPerLapSourceInfo = "Manual";
                 }
 
                 if (IsDry) { _baseDryFuelPerLap = _fuelPerLap; }
@@ -981,7 +981,7 @@ namespace LaunchPlugin
         if (min.HasValue)
         {
             FuelPerLap = min.Value;
-            FuelPerLapSourceInfo = "source: live save";
+            FuelPerLapSourceInfo = "Live save";
         }
     }
 
@@ -991,14 +991,14 @@ namespace LaunchPlugin
         if (liveMax.HasValue)
         {
             FuelPerLap = liveMax.Value;
-            FuelPerLapSourceInfo = "source: live max";
+            FuelPerLapSourceInfo = "Live max";
             return;
         }
 
         if (_plugin.MaxFuelPerLapDisplay > 0)
         {
             FuelPerLap = _plugin.MaxFuelPerLapDisplay;
-            FuelPerLapSourceInfo = "source: max";
+            FuelPerLapSourceInfo = "Max";
         }
     }
 
@@ -1251,7 +1251,7 @@ namespace LaunchPlugin
                     if (lapTimeMs.HasValue && lapTimeMs > 0)
                     {
                         EstimatedLapTime = TimeSpan.FromMilliseconds(lapTimeMs.Value).ToString(@"m\:ss\.fff");
-                        LapTimeSourceInfo = "source: profile avg (dry)";
+                        LapTimeSourceInfo = "Profile avg (dry)";
                     }
                 }
                 UpdateTrackDerivedSummaries();
@@ -1438,7 +1438,7 @@ namespace LaunchPlugin
         if (lapMs.HasValue && lapMs.Value > 0)
         {
             EstimatedLapTime = TimeSpan.FromMilliseconds(lapMs.Value).ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = "source: profile avg (dry)";
+            LapTimeSourceInfo = "Profile avg (dry)";
             OnPropertyChanged(nameof(EstimatedLapTime));
             OnPropertyChanged(nameof(LapTimeSourceInfo));
             CalculateStrategy();
@@ -1530,7 +1530,7 @@ namespace LaunchPlugin
         if (ts.AvgFuelPerLapDry.HasValue && ts.AvgFuelPerLapDry > 0)
         {
             FuelPerLap = ts.AvgFuelPerLapDry.Value;
-            FuelPerLapSourceInfo = "source: profile";
+            FuelPerLapSourceInfo = "Profile";
         }
     }
     public double TotalFuelNeeded { get => _totalFuelNeeded; private set { _totalFuelNeeded = value; OnPropertyChanged("TotalFuelNeeded"); } }
@@ -1608,7 +1608,7 @@ namespace LaunchPlugin
         if (LiveFuelPerLap > 0)
         {
             FuelPerLap = LiveFuelPerLap;
-            FuelPerLapSourceInfo = "source: live average";
+            FuelPerLapSourceInfo = "Live avg";
         }
     }
 
@@ -1623,7 +1623,7 @@ namespace LaunchPlugin
         // Smartly default Max Fuel: use the live detected value if available, otherwise use 120L
         this.MaxFuelOverride = _liveMaxFuel > 0 ? Math.Round(_liveMaxFuel) : 120.0;
 
-        SimHub.Logging.Current.Debug("FuelCalcs: Race strategy inputs have been reset to defaults.");
+        SimHub.Logging.Current.Info("FuelCalcs: Race strategy inputs have been reset to defaults.");
     }
 
     private void SavePlannerDataToProfile()
@@ -2012,8 +2012,8 @@ namespace LaunchPlugin
                     EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
                     IsEstimatedLapTimeManual = false;
                     LapTimeSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
-                        ? "source: profile avg (dry)"
-                        : "source: live avg";
+                        ? "Profile avg (dry)"
+                        : "Live avg";
                 }
             }
 
@@ -2033,11 +2033,11 @@ namespace LaunchPlugin
                 if (fuel.HasValue)
                 {
                     FuelPerLap = fuel.Value;
-                    FuelPerLapText = fuel.Value.ToString("0.000", CultureInfo.InvariantCulture);
+                    FuelPerLapText = fuel.Value.ToString("0.00", CultureInfo.InvariantCulture);
                     IsFuelPerLapManual = false;
                     FuelPerLapSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
-                        ? "source: profile average"
-                        : "source: live average";
+                        ? "Profile"
+                        : "Live";
                 }
             }
         }
@@ -2137,7 +2137,7 @@ namespace LaunchPlugin
             EstimatedLapTime = TimeSpan.FromSeconds(estSeconds).ToString(@"m\:ss\.fff");
 
             // This is explicitly “live average”, not manual
-            LapTimeSourceInfo = "source: live avg";
+            LapTimeSourceInfo = "Live avg";
             IsEstimatedLapTimeManual = false;
         }
         finally
@@ -2281,10 +2281,10 @@ namespace LaunchPlugin
     {
         if (LiveFuelConfidence <= 0 && LivePaceConfidence <= 0 && LiveOverallConfidence <= 0)
         {
-            return "Live reliability: n/a";
+            return "n/a";
         }
 
-        return $"Live reliability: Fuel {LiveFuelConfidence}% | Pace {LivePaceConfidence}% | Overall {LiveOverallConfidence}%";
+        return $"Fuel {LiveFuelConfidence}% | Pace {LivePaceConfidence}% | Overall {LiveOverallConfidence}%";
     }
 
     private void UpdateSurfaceModeLabel()
@@ -2615,13 +2615,13 @@ namespace LaunchPlugin
         if (ts?.AvgLapTimeDry is int dryMs && dryMs > 0)
         {
             EstimatedLapTime = TimeSpan.FromMilliseconds(dryMs).ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = "source: profile avg (dry)";
+            LapTimeSourceInfo = "Profile avg (dry)";
         }
         else
         {
             // If there's no data at all, use the UI default
             EstimatedLapTime = "2:45.500";
-            LapTimeSourceInfo = "source: manual (user entry)";
+            LapTimeSourceInfo = "Manual (user entry)";
         }
 
         // --- Load historical/track-specific data ---
@@ -2629,7 +2629,7 @@ namespace LaunchPlugin
         {
             _baseDryFuelPerLap = avg;
             FuelPerLap = IsDry ? avg : avg * (WetFactorPercent / 100.0);
-            FuelPerLapSourceInfo = "source: profile";
+            FuelPerLapSourceInfo = "Profile";
         }
         else
         {
@@ -2638,7 +2638,7 @@ namespace LaunchPlugin
             var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
             var defaultFuel = defaultProfile?.TrackStats?["default"]?.AvgFuelPerLapDry ?? 2.8;
             FuelPerLap = defaultFuel;
-            FuelPerLapSourceInfo = "source: default";
+            FuelPerLapSourceInfo = "Default";
         }
 
         if (ts?.PitLaneLossSeconds is double pll && pll > 0)
@@ -2809,7 +2809,7 @@ namespace LaunchPlugin
                                  Math.Abs(LeaderDeltaSeconds - _lastLoggedLeaderDeltaSeconds) > 0.01;
                 if (shouldLog)
                 {
-                    SimHub.Logging.Current.Debug(string.Format(
+                    SimHub.Logging.Current.Info(string.Format(
                         "[FuelLeader] CalculateStrategy: estLap={0:F3}, leaderDelta={1:F3}, leaderLap={2:F3}",
                         num3,
                         LeaderDeltaSeconds,
@@ -2829,7 +2829,7 @@ namespace LaunchPlugin
                                  Math.Abs(LeaderDeltaSeconds - _lastLoggedLeaderDeltaSeconds) > 0.01;
                 if (shouldLog)
                 {
-                    SimHub.Logging.Current.Debug(string.Format(
+                    SimHub.Logging.Current.Info(string.Format(
                         "[FuelLeader] CalculateStrategy: estLap={0:F3}, leaderDelta={1:F3}, leaderLap={2:F3}",
                         num3,
                         LeaderDeltaSeconds,
