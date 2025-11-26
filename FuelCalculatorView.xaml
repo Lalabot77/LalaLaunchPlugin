@@ -168,41 +168,41 @@
                             <!-- NEW: Car + Track selectors inside the section -->
                             <Grid Grid.Row="2" Margin="0,5,0,10" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="250"/>
-                                <ColumnDefinition Width="20"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="250"/>
-                            </Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="250"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="250"/>
+                                </Grid.ColumnDefinitions>
 
                             <!-- Car & Track, vertically aligned in a 2x2 Grid -->
-                            <Grid Grid.Row="1" Margin="0,5,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="100"/>
-                                    <!-- label column -->
-                                    <ColumnDefinition Width="300"/>
-                                    <!-- combo column -->
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Car Profile:"
-                                    VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
-                                <ComboBox  Grid.Row="0" Grid.Column="1" Width="300" Margin="0,0,0,6"
-                                     ItemsSource="{Binding AvailableCarProfiles}"
-                                     SelectedItem="{Binding SelectedCarProfile, Mode=TwoWay}"
-                                     DisplayMemberPath="ProfileName"
-                                     ToolTip="Select a car profile to plan a strategy for."/>
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Track:"
-                                    VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
-                                <ComboBox  Grid.Row="1" Grid.Column="1" Width="Auto"
-                                     ItemsSource="{Binding AvailableTrackStats}"
-                                     DisplayMemberPath="DisplayName"
-                                     SelectedItem="{Binding SelectedTrackStats, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="Select the track and layout."/>
+                                <Grid Grid.Row="1" Margin="0,5,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <!-- label column -->
+                                        <ColumnDefinition Width="300"/>
+                                        <!-- combo column -->
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Car Profile:"
+                                        VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
+                                    <ComboBox  Grid.Row="0" Grid.Column="1" Width="300" Margin="0,0,0,6"
+                                         ItemsSource="{Binding AvailableCarProfiles}"
+                                         SelectedItem="{Binding SelectedCarProfile, Mode=TwoWay}"
+                                         DisplayMemberPath="ProfileName"
+                                         ToolTip="Select a car profile to plan a strategy for."/>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Track:"
+                                        VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
+                                    <ComboBox  Grid.Row="1" Grid.Column="1" Width="Auto"
+                                         ItemsSource="{Binding AvailableTrackStats}"
+                                         DisplayMemberPath="DisplayName"
+                                         SelectedItem="{Binding SelectedTrackStats, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Select the track and layout."/>
+                                </Grid>
                             </Grid>
-                        </Grid>
 
                             <!-- Track condition (Profile planning only) -->
                             <StackPanel Grid.Row="3" Margin="0,5,0,5" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
