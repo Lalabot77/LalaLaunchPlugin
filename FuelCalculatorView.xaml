@@ -180,7 +180,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="100"/>
                                     <!-- label column -->
-                                    <ColumnDefinition Width="260"/>
+                                    <ColumnDefinition Width="300"/>
                                     <!-- combo column -->
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
@@ -189,14 +189,14 @@
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Car Profile:"
                                     VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
-                                <ComboBox  Grid.Row="0" Grid.Column="1" Width="260" Margin="0,0,0,6"
+                                <ComboBox  Grid.Row="0" Grid.Column="1" Width="300" Margin="0,0,0,6"
                                      ItemsSource="{Binding AvailableCarProfiles}"
                                      SelectedItem="{Binding SelectedCarProfile, Mode=TwoWay}"
                                      DisplayMemberPath="ProfileName"
                                      ToolTip="Select a car profile to plan a strategy for."/>
                                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Track:"
                                     VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
-                                <ComboBox  Grid.Row="1" Grid.Column="1" Width="260"
+                                <ComboBox  Grid.Row="1" Grid.Column="1" Width="Auto"
                                      ItemsSource="{Binding AvailableTrackStats}"
                                      DisplayMemberPath="DisplayName"
                                      SelectedItem="{Binding SelectedTrackStats, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
