@@ -138,19 +138,19 @@
                                        Text="{Binding LiveSurfaceModeDisplay}"
                                        Style="{StaticResource SnapshotValueStyle}" />
                                     <TextBlock Grid.Row="2" Grid.Column="0"
-                                       Text="Lap Times"
+                                       Text="Dry Lap Times"
                                        Style="{StaticResource SnapshotLabelStyle}" />
                                     <TextBlock Grid.Row="2" Grid.Column="1"
                                        Text="{Binding DryLapTimeSummary}"
                                        Style="{StaticResource SnapshotValueStyle}" />
                                     <TextBlock Grid.Row="3" Grid.Column="0"
-                                       Text="Pace Deltas"
+                                       Text="Dry Pace Deltas"
                                        Style="{StaticResource SnapshotLabelStyle}" />
                                     <TextBlock Grid.Row="3" Grid.Column="1"
                                        Text="{Binding DryPaceDeltaSummary}"
                                        Style="{StaticResource SnapshotValueStyle}" />
                                     <TextBlock Grid.Row="4" Grid.Column="0"
-                                       Text="Fuel Burn"
+                                       Text="Dry Fuel Burn"
                                        Style="{StaticResource SnapshotLabelStyle}" />
                                     <TextBlock Grid.Row="4" Grid.Column="1"
                                        Text="{Binding DryFuelBurnSummary}"
