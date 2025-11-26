@@ -2319,8 +2319,6 @@ namespace LaunchPlugin
         _hasLiveLeaderDelta = false;
         SimHub.Logging.Current.Info("[Leader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
         AvgDeltaToPbValue = "-";
-        _liveMaxFuel = 0;
-        _liveFuelTankLiters = 0;
         DryLapTimeSummary = "-";
         WetLapTimeSummary = "-";
         DryPaceDeltaSummary = "-";
@@ -2350,6 +2348,23 @@ namespace LaunchPlugin
         LiveSessionHeader = "LIVE SESSION (no live data)";
         OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
         OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh));
+    }
+
+    private void ClearLiveFuelSnapshot()
+    {
+        _liveMaxFuel = 0;
+        _liveFuelTankLiters = 0;
+        _liveDryFuelAvg = 0;
+        _liveDryFuelMin = 0;
+        _liveDryFuelMax = 0;
+        _liveDrySamples = 0;
+        _liveWetFuelAvg = 0;
+        _liveWetFuelMin = 0;
+        _liveWetFuelMax = 0;
+        _liveWetSamples = 0;
+
+        UpdateFuelBurnSummaries();
+        UpdateLiveFuelChoiceDisplays();
     }
 
     private void UpdateTrackDerivedSummaries()
@@ -2463,6 +2478,8 @@ namespace LaunchPlugin
             return;
         }
 
+        bool startingNewLiveSession = !IsLiveSessionActive && hasCar && hasTrack;
+
         // 1) Make sure the car profile object is selected (this will also rebuild AvailableTracks once below)
         var carProfile = AvailableCarProfiles.FirstOrDefault(
             p => p.ProfileName.Equals(carName, StringComparison.OrdinalIgnoreCase));
@@ -2510,6 +2527,11 @@ namespace LaunchPlugin
         LiveSessionHeader = (IsLiveSessionActive && (hasCar || hasTrack))
             ? $"LIVE SESSION: {FormatLabel(displayCarName, "-")} @ {FormatLabel(displayTrackName, "-")}"
             : "LIVE SESSION TELEMETRY (no live data)";
+
+        if (startingNewLiveSession)
+        {
+            ClearLiveFuelSnapshot();
+        }
 
         UpdateTrackDerivedSummaries();
 

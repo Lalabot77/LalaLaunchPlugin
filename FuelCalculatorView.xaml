@@ -17,13 +17,13 @@
         <Style x:Key="FuelChoiceButtonStyle" TargetType="Button">
             <Setter Property="Padding" Value="12,4"/>
             <Setter Property="Margin" Value="0,0,8,0"/>
-            <Setter Property="MinWidth" Value="80"/>
+            <Setter Property="MinWidth" Value="70"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="Background" Value="#2A2D34"/>
             <Setter Property="BorderBrush" Value="#4C5261"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
@@ -427,8 +427,8 @@
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice3"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding ProfileAvgFuelDisplay}" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="-" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="0" Text="{Binding ProfileAvgFuelDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="-" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     <TextBlock Grid.Column="2" Text="-" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Grid>
                                 <Grid Grid.ColumnSpan="3" Visibility="{Binding IsPlanningSourceLiveSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -437,8 +437,8 @@
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice3"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding LiveFuelPerLapDisplay}" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Live rolling average fuel per lap."/>
-                                    <TextBlock Grid.Column="1" Text="{Binding LiveFuelSaveDisplay}" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Most efficient lap recorded in this session."/>
+                                    <TextBlock Grid.Column="0" Text="{Binding LiveFuelPerLapDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Live rolling average fuel per lap."/>
+                                    <TextBlock Grid.Column="1" Text="{Binding LiveFuelSaveDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Most efficient lap recorded in this session."/>
                                     <TextBlock Grid.Column="2" Text="{Binding LiveFuelMaxDisplay}" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center" ToolTip="Highest valid fuel per lap recorded in this session."/>
                                 </Grid>
                             </Grid>
