@@ -161,7 +161,35 @@ namespace LaunchPlugin
     public string FuelPerLapSourceInfo
     {
         get => _fuelPerLapSourceInfo;
-        set { if (_fuelPerLapSourceInfo != value) { _fuelPerLapSourceInfo = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_fuelPerLapSourceInfo != value)
+            {
+                _fuelPerLapSourceInfo = value;
+                OnPropertyChanged();
+                RaiseFuelChoiceIndicators();
+            }
+        }
+    }
+
+    public bool IsProfileFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.Profile
+        && FuelPerLapSourceInfo?.Contains("profile") == true;
+
+    public bool IsLiveAverageFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+        && FuelPerLapSourceInfo?.Contains("live average") == true;
+
+    public bool IsLiveSaveFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+        && FuelPerLapSourceInfo?.Contains("live save") == true;
+
+    public bool IsLiveMaxFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+        && FuelPerLapSourceInfo?.Contains("max") == true;
+
+    private void RaiseFuelChoiceIndicators()
+    {
+        OnPropertyChanged(nameof(IsProfileFuelChoiceActive));
+        OnPropertyChanged(nameof(IsLiveAverageFuelChoiceActive));
+        OnPropertyChanged(nameof(IsLiveSaveFuelChoiceActive));
+        OnPropertyChanged(nameof(IsLiveMaxFuelChoiceActive));
     }
 
     public bool IsFuelPerLapManual
@@ -205,6 +233,7 @@ namespace LaunchPlugin
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsPlanningSourceProfile));
             OnPropertyChanged(nameof(IsPlanningSourceLiveSnapshot));
+            RaiseFuelChoiceIndicators();
 
             // When the user changes the global planning source,
             // drop any manual overrides so the new source fully takes over.
