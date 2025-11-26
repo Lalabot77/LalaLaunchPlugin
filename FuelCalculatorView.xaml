@@ -123,6 +123,9 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
                                     <TextBlock Grid.Row="0" Grid.Column="0"
@@ -162,6 +165,30 @@
                                        Text="{Binding LiveConfidenceSummary}"
                                        Style="{StaticResource SnapshotValueStyle}"
                                        TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="6" Grid.Column="0"
+                                       Text="Wet Lap Times"
+                                       Style="{StaticResource SnapshotLabelStyle}"
+                                       Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <TextBlock Grid.Row="6" Grid.Column="1"
+                                       Text="{Binding WetLapTimeSummary}"
+                                       Style="{StaticResource SnapshotValueStyle}"
+                                       Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <TextBlock Grid.Row="7" Grid.Column="0"
+                                       Text="Wet Pace Delta"
+                                       Style="{StaticResource SnapshotLabelStyle}"
+                                       Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <TextBlock Grid.Row="7" Grid.Column="1"
+                                       Text="{Binding WetPaceDeltaSummary}"
+                                       Style="{StaticResource SnapshotValueStyle}"
+                                       Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <TextBlock Grid.Row="8" Grid.Column="0"
+                                       Text="Wet Fuel Burn"
+                                       Style="{StaticResource SnapshotLabelStyle}"
+                                       Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    <TextBlock Grid.Row="8" Grid.Column="1"
+                                       Text="{Binding WetFuelBurnSummary}"
+                                       Style="{StaticResource SnapshotValueStyle}"
+                                       Visibility="{Binding ShowWetSnapshotRows, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 </Grid>
                             </styles:SHExpander>
 

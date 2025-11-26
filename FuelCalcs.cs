@@ -991,8 +991,18 @@ namespace LaunchPlugin
 
     private void ApplyLiveSurfaceSummary(bool? isDeclaredWet, string summary)
     {
+        bool wasWetVisible = ShowWetSnapshotRows;
+
         _liveWeatherIsWet = isDeclaredWet;
         _liveSurfaceSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
+
+        bool isWetVisible = ShowWetSnapshotRows;
+        if (isWetVisible != wasWetVisible)
+        {
+            OnPropertyChanged(nameof(ShowWetSnapshotRows));
+            UpdateLapTimeSummaries();
+            UpdatePaceSummaries();
+        }
 
         UpdateSurfaceModeLabel();
     }
@@ -1157,7 +1167,7 @@ namespace LaunchPlugin
         set { if (value) SelectedTrackCondition = TrackCondition.Wet; }
     }
     public bool ShowDrySnapshotRows => IsDry;
-    public bool ShowWetSnapshotRows => IsWet;
+    public bool ShowWetSnapshotRows => (_liveWeatherIsWet == true) || IsWet;
 
     public double MaxFuelOverride
     {
@@ -2209,9 +2219,16 @@ namespace LaunchPlugin
         LastPitDriveThroughDisplay = "-";
         LastRefuelRateDisplay = "-";
         LastTyreChangeDisplay = "-";
+        bool wasWetVisible = ShowWetSnapshotRows;
         _liveWeatherIsWet = null;
         _liveSurfaceSummary = null;
         LiveSurfaceModeDisplay = "-";
+        if (ShowWetSnapshotRows != wasWetVisible)
+        {
+            OnPropertyChanged(nameof(ShowWetSnapshotRows));
+            UpdateLapTimeSummaries();
+            UpdatePaceSummaries();
+        }
         ConditionRefuelBaseSeconds = 0;
         ConditionRefuelSecondsPerLiter = 0;
         ConditionRefuelSecondsPerSquare = 0;
