@@ -161,7 +161,35 @@ namespace LaunchPlugin
     public string FuelPerLapSourceInfo
     {
         get => _fuelPerLapSourceInfo;
-        set { if (_fuelPerLapSourceInfo != value) { _fuelPerLapSourceInfo = value; OnPropertyChanged(); } }
+        set
+        {
+            if (_fuelPerLapSourceInfo != value)
+            {
+                _fuelPerLapSourceInfo = value;
+                OnPropertyChanged();
+                RaiseFuelChoiceIndicators();
+            }
+        }
+    }
+
+    public bool IsProfileFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.Profile
+        && FuelPerLapSourceInfo?.Contains("profile") == true;
+
+    public bool IsLiveAverageFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+        && FuelPerLapSourceInfo?.Contains("live average") == true;
+
+    public bool IsLiveSaveFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+        && FuelPerLapSourceInfo?.Contains("live save") == true;
+
+    public bool IsLiveMaxFuelChoiceActive => SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+        && FuelPerLapSourceInfo?.Contains("max") == true;
+
+    private void RaiseFuelChoiceIndicators()
+    {
+        OnPropertyChanged(nameof(IsProfileFuelChoiceActive));
+        OnPropertyChanged(nameof(IsLiveAverageFuelChoiceActive));
+        OnPropertyChanged(nameof(IsLiveSaveFuelChoiceActive));
+        OnPropertyChanged(nameof(IsLiveMaxFuelChoiceActive));
     }
 
     public bool IsFuelPerLapManual
@@ -205,6 +233,9 @@ namespace LaunchPlugin
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsPlanningSourceProfile));
             OnPropertyChanged(nameof(IsPlanningSourceLiveSnapshot));
+            OnPropertyChanged(nameof(ShowLiveLapHelper));
+            OnPropertyChanged(nameof(ShowProfileLapHelper));
+            RaiseFuelChoiceIndicators();
 
             // When the user changes the global planning source,
             // drop any manual overrides so the new source fully takes over.
@@ -238,10 +269,22 @@ namespace LaunchPlugin
         set { if (value) SelectedPlanningSourceMode = PlanningSourceMode.LiveSnapshot; }
     }
 
-        public bool IsLiveLapPaceAvailable
+    public bool ShowLiveLapHelper => IsPlanningSourceProfile && IsLiveLapPaceAvailable;
+
+    public bool ShowProfileLapHelper => IsPlanningSourceLiveSnapshot && !string.IsNullOrWhiteSpace(ProfileAvgLapTimeDisplay) && ProfileAvgLapTimeDisplay != "-";
+
+    public bool IsLiveLapPaceAvailable
     {
         get => _isLiveLapPaceAvailable;
-        private set { if (_isLiveLapPaceAvailable != value) { _isLiveLapPaceAvailable = value; OnPropertyChanged(nameof(IsLiveLapPaceAvailable)); } }
+        private set
+        {
+            if (_isLiveLapPaceAvailable != value)
+            {
+                _isLiveLapPaceAvailable = value;
+                OnPropertyChanged(nameof(IsLiveLapPaceAvailable));
+                OnPropertyChanged(nameof(ShowLiveLapHelper));
+            }
+        }
     }
 
     public string LiveLapPaceInfo
@@ -398,6 +441,8 @@ namespace LaunchPlugin
     public string ProfileAvgDryLapTimeDisplay { get; private set; }
     public string ProfileAvgDryFuelDisplay { get; private set; }
     public string LiveFuelPerLapDisplay { get; private set; } = "-";
+    public string LiveFuelSaveDisplay { get; private set; } = "-";
+    public string LiveFuelMaxDisplay { get; private set; } = "-";
 
     public ObservableCollection<TrackStats> AvailableTrackStats { get; set; } = new ObservableCollection<TrackStats>();
 
@@ -424,13 +469,14 @@ namespace LaunchPlugin
     // Live availability (fuel per lap comes from LalaLaunch)
     public double LiveFuelPerLap { get; private set; }
     public bool IsLiveFuelPerLapAvailable => LiveFuelPerLap > 0;
+    public bool IsLiveFuelSaveAvailable { get; private set; }
 
     public bool HasLiveMaxFuelSuggestion => _liveMaxFuel > 0;
 
     private double _liveMaxFuel;
     public bool IsMaxFuelOverrideTooHigh => MaxFuelOverride > _liveMaxFuel && _liveMaxFuel > 0;
     public string MaxFuelPerLapDisplay { get; private set; } = "-";
-    public bool IsMaxFuelAvailable => _plugin?.MaxFuelPerLapDisplay > 0;
+    public bool IsMaxFuelAvailable => GetActiveLiveFuelMax().HasValue || (_plugin?.MaxFuelPerLapDisplay > 0);
 
     // Update profile if the incoming rate differs (> tiny epsilon), then recalc.
     public void SetRefuelRateLps(double rateLps)
@@ -503,6 +549,7 @@ namespace LaunchPlugin
     // ---- Commands for the buttons ----
     //public ICommand ResetFuelPerLapToProfileCommand { get; }
     public ICommand UseLiveFuelPerLapCommand { get; }
+    public ICommand UseLiveFuelSaveCommand { get; }
     public ICommand ResetPitLaneLossToProfileCommand { get; }
     public ICommand UseLivePitLaneLossCommand { get; }
     // ---- Commands for the lap-time row ----
@@ -911,8 +958,43 @@ namespace LaunchPlugin
         UpdateLapTimeSummaries();
     }
 
+    private static string FormatFuelPerLapDisplay(double? value)
+    {
+        return value.HasValue ? $"{value.Value:F2} L" : "-";
+    }
+
+    private double? GetActiveLiveFuelMin()
+    {
+        double value = IsWet ? _liveWetFuelMin : _liveDryFuelMin;
+        return value > 0 ? value : (double?)null;
+    }
+
+    private double? GetActiveLiveFuelMax()
+    {
+        double value = IsWet ? _liveWetFuelMax : _liveDryFuelMax;
+        return value > 0 ? value : (double?)null;
+    }
+
+    private void UseLiveFuelSave()
+    {
+        var min = GetActiveLiveFuelMin();
+        if (min.HasValue)
+        {
+            FuelPerLap = min.Value;
+            FuelPerLapSourceInfo = "source: live save";
+        }
+    }
+
     private void UseMaxFuelPerLap()
     {
+        var liveMax = GetActiveLiveFuelMax();
+        if (liveMax.HasValue)
+        {
+            FuelPerLap = liveMax.Value;
+            FuelPerLapSourceInfo = "source: live max";
+            return;
+        }
+
         if (_plugin.MaxFuelPerLapDisplay > 0)
         {
             FuelPerLap = _plugin.MaxFuelPerLapDisplay;
@@ -940,6 +1022,7 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(LiveFuelPerLap));
         OnPropertyChanged(nameof(LiveFuelPerLapDisplay));
         OnPropertyChanged(nameof(IsLiveFuelPerLapAvailable));
+        UpdateLiveFuelChoiceDisplays();
 
         if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
             && !IsFuelPerLapManual
@@ -974,6 +1057,7 @@ namespace LaunchPlugin
         }
         OnPropertyChanged(nameof(MaxFuelPerLapDisplay));
         OnPropertyChanged(nameof(IsMaxFuelAvailable));
+        UpdateLiveFuelChoiceDisplays();
     }
 
     public void SetLiveSurfaceSummary(bool? isDeclaredWet, string summary)
@@ -1060,6 +1144,29 @@ namespace LaunchPlugin
         _liveWetSamples = Math.Max(0, wetSamples);
 
         UpdateFuelBurnSummaries();
+        UpdateLiveFuelChoiceDisplays();
+    }
+
+    private void UpdateLiveFuelChoiceDisplays()
+    {
+        var min = GetActiveLiveFuelMin();
+        var max = GetActiveLiveFuelMax();
+
+        // If we don't have a live max yet, fall back to the plugin's detected max for availability + display
+        if (!max.HasValue && _plugin?.MaxFuelPerLapDisplay > 0)
+        {
+            max = _plugin.MaxFuelPerLapDisplay;
+        }
+
+        LiveFuelSaveDisplay = FormatFuelPerLapDisplay(min);
+        LiveFuelMaxDisplay = FormatFuelPerLapDisplay(max);
+
+        IsLiveFuelSaveAvailable = min.HasValue;
+
+        OnPropertyChanged(nameof(LiveFuelSaveDisplay));
+        OnPropertyChanged(nameof(LiveFuelMaxDisplay));
+        OnPropertyChanged(nameof(IsLiveFuelSaveAvailable));
+        OnPropertyChanged(nameof(IsMaxFuelAvailable));
     }
 
     public void SetLastPitDriveThroughSeconds(double seconds)
@@ -1129,6 +1236,7 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(IsWet));
                 OnPropertyChanged(nameof(ShowDrySnapshotRows));
                 OnPropertyChanged(nameof(ShowWetSnapshotRows));
+                UpdateLiveFuelChoiceDisplays();
 
                 // Apply fuel factor
                 if (IsWet) { ApplyWetFactor(); }
@@ -1150,6 +1258,7 @@ namespace LaunchPlugin
                 UpdateSurfaceModeLabel();
             }
             OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
+            OnPropertyChanged(nameof(ShowProfileLapHelper));
             OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
             RefreshConditionParameters();
         }
@@ -1492,6 +1601,7 @@ namespace LaunchPlugin
     public void OnLiveFuelPerLapUpdated()
     {
         OnPropertyChanged(nameof(IsLiveFuelPerLapAvailable));
+        UpdateLiveFuelChoiceDisplays();
     }
     private void UseLiveFuelPerLap()
     {
@@ -1809,9 +1919,11 @@ namespace LaunchPlugin
         RebuildAvailableCarProfiles();
 
         ResetLiveSnapshotGuards();
+        UpdateLiveFuelChoiceDisplays();
 
         UseLiveLapPaceCommand = new RelayCommand(_ => UseLiveLapPace(),_ => IsLiveLapPaceAvailable);
         UseLiveFuelPerLapCommand = new RelayCommand(_ => UseLiveFuelPerLap());
+        UseLiveFuelSaveCommand = new RelayCommand(_ => UseLiveFuelSave(), _ => IsLiveFuelSaveAvailable);
         LoadProfileLapTimeCommand = new RelayCommand(_ => LoadProfileLapTime(),_ => SelectedCarProfile != null && !string.IsNullOrEmpty(SelectedTrack));
         UseProfileFuelPerLapCommand = new RelayCommand(_ => UseProfileFuelPerLap());
         UseMaxFuelPerLapCommand = new RelayCommand(_ => UseMaxFuelPerLap(), _ => IsMaxFuelAvailable);
@@ -2542,6 +2654,7 @@ namespace LaunchPlugin
 
         // Manually notify the UI of all changes
         OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
+        OnPropertyChanged(nameof(ShowProfileLapHelper));
         OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
         OnPropertyChanged(nameof(ProfileAvgDryLapTimeDisplay));
         OnPropertyChanged(nameof(ProfileAvgDryFuelDisplay));
