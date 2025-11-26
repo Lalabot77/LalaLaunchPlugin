@@ -352,7 +352,30 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="6" Margin="0,15,0,0">
-                            <ui:TitledSlider Title="Max Fuel Override (litres):" Minimum="1" Maximum="150" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel.">
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="Max Fuel Override (litres):" VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Column="1" Text="{Binding DetectedMaxFuelDisplay}" FontStyle="Italic" Margin="10,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="{Binding IsPlanningSourceLiveSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="Gray"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMaxFuelOverrideTooHigh}" Value="True">
+                                                    <Setter Property="Foreground" Value="#FFC43C"/>
+                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+
+                            <ui:TitledSlider Title="" Minimum="1" Maximum="150" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel.">
                                 <ui:TitledSlider.Resources>
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>
@@ -363,19 +386,6 @@
                                     </Style>
                                 </ui:TitledSlider.Resources>
                             </ui:TitledSlider>
-                            <TextBlock Text="{Binding DetectedMaxFuelDisplay}" FontStyle="Italic" Margin="12,-2,0,5" HorizontalAlignment="Right">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="Gray"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMaxFuelOverrideTooHigh}" Value="True">
-                                                <Setter Property="Foreground" Value="#FFC43C"/>
-                                                <Setter Property="FontWeight" Value="Bold"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
                         </StackPanel>
 
                         <Grid Grid.Row="7" Margin="0,15,0,0" Grid.IsSharedSizeScope="True">
