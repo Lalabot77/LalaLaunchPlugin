@@ -223,10 +223,10 @@ namespace LaunchPlugin
 
             ApplyPlanningSourceToAutoFields();
 
-            }
         }
+    }
 
-        public bool IsPlanningSourceProfile
+    public bool IsPlanningSourceProfile
     {
         get => SelectedPlanningSourceMode == PlanningSourceMode.Profile;
         set { if (value) SelectedPlanningSourceMode = PlanningSourceMode.Profile; }
