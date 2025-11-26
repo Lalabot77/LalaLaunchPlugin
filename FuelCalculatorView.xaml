@@ -264,14 +264,14 @@
 
                             <Grid Grid.Row="4" Margin="0,15,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="140"/>
-                                    <ColumnDefinition Width="72"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="60"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="Est Avg Lap Time:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock Grid.Column="0" Text="Avg Lap Time:" VerticalAlignment="Center" Margin="0,0,10,0"/>
 
-                                <TextBox Grid.Column="1" VerticalAlignment="Center" Width="72" HorizontalAlignment="Left">
+                                <TextBox Grid.Column="1" VerticalAlignment="Center" Width="60" HorizontalAlignment="Left">
                                     <TextBox.Text>
                                         <Binding Path="EstimatedLapTime" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
@@ -380,8 +380,8 @@
 
                         <Grid Grid.Row="7" Margin="0,15,0,0" Grid.IsSharedSizeScope="True">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="140"/>
-                                <ColumnDefinition Width="72"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="50"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
@@ -390,9 +390,9 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel per Lap (litres):" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel per Lap:" VerticalAlignment="Center" Margin="0,0,10,0"/>
 
-                            <TextBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Width="72" HorizontalAlignment="Left" Text="{Binding FuelPerLapText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Width="50" HorizontalAlignment="Left" Text="{Binding FuelPerLapText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
                             <TextBlock Grid.Row="0" Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center">
                                 <TextBlock.Style>
@@ -410,7 +410,7 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="10,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="10,5,0,0" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice1"/>
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
