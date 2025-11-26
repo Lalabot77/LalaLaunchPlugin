@@ -197,7 +197,7 @@ namespace LaunchPlugin
             {
                 // If we have no pace confidence yet, fall back to fuel-only
                 if (PaceConfidence <= 0) return Confidence;
-                return (Confidence < PaceConfidence) ? Confidence : PaceConfidence;
+                return (Confidence * PaceConfidence);
             }
         }
 
@@ -654,7 +654,7 @@ namespace LaunchPlugin
                         if (trackRecord?.AvgLapTimeDry > 0)
                         {
                             stableAvgPace = trackRecord.AvgLapTimeDry.Value / 1000.0;
-                            SimHub.Logging.Current.Debug($"Pace Delta: No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
+                            SimHub.Logging.Current.Info($"Pace Delta: No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
                         }
                     }
                     // --- PB tertiary fallback (for replays / no live median and no profile avg) ---
@@ -662,7 +662,7 @@ namespace LaunchPlugin
                     {
                         stableAvgPace = _lastSeenBestLap.TotalSeconds;
                     }
-                    SimHub.Logging.Current.Debug($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
+                    SimHub.Logging.Current.Info($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
 
                     // Decide and publish baseline (profile-avg → live-median → session-pb)
                     string paceSource = "live-median"; // default to whatever stableAvgPace currently holds
@@ -791,7 +791,7 @@ namespace LaunchPlugin
                     if (currentLeaderCount != _lastLoggedLeaderLapCount ||
                         Math.Abs(currentAvgLeader - _lastLoggedLeaderAvgPaceSeconds) > 0.01)
                     {
-                        SimHub.Logging.Current.Debug(string.Format(
+                        SimHub.Logging.Current.Info(string.Format(
                             "[FuelLeader] lapCrossed: leaderLastLapSec={0:F3}, count={1}, avgLeader={2:F3}",
                             leaderLastLapSec,
                             currentLeaderCount,
@@ -3196,7 +3196,7 @@ namespace LaunchPlugin
             }
             else if (!_plugin.Settings.EnableTelemetryTracing)
             {
-                SimHub.Logging.Current.Debug("TelemetryTraceLogger: Skipping trace logging — disabled in plugin settings.");
+                //SimHub.Logging.Current.Debug("TelemetryTraceLogger: Skipping trace logging — disabled in plugin settings.");
             }
         }
 
