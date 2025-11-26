@@ -233,6 +233,8 @@ namespace LaunchPlugin
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsPlanningSourceProfile));
             OnPropertyChanged(nameof(IsPlanningSourceLiveSnapshot));
+            OnPropertyChanged(nameof(ShowLiveLapHelper));
+            OnPropertyChanged(nameof(ShowProfileLapHelper));
             RaiseFuelChoiceIndicators();
 
             // When the user changes the global planning source,
@@ -267,10 +269,22 @@ namespace LaunchPlugin
         set { if (value) SelectedPlanningSourceMode = PlanningSourceMode.LiveSnapshot; }
     }
 
-        public bool IsLiveLapPaceAvailable
+    public bool ShowLiveLapHelper => IsPlanningSourceProfile && IsLiveLapPaceAvailable;
+
+    public bool ShowProfileLapHelper => IsPlanningSourceLiveSnapshot && !string.IsNullOrWhiteSpace(ProfileAvgLapTimeDisplay) && ProfileAvgLapTimeDisplay != "-";
+
+    public bool IsLiveLapPaceAvailable
     {
         get => _isLiveLapPaceAvailable;
-        private set { if (_isLiveLapPaceAvailable != value) { _isLiveLapPaceAvailable = value; OnPropertyChanged(nameof(IsLiveLapPaceAvailable)); } }
+        private set
+        {
+            if (_isLiveLapPaceAvailable != value)
+            {
+                _isLiveLapPaceAvailable = value;
+                OnPropertyChanged(nameof(IsLiveLapPaceAvailable));
+                OnPropertyChanged(nameof(ShowLiveLapHelper));
+            }
+        }
     }
 
     public string LiveLapPaceInfo
@@ -1244,6 +1258,7 @@ namespace LaunchPlugin
                 UpdateSurfaceModeLabel();
             }
             OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
+            OnPropertyChanged(nameof(ShowProfileLapHelper));
             OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
             RefreshConditionParameters();
         }
@@ -2639,6 +2654,7 @@ namespace LaunchPlugin
 
         // Manually notify the UI of all changes
         OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
+        OnPropertyChanged(nameof(ShowProfileLapHelper));
         OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
         OnPropertyChanged(nameof(ProfileAvgDryLapTimeDisplay));
         OnPropertyChanged(nameof(ProfileAvgDryFuelDisplay));
