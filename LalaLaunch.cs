@@ -1998,6 +1998,13 @@ namespace LaunchPlugin
             FuelCalculator.SetLiveSession(carName, trackLabel);
             _lastSnapshotCar = carName;
             _lastSnapshotTrack = trackLabel;
+
+            // Reset max fuel announcement throttle so the live display refreshes immediately for the new snapshot
+            _lastAnnouncedMaxFuel = -1;
+            if (LiveCarMaxFuel > 0)
+            {
+                FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
+            }
         }
 
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
@@ -2072,6 +2079,7 @@ namespace LaunchPlugin
                 _lastSeenTrack = string.Empty;
                 _lastSnapshotCar = string.Empty;
                 _lastSnapshotTrack = string.Empty;
+                _lastAnnouncedMaxFuel = -1;
                 _lastSessionId = currentSessionId;
                 FuelCalculator.ForceProfileDataReload();
 
