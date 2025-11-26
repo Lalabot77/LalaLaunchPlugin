@@ -23,7 +23,7 @@
             <Setter Property="BorderBrush" Value="#4C5261"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
@@ -217,27 +217,39 @@
                             <Grid Grid.Row="2" Margin="0,5,0,10" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="300"/>
+                                    <ColumnDefinition Width="250"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="250"/>
                                 </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Car Profile:"
-                                    VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
-                                <ComboBox Grid.Row="0" Grid.Column="1" Width="300" Margin="0,0,0,6"
+                            <!-- Car & Track, vertically aligned in a 2x2 Grid -->
+                                <Grid Grid.Row="1" Margin="0,5,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <!-- label column -->
+                                        <ColumnDefinition Width="300"/>
+                                        <!-- combo column -->
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Car Profile:"
+                                        VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
+                                    <ComboBox  Grid.Row="0" Grid.Column="1" Width="300" Margin="0,0,0,6"
                                          ItemsSource="{Binding AvailableCarProfiles}"
                                          SelectedItem="{Binding SelectedCarProfile, Mode=TwoWay}"
                                          DisplayMemberPath="ProfileName"
                                          ToolTip="Select a car profile to plan a strategy for."/>
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Track:"
-                                    VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
-                                <ComboBox Grid.Row="1" Grid.Column="1" Width="300"
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Track:"
+                                        VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
+                                    <ComboBox  Grid.Row="1" Grid.Column="1" Width="Auto"
                                          ItemsSource="{Binding AvailableTrackStats}"
                                          DisplayMemberPath="DisplayName"
                                          SelectedItem="{Binding SelectedTrackStats, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                          ToolTip="Select the track and layout."/>
+                                </Grid>
                             </Grid>
 
                             <!-- Track condition (Profile planning only) -->
@@ -384,12 +396,16 @@
 
                             <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding FuelPerLapSourceInfo}" Margin="10,0,0,0" VerticalAlignment="Center"/>
 
-                            <Grid Grid.Row="0" Grid.Column="3" Margin="10,0,0,0" HorizontalAlignment="Right">
+                            <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="10,0,0,0" HorizontalAlignment="Right">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice1"/>
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice3"/>
                                 </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
                                 <Grid Grid.ColumnSpan="3" Visibility="{Binding IsPlanningSourceProfile, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Grid.ColumnDefinitions>
@@ -402,6 +418,17 @@
                                     <Button Grid.Column="2" Content="MAX" Style="{StaticResource FuelChoiceButtonStyle}" Tag="False" Margin="0" IsEnabled="False" ToolTip="Profile max value coming soon."/>
                                 </Grid>
 
+                                <Grid Grid.ColumnSpan="3" Grid.Row="1" Visibility="{Binding IsPlanningSourceProfile, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,4,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice1"/>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice3"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding ProfileAvgFuelDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="-" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="-" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+
                                 <Grid Grid.ColumnSpan="3" Visibility="{Binding IsPlanningSourceLiveSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice1"/>
@@ -412,26 +439,8 @@
                                     <Button Grid.Column="1" Content="ECO" Style="{StaticResource FuelChoiceButtonStyle}" Tag="{Binding IsLiveSaveFuelChoiceActive}" Command="{Binding UseLiveFuelSaveCommand}" IsEnabled="{Binding IsLiveFuelSaveAvailable}" ToolTip="Use the most fuel-efficient lap observed in the current live session."/>
                                     <Button Grid.Column="2" Content="MAX" Style="{StaticResource FuelChoiceButtonStyle}" Tag="{Binding IsLiveMaxFuelChoiceActive}" Margin="0" Command="{Binding UseMaxFuelPerLapCommand}" IsEnabled="{Binding IsMaxFuelAvailable}" ToolTip="Use the highest valid fuel per lap observed in the current live session."/>
                                 </Grid>
-                            </Grid>
 
-                            <Grid Grid.Row="1" Grid.Column="3" Margin="10,4,0,0" HorizontalAlignment="Right">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice1"/>
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
-                                    <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice3"/>
-                                </Grid.ColumnDefinitions>
-
-                                <Grid Grid.ColumnSpan="3" Visibility="{Binding IsPlanningSourceProfile, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,0,0,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice1"/>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice3"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding ProfileAvgFuelDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="-" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="-" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Grid>
-                                <Grid Grid.ColumnSpan="3" Visibility="{Binding IsPlanningSourceLiveSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid Grid.ColumnSpan="3" Grid.Row="1" Visibility="{Binding IsPlanningSourceLiveSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,4,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice1"/>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
