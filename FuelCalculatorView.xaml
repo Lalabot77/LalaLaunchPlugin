@@ -394,9 +394,23 @@
 
                             <TextBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Width="72" HorizontalAlignment="Left" Text="{Binding FuelPerLapText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding FuelPerLapSourceInfo}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{Binding FuelPerLapSourceInfo}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPlanningSourceProfile}" Value="True">
+                                                <Setter Property="Text" Value="profile"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsPlanningSourceLiveSnapshot}" Value="True">
+                                                <Setter Property="Text" Value="live"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
 
-                            <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="10,0,0,0" HorizontalAlignment="Right">
+                            <Grid Grid.Row="0" Grid.Column="3" Grid.RowSpan="2" Margin="10,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice1"/>
                                     <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
