@@ -355,10 +355,10 @@
                                     <TextBlock Grid.Row="0" Grid.Column="3" Text="Max" FontWeight="SemiBold" TextAlignment="Center" />
                                     <TextBlock Grid.Row="0" Grid.Column="4" Text="Samples" FontWeight="SemiBold" TextAlignment="Center" />
 
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DryEcoFuel, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding DryAvgFuel, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding DryMaxFuel, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding DrySamples}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MinFuelPerLapDry, StringFormat={}{0:0.00}}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding AvgFuelPerLapDry, StringFormat={}{0:0.00}}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding MaxFuelPerLapDry, StringFormat={}{0:0.00}}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding DryFuelSampleCount}" TextAlignment="Center" />
                                 </Grid>
 
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
@@ -413,10 +413,10 @@
                                     <TextBlock Grid.Row="0" Grid.Column="3" Text="Max" FontWeight="SemiBold" TextAlignment="Center" />
                                     <TextBlock Grid.Row="0" Grid.Column="4" Text="Samples" FontWeight="SemiBold" TextAlignment="Center" />
 
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding WetEcoFuel, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding WetAvgFuel, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding WetMaxFuel, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding WetSamples}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MinFuelPerLapWet, StringFormat={}{0:0.00}}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding AvgFuelPerLapWet, StringFormat={}{0:0.00}}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding MaxFuelPerLapWet, StringFormat={}{0:0.00}}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding WetFuelSampleCount}" TextAlignment="Center" />
                                 </Grid>
 
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
