@@ -78,6 +78,9 @@ namespace LaunchPlugin
     private bool _isLiveLapPaceAvailable;
 
     private bool _isEstimatedLapTimeManual;
+
+    private DateTime _lastStrategyResetLogUtc = DateTime.MinValue;
+    private DateTime _lastSnapshotResetLogUtc = DateTime.MinValue;
     private bool _isFuelPerLapManual;
 
     private bool _isApplyingPlanningSourceUpdates;
@@ -1732,7 +1735,12 @@ namespace LaunchPlugin
         if (!preserveMaxFuel)
             this.MaxFuelOverride = _liveMaxFuel > 0 ? Math.Round(_liveMaxFuel) : 120.0;
 
-        SimHub.Logging.Current.Info("FuelCalcs: Race strategy inputs have been reset to defaults.");
+        var nowUtc = DateTime.UtcNow;
+        if ((nowUtc - _lastStrategyResetLogUtc) > TimeSpan.FromSeconds(1))
+        {
+            SimHub.Logging.Current.Info("[FuelCalcs] Strategy reset – defaults applied.");
+            _lastStrategyResetLogUtc = nowUtc;
+        }
     }
 
     private void SavePlannerDataToProfile()
@@ -2462,7 +2470,12 @@ namespace LaunchPlugin
         AvgDeltaToLdrValue = "-";
         ClearLeaderDeltaState();
         _hasLiveLeaderDelta = false;
-        SimHub.Logging.Current.Info("[Leader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
+        var nowUtc = DateTime.UtcNow;
+        if ((nowUtc - _lastSnapshotResetLogUtc) > TimeSpan.FromSeconds(1))
+        {
+            SimHub.Logging.Current.Info("[Leader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
+            _lastSnapshotResetLogUtc = nowUtc;
+        }
         AvgDeltaToPbValue = "-";
         DryLapTimeSummary = "-";
         WetLapTimeSummary = "-";
@@ -3016,26 +3029,6 @@ namespace LaunchPlugin
             double num2 = leaderPaceAvailable
                 ? num3 - appliedDelta                       // leader pace (your pace - delta)
                 : num3;                                           // fall back to your pace when no leader data
-
-            if (LeaderDeltaSeconds > 0.0 && leaderPaceAvailable && num3 > 0.0)
-            {
-                double leaderLap = num2;
-                bool shouldLog = Math.Abs(leaderLap - _lastLoggedStrategyLeaderLap) > 0.01 ||
-                                 Math.Abs(num3 - _lastLoggedStrategyEstLap) > 0.01 ||
-                                 Math.Abs(LeaderDeltaSeconds - _lastLoggedLeaderDeltaSeconds) > 0.01;
-                if (shouldLog)
-                {
-                    SimHub.Logging.Current.Info(string.Format(
-                        "[FuelLeader] CalculateStrategy: estLap={0:F3}, leaderDelta={1:F3}, leaderLap={2:F3}",
-                        num3,
-                        LeaderDeltaSeconds,
-                        leaderLap));
-
-                    _lastLoggedStrategyLeaderLap = leaderLap;
-                    _lastLoggedStrategyEstLap = num3;
-                    _lastLoggedLeaderDeltaSeconds = LeaderDeltaSeconds;
-                }
-            }
 
             if (LeaderDeltaSeconds > 0.0 && num3 > 0.0)
             {
