@@ -333,6 +333,57 @@ namespace LaunchPlugin
             set { if (_pitLaneLossUpdatedUtc != value) { _pitLaneLossUpdatedUtc = value; OnPropertyChanged(); } }
         }
 
+        private string _fuelUpdatedSource;
+        [JsonProperty]
+        public string FuelUpdatedSource
+        {
+            get => _fuelUpdatedSource;
+            set
+            {
+                if (_fuelUpdatedSource != value)
+                {
+                    _fuelUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(FuelLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _fuelUpdatedUtc;
+        [JsonProperty]
+        public DateTime? FuelUpdatedUtc
+        {
+            get => _fuelUpdatedUtc;
+            set
+            {
+                if (_fuelUpdatedUtc != value)
+                {
+                    _fuelUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(FuelLastUpdatedText));
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public string FuelLastUpdatedText
+        {
+            get
+            {
+                if (!_fuelUpdatedUtc.HasValue) return string.Empty;
+                var sourceLabel = string.IsNullOrWhiteSpace(_fuelUpdatedSource)
+                    ? "Last updated"
+                    : _fuelUpdatedSource;
+                return $"{sourceLabel}: {_fuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+            }
+        }
+
+        public void MarkFuelUpdated(string source, DateTime? whenUtc = null)
+        {
+            FuelUpdatedSource = source;
+            FuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
 
         /// --- Dry Conditions Data ---
         private double? _avgFuelPerLapDry;
@@ -365,20 +416,6 @@ namespace LaunchPlugin
             }
         }
 
-        [JsonProperty]
-        public double? MinFuelPerLapDry
-        {
-            get => _minFuelPerLapDry;
-            set { if (_minFuelPerLapDry != value) { _minFuelPerLapDry = value; OnPropertyChanged(); } }
-        }
-
-        [JsonProperty]
-        public double? MaxFuelPerLapDry
-        {
-            get => _maxFuelPerLapDry;
-            set { if (_maxFuelPerLapDry != value) { _maxFuelPerLapDry = value; OnPropertyChanged(); } }
-        }
-
         public string AvgFuelPerLapDryText
         {
             get => _avgFuelPerLapDryText;
@@ -391,6 +428,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressDryFuelSync)
+                        {
+                            MarkFuelUpdated("Manual fuel edit");
+                        }
                         _suppressDryFuelSync = true;
                         AvgFuelPerLapDry = parsedValue;
                         _suppressDryFuelSync = false;
@@ -565,20 +606,6 @@ namespace LaunchPlugin
             }
         }
 
-        [JsonProperty]
-        public double? MinFuelPerLapWet
-        {
-            get => _minFuelPerLapWet;
-            set { if (_minFuelPerLapWet != value) { _minFuelPerLapWet = value; OnPropertyChanged(); } }
-        }
-
-        [JsonProperty]
-        public double? MaxFuelPerLapWet
-        {
-            get => _maxFuelPerLapWet;
-            set { if (_maxFuelPerLapWet != value) { _maxFuelPerLapWet = value; OnPropertyChanged(); } }
-        }
-
         public string AvgFuelPerLapWetText
         {
             get => _avgFuelPerLapWetText;
@@ -591,6 +618,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressWetFuelSync)
+                        {
+                            MarkFuelUpdated("Manual fuel edit");
+                        }
                         _suppressWetFuelSync = true;
                         AvgFuelPerLapWet = parsedValue;
                         _suppressWetFuelSync = false;
