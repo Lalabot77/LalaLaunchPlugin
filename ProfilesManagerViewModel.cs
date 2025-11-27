@@ -26,8 +26,6 @@ namespace LaunchPlugin
         private readonly Func<string> _getCurrentCarModel;
         private readonly Func<string> _getCurrentTrackName;
         private readonly string _profilesFilePath;
-        private readonly Action _recomputeFromLastStopAction;
-        private readonly Action _useDirectForThisTrackAction;
         // --- PB constants ---
         private const int PB_MIN_MS = 30000;     // >= 30s
         private const int PB_MAX_MS = 1200000;   // <= 20min
@@ -365,19 +363,14 @@ namespace LaunchPlugin
         public RelayCommand SaveChangesCommand { get; }
         public RelayCommand ApplyToLiveCommand { get; }
         public RelayCommand DeleteTrackCommand { get; }
-        public RelayCommand RecomputeFromLastStopCommand { get; }
-        public RelayCommand UseDirectForThisTrackCommand { get; }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Action recomputeFromLastStopAction = null,
-    Action useDirectForThisTrackAction = null)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
             _getCurrentCarModel = getCurrentCarModel;
             _getCurrentTrackName = getCurrentTrackName;
-            _recomputeFromLastStopAction = recomputeFromLastStopAction;
-            _useDirectForThisTrackAction = useDirectForThisTrackAction;
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
@@ -392,8 +385,6 @@ namespace LaunchPlugin
             SaveChangesCommand = new RelayCommand(p => SaveProfiles());
             ApplyToLiveCommand = new RelayCommand(p => ApplySelectedProfileToLive(), p => IsProfileSelected);
             DeleteTrackCommand = new RelayCommand(p => DeleteTrack(), p => SelectedTrack != null);
-            RecomputeFromLastStopCommand = new RelayCommand(p => _recomputeFromLastStopAction?.Invoke(), p => IsTrackSelected);
-            UseDirectForThisTrackCommand = new RelayCommand(p => _useDirectForThisTrackAction?.Invoke(), p => IsTrackSelected);
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
         }
@@ -574,7 +565,7 @@ namespace LaunchPlugin
             // If not, create one from scratch. This makes the plugin self-healing.
             if (!CarProfiles.Any(p => p.ProfileName.Equals("Default Settings", StringComparison.OrdinalIgnoreCase)))
             {
-                SimHub.Logging.Current.Info("LalaLaunch: 'Default Settings' profile not found. Creating a new, complete one.");
+                SimHub.Logging.Current.Info("[Profiles] 'Default Settings' profile not found – creating baseline profile.");
 
                 // Create the foundational default profile with all properties explicitly set.
                 var defaultProfile = new CarProfile
@@ -639,7 +630,7 @@ namespace LaunchPlugin
                 // First, save all profiles to the file as before.
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(CarProfiles, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(_profilesFilePath, json);
-                SimHub.Logging.Current.Info("LalaLaunch: All car profiles saved to JSON file.");
+                SimHub.Logging.Current.Info("[Profiles] All car profiles saved to JSON file.");
 
                 if (SelectedProfile != null)
                 {
@@ -658,7 +649,7 @@ namespace LaunchPlugin
                     if (SelectedProfile != null)
                     {
                         _applyProfileToLiveAction(SelectedProfile);
-                        SimHub.Logging.Current.Info($"LalaLaunch: Saved profile '{selectedName}' changes applied to live session.");
+                        SimHub.Logging.Current.Info($"[Profiles] Saved profile '{selectedName}' changes applied to live session.");
                     }
                 }
             }

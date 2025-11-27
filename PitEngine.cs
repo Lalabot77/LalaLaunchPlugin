@@ -31,7 +31,7 @@ namespace LaunchPlugin
         public double LastPaceDeltaNetLoss { get; private set; } = 0.0;
 
         // --- Event to notify when the Pace Delta calculation is complete and valid ---
-        public event Action<double> OnValidPitStopTimeLossCalculated;
+        public event Action<double, string> OnValidPitStopTimeLossCalculated;
 
         // --- Timers/State mirrors of the rejoin engine ---
         private readonly Stopwatch _pitExitTimer = new Stopwatch();   // shows ExitingPits for a short time after lane exit
@@ -107,7 +107,8 @@ namespace LaunchPlugin
                     else
                     {
                         LastDirectTravelTime = direct;
-                        SimHub.Logging.Current.Info($"PitEngine: Direct Pit Lane Travel Time calculated: {LastDirectTravelTime:F2}s");
+                        SimHub.Logging.Current.Info(
+                            $"[PitEngine] Direct lane travel computed -> lane={_lastTimeOnPitRoad.TotalSeconds:F2}s, stop={_lastPitStopDuration.TotalSeconds:F2}s, direct={LastDirectTravelTime:F2}s");
                     }
                 }
             }
@@ -167,7 +168,8 @@ namespace LaunchPlugin
                 var lapsCompleted = data?.NewData?.CompletedLaps ?? 0;
                 if (lapsCompleted >= 1)
                 {
-                    SimHub.Logging.Current.Info("PitEngine: Pit exit detected. Awaiting pit-lap completion.");
+                    SimHub.Logging.Current.Info(
+                        $"[PitEngine] Pit exit detected – lane={_lastTimeOnPitRoad.TotalSeconds:F2}s, stop={_lastPitStopDuration.TotalSeconds:F2}s, direct={LastDirectTravelTime:F2}s. Awaiting pit-lap completion.");
                     _paceDeltaState = PaceDeltaState.AwaitingPitLap;
                     _pitLapSeconds = 0.0;
                 }
@@ -192,7 +194,7 @@ namespace LaunchPlugin
                 // First lap after pit exit = PIT LAP (includes the stop)
                 if (!isLapValid)
                 {
-                    SimHub.Logging.Current.Info("PitEngine: Pit-lap invalid, aborting pit-cycle evaluation.");
+                    SimHub.Logging.Current.Info("[PitEngine] Pit-lap invalid – aborting pit-cycle evaluation.");
                     ResetPaceDelta();
                     return;
                 }
@@ -200,7 +202,7 @@ namespace LaunchPlugin
                 _avgPaceAtPit = averagePace;
                 _pitLapSeconds = outLapTime;   // this first finalize call is the PIT LAP
 
-                SimHub.Logging.Current.Info($"PitEngine: Pit-lap captured = {_pitLapSeconds:F2}s. Awaiting out-lap completion.");
+                SimHub.Logging.Current.Info($"[PitEngine] Pit-lap captured = {_pitLapSeconds:F2}s – awaiting out-lap completion.");
                 _paceDeltaState = PaceDeltaState.AwaitingOutLap;
                 return; // wait for next S/F
             }
@@ -211,7 +213,7 @@ namespace LaunchPlugin
             // This lap is the OUT-LAP
             if (!isLapValid)
             {
-                SimHub.Logging.Current.Info("PitEngine: Out-lap invalid, aborting pit-cycle evaluation.");
+                SimHub.Logging.Current.Info("[PitEngine] Out-lap invalid – aborting pit-cycle evaluation.");
                 ResetPaceDelta();
                 return;
             }
@@ -229,12 +231,11 @@ namespace LaunchPlugin
             LastPaceDeltaNetLoss = Math.Max(0.0, LastTotalPitCycleTimeLoss - stopSeconds);
 
             SimHub.Logging.Current.Info(
-                $"PitEngine: DTL computed (formula): Total={LastTotalPitCycleTimeLoss:F2}s, NetMinusStop={LastPaceDeltaNetLoss:F2}s " +
+                $"[PitEngine] DTL computed (formula): Total={LastTotalPitCycleTimeLoss:F2}s, NetMinusStop={LastPaceDeltaNetLoss:F2}s " +
                 $"(avg={avg:F2}s, pitLap={_pitLapSeconds:F2}s, outLap={outLapSec:F2}s, stop={stopSeconds:F2}s)");
 
-            // Fire existing callback(s); LalaLaunch handler is debounced and will pick DTL with Direct fallback
-            OnValidPitStopTimeLossCalculated?.Invoke(LastTotalPitCycleTimeLoss);
-            OnValidPitStopTimeLossCalculated?.Invoke(LastPaceDeltaNetLoss);
+            // Fire a single, typed callback to avoid double notifications
+            OnValidPitStopTimeLossCalculated?.Invoke(LastTotalPitCycleTimeLoss, "total");
 
             ResetPaceDelta(); // back to Idle until next pit entry
         }
