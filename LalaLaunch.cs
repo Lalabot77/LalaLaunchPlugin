@@ -1764,19 +1764,7 @@ namespace LaunchPlugin
                     SimHub.Logging.Current.Info("[Profiles] Applied profile to live and refreshed Fuel.");
                 },
                 () => this.CurrentCarModel,
-                () => this.CurrentTrackKey,
-                // NEW actions:
-                recomputeFromLastStopAction: () =>
-                {
-                    var cand = _pitLite?.TotalLossSec ?? 0.0;
-                    var src = _pitLite?.TotalLossSource ?? "direct";
-                    Pit_OnValidPitStopTimeLossCalculated(cand, src);
-                },
-                useDirectForThisTrackAction: () =>
-                {
-                    var direct = Math.Max(0.0, _pit?.LastDirectTravelTime ?? 0.0);
-                    Pit_OnValidPitStopTimeLossCalculated(direct, "direct");
-                }
+                () => this.CurrentTrackKey
             );
 
 
@@ -1883,6 +1871,7 @@ namespace LaunchPlugin
             AttachVerbose("PitLite.LossSource", () => _pitLite?.TotalLossSource ?? "None");
             AttachVerbose("PitLite.LastSaved.Sec", () => _pitDbg_CandidateSavedSec);
             AttachVerbose("PitLite.LastSaved.Source", () => _pitDbg_CandidateSource ?? "none");
+            AttachCore("PitLite.TotalLossPlusBoxSec", () => _pitLite?.TotalLossPlusBoxSec ?? 0.0);
 
             // Live edge flags (VERBOSE)
             AttachVerbose("PitLite.Live.SeenEntryThisLap", () => _pitLite?.EntrySeenThisLap ?? false);

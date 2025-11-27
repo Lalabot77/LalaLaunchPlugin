@@ -35,6 +35,7 @@ This document maps every custom SimHub-exported parameter defined in `LalaLaunch
 | PitLite.Live.TimeOnPitRoadSec | double | Seconds | Per-tick pit monitor | PitEngine elapsed lane time | Pit-lite |
 | PitLite.Live.TimeInBoxSec | double | Seconds | Per-tick pit monitor | PitEngine stationary time | Pit-lite |
 | PitLite.TotalLossSec | double | Seconds | On lap-end candidate latch | PitCycleLite total loss | Pit-lite |
+| PitLite.TotalLossPlusBoxSec | double | Seconds | On lap-end candidate latch | PitCycleLite total loss plus box time | Pit-lite |
 | CurrentDashPage | string | Enum string | Per-tick | ScreenManager.CurrentPage | Dashboard control |
 | DashControlMode | string | Enum string | Per-tick | ScreenManager.Mode | Dashboard control |
 | FalseStartDetected | bool | Flag | Per-tick | Launch state detection | Launch |

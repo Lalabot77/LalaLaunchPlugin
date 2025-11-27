@@ -56,6 +56,7 @@ namespace LaunchPlugin
         public bool CandidateReady => _candidateReady;
         private double _totalLossSec = 0.0;
         public double TotalLossSec { get => _totalLossSec; }
+        public double TotalLossPlusBoxSec { get => _totalLossSec + TimePitBoxSec; }
         private string _totalLossSource = "direct";
         public string TotalLossSource { get => _totalLossSource; }
         public StatusKind Status { get; private set; } = StatusKind.None;
@@ -129,7 +130,7 @@ namespace LaunchPlugin
             {
                 // Pit ENTRY this lap
                 _entrySeenThisLap = true;
-                SimHub.Logging.Current.Info("[PitLite] ENTRY edge this lap – arming cycle.");
+                SimHub.Logging.Current.Info("[PitLite] ENTRY edge detected – arming cycle and clearing previous pit figures.");
 
                 _armed = true;
 
@@ -147,7 +148,7 @@ namespace LaunchPlugin
             {
                 // Pit EXIT this lap
                 _exitSeenThisLap = true;
-                SimHub.Logging.Current.Info("[PitLite] EXIT edge this lap – timers latched (lane/box).");
+                SimHub.Logging.Current.Info("[PitLite] EXIT edge detected – latching lane/box timers from PitEngine.");
 
                 // Latch timers immediately from PitEngine
                 double tPit = Math.Max(0.0, _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
@@ -155,7 +156,10 @@ namespace LaunchPlugin
                 TimePitLaneSec = tPit;
                 TimePitBoxSec = tStop;
                 DirectSec = Math.Max(0.0, tPit - tStop);
-                Status = (tStop > 0.5) ? StatusKind.StopValid : StatusKind.DriveThrough;
+                const double stopDetectionThresholdSec = 1.0; // avoid classifying tiny hesitations as stops
+                Status = (tStop > stopDetectionThresholdSec) ? StatusKind.StopValid : StatusKind.DriveThrough;
+                SimHub.Logging.Current.Info(
+                    $"[PitLite] Exit latched: lane={TimePitLaneSec:F2}s, box={TimePitBoxSec:F2}s, direct={DirectSec:F2}s, status={Status}.");
             }
 
             // Instantaneous tag for the in-progress lap
@@ -173,9 +177,10 @@ namespace LaunchPlugin
                     OutLapSec = lastLapSec;
                     LastLapType = LapKind.OutLap;
                     // ---- S/F of OUT-LAP: one-shot latch for save ----
-                    
+
                     var chosenSrc = string.IsNullOrEmpty(TotalLossSource) ? "?" : TotalLossSource;
-                    SimHub.Logging.Current.Info($"[PitLite] Latched Out-lap = {OutLapSec:F2}s. Chosen={TotalLossSec:F2}s ({chosenSrc}).");
+                    SimHub.Logging.Current.Info(
+                        $"[PitLite] Out-lap complete: Out={OutLapSec:F2}s, In={InLapSec:F2}s, lane={TimePitLaneSec:F2}s, box={TimePitBoxSec:F2}s, chosen={TotalLossSec:F2}s ({chosenSrc}).");
 
                 }
                 else if (_entrySeenThisLap && InLapSec <= 0.0)
@@ -198,6 +203,17 @@ namespace LaunchPlugin
                     _totalLossSec = Math.Max(0.0, chosen);
                     _totalLossSource = (DTLSec > 0.0) ? "dtl" : "direct";
                     _candidateReady = true;   // one-shot for LalaLaunch
+                    SimHub.Logging.Current.Info(
+                        $"[PitLite] Publishing loss (source={_totalLossSource}): dtl={DTLSec:F2}s, direct={DirectSec:F2}s, avg={avgLapSec:F2}s.");
+                }
+                else if (InLapSec > 0.0 && OutLapSec > 0.0 && TimePitLaneSec > 0.0)
+                {
+                    // Baseline pace missing → still publish the direct lane loss so consumers don't stall
+                    _totalLossSec = DirectSec;
+                    _totalLossSource = "direct";
+                    _candidateReady = true;
+                    SimHub.Logging.Current.Info(
+                        $"[PitLite] Publishing direct loss (no avg pace): lane={TimePitLaneSec:F2}s, box={TimePitBoxSec:F2}s, direct={DirectSec:F2}s.");
                 }
 
                 // New lap begins: clear per-lap flags and reset current-lap type
