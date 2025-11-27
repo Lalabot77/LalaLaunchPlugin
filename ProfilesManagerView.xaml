@@ -247,7 +247,11 @@
                                     <TextBlock Text="Best Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
                                     <TextBox Width="100" TextAlignment="Right">
                                         <TextBox.Text>
-                                            <Binding Path="BestLapMsText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
+                                            <Binding Path="BestLapMsText"
+                                                     Mode="TwoWay"
+                                                     UpdateSourceTrigger="PropertyChanged"
+                                                     ValidatesOnDataErrors="True"
+                                                     NotifyOnValidationError="True">
                                                 <Binding.ValidationRules>
                                                     <local:LapTimeValidationRule />
                                                 </Binding.ValidationRules>
@@ -266,7 +270,7 @@
                                         <TextBox Width="100"
                                            TextAlignment="Right"
                                            Padding="2,0,2,0"
-                                           Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                           Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}"/>
                                     </StackPanel>
 
                                     <!-- meta line: sits under the input, indented to the input column -->
@@ -335,7 +339,7 @@
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                     <TextBlock Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    <TextBox Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}"
                                         TextAlignment="Right" Width="100"/>
                                 </StackPanel>
 
@@ -344,7 +348,11 @@
                                     <TextBlock Text="Avg Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
                                     <TextBox TextAlignment="Right" Width="100">
                                         <TextBox.Text>
-                                            <Binding Path="AvgLapTimeDryText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
+                                            <Binding Path="AvgLapTimeDryText"
+                                                     Mode="TwoWay"
+                                                     UpdateSourceTrigger="PropertyChanged"
+                                                     ValidatesOnDataErrors="True"
+                                                     NotifyOnValidationError="True">
                                                 <Binding.ValidationRules>
                                                     <local:LapTimeValidationRule/>
                                                 </Binding.ValidationRules>
@@ -360,7 +368,7 @@
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                     <TextBlock Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
-                                    <TextBox Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    <TextBox Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}"
                                         TextAlignment="Right" Width="100"/>
                                 </StackPanel>
 
@@ -369,7 +377,11 @@
                                     <TextBlock Text="Avg Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" Width="150"/>
                                     <TextBox TextAlignment="Right" Width="100">
                                         <TextBox.Text>
-                                            <Binding Path="AvgLapTimeWetText" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
+                                            <Binding Path="AvgLapTimeWetText"
+                                                     Mode="TwoWay"
+                                                     UpdateSourceTrigger="PropertyChanged"
+                                                     ValidatesOnDataErrors="True"
+                                                     NotifyOnValidationError="True">
                                                 <Binding.ValidationRules>
                                                     <local:LapTimeValidationRule/>
                                                 </Binding.ValidationRules>
