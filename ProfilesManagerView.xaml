@@ -283,54 +283,6 @@
                                       <Run Text="{Binding PitLaneLossUpdatedUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
                                     </TextBlock>
 
-                                    <!-- Actions: equal width, perfect vertical spacing -->
-                                    <StackPanel Orientation="Vertical"
-                                        Margin="160,8,0,0"
-                                        SnapsToDevicePixels="True"
-                                        UseLayoutRounding="True">
-                                        <styles:SHButtonPrimary x:Name="BtnPitA"
-                                            Content="RECOMPUTE FROM LAST STOP"
-                                            Width="200" Height="28"
-                                            Margin="0,0,0,4"
-                                            HorizontalAlignment="Left"
-                                            Command="{Binding DataContext.RecomputeFromLastStopCommand,
-                                            RelativeSource={RelativeSource AncestorType=UserControl}}">
-
-                                            <styles:SHButtonPrimary.ToolTip>
-                                                <ToolTip>
-                                                    <StackPanel>
-                                                        <TextBlock Text="Recompute from last stop" FontWeight="SemiBold"/>
-                                                        <TextBlock Text="• Uses the latched candidate at out-lap S/F (one-shot)."/>
-                                                        <TextBlock Text="• Prefers DTL; falls back to Direct if avg lap = 0."/>
-                                                        <TextBlock Text="• Saves to this track’s profile and stamps UTC time."/>
-                                                        <TextBlock Text="• Updates the Fuel tab immediately."/>
-                                                        <TextBlock Text="• No effect if no candidate is currently latched."/>
-                                                    </StackPanel>
-                                                </ToolTip>
-                                            </styles:SHButtonPrimary.ToolTip>
-
-                                        </styles:SHButtonPrimary>
-
-                                        <styles:SHButtonPrimary
-                                            Content="USE SIMPLE PIT LANE TIME"
-                                            Width="{Binding ElementName=BtnPitA, Path=ActualWidth}"
-                                            Height="{Binding ElementName=BtnPitA, Path=Height}"
-                                            Margin="0" HorizontalAlignment="Left"
-                                            Command="{Binding DataContext.UseDirectForTrackCommand,
-                                            RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                            <styles:SHButtonPrimary.ToolTip>
-                                                <ToolTip>
-                                                    <StackPanel>
-                                                        <TextBlock Text="Use Direct (simple pit-lane time)" FontWeight="SemiBold"/>
-                                                        <TextBlock Text="• Writes the current Direct lane time for this track."/>
-                                                        <TextBlock Text="• Ignores DTL (no pace weighting)." />
-                                                        <TextBlock Text="• Intended after a clean in/out pass."/>
-                                                        <TextBlock Text="• Saves immediately with UTC timestamp and updates Fuel."/>
-                                                    </StackPanel>
-                                                </ToolTip>
-                                            </styles:SHButtonPrimary.ToolTip>
-                                        </styles:SHButtonPrimary>
-                                    </StackPanel>
                                 </StackPanel>
 
                                 <!-- Dry Conditions Data -->
