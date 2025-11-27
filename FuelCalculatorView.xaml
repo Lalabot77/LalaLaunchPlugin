@@ -668,19 +668,6 @@
                 </StackPanel>
             </styles:SHSection>
 
-            <styles:SHSection Title="POST-RACE ANALYSIS" ShowSeparator="True" Margin="0,15,0,0">
-                <StackPanel Margin="5,10,5,5">
-                    <Button Content="Load Last Session Data for Comparison" HorizontalAlignment="Left" Command="{Binding LoadLastSessionCommand}"/>
-                    <DataGrid Margin="0,10,0,0" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True" ItemsSource="{Binding AnalysisData, Mode=OneWay}">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Metric" Binding="{Binding Metric}" Width="*"/>
-                            <DataGridTextColumn Header="Predicted" Binding="{Binding Predicted}" Width="100"/>
-                            <DataGridTextColumn Header="Actual" Binding="{Binding Actual}" Width="100"/>
-                            <DataGridTextColumn Header="Delta" Binding="{Binding Delta}" Width="100"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </StackPanel>
-            </styles:SHSection>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

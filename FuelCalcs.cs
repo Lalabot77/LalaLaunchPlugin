@@ -147,9 +147,7 @@ namespace LaunchPlugin
     public ObservableCollection<CarProfile> AvailableCarProfiles { get; set; } // CHANGED
     public ObservableCollection<string> AvailableTracks { get; set; } = new ObservableCollection<string>();
     public string DetectedMaxFuelDisplay { get; private set; }
-    public ICommand LoadLastSessionCommand { get; }
     public ICommand ResetLeaderDeltaToLiveCommand { get; }
-    public ObservableCollection<AnalysisDataRow> AnalysisData { get; set; } = new ObservableCollection<AnalysisDataRow>();
     private string _fuelPerLapText = "";
     private bool _suppressFuelTextSync = false;
     public string LapTimeSourceInfo
@@ -3611,28 +3609,5 @@ namespace LaunchPlugin
     }
 
 
-    private void LoadLastSessionData()
-    {
-        AnalysisData.Clear();
-        AnalysisData.Add(new AnalysisDataRow { Metric = "Total Fuel Used", Predicted = "140.5 L", Actual = "142.1 L", Delta = "+1.6 L" });
-        AnalysisData.Add(new AnalysisDataRow { Metric = "Avg Fuel/Lap", Predicted = "2.81 L", Actual = "2.84 L", Delta = "+0.03 L" });
-        AnalysisData.Add(new AnalysisDataRow { Metric = "Pit Stops", Predicted = "1", Actual = "1", Delta = "0" });
-    }
-
-    public class AnalysisDataRow
-    {
-        public string Metric { get; set; } = string.Empty;
-        public string Predicted { get; set; } = string.Empty;
-        public string Actual { get; set; } = string.Empty;
-        public string Delta { get; set; } = string.Empty;
-        public AnalysisDataRow() { }
-        public AnalysisDataRow(string metric, string predicted, string actual, string delta)
-        {
-            Metric = metric ?? string.Empty;
-            Predicted = predicted ?? string.Empty;
-            Actual = actual ?? string.Empty;
-            Delta = delta ?? string.Empty;
-        }
-    }
 }
 }
