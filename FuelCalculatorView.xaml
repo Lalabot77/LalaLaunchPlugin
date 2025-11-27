@@ -504,6 +504,7 @@
                             <!-- Grey/italic right next to combo -->
                             <TextBlock Grid.Column="2"
                                  Text="modified"
+                                 Foreground="Yellow"
                                  Margin="10,0,0,0"
                                  VerticalAlignment="Center"
                                  FontStyle="Italic" Opacity="0.8">
