@@ -338,6 +338,10 @@
                                     <TextBox Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextAlignment="Right" Width="100"/>
                                 </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="160,2,0,0">
+                                    <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" Foreground="#FF9AA0A6" Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding FuelLastUpdatedText}" FontStyle="Italic" Foreground="#FF9AA0A6"/>
+                                </StackPanel>
 
                                 <!-- Avg Lap Time (m:ss.fff), right-aligned -->
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">

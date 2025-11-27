@@ -1309,6 +1309,7 @@ namespace LaunchPlugin
                             if (trackRecord != null)
                             {
                                 trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
+                                trackRecord.MarkFuelUpdated("Telemetry fuel");
                             }
                         }
 
