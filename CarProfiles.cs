@@ -365,6 +365,20 @@ namespace LaunchPlugin
             }
         }
 
+        [JsonProperty]
+        public double? MinFuelPerLapDry
+        {
+            get => _minFuelPerLapDry;
+            set { if (_minFuelPerLapDry != value) { _minFuelPerLapDry = value; OnPropertyChanged(); } }
+        }
+
+        [JsonProperty]
+        public double? MaxFuelPerLapDry
+        {
+            get => _maxFuelPerLapDry;
+            set { if (_maxFuelPerLapDry != value) { _maxFuelPerLapDry = value; OnPropertyChanged(); } }
+        }
+
         public string AvgFuelPerLapDryText
         {
             get => _avgFuelPerLapDryText;
@@ -549,6 +563,20 @@ namespace LaunchPlugin
                     }
                 }
             }
+        }
+
+        [JsonProperty]
+        public double? MinFuelPerLapWet
+        {
+            get => _minFuelPerLapWet;
+            set { if (_minFuelPerLapWet != value) { _minFuelPerLapWet = value; OnPropertyChanged(); } }
+        }
+
+        [JsonProperty]
+        public double? MaxFuelPerLapWet
+        {
+            get => _maxFuelPerLapWet;
+            set { if (_maxFuelPerLapWet != value) { _maxFuelPerLapWet = value; OnPropertyChanged(); } }
         }
 
         public string AvgFuelPerLapWetText

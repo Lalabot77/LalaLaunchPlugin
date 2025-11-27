@@ -116,6 +116,15 @@ namespace LaunchPlugin
     private double _liveWetFuelMin;
     private double _liveWetFuelMax;
     private int _liveWetSamples;
+
+    private double _profileDryFuelAvg;
+    private double _profileDryFuelMin;
+    private double _profileDryFuelMax;
+    private int _profileDrySamples;
+    private double _profileWetFuelAvg;
+    private double _profileWetFuelMin;
+    private double _profileWetFuelMax;
+    private int _profileWetSamples;
     private double _conditionRefuelBaseSeconds = 0;
     private double _conditionRefuelSecondsPerLiter = 0;
     private double _conditionRefuelSecondsPerSquare = 0;
@@ -243,7 +252,6 @@ namespace LaunchPlugin
 
             // When the user changes the global planning source,
             // drop any manual overrides so the new source fully takes over.
-            IsEstimatedLapTimeManual = false;
             IsFuelPerLapManual = false;
 
             // Auto-expand/collapse the Live Session telemetry panel based on planning source.
@@ -256,7 +264,7 @@ namespace LaunchPlugin
                 IsLiveSessionSnapshotExpanded = false;
             }
 
-            ApplyPlanningSourceToAutoFields();
+            ApplyPlanningSourceToAutoFields(applyLapTime: false, applyFuel: true);
 
         }
     }
@@ -1032,7 +1040,7 @@ namespace LaunchPlugin
             && !IsFuelPerLapManual
             && value > 0)
         {
-            ApplyPlanningSourceToAutoFields();
+            ApplyPlanningSourceToAutoFields(applyLapTime: false, applyFuel: true);
         }
     }
 
@@ -1712,6 +1720,17 @@ namespace LaunchPlugin
             if (fuelVal > 0) trackRecord.AvgFuelPerLapWet = fuelVal;
         }
 
+        if (_liveDryFuelAvg > 0) trackRecord.AvgFuelPerLapDry = _liveDryFuelAvg;
+        if (_liveWetFuelAvg > 0) trackRecord.AvgFuelPerLapWet = _liveWetFuelAvg;
+
+        if (_liveDryFuelMin > 0) trackRecord.MinFuelPerLapDry = _liveDryFuelMin;
+        if (_liveDryFuelMax > 0) trackRecord.MaxFuelPerLapDry = _liveDryFuelMax;
+        if (_liveDrySamples > 0) trackRecord.DryFuelSampleCount = _liveDrySamples;
+
+        if (_liveWetFuelMin > 0) trackRecord.MinFuelPerLapWet = _liveWetFuelMin;
+        if (_liveWetFuelMax > 0) trackRecord.MaxFuelPerLapWet = _liveWetFuelMax;
+        if (_liveWetSamples > 0) trackRecord.WetFuelSampleCount = _liveWetSamples;
+
         trackRecord.PitLaneLossSeconds = this.PitLaneTimeLoss;
 
         if (IsPersonalBestAvailable && _loadedBestLapTimeSeconds > 0)
@@ -1969,19 +1988,19 @@ namespace LaunchPlugin
     private void RefreshLiveSnapshot()
     {
         // Behaviour will be implemented in a later task.
-        ApplyPlanningSourceToAutoFields();
+        ApplyPlanningSourceToAutoFields(applyLapTime: false, applyFuel: true);
     }
 
     private void ResetEstimatedLapTimeToSource()
     {
         IsEstimatedLapTimeManual = false;
-        ApplyPlanningSourceToAutoFields();
+        ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: false);
     }
 
     private void ResetFuelPerLapToSource()
     {
         IsFuelPerLapManual = false;
-        ApplyPlanningSourceToAutoFields();
+        ApplyPlanningSourceToAutoFields(applyLapTime: false, applyFuel: true);
     }
 
     private void ResetLeaderDeltaToLive()
@@ -1991,7 +2010,7 @@ namespace LaunchPlugin
         UpdateEffectiveLeaderDelta();
     }
 
-    private void ApplyPlanningSourceToAutoFields()
+    private void ApplyPlanningSourceToAutoFields(bool applyLapTime = true, bool applyFuel = true)
     {
         if (_isApplyingPlanningSourceUpdates)
         {
@@ -2002,7 +2021,7 @@ namespace LaunchPlugin
 
         try
         {
-            if (!IsEstimatedLapTimeManual)
+            if (applyLapTime && !IsEstimatedLapTimeManual)
             {
                 TimeSpan? lap = null;
 
@@ -2025,7 +2044,7 @@ namespace LaunchPlugin
                 }
             }
 
-            if (!IsFuelPerLapManual)
+            if (applyFuel && !IsFuelPerLapManual)
             {
                 double? fuel = null;
 
@@ -2371,6 +2390,15 @@ namespace LaunchPlugin
         _liveWetFuelMax = 0;
         _liveWetSamples = 0;
 
+        _profileDryFuelAvg = 0;
+        _profileDryFuelMin = 0;
+        _profileDryFuelMax = 0;
+        _profileDrySamples = 0;
+        _profileWetFuelAvg = 0;
+        _profileWetFuelMin = 0;
+        _profileWetFuelMax = 0;
+        _profileWetSamples = 0;
+
         UpdateFuelBurnSummaries();
         UpdateLiveFuelChoiceDisplays();
     }
@@ -2458,11 +2486,39 @@ namespace LaunchPlugin
 
     private void UpdateFuelBurnSummaries()
     {
-        DryFuelBurnSummary = BuildFuelSummary(_liveDryFuelAvg, _liveDryFuelMin, _liveDryFuelMax, _liveDrySamples);
-        WetFuelBurnSummary = BuildFuelSummary(_liveWetFuelAvg, _liveWetFuelMin, _liveWetFuelMax, _liveWetSamples);
+        var dry = GetFuelSummaryInputs(isWet: false);
+        DryFuelBurnSummary = BuildFuelSummary(dry.avg, dry.min, dry.max, dry.samples, dry.sourceLabel);
+
+        var wet = GetFuelSummaryInputs(isWet: true);
+        WetFuelBurnSummary = BuildFuelSummary(wet.avg, wet.min, wet.max, wet.samples, wet.sourceLabel);
     }
 
-    private static string BuildFuelSummary(double avg, double min, double max, int samples)
+    private (double avg, double min, double max, int samples, string sourceLabel) GetFuelSummaryInputs(bool isWet)
+    {
+        double liveAvg = isWet ? _liveWetFuelAvg : _liveDryFuelAvg;
+        double liveMin = isWet ? _liveWetFuelMin : _liveDryFuelMin;
+        double liveMax = isWet ? _liveWetFuelMax : _liveDryFuelMax;
+        int liveSamples = isWet ? _liveWetSamples : _liveDrySamples;
+
+        double profileAvg = isWet ? _profileWetFuelAvg : _profileDryFuelAvg;
+        double profileMin = isWet ? _profileWetFuelMin : _profileDryFuelMin;
+        double profileMax = isWet ? _profileWetFuelMax : _profileDryFuelMax;
+        int profileSamples = isWet ? _profileWetSamples : _profileDrySamples;
+
+        if (liveAvg > 0 || liveMin > 0 || liveMax > 0 || liveSamples > 0)
+        {
+            return (liveAvg, liveMin, liveMax, liveSamples, "Live");
+        }
+
+        if (profileAvg > 0 || profileMin > 0 || profileMax > 0 || profileSamples > 0)
+        {
+            return (profileAvg, profileMin, profileMax, profileSamples, "Profile");
+        }
+
+        return (0, 0, 0, 0, null);
+    }
+
+    private static string BuildFuelSummary(double avg, double min, double max, int samples, string sourceLabel)
     {
         var parts = new List<string>();
         if (avg > 0) parts.Add($"Avg {avg:F2} L");
@@ -2471,7 +2527,9 @@ namespace LaunchPlugin
         else if (min > 0) parts.Add($"Min {min:F2} L");
         if (samples > 0) parts.Add(samples == 1 ? "1 lap" : $"{samples} laps");
         if (parts.Count == 0) return "-";
-        return string.Join(" | ", parts);
+
+        var summary = string.Join(" | ", parts);
+        return string.IsNullOrWhiteSpace(sourceLabel) ? summary : $"{sourceLabel} · {summary}";
     }
 
     // Helper does the actual updates (runs on UI thread)
@@ -2684,6 +2742,17 @@ namespace LaunchPlugin
             : "-";
 
         HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
+
+        _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
+        _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
+        _profileDryFuelMax = ts?.MaxFuelPerLapDry ?? 0;
+        _profileDrySamples = ts?.DryFuelSampleCount ?? 0;
+        _profileWetFuelAvg = ts?.AvgFuelPerLapWet ?? 0;
+        _profileWetFuelMin = ts?.MinFuelPerLapWet ?? 0;
+        _profileWetFuelMax = ts?.MaxFuelPerLapWet ?? 0;
+        _profileWetSamples = ts?.WetFuelSampleCount ?? 0;
+
+        UpdateFuelBurnSummaries();
 
         RefreshConditionParameters();
         // Only reset race-strategy defaults when the car changes; track changes should not touch these values.
