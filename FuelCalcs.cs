@@ -3365,10 +3365,10 @@ namespace LaunchPlugin
         double totalPitTime = 0.0;
 
         // --- Lapping bookkeeping (multi-events, leader pits same cadence) ---
-        double cumPlayerTime = 0.0;   // your race clock (s)
-        double cumLeaderTime = 0.0;   // leader's race clock (s) – advance same wall time
-        int playerLapsSoFar = 0;   // completed player laps
-        int nextCatchAhead = 1;    // we’ll report +1 lap first, then +2, etc.
+        double cumPlayerTime = 0.0;        // your race clock (s)
+        double cumLeaderDriveTime = 0.0;   // leader's DRIVING time (s) – excludes pit time
+        int playerLapsSoFar = 0;           // completed player laps
+        int nextCatchAhead = 1;            // we’ll report +1 lap first, then +2, etc.
         var lappedEvents = new List<int>(); // for Summary: lap numbers the leader catches you
 
         // Calculate how many stops are required
@@ -3399,10 +3399,10 @@ namespace LaunchPlugin
             for (int lap = 0; lap < (int)lapsInFirstStint; lap++)
             {
                 cumPlayerTime += playerPaceSeconds;
-                cumLeaderTime += playerPaceSeconds;
+                cumLeaderDriveTime += playerPaceSeconds;
                 playerLapsSoFar++;
 
-                int leaderLaps = (int)Math.Floor(cumLeaderTime / leaderPaceSeconds);
+                int leaderLaps = (int)Math.Floor(cumLeaderDriveTime / leaderPaceSeconds);
 
                 while (leaderLaps >= (playerLapsSoFar + nextCatchAhead))
                 {
@@ -3419,7 +3419,7 @@ namespace LaunchPlugin
         {
             // no lapping possible; advance in bulk
             cumPlayerTime += lapsInFirstStint * playerPaceSeconds;
-            cumLeaderTime += lapsInFirstStint * playerPaceSeconds;
+            cumLeaderDriveTime += lapsInFirstStint * playerPaceSeconds;
             playerLapsSoFar += (int)lapsInFirstStint;
         }
 
@@ -3502,9 +3502,9 @@ namespace LaunchPlugin
                 lapsInNextStint = 0.0;
             }
 
-            // Advance both timelines by the *same* pit time (assume leader pits when you pit)
+            // Advance your race clock by the pit time. The leader loses the same wall time,
+            // but we do **not** convert that into laps for the leader’s driving time.
             cumPlayerTime += totalStopTime;
-            cumLeaderTime += totalStopTime;
 
             // Now walk the stint lap-by-lap and emit every catch that occurs
             if (anyLappingPossible)
@@ -3512,11 +3512,11 @@ namespace LaunchPlugin
                 for (int lap = 0; lap < (int)lapsInNextStint; lap++)
                 {
                     cumPlayerTime += playerPaceSeconds;
-                    cumLeaderTime += playerPaceSeconds;
+                    cumLeaderDriveTime += playerPaceSeconds;
 
                     playerLapsSoFar++;
 
-                    int leaderLaps = (int)Math.Floor(cumLeaderTime / leaderPaceSeconds);
+                    int leaderLaps = (int)Math.Floor(cumLeaderDriveTime / leaderPaceSeconds);
 
                     while (leaderLaps >= (playerLapsSoFar + nextCatchAhead))
                     {
@@ -3533,7 +3533,7 @@ namespace LaunchPlugin
             {
                 // no lapping expected; advance in bulk
                 cumPlayerTime += lapsInNextStint * playerPaceSeconds;
-                cumLeaderTime += lapsInNextStint * playerPaceSeconds;
+                cumLeaderDriveTime += lapsInNextStint * playerPaceSeconds;
                 playerLapsSoFar += (int)lapsInNextStint;
             }
 
