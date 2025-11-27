@@ -186,8 +186,6 @@ namespace LaunchPlugin
         private TimeSpan _lastSeenBestLap = TimeSpan.Zero;
         private readonly List<double> _recentLeaderLapTimes = new List<double>(); // seconds
         private double _lastLeaderLapTimeSec = 0.0;
-        private double _lastLoggedLeaderAvgPaceSeconds = 0.0;
-        private int _lastLoggedLeaderLapCount = 0;
         private bool _leaderSourceUnavailableLogged = false;
         private bool _leaderPaceClearedLogged = false;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
@@ -782,6 +780,47 @@ namespace LaunchPlugin
             return false;
         }
 
+        private void LogLapCrossingSummary(
+            int lapNumber,
+            double lastLapSeconds,
+            bool paceAccepted,
+            string paceReason,
+            string paceBaseline,
+            string paceDelta,
+            double stintAvg,
+            double last5Avg,
+            int paceConfidence,
+            double leaderLapSeconds,
+            double leaderAvgSeconds,
+            int leaderSampleCount,
+            double fuelUsed,
+            bool fuelAccepted,
+            string fuelReason,
+            bool isWetMode,
+            double liveFuelPerLap,
+            int validDryLaps,
+            int validWetLaps,
+            double maxFuelPerLapSession,
+            int fuelConfidence,
+            int overallConfidence,
+            bool pitTripActive)
+        {
+            string prefix = "[SimHubLogInfo][LapCrossing]";
+            string pacePart =
+                $"pace lap={lapNumber} time={lastLapSeconds:F3}s accepted={paceAccepted} reason={paceReason} " +
+                $"baseline={paceBaseline} delta={paceDelta} stintAvg={stintAvg:F3}s last5={last5Avg:F3}s " +
+                $"conf={paceConfidence}% leaderLap={leaderLapSeconds:F3}s leaderAvg={leaderAvgSeconds:F3}s " +
+                $"leaderCount={leaderSampleCount}";
+
+            string fuelPart =
+                $"fuel used={fuelUsed:F3}L accepted={fuelAccepted} reason={fuelReason} " +
+                $"mode={(isWetMode ? "wet" : "dry")} live={liveFuelPerLap:F3}L/lap windowDry={validDryLaps} " +
+                $"windowWet={validWetLaps} maxSession={maxFuelPerLapSession:F3}L conf={fuelConfidence}% " +
+                $"overall={overallConfidence}% pitTrip={pitTripActive}";
+
+            SimHub.Logging.Current.Info($"{prefix} | {pacePart} | {fuelPart}");
+        }
+
         private void UpdateLiveFuelCalcs(GameData data)
         {
             // --- 1) Gather required data ---
@@ -840,8 +879,6 @@ namespace LaunchPlugin
                     _recentLeaderLapTimes.Clear();
                     _lastLeaderLapTimeSec = 0.0;
                     LiveLeaderAvgPaceSeconds = 0.0;
-                    _lastLoggedLeaderAvgPaceSeconds = 0.0;
-                    _lastLoggedLeaderLapCount = 0;
                 }
 
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
@@ -999,18 +1036,6 @@ namespace LaunchPlugin
 
                     double currentAvgLeader = LiveLeaderAvgPaceSeconds;
                     int currentLeaderCount = _recentLeaderLapTimes.Count;
-                    if (currentLeaderCount != _lastLoggedLeaderLapCount ||
-                        Math.Abs(currentAvgLeader - _lastLoggedLeaderAvgPaceSeconds) > 0.01)
-                    {
-                        SimHub.Logging.Current.Info(string.Format(
-                            "[FuelLeader] lapCrossed: leaderLastLapSec={0:F3}, count={1}, avgLeader={2:F3}",
-                            leaderLastLapSec,
-                            currentLeaderCount,
-                            currentAvgLeader));
-
-                        _lastLoggedLeaderLapCount = currentLeaderCount;
-                        _lastLoggedLeaderAvgPaceSeconds = currentAvgLeader;
-                    }
 
                     bool paceReject = false;
                     string paceReason = "";
@@ -1138,7 +1163,6 @@ namespace LaunchPlugin
                         }
                     }
 
-                    // Log pace line every lap we cross S/F
                     string paceBaselineLog = (paceBaselineForLog > 0)
                         ? paceBaselineForLog.ToString("F3")
                         : "-";
@@ -1146,21 +1170,7 @@ namespace LaunchPlugin
                         ? paceDeltaForLog.ToString("+0.000;-0.000;0.000")
                         : "-";
 
-                    SimHub.Logging.Current.Info(
-                        string.Format(
-                            "[Pace] lap={0}, time={1:F3}s, accepted={2}, reason={3}, stintAvg={4:F3}s, last5={5:F3}s, paceConf={6}%, baseline={7}, delta={8}",
-                            completedLapsNow,
-                            lastLapSec,
-                            !paceReject,
-                            paceReason,
-                            Pace_StintAvgLapTimeSec,
-                            Pace_Last5LapAvgSec,
-                            PaceConfidence,
-                            paceBaselineLog,
-                            paceDeltaLog));
-
                     // --- Fuel per lap calculation & rolling averages ---
-                    SimHub.Logging.Current.Info($"[LiveFuel] Lap crossed. CompletedLaps={completedLapsNow}");
 
                     double fuelUsed = (_lapStartFuel > 0 && currentFuel >= 0)
                         ? (_lapStartFuel - currentFuel)
@@ -1313,26 +1323,43 @@ namespace LaunchPlugin
                             }
                         }
 
-                        SimHub.Logging.Current.Info(
-                            string.Format(
-                                "[LiveFuel] accepted {0:F3} L (mode={1}, Live={2:F3}, conf={3}%, window={4}, lap={5})",
-                                fuelUsed,
-                                (isWetMode ? "wet" : "dry"),
-                                LiveFuelPerLap,
-                                Confidence,
-                                (_validDryLaps + _validWetLaps),
-                                completedLapsNow));
                     }
                     else
                     {
-                        SimHub.Logging.Current.Info(
-                            string.Format(
-                                "[LiveFuel] rejected {0:F3} L (reason={1}, pit={2}, lap={3})",
-                                fuelUsed,
-                                reason,
-                                pitTripActive,
-                                completedLapsNow));
+                        if (string.IsNullOrEmpty(reason))
+                        {
+                            reason = "rejected";
+                        }
                     }
+
+                    string fuelReasonForLog = reject
+                        ? reason
+                        : (string.IsNullOrEmpty(reason) ? "accepted" : reason);
+
+                    LogLapCrossingSummary(
+                        completedLapsNow,
+                        lastLapSec,
+                        !paceReject,
+                        paceReason,
+                        paceBaselineLog,
+                        paceDeltaLog,
+                        Pace_StintAvgLapTimeSec,
+                        Pace_Last5LapAvgSec,
+                        PaceConfidence,
+                        leaderLastLapSec,
+                        currentAvgLeader,
+                        currentLeaderCount,
+                        fuelUsed,
+                        !reject,
+                        fuelReasonForLog,
+                        isWetMode,
+                        LiveFuelPerLap,
+                        _validDryLaps,
+                        _validWetLaps,
+                        _maxFuelPerLapSession,
+                        Confidence,
+                        OverallConfidence,
+                        pitTripActive);
 
                     // Per-lap resets for next lap
                     if (pitTripActive)
