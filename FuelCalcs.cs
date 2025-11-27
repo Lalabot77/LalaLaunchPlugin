@@ -130,6 +130,10 @@ namespace LaunchPlugin
     // --- NEW: Fields for PB Feature ---
     private double _loadedBestLapTimeSeconds;
 
+    // --- Tracking last loaded profile state to avoid resetting unrelated fields on track changes ---
+    private CarProfile _lastLoadedCarProfile;
+    private string _lastLoadedTrackKey;
+
     // --- Public Properties for UI Binding ---
     public ObservableCollection<CarProfile> AvailableCarProfiles { get; set; } // CHANGED
     public ObservableCollection<string> AvailableTracks { get; set; } = new ObservableCollection<string>();
@@ -1612,12 +1616,15 @@ namespace LaunchPlugin
         }
     }
 
-    private void ResetStrategyInputs(bool preserveMaxFuel = false)
+    private void ResetStrategyInputs(bool preserveMaxFuel = false, bool preserveRaceDuration = false)
     {
         // Reset race-specific parameters to sensible defaults
-        this.SelectedRaceType = RaceType.TimeLimited;
-        this.RaceLaps = 20;
-        this.RaceMinutes = 40;
+        if (!preserveRaceDuration)
+        {
+            this.SelectedRaceType = RaceType.TimeLimited;
+            this.RaceLaps = 20;
+            this.RaceMinutes = 40;
+        }
         this.MandatoryStopRequired = false;
 
         // Smartly default Max Fuel: use the live detected value if available, otherwise use 120L
@@ -2575,6 +2582,8 @@ namespace LaunchPlugin
     {
         if (SelectedCarProfile == null || string.IsNullOrEmpty(SelectedTrack))
         {
+            _lastLoadedCarProfile = null;
+            _lastLoadedTrackKey = null;
             SetUIDefaults();
             CalculateStrategy();
             return;
@@ -2586,14 +2595,18 @@ namespace LaunchPlugin
         SelectedTrackStats = ResolveSelectedTrackStats();
         var ts = SelectedTrackStats;
 
-        // --- Load Refuel Rate from profile ---
-        this._refuelRate = car.RefuelRate;
+        var trackKey = ts?.Key ?? SelectedTrack;
+        bool carChanged = !ReferenceEquals(car, _lastLoadedCarProfile);
 
-        // --- Initialize the "What-If" parameters from the profile ---
-        this.ContingencyValue = car.FuelContingencyValue;
-        this.IsContingencyInLaps = car.IsContingencyInLaps;
-        this.WetFactorPercent = car.WetFuelMultiplier;
-        this.TireChangeTime = car.TireChangeTime;
+        // --- Load Refuel Rate and car-level settings only when the car changes ---
+        if (carChanged || _lastLoadedCarProfile == null)
+        {
+            this._refuelRate = car.RefuelRate;
+            this.ContingencyValue = car.FuelContingencyValue;
+            this.IsContingencyInLaps = car.IsContingencyInLaps;
+            this.WetFactorPercent = car.WetFuelMultiplier;
+            this.TireChangeTime = car.TireChangeTime;
+        }
 
         if (ts?.BestLapMs is int ms && ms > 0)
         {
@@ -2673,8 +2686,13 @@ namespace LaunchPlugin
         HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
 
         RefreshConditionParameters();
-        // Preserve MaxFuelOverride: it's a race strategy choice, not a track-specific value.
-        ResetStrategyInputs(preserveMaxFuel: true);
+        // Only reset race-strategy defaults when the car changes; track changes should not touch these values.
+        if (carChanged)
+        {
+            // When switching cars, reinitialize the max-fuel override from the new car's tank size
+            // (or default) but keep the user's race duration/type selections intact.
+            ResetStrategyInputs(preserveMaxFuel: false, preserveRaceDuration: true);
+        }
 
         // Manually notify the UI of all changes
         OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
@@ -2688,6 +2706,9 @@ namespace LaunchPlugin
         CalculateStrategy();
 
         UpdateTrackDerivedSummaries();
+
+        _lastLoadedCarProfile = car;
+        _lastLoadedTrackKey = trackKey;
     }
 
     private void ApplyWetFactor()
