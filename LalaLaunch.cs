@@ -255,7 +255,7 @@ namespace LaunchPlugin
         {
             ProfilesViewModel.SaveProfiles();
             IsActiveProfileDirty = false; // Reset the dirty flag after saving
-            SimHub.Logging.Current.Info($"LalaLaunch: Changes to '{ActiveProfile?.ProfileName}' saved.");
+            SimHub.Logging.Current.Info($"[Profiles] Changes to '{ActiveProfile?.ProfileName}' saved.");
         }
 
         private static double ComputeStableMedian(List<double> samples)
@@ -454,13 +454,13 @@ namespace LaunchPlugin
                     _seedWetSampleCount = 0;
                 }
 
-                SimHub.Logging.Current.Info(
-                    $"LalaLaunch.LiveFuel: captured seed from session '{fromSessionType}' for car='{_seedCarModel}', track='{_seedTrackKey}': " +
-                    $"dry={_seedDryFuelPerLap:F3} (n={_seedDrySampleCount}), wet={_seedWetFuelPerLap:F3} (n={_seedWetSampleCount}).");
+                        SimHub.Logging.Current.Info(
+                            $"[LiveFuel] Captured seed from session '{fromSessionType}' for car='{_seedCarModel}', track='{_seedTrackKey}': " +
+                            $"dry={_seedDryFuelPerLap:F3} (n={_seedDrySampleCount}), wet={_seedWetFuelPerLap:F3} (n={_seedWetSampleCount}).");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Info($"LalaLaunch.LiveFuel: CaptureFuelSeedForNextSession error: {ex.Message}");
+                SimHub.Logging.Current.Info($"[LiveFuel] CaptureFuelSeedForNextSession error: {ex.Message}");
             }
         }
 
@@ -554,7 +554,7 @@ namespace LaunchPlugin
                     try
                     {
                         SimHub.Logging.Current.Info(
-                            $"LalaLaunch.LiveFuel: seeded race model from previous session (car='{_seedCarModel}', track='{_seedTrackKey}'): " +
+                            $"[LiveFuel] Seeded race model from previous session (car='{_seedCarModel}', track='{_seedTrackKey}'): " +
                             $"dry={_seedDryFuelPerLap:F3}, wet={_seedWetFuelPerLap:F3}, conf={Confidence}%.");
                     }
                     catch { /* logging must not throw */ }
@@ -601,7 +601,7 @@ namespace LaunchPlugin
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Info($"LalaLaunch.LiveFuel: HandleSessionChangeForFuelModel error: {ex.Message}");
+                SimHub.Logging.Current.Info($"[LiveFuel] HandleSessionChangeForFuelModel error: {ex.Message}");
             }
         }
 
@@ -864,7 +864,7 @@ namespace LaunchPlugin
                         if (trackRecord?.AvgLapTimeDry > 0)
                         {
                             stableAvgPace = trackRecord.AvgLapTimeDry.Value / 1000.0;
-                            SimHub.Logging.Current.Info($"Pace Delta: No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
+                            SimHub.Logging.Current.Info($"[Pace] No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
                         }
                     }
                     // --- PB tertiary fallback (for replays / no live median and no profile avg) ---
@@ -1072,7 +1072,7 @@ namespace LaunchPlugin
                         if (Math.Abs(delta) > 20.0)
                         {
                             // You can log this if you like:
-                            SimHub.Logging.Current.Info($"LalaLaunch.Pace: gross outlier lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
+                            SimHub.Logging.Current.Info($"[Pace] Gross outlier lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
                             paceReject = true;
                             paceReason = "gross-outlier";
                         }
@@ -1080,7 +1080,7 @@ namespace LaunchPlugin
                         //     Keeps spins / heavy traffic / yellows out of the model, but allows faster laps.
                         else if (delta > 6.0)
                         {
-                            SimHub.Logging.Current.Info($"LalaLaunch.Pace: rejected too-slow lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
+                            SimHub.Logging.Current.Info($"[Pace] Rejected too-slow lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
                             paceReject = true;
                             paceReason = "slow-outlier";
                         }
@@ -1148,7 +1148,7 @@ namespace LaunchPlugin
 
                     SimHub.Logging.Current.Info(
                         string.Format(
-                            "LalaLaunch.Pace: lap={0}, time={1:F3}s, accepted={2}, reason={3}, stintAvg={4:F3}s, last5={5:F3}s, paceConf={6}%, baseline={7}, delta={8}",
+                            "[Pace] lap={0}, time={1:F3}s, accepted={2}, reason={3}, stintAvg={4:F3}s, last5={5:F3}s, paceConf={6}%, baseline={7}, delta={8}",
                             completedLapsNow,
                             lastLapSec,
                             !paceReject,
@@ -1160,7 +1160,7 @@ namespace LaunchPlugin
                             paceDeltaLog));
 
                     // --- Fuel per lap calculation & rolling averages ---
-                    SimHub.Logging.Current.Info($"LalaLaunch.LiveFuel: Lap crossed. CompletedLaps={completedLapsNow}");
+                    SimHub.Logging.Current.Info($"[LiveFuel] Lap crossed. CompletedLaps={completedLapsNow}");
 
                     double fuelUsed = (_lapStartFuel > 0 && currentFuel >= 0)
                         ? (_lapStartFuel - currentFuel)
@@ -1315,7 +1315,7 @@ namespace LaunchPlugin
 
                         SimHub.Logging.Current.Info(
                             string.Format(
-                                "LalaLaunch.LiveFuel: accepted {0:F3} L (mode={1}, Live={2:F3}, conf={3}%, window={4}, lap={5})",
+                                "[LiveFuel] accepted {0:F3} L (mode={1}, Live={2:F3}, conf={3}%, window={4}, lap={5})",
                                 fuelUsed,
                                 (isWetMode ? "wet" : "dry"),
                                 LiveFuelPerLap,
@@ -1327,7 +1327,7 @@ namespace LaunchPlugin
                     {
                         SimHub.Logging.Current.Info(
                             string.Format(
-                                "LalaLaunch.LiveFuel: rejected {0:F3} L (reason={1}, pit={2}, lap={3})",
+                                "[LiveFuel] rejected {0:F3} L (reason={1}, pit={2}, lap={3})",
                                 fuelUsed,
                                 reason,
                                 pitTripActive,
@@ -2048,7 +2048,7 @@ namespace LaunchPlugin
             _lastPitLossSavedAtUtc = DateTime.UtcNow;
             _lastPitLossSource = src;
 
-            SimHub.Logging.Current.Info($"LalaLaunch: Saved PitLaneLoss = {rounded:0.00}s ({src}).");
+            SimHub.Logging.Current.Info($"[Pit/Pace] Saved PitLaneLoss = {rounded:0.00}s ({src}).");
         }
 
         public bool SavePendingPitLaneLossIfAny(out string source, out double seconds)
@@ -2065,7 +2065,7 @@ namespace LaunchPlugin
                 Pit_OnValidPitStopTimeLossCalculated(loss, src);
                 source = src;
                 seconds = loss;
-                SimHub.Logging.Current.Info($"Pit Lite Data used for DTL.");
+                SimHub.Logging.Current.Info($"[PitLite] Pit Lite Data used for DTL.");
                 return true;
             }
 
@@ -2492,7 +2492,7 @@ namespace LaunchPlugin
             bool isOnTrack = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnTrack") ?? false);
             if (!isOnTrack && !IsIdle)
             {
-                SimHub.Logging.Current.Info("LaunchPlugin: Off track or in pits, aborting launch state to Idle.");
+                SimHub.Logging.Current.Info("[LalaLaunch] Off track or in pits – aborting launch state to Idle.");
                 AbortLaunch();
             }
             double clutchRaw = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.ClutchRaw") ?? 0.0);
@@ -2599,7 +2599,7 @@ namespace LaunchPlugin
             {
                 _hasProcessedOnTrack = true;
                 _lastSessionType = currentSession;
-                SimHub.Logging.Current.Info("LaunchPlugin: New session on-track activity detected. Resetting all values.");
+                SimHub.Logging.Current.Info("[LalaLaunch] New session on-track activity detected. Resetting all values.");
                 ResetAllValues();
                 Task.Run(async () =>
                 {
@@ -2615,10 +2615,10 @@ namespace LaunchPlugin
                     }
                     Screens.Mode = "auto";
                     Screens.CurrentPage = pageToShow;
-                    SimHub.Logging.Current.Info($"OnTrack detected. Mode set to 'auto', page set to '{Screens.CurrentPage}'.");
+                    SimHub.Logging.Current.Info($"[LalaLaunch] OnTrack detected – mode=auto, page='{Screens.CurrentPage}'.");
                     await Task.Delay(2000);
                     Screens.Mode = "manual";
-                    SimHub.Logging.Current.Info("Auto mode timer expired. Mode set to 'manual'.");
+                    SimHub.Logging.Current.Info("[LalaLaunch] Auto mode timer expired – mode set to 'manual'.");
                 });
             }
             else if (!isOnTrack && _hasProcessedOnTrack)
@@ -2830,7 +2830,7 @@ namespace LaunchPlugin
                 // Check if more than 30 seconds have passed.
                 if ((DateTime.Now - _manualPrimedStartedAt).TotalSeconds > 30)
                 {
-                    SimHub.Logging.Current.Info("LaunchPlugin: Manual launch timed out after 30 seconds.");
+                    SimHub.Logging.Current.Info("[LalaLaunch] Manual launch timed out after 30 seconds.");
                     AbortLaunch();
                 }
             }
@@ -3279,7 +3279,7 @@ namespace LaunchPlugin
                 if (!string.IsNullOrWhiteSpace(_currentFilePath) && File.Exists(_currentFilePath))
                 {
                     File.Delete(_currentFilePath);
-                    SimHub.Logging.Current.Info($"LaunchPlugin: Discarded trace file: {_currentFilePath}");
+                    SimHub.Logging.Current.Info($"[LaunchTrace] Discarded trace file: {_currentFilePath}");
                 }
             }
             catch (Exception ex)
@@ -3328,7 +3328,7 @@ namespace LaunchPlugin
                 _currentFilePath = newFilePath;
                 _traceStartTime = DateTime.UtcNow;
 
-                SimHub.Logging.Current.Info($"TelemetryTraceLogger: New launch trace file opened: {_currentFilePath}");
+                SimHub.Logging.Current.Info($"[LaunchTrace] New launch trace file opened: {_currentFilePath}");
                 return _currentFilePath;
             }
             catch (Exception ex)
@@ -3429,7 +3429,7 @@ namespace LaunchPlugin
 
                 // Append all lines at once using File.AppendAllLines to ensure atomicity
                 System.IO.File.AppendAllLines(_currentFilePath, summaryContent);
-                SimHub.Logging.Current.Info($"TelemetryTraceLogger: Successfully appended launch summary to {_currentFilePath}");
+                SimHub.Logging.Current.Info($"[LaunchTrace] Successfully appended launch summary to {_currentFilePath}");
             }
             catch (Exception ex)
             {
@@ -3449,7 +3449,7 @@ namespace LaunchPlugin
                 {
                     _traceWriter.Flush();
                     _traceWriter.Dispose(); // This closes the underlying file stream and disposes the writer
-                    SimHub.Logging.Current.Info($"TelemetryTraceLogger: Launch trace file closed: {_currentFilePath}");
+                    SimHub.Logging.Current.Info($"[LaunchTrace] Launch trace file closed: {_currentFilePath}");
                 }
                 catch (Exception ex)
                 {
@@ -3500,7 +3500,7 @@ namespace LaunchPlugin
 
             if (!System.IO.Directory.Exists(tracePath))
             {
-                SimHub.Logging.Current.Info($"TelemetryTraceLogger: Trace directory not found: {tracePath}");
+                SimHub.Logging.Current.Info($"[LaunchTrace] Trace directory not found: {tracePath}");
                 return new List<string>();
             }
 

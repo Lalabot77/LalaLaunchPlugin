@@ -63,7 +63,7 @@ namespace LaunchPlugin
                     if (System.IO.File.Exists(fullPath))
                     {
                         System.IO.File.Delete(fullPath);
-                        SimHub.Logging.Current.Info($"LaunchPlugin: Deleted trace file: {fullPath}");
+                        SimHub.Logging.Current.Info($"[LaunchTrace] Deleted trace file: {fullPath}");
                     }
                     else
                     {
