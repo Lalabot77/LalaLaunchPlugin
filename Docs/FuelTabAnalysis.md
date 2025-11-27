@@ -30,7 +30,6 @@
 | Save all to profile button | styles:SHButtonPrimary | "Save All to Profile" | `SavePlannerDataToProfileCommand` | persist profile | Writes current planner settings to car/track profile. 【F:FuelCalculatorView.xaml†L502-L508】【F:FuelCalcs.cs†L1739-L1744】 |
 | Fuel save target slider | Slider | "Fuel Save Target (L/Lap):" | `FuelSaveTarget` (TwoWay) | L/lap | Used in simulator calc. 【F:FuelCalculatorView.xaml†L573-L585】【F:FuelCalcs.cs†L53-L60】 |
 | Fuel save time-loss textbox | TextBox | "Est. Time Loss per Lap" | `TimeLossPerLapOfFuelSave` (TwoWay) | time | Manual entry for simulator. 【F:FuelCalculatorView.xaml†L584-L585】【F:FuelCalcs.cs†L54-L60】 |
-| Load last session button | Button | "Load Last Session Data for Comparison" | `LoadLastSessionCommand` | post-race | Loads analysis grid. 【F:FuelCalculatorView.xaml†L595-L606】【F:FuelCalcs.cs†L67-L71】 |
 
 ## Data Source Wiring – Live vs Profile vs Manual
 - **Live telemetry ingestion:** `SetLiveSession` selects the live car/track, rebuilds the track list, and updates snapshot labels; it runs on the UI dispatcher and marks the session active. 【F:FuelCalcs.cs†L1758-L1784】【F:FuelCalcs.cs†L2053-L2087】
