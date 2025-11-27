@@ -1612,7 +1612,7 @@ namespace LaunchPlugin
         }
     }
 
-    private void ResetStrategyInputs()
+    private void ResetStrategyInputs(bool preserveMaxFuel = false)
     {
         // Reset race-specific parameters to sensible defaults
         this.SelectedRaceType = RaceType.TimeLimited;
@@ -1621,7 +1621,8 @@ namespace LaunchPlugin
         this.MandatoryStopRequired = false;
 
         // Smartly default Max Fuel: use the live detected value if available, otherwise use 120L
-        this.MaxFuelOverride = _liveMaxFuel > 0 ? Math.Round(_liveMaxFuel) : 120.0;
+        if (!preserveMaxFuel)
+            this.MaxFuelOverride = _liveMaxFuel > 0 ? Math.Round(_liveMaxFuel) : 120.0;
 
         SimHub.Logging.Current.Info("FuelCalcs: Race strategy inputs have been reset to defaults.");
     }
@@ -2672,7 +2673,8 @@ namespace LaunchPlugin
         HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
 
         RefreshConditionParameters();
-        ResetStrategyInputs();
+        // Preserve MaxFuelOverride: it's a race strategy choice, not a track-specific value.
+        ResetStrategyInputs(preserveMaxFuel: true);
 
         // Manually notify the UI of all changes
         OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
