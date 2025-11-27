@@ -438,9 +438,9 @@
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice2"/>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice3"/>
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" Content="AVG" Style="{StaticResource FuelChoiceButtonStyle}" Tag="{Binding IsProfileFuelChoiceActive}" Command="{Binding UseProfileFuelPerLapCommand}" IsEnabled="{Binding HasProfileFuelPerLap}" ToolTip="Use the average fuel per lap saved in the selected profile."/>
-                                    <Button Grid.Column="1" Content="ECO" Style="{StaticResource FuelChoiceButtonStyle}" Tag="False" IsEnabled="False" ToolTip="Profile save value coming soon."/>
-                                    <Button Grid.Column="2" Content="MAX" Style="{StaticResource FuelChoiceButtonStyle}" Tag="False" Margin="0" IsEnabled="False" ToolTip="Profile max value coming soon."/>
+                                    <Button Grid.Column="0" Content="AVG" Style="{StaticResource FuelChoiceButtonStyle}" Tag="{Binding IsProfileAverageFuelChoiceActive}" Command="{Binding UseProfileFuelPerLapCommand}" IsEnabled="{Binding HasProfileFuelPerLap}" ToolTip="Use the average fuel per lap saved in the selected profile."/>
+                                    <Button Grid.Column="1" Content="ECO" Style="{StaticResource FuelChoiceButtonStyle}" Tag="{Binding IsProfileEcoFuelChoiceActive}" Command="{Binding UseProfileFuelSaveCommand}" IsEnabled="{Binding IsProfileFuelSaveAvailable}" ToolTip="Use the most fuel-efficient lap stored in the selected profile."/>
+                                    <Button Grid.Column="2" Content="MAX" Style="{StaticResource FuelChoiceButtonStyle}" Tag="{Binding IsProfileMaxFuelChoiceActive}" Margin="0" Command="{Binding UseProfileFuelMaxCommand}" IsEnabled="{Binding IsProfileFuelMaxAvailable}" ToolTip="Use the highest recorded fuel per lap stored in the selected profile."/>
                                 </Grid>
 
                                 <Grid Grid.ColumnSpan="3" Grid.Row="1" Visibility="{Binding IsPlanningSourceProfile, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,4,0,2">
@@ -450,8 +450,8 @@
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="FuelChoice3"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="{Binding ProfileAvgFuelDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1" Text="-" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="2" Text="-" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding ProfileFuelSaveDisplay}" Foreground="Gray" FontStyle="Italic" Margin="0,0,8,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ProfileFuelMaxDisplay}" Foreground="Gray" FontStyle="Italic" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Grid>
 
                                 <Grid Grid.ColumnSpan="3" Visibility="{Binding IsPlanningSourceLiveSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}">
