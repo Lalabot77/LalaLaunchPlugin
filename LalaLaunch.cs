@@ -195,9 +195,12 @@ namespace LaunchPlugin
         {
             get
             {
-                // If we have no pace confidence yet, fall back to fuel-only
+                // If either metric is missing, fall back to the other
+                if (Confidence <= 0) return PaceConfidence;
                 if (PaceConfidence <= 0) return Confidence;
-                return (Confidence * PaceConfidence);
+
+                // Combine as fractional probabilities, then rescale to 0–100
+                return (int)Math.Round((Confidence / 100.0) * (PaceConfidence / 100.0) * 100.0);
             }
         }
 
