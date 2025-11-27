@@ -1708,20 +1708,37 @@ namespace LaunchPlugin
         // 6) Save track-specific settings
         var lapTimeMs = trackRecord.LapTimeStringToMilliseconds(EstimatedLapTime);
         double.TryParse(FuelPerLapText.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double fuelVal);
+        bool fuelStamped = false;
 
         if (IsDry)
         {
             if (lapTimeMs.HasValue) trackRecord.AvgLapTimeDry = lapTimeMs;
-            if (fuelVal > 0) trackRecord.AvgFuelPerLapDry = fuelVal;
+            if (fuelVal > 0)
+            {
+                trackRecord.AvgFuelPerLapDry = fuelVal;
+                fuelStamped = true;
+            }
         }
         else // Wet
         {
             if (lapTimeMs.HasValue) trackRecord.AvgLapTimeWet = lapTimeMs;
-            if (fuelVal > 0) trackRecord.AvgFuelPerLapWet = fuelVal;
+            if (fuelVal > 0)
+            {
+                trackRecord.AvgFuelPerLapWet = fuelVal;
+                fuelStamped = true;
+            }
         }
 
-        if (_liveDryFuelAvg > 0) trackRecord.AvgFuelPerLapDry = _liveDryFuelAvg;
-        if (_liveWetFuelAvg > 0) trackRecord.AvgFuelPerLapWet = _liveWetFuelAvg;
+        if (_liveDryFuelAvg > 0)
+        {
+            trackRecord.AvgFuelPerLapDry = _liveDryFuelAvg;
+            fuelStamped = true;
+        }
+        if (_liveWetFuelAvg > 0)
+        {
+            trackRecord.AvgFuelPerLapWet = _liveWetFuelAvg;
+            fuelStamped = true;
+        }
 
         if (_liveDryFuelMin > 0) trackRecord.MinFuelPerLapDry = _liveDryFuelMin;
         if (_liveDryFuelMax > 0) trackRecord.MaxFuelPerLapDry = _liveDryFuelMax;
@@ -1730,6 +1747,12 @@ namespace LaunchPlugin
         if (_liveWetFuelMin > 0) trackRecord.MinFuelPerLapWet = _liveWetFuelMin;
         if (_liveWetFuelMax > 0) trackRecord.MaxFuelPerLapWet = _liveWetFuelMax;
         if (_liveWetSamples > 0) trackRecord.WetFuelSampleCount = _liveWetSamples;
+
+        if (fuelStamped)
+        {
+            var source = isLiveSession ? "Telemetry fuel" : "Planner save";
+            trackRecord.MarkFuelUpdated(source);
+        }
 
         trackRecord.PitLaneLossSeconds = this.PitLaneTimeLoss;
 

@@ -333,6 +333,57 @@ namespace LaunchPlugin
             set { if (_pitLaneLossUpdatedUtc != value) { _pitLaneLossUpdatedUtc = value; OnPropertyChanged(); } }
         }
 
+        private string _fuelUpdatedSource;
+        [JsonProperty]
+        public string FuelUpdatedSource
+        {
+            get => _fuelUpdatedSource;
+            set
+            {
+                if (_fuelUpdatedSource != value)
+                {
+                    _fuelUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(FuelLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _fuelUpdatedUtc;
+        [JsonProperty]
+        public DateTime? FuelUpdatedUtc
+        {
+            get => _fuelUpdatedUtc;
+            set
+            {
+                if (_fuelUpdatedUtc != value)
+                {
+                    _fuelUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(FuelLastUpdatedText));
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public string FuelLastUpdatedText
+        {
+            get
+            {
+                if (!_fuelUpdatedUtc.HasValue) return string.Empty;
+                var sourceLabel = string.IsNullOrWhiteSpace(_fuelUpdatedSource)
+                    ? "Last updated"
+                    : _fuelUpdatedSource;
+                return $"{sourceLabel}: {_fuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+            }
+        }
+
+        public void MarkFuelUpdated(string source, DateTime? whenUtc = null)
+        {
+            FuelUpdatedSource = source;
+            FuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
 
         /// --- Dry Conditions Data ---
         private double? _avgFuelPerLapDry;
@@ -377,6 +428,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressDryFuelSync)
+                        {
+                            MarkFuelUpdated("Manual fuel edit");
+                        }
                         _suppressDryFuelSync = true;
                         AvgFuelPerLapDry = parsedValue;
                         _suppressDryFuelSync = false;
@@ -563,6 +618,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressWetFuelSync)
+                        {
+                            MarkFuelUpdated("Manual fuel edit");
+                        }
                         _suppressWetFuelSync = true;
                         AvgFuelPerLapWet = parsedValue;
                         _suppressWetFuelSync = false;
