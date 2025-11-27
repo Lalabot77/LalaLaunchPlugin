@@ -115,6 +115,15 @@ namespace LaunchPlugin
         private double _lastFuelLevel = -1;
         private double _lapStartFuel = -1;
         private double _lastLapDistPct = -1;
+        private int _lapDetectorLastCompleted = -1;
+        private string _lapDetectorLastSessionState = string.Empty;
+        private bool _lapDetectorPending;
+        private int _lapDetectorPendingLapTarget = -1;
+        private string _lapDetectorPendingSessionState = string.Empty;
+        private DateTime _lapDetectorPendingExpiresUtc = DateTime.MinValue;
+        private double _lapDetectorPendingLastPct = -1.0;
+        private DateTime _lapDetectorLastLogUtc = DateTime.MinValue;
+        private string _lapDetectorLastLogKey = string.Empty;
 
         // New per-mode rolling windows
         private readonly List<double> _recentDryFuelLaps = new List<double>();
@@ -180,10 +189,12 @@ namespace LaunchPlugin
         private double _lastLoggedLeaderAvgPaceSeconds = 0.0;
         private int _lastLoggedLeaderLapCount = 0;
         private bool _leaderSourceUnavailableLogged = false;
+        private bool _leaderPaceClearedLogged = false;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
+        private DateTime _lastPitLaneSeenUtc = DateTime.MinValue;
 
         // --- Stint / Pace tracking ---
         public double Pace_StintAvgLapTimeSec { get; private set; }
@@ -195,9 +206,12 @@ namespace LaunchPlugin
         {
             get
             {
-                // If we have no pace confidence yet, fall back to fuel-only
+                // If either metric is missing, fall back to the other
+                if (Confidence <= 0) return PaceConfidence;
                 if (PaceConfidence <= 0) return Confidence;
-                return (Confidence < PaceConfidence) ? Confidence : PaceConfidence;
+
+                // Combine as fractional probabilities, then rescale to 0–100
+                return (int)Math.Round((Confidence / 100.0) * (PaceConfidence / 100.0) * 100.0);
             }
         }
 
@@ -466,11 +480,21 @@ namespace LaunchPlugin
             _lastFuelLevel = -1.0;
             _lapStartFuel = -1.0;
             _lastLapDistPct = -1.0;
+            _lapDetectorLastCompleted = -1;
+            _lapDetectorLastSessionState = string.Empty;
+            _lapDetectorPending = false;
+            _lapDetectorPendingLapTarget = -1;
+            _lapDetectorPendingSessionState = string.Empty;
+            _lapDetectorPendingExpiresUtc = DateTime.MinValue;
+            _lapDetectorPendingLastPct = -1.0;
+            _lapDetectorLastLogUtc = DateTime.MinValue;
+            _lapDetectorLastLogKey = string.Empty;
             _lastCompletedFuelLap = -1;
             _lapsSincePitExit = int.MaxValue;
             _wasInPitThisLap = false;
             _hadOffTrackThisLap = false;
             _latchedIncidentReason = null;
+            _lastPitLaneSeenUtc = DateTime.MinValue;
 
             // Clear pace tracking alongside fuel model resets so session transitions don't carry stale data
             _recentLapTimes.Clear();
@@ -478,6 +502,7 @@ namespace LaunchPlugin
             _lastLeaderLapTimeSec = 0.0;
             LiveLeaderAvgPaceSeconds = 0.0;
             _leaderSourceUnavailableLogged = false;
+            _leaderPaceClearedLogged = false;
             Pace_StintAvgLapTimeSec = 0.0;
             Pace_Last5LapAvgSec = 0.0;
             PaceConfidence = 0;
@@ -580,6 +605,183 @@ namespace LaunchPlugin
             }
         }
 
+        private string ReadLapDetectorSessionState()
+        {
+            try
+            {
+                if (PluginManager == null) return string.Empty;
+                object raw = PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionState");
+                return raw != null ? raw.ToString() ?? string.Empty : string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private bool IsSessionRunningForLapDetector(string sessionStateToken)
+        {
+            if (string.IsNullOrWhiteSpace(sessionStateToken))
+                return true; // assume running if we can't read state
+
+            if (int.TryParse(sessionStateToken, out int numericState))
+                return numericState == 4; // iRacing "racing"
+
+            string normalized = sessionStateToken.Trim().ToLowerInvariant();
+            return normalized.Contains("race") || normalized.Contains("running") || normalized.Contains("green");
+        }
+
+        private bool DetectLapCrossing(GameData data, double curPctNormalized, double lastPctNormalized)
+        {
+            int lapCount = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
+            string sessionStateToken = ReadLapDetectorSessionState();
+            bool sessionRunning = IsSessionRunningForLapDetector(sessionStateToken);
+
+            if (_lapDetectorPending && DateTime.UtcNow > _lapDetectorPendingExpiresUtc)
+            {
+                if (ShouldLogLapDetector("pending-expired"))
+                {
+                    SimHub.Logging.Current.Info(
+                        $"[LapDetector] Pending lap confirmation expired (lap={_lapDetectorPendingLapTarget}, pct={_lapDetectorPendingLastPct:F3}).");
+                }
+                _lapDetectorPending = false;
+                _lapDetectorPendingLapTarget = -1;
+                _lapDetectorPendingSessionState = string.Empty;
+            }
+
+            if (_lapDetectorLastCompleted < 0)
+            {
+                _lapDetectorLastSessionState = sessionStateToken;
+                _lapDetectorLastCompleted = lapCount;
+                return false;
+            }
+
+            if (_lapDetectorLastSessionState != sessionStateToken || lapCount < _lapDetectorLastCompleted)
+            {
+                _lapDetectorLastSessionState = sessionStateToken;
+                _lapDetectorLastCompleted = lapCount;
+                _lapDetectorPending = false;
+                _lapDetectorPendingLapTarget = -1;
+                _lapDetectorPendingSessionState = string.Empty;
+                return false;
+            }
+
+            int lapDelta = lapCount - _lapDetectorLastCompleted;
+            if (lapDelta > 1)
+            {
+                _lapDetectorLastSessionState = sessionStateToken;
+                _lapDetectorLastCompleted = lapCount;
+                _lapDetectorPending = false;
+                _lapDetectorPendingLapTarget = -1;
+                _lapDetectorPendingSessionState = string.Empty;
+                return false; // ignore jumps
+            }
+
+            if (lapDelta == 1 && sessionRunning)
+            {
+                double speedKmh = data.NewData?.SpeedKmh ?? 0.0;
+                bool speedTooLow = speedKmh < 8.0;
+
+                bool pctFarFromSf = lastPctNormalized > 0.15 && curPctNormalized > 0.15 &&
+                    lastPctNormalized < 0.85 && curPctNormalized < 0.85;
+                bool pctImpossible = lastPctNormalized >= 0 && curPctNormalized >= 0 &&
+                    (lastPctNormalized < 0.25 && curPctNormalized > 0.25);
+                bool nearStartFinish = lastPctNormalized > 0.95 && curPctNormalized < 0.05;
+
+                bool pendingActive = _lapDetectorPending &&
+                    _lapDetectorPendingLapTarget == lapCount &&
+                    _lapDetectorPendingSessionState == sessionStateToken;
+
+                if (pendingActive)
+                {
+                    bool pendingExpired = DateTime.UtcNow >= _lapDetectorPendingExpiresUtc;
+
+                    if (!speedTooLow && (!pctFarFromSf || pendingExpired || nearStartFinish))
+                    {
+                        _lapDetectorLastSessionState = sessionStateToken;
+                        _lapDetectorLastCompleted = lapCount;
+                        _lapDetectorPending = false;
+                        _lapDetectorPendingLapTarget = -1;
+                        _lapDetectorPendingSessionState = string.Empty;
+                        return true;
+                    }
+
+                    if (pendingExpired)
+                    {
+                        if (ShouldLogLapDetector("pending-rejected"))
+                        {
+                            SimHub.Logging.Current.Info(
+                                $"[LapDetector] Pending lap increment rejected after debounce (lap={lapCount}, lastPct={lastPctNormalized:F3}, curPct={curPctNormalized:F3}, speed={speedKmh:F1}).");
+                        }
+                        _lapDetectorLastSessionState = sessionStateToken;
+                        _lapDetectorLastCompleted = lapCount;
+                        _lapDetectorPending = false;
+                        _lapDetectorPendingLapTarget = -1;
+                        _lapDetectorPendingSessionState = string.Empty;
+                    }
+
+                    return false;
+                }
+
+                if (speedTooLow)
+                {
+                    if (ShouldLogLapDetector("low-speed"))
+                    {
+                        SimHub.Logging.Current.Info($"[LapDetector] Ignoring lap increment at low speed ({speedKmh:F1} km/h).");
+                    }
+                    _lapDetectorLastSessionState = sessionStateToken;
+                    _lapDetectorLastCompleted = lapCount;
+                    return false;
+                }
+
+                if (pctFarFromSf || pctImpossible)
+                {
+                    _lapDetectorPending = true;
+                    _lapDetectorPendingLapTarget = lapCount;
+                    _lapDetectorPendingSessionState = sessionStateToken;
+                    _lapDetectorPendingExpiresUtc = DateTime.UtcNow.AddMilliseconds(500);
+                    _lapDetectorPendingLastPct = curPctNormalized;
+
+                    if (ShouldLogLapDetector("pending-armed"))
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"[LapDetector] Lap increment queued for confirmation (lap={lapCount}, lastPct={lastPctNormalized:F3}, curPct={curPctNormalized:F3}, speed={speedKmh:F1}).");
+                    }
+
+                    return false;
+                }
+
+                if (!nearStartFinish && lastPctNormalized >= 0 && curPctNormalized >= 0 && ShouldLogLapDetector("atypical"))
+                {
+                    SimHub.Logging.Current.Info($"[LapDetector] Lap increment detected via CompletedLaps with atypical track% values (last={lastPctNormalized:F3}, cur={curPctNormalized:F3}).");
+                }
+
+                _lapDetectorLastSessionState = sessionStateToken;
+                _lapDetectorLastCompleted = lapCount;
+                _lapDetectorPending = false;
+                _lapDetectorPendingLapTarget = -1;
+                _lapDetectorPendingSessionState = string.Empty;
+                return true;
+            }
+
+            _lapDetectorLastSessionState = sessionStateToken;
+            _lapDetectorLastCompleted = lapCount;
+            return false;
+        }
+
+        private bool ShouldLogLapDetector(string key)
+        {
+            var now = DateTime.UtcNow;
+            if (key != _lapDetectorLastLogKey || (now - _lapDetectorLastLogUtc).TotalSeconds > 1.0)
+            {
+                _lapDetectorLastLogKey = key;
+                _lapDetectorLastLogUtc = now;
+                return true;
+            }
+
+            return false;
+        }
+
         private void UpdateLiveFuelCalcs(GameData data)
         {
             // --- 1) Gather required data ---
@@ -597,8 +799,12 @@ namespace LaunchPlugin
             // Track per-lap pit involvement so we can reject any lap that touched pit lane
             if (inPitArea)
             {
+                _lastPitLaneSeenUtc = DateTime.UtcNow;
                 _wasInPitThisLap = true;
             }
+
+            bool pitExitRecently = (DateTime.UtcNow - _lastPitLaneSeenUtc).TotalSeconds < 1.0;
+            bool pitTripActive = _wasInPitThisLap || inPitArea || pitExitRecently;
 
             // Normalize lap % to 0..1 in case source is 0..100
             double curPct = rawLapPct;
@@ -606,8 +812,8 @@ namespace LaunchPlugin
             double lastPct = _lastLapDistPct;
             if (lastPct > 1.5) lastPct *= 0.01;
 
-            // --- 2) Detect S/F crossing & update rolling averages ---
-            bool lapCrossed = lastPct > 0.95 && curPct < 0.05;
+            // --- 2) Detect S/F crossing via lap counter (track% used only for sanity) ---
+            bool lapCrossed = DetectLapCrossing(data, curPct, lastPct);
 
             // Unfreeze once we're primed for a new pit cycle (next entry detected)
             if (_pitFreezeUntilNextCycle && _pit?.CurrentState == PitEngine.PaceDeltaState.AwaitingPitLap)
@@ -624,9 +830,13 @@ namespace LaunchPlugin
                 if (leaderLastLapSec <= 0.0 && _recentLeaderLapTimes.Count > 0)
                 {
                     // Feed dropped: clear leader pace so downstream calcs don't reuse stale values
-                    SimHub.Logging.Current.Info(string.Format(
-                        "[Leader] clearing leader pace (feed dropped), lastAvg={0:F3}",
-                        LiveLeaderAvgPaceSeconds));
+                    if (!_leaderPaceClearedLogged)
+                    {
+                        SimHub.Logging.Current.Info(string.Format(
+                            "[Leader] clearing leader pace (feed dropped), lastAvg={0:F3}",
+                            LiveLeaderAvgPaceSeconds));
+                        _leaderPaceClearedLogged = true;
+                    }
                     _recentLeaderLapTimes.Clear();
                     _lastLeaderLapTimeSec = 0.0;
                     LiveLeaderAvgPaceSeconds = 0.0;
@@ -642,7 +852,7 @@ namespace LaunchPlugin
                     double lastLapSecPit = lastLapTsPit.TotalSeconds;
 
                     // Basic validity check for the lap itself
-                    bool lastLapLooksClean = !inPitArea && lastLapSecPit > 20 && lastLapSecPit < 900;
+                    bool lastLapLooksClean = !pitTripActive && lastLapSecPit > 20 && lastLapSecPit < 900;
 
                     // Get a stable average pace to compare against
                     double stableAvgPace = ComputeStableMedian(_recentLapTimes);
@@ -654,7 +864,7 @@ namespace LaunchPlugin
                         if (trackRecord?.AvgLapTimeDry > 0)
                         {
                             stableAvgPace = trackRecord.AvgLapTimeDry.Value / 1000.0;
-                            SimHub.Logging.Current.Debug($"Pace Delta: No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
+                            SimHub.Logging.Current.Info($"Pace Delta: No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
                         }
                     }
                     // --- PB tertiary fallback (for replays / no live median and no profile avg) ---
@@ -662,7 +872,7 @@ namespace LaunchPlugin
                     {
                         stableAvgPace = _lastSeenBestLap.TotalSeconds;
                     }
-                    SimHub.Logging.Current.Debug($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
+                    SimHub.Logging.Current.Info($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
 
                     // Decide and publish baseline (profile-avg → live-median → session-pb)
                     string paceSource = "live-median"; // default to whatever stableAvgPace currently holds
@@ -772,6 +982,7 @@ namespace LaunchPlugin
                     if (leaderLastLapSec > 20.0 && leaderLastLapSec < 900.0 &&
                         Math.Abs(leaderLastLapSec - _lastLeaderLapTimeSec) > 1e-6)
                     {
+                        _leaderPaceClearedLogged = false;
                         _recentLeaderLapTimes.Add(leaderLastLapSec);
                         while (_recentLeaderLapTimes.Count > LapTimeSampleCount)
                         {
@@ -791,7 +1002,7 @@ namespace LaunchPlugin
                     if (currentLeaderCount != _lastLoggedLeaderLapCount ||
                         Math.Abs(currentAvgLeader - _lastLoggedLeaderAvgPaceSeconds) > 0.01)
                     {
-                        SimHub.Logging.Current.Debug(string.Format(
+                        SimHub.Logging.Current.Info(string.Format(
                             "[FuelLeader] lapCrossed: leaderLastLapSec={0:F3}, count={1}, avgLeader={2:F3}",
                             leaderLastLapSec,
                             currentLeaderCount,
@@ -826,7 +1037,7 @@ namespace LaunchPlugin
                     }
 
                     // 2) Any pit involvement this lap? Ignore for pace.
-                    if (!paceReject && (_wasInPitThisLap || inPitArea))
+                    if (!paceReject && pitTripActive)
                     {
                         paceReject = true;
                         paceReason = "pit-lap";
@@ -969,7 +1180,7 @@ namespace LaunchPlugin
                     }
 
                     // 1) Pit involvement – any lap that touched pit lane is rejected
-                    if (_wasInPitThisLap || inPitArea)
+                    if (pitTripActive)
                     {
                         reject = true;
                         reason = "pit-lap";
@@ -1118,12 +1329,12 @@ namespace LaunchPlugin
                                 "LalaLaunch.LiveFuel: rejected {0:F3} L (reason={1}, pit={2}, lap={3})",
                                 fuelUsed,
                                 reason,
-                                (_wasInPitThisLap || inPitArea),
+                                pitTripActive,
                                 completedLapsNow));
                     }
 
                     // Per-lap resets for next lap
-                    if (_wasInPitThisLap || inPitArea)
+                    if (pitTripActive)
                     {
                         _lapsSincePitExit = 0;
                     }
@@ -1998,6 +2209,13 @@ namespace LaunchPlugin
             FuelCalculator.SetLiveSession(carName, trackLabel);
             _lastSnapshotCar = carName;
             _lastSnapshotTrack = trackLabel;
+
+            // Reset max fuel announcement throttle so the live display refreshes immediately for the new snapshot
+            _lastAnnouncedMaxFuel = -1;
+            if (LiveCarMaxFuel > 0)
+            {
+                FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
+            }
         }
 
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
@@ -2072,11 +2290,14 @@ namespace LaunchPlugin
                 _lastSeenTrack = string.Empty;
                 _lastSnapshotCar = string.Empty;
                 _lastSnapshotTrack = string.Empty;
+                _lastAnnouncedMaxFuel = -1;
                 _lastSessionId = currentSessionId;
                 FuelCalculator.ForceProfileDataReload();
 
                 SimHub.Logging.Current.Info($"[LalaLaunch] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
             }
+
+            UpdateLiveSurfaceSummary(pluginManager);
 
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
             _pit.Update(data, pluginManager);
@@ -2499,6 +2720,84 @@ namespace LaunchPlugin
             return 0.0;
         }
 
+
+        private void UpdateLiveSurfaceSummary(PluginManager pluginManager)
+        {
+            if (FuelCalculator == null) return;
+
+            bool? declaredWet = TryReadNullableBool(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.WeatherDeclaredWet"));
+
+            string airTemp = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackAirTemp"));
+            string trackTemp = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackSurfaceTemp"));
+            string humidity = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackRelativeHumidity"));
+            string rubberState = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackRubberState"));
+            string precipitation = GetSurfaceText(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackPrecipitation"));
+
+            var parts = new List<string>();
+            bool isWet = declaredWet ?? FuelCalculator.IsWet;
+            parts.Add(isWet ? "Wet" : "Dry");
+
+            string tempSegment = ComposeTemperatureSegment(airTemp, trackTemp);
+            if (!string.IsNullOrWhiteSpace(tempSegment)) parts.Add(tempSegment);
+
+            if (!string.IsNullOrWhiteSpace(humidity)) parts.Add($"{humidity} humidity");
+            if (!string.IsNullOrWhiteSpace(rubberState)) parts.Add($"Rubber {rubberState}");
+            if (!string.IsNullOrWhiteSpace(precipitation)) parts.Add($"Precip: {precipitation}");
+
+            string summary = parts.Count > 0 ? string.Join(" | ", parts) : "-";
+
+            FuelCalculator.SetLiveSurfaceSummary(declaredWet, summary);
+        }
+
+        private static string GetSurfaceText(object value)
+        {
+            var text = Convert.ToString(value, CultureInfo.InvariantCulture)?.Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+
+        private static string ComposeTemperatureSegment(string airTemp, string trackTemp)
+        {
+            if (!string.IsNullOrWhiteSpace(airTemp) && !string.IsNullOrWhiteSpace(trackTemp))
+            {
+                return $"{airTemp} / {trackTemp}";
+            }
+
+            if (!string.IsNullOrWhiteSpace(airTemp))
+            {
+                return $"{airTemp} air";
+            }
+
+            if (!string.IsNullOrWhiteSpace(trackTemp))
+            {
+                return $"{trackTemp} track";
+            }
+
+            return null;
+        }
+
+        private static bool? TryReadNullableBool(object value)
+        {
+            if (value == null) return null;
+
+            try
+            {
+                switch (value)
+                {
+                    case bool b:
+                        return b;
+                    case string s when bool.TryParse(s, out var parsedBool):
+                        return parsedBool;
+                    case string s when int.TryParse(s, out var parsedInt):
+                        return parsedInt != 0;
+                    default:
+                        return Convert.ToBoolean(value);
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         private static string GetString(object o) => Convert.ToString(o, CultureInfo.InvariantCulture) ?? "";
 
@@ -3108,7 +3407,7 @@ namespace LaunchPlugin
             }
             else if (!_plugin.Settings.EnableTelemetryTracing)
             {
-                SimHub.Logging.Current.Debug("TelemetryTraceLogger: Skipping trace logging — disabled in plugin settings.");
+                //SimHub.Logging.Current.Debug("TelemetryTraceLogger: Skipping trace logging — disabled in plugin settings.");
             }
         }
 
