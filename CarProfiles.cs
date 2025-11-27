@@ -340,7 +340,12 @@ namespace LaunchPlugin
         private bool _suppressDryFuelSync = false;
 
         private double? _minFuelPerLapDry;
+        private string _minFuelPerLapDryText;
+        private bool _suppressDryMinFuelSync = false;
+
         private double? _maxFuelPerLapDry;
+        private string _maxFuelPerLapDryText;
+        private bool _suppressDryMaxFuelSync = false;
 
         [JsonProperty]
         public double? AvgFuelPerLapDry
@@ -389,6 +394,82 @@ namespace LaunchPlugin
                         _suppressDryFuelSync = true;
                         AvgFuelPerLapDry = parsedValue;
                         _suppressDryFuelSync = false;
+                    }
+                }
+            }
+        }
+
+        [JsonProperty]
+        public double? MinFuelPerLapDry
+        {
+            get => _minFuelPerLapDry;
+            set
+            {
+                if (_minFuelPerLapDry != value)
+                {
+                    _minFuelPerLapDry = value;
+                    OnPropertyChanged();
+                    if (!_suppressDryMinFuelSync)
+                    {
+                        MinFuelPerLapDryText = _minFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+        }
+
+        public string MinFuelPerLapDryText
+        {
+            get => _minFuelPerLapDryText;
+            set
+            {
+                if (_minFuelPerLapDryText != value)
+                {
+                    _minFuelPerLapDryText = value;
+                    OnPropertyChanged();
+                    var parsedValue = StringToNullableDouble(value);
+                    if (parsedValue.HasValue)
+                    {
+                        _suppressDryMinFuelSync = true;
+                        MinFuelPerLapDry = parsedValue;
+                        _suppressDryMinFuelSync = false;
+                    }
+                }
+            }
+        }
+
+        [JsonProperty]
+        public double? MaxFuelPerLapDry
+        {
+            get => _maxFuelPerLapDry;
+            set
+            {
+                if (_maxFuelPerLapDry != value)
+                {
+                    _maxFuelPerLapDry = value;
+                    OnPropertyChanged();
+                    if (!_suppressDryMaxFuelSync)
+                    {
+                        MaxFuelPerLapDryText = _maxFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+        }
+
+        public string MaxFuelPerLapDryText
+        {
+            get => _maxFuelPerLapDryText;
+            set
+            {
+                if (_maxFuelPerLapDryText != value)
+                {
+                    _maxFuelPerLapDryText = value;
+                    OnPropertyChanged();
+                    var parsedValue = StringToNullableDouble(value);
+                    if (parsedValue.HasValue)
+                    {
+                        _suppressDryMaxFuelSync = true;
+                        MaxFuelPerLapDry = parsedValue;
+                        _suppressDryMaxFuelSync = false;
                     }
                 }
             }
@@ -459,7 +540,12 @@ namespace LaunchPlugin
         private bool _suppressWetFuelSync = false;
 
         private double? _minFuelPerLapWet;
+        private string _minFuelPerLapWetText;
+        private bool _suppressWetMinFuelSync = false;
+
         private double? _maxFuelPerLapWet;
+        private string _maxFuelPerLapWetText;
+        private bool _suppressWetMaxFuelSync = false;
 
         [JsonProperty]
         public double? AvgFuelPerLapWet
@@ -508,6 +594,82 @@ namespace LaunchPlugin
                         _suppressWetFuelSync = true;
                         AvgFuelPerLapWet = parsedValue;
                         _suppressWetFuelSync = false;
+                    }
+                }
+            }
+        }
+
+        [JsonProperty]
+        public double? MinFuelPerLapWet
+        {
+            get => _minFuelPerLapWet;
+            set
+            {
+                if (_minFuelPerLapWet != value)
+                {
+                    _minFuelPerLapWet = value;
+                    OnPropertyChanged();
+                    if (!_suppressWetMinFuelSync)
+                    {
+                        MinFuelPerLapWetText = _minFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+        }
+
+        public string MinFuelPerLapWetText
+        {
+            get => _minFuelPerLapWetText;
+            set
+            {
+                if (_minFuelPerLapWetText != value)
+                {
+                    _minFuelPerLapWetText = value;
+                    OnPropertyChanged();
+                    var parsedValue = StringToNullableDouble(value);
+                    if (parsedValue.HasValue)
+                    {
+                        _suppressWetMinFuelSync = true;
+                        MinFuelPerLapWet = parsedValue;
+                        _suppressWetMinFuelSync = false;
+                    }
+                }
+            }
+        }
+
+        [JsonProperty]
+        public double? MaxFuelPerLapWet
+        {
+            get => _maxFuelPerLapWet;
+            set
+            {
+                if (_maxFuelPerLapWet != value)
+                {
+                    _maxFuelPerLapWet = value;
+                    OnPropertyChanged();
+                    if (!_suppressWetMaxFuelSync)
+                    {
+                        MaxFuelPerLapWetText = _maxFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+        }
+
+        public string MaxFuelPerLapWetText
+        {
+            get => _maxFuelPerLapWetText;
+            set
+            {
+                if (_maxFuelPerLapWetText != value)
+                {
+                    _maxFuelPerLapWetText = value;
+                    OnPropertyChanged();
+                    var parsedValue = StringToNullableDouble(value);
+                    if (parsedValue.HasValue)
+                    {
+                        _suppressWetMaxFuelSync = true;
+                        MaxFuelPerLapWet = parsedValue;
+                        _suppressWetMaxFuelSync = false;
                     }
                 }
             }
