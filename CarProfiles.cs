@@ -408,6 +408,7 @@ namespace LaunchPlugin
                 {
                     _avgFuelPerLapDry = value;
                     OnPropertyChanged();
+                    NotifyWetVsDryDeltasChanged();
                     if (!_suppressDryFuelSync)
                     {
                         AvgFuelPerLapDryText = _avgFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
@@ -533,6 +534,7 @@ namespace LaunchPlugin
                     var old = _avgLapTimeDry;
                     _avgLapTimeDry = value;
                     OnPropertyChanged();
+                    NotifyWetVsDryDeltasChanged();
 
                     // LOG: Avg dry lap changed
                     try
@@ -598,6 +600,7 @@ namespace LaunchPlugin
                 {
                     _avgFuelPerLapWet = value;
                     OnPropertyChanged();
+                    NotifyWetVsDryDeltasChanged();
                     if (!_suppressWetFuelSync)
                     {
                         AvgFuelPerLapWetText = _avgFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
@@ -723,6 +726,7 @@ namespace LaunchPlugin
                     var old = _avgLapTimeWet;
                     _avgLapTimeWet = value;
                     OnPropertyChanged();
+                    NotifyWetVsDryDeltasChanged();
 
                     // LOG: Avg wet lap changed
                     try
@@ -764,6 +768,96 @@ namespace LaunchPlugin
         private double? _avgWetTrackTemp;
         [JsonProperty] public double? AvgWetTrackTemp { get => _avgWetTrackTemp; set { if (_avgWetTrackTemp != value) { _avgWetTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgWetTrackTempText)); } } }
         public string AvgWetTrackTempText { get => _avgWetTrackTemp?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => AvgWetTrackTemp = StringToNullableDouble(value); }
+
+        private void NotifyWetVsDryDeltasChanged()
+        {
+            OnPropertyChanged(nameof(WetVsDryAvgLapDeltaSeconds));
+            OnPropertyChanged(nameof(WetVsDryAvgLapDeltaPercent));
+            OnPropertyChanged(nameof(WetVsDryAvgLapDeltaText));
+            OnPropertyChanged(nameof(WetVsDryAvgFuelDelta));
+            OnPropertyChanged(nameof(WetVsDryAvgFuelPercent));
+            OnPropertyChanged(nameof(WetVsDryAvgFuelDeltaText));
+        }
+
+        [JsonIgnore]
+        public double? WetVsDryAvgLapDeltaSeconds
+        {
+            get
+            {
+                if (AvgLapTimeWet.HasValue && AvgLapTimeDry.HasValue)
+                {
+                    return (AvgLapTimeWet.Value - AvgLapTimeDry.Value) / 1000.0;
+                }
+                return null;
+            }
+        }
+
+        [JsonIgnore]
+        public double? WetVsDryAvgLapDeltaPercent
+        {
+            get
+            {
+                if (AvgLapTimeWet.HasValue && AvgLapTimeDry.HasValue && AvgLapTimeDry.Value != 0)
+                {
+                    return (AvgLapTimeWet.Value / (double)AvgLapTimeDry.Value) * 100.0;
+                }
+                return null;
+            }
+        }
+
+        [JsonIgnore]
+        public string WetVsDryAvgLapDeltaText
+        {
+            get
+            {
+                if (!WetVsDryAvgLapDeltaSeconds.HasValue) return "—";
+                var delta = WetVsDryAvgLapDeltaSeconds.Value;
+                var sign = delta >= 0 ? "+" : string.Empty;
+                var percent = WetVsDryAvgLapDeltaPercent;
+                var deltaText = $"{sign}{delta:0.00}s";
+                return percent.HasValue ? $"{deltaText} ({percent.Value:0.#}%)" : deltaText;
+            }
+        }
+
+        [JsonIgnore]
+        public double? WetVsDryAvgFuelDelta
+        {
+            get
+            {
+                if (AvgFuelPerLapWet.HasValue && AvgFuelPerLapDry.HasValue)
+                {
+                    return AvgFuelPerLapWet.Value - AvgFuelPerLapDry.Value;
+                }
+                return null;
+            }
+        }
+
+        [JsonIgnore]
+        public double? WetVsDryAvgFuelPercent
+        {
+            get
+            {
+                if (AvgFuelPerLapWet.HasValue && AvgFuelPerLapDry.HasValue && AvgFuelPerLapDry.Value != 0)
+                {
+                    return (AvgFuelPerLapWet.Value / AvgFuelPerLapDry.Value) * 100.0;
+                }
+                return null;
+            }
+        }
+
+        [JsonIgnore]
+        public string WetVsDryAvgFuelDeltaText
+        {
+            get
+            {
+                if (!WetVsDryAvgFuelDelta.HasValue) return "—";
+                var delta = WetVsDryAvgFuelDelta.Value;
+                var sign = delta >= 0 ? "+" : string.Empty;
+                var percent = WetVsDryAvgFuelPercent;
+                var deltaText = $"{sign}{delta:0.00}";
+                return percent.HasValue ? $"{deltaText} ({percent.Value:0.#}%)" : deltaText;
+            }
+        }
     }
 
     public class ConditionMultipliers : INotifyPropertyChanged
