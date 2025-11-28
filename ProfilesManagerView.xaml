@@ -286,6 +286,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="150" />
@@ -301,10 +302,12 @@
                                     <TextBlock Grid.Row="0" Grid.Column="3" Text="Max" FontWeight="SemiBold" TextAlignment="Center" />
                                     <TextBlock Grid.Row="0" Grid.Column="4" Text="Samples" FontWeight="SemiBold" TextAlignment="Center" />
 
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MinFuelPerLapDry, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding AvgFuelPerLapDry, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding MaxFuelPerLapDry, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding DryFuelSampleCount}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Text="{Binding FuelLastUpdatedText}" FontStyle="Italic" Foreground="#FF9AA0A6" HorizontalAlignment="Right" />
+
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
+                                    <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
+                                    <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding MaxFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
+                                    <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding DryFuelSampleCount}" TextAlignment="Center" />
                                 </Grid>
 
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
@@ -317,10 +320,6 @@
                                     <TextBlock Grid.Column="0" Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" MinWidth="150"/>
                                     <TextBox Grid.Column="1" Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}"
                                              TextAlignment="Right" Width="120" MinWidth="110"/>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" Foreground="#FF9AA0A6" Margin="0,0,6,0"/>
-                                        <TextBlock Text="{Binding FuelLastUpdatedText}" FontStyle="Italic" Foreground="#FF9AA0A6"/>
-                                    </StackPanel>
                                 </Grid>
 
                                 <!-- Avg Lap Time (m:ss.fff), right-aligned -->
@@ -354,6 +353,7 @@
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="150" />
@@ -369,10 +369,12 @@
                                     <TextBlock Grid.Row="0" Grid.Column="3" Text="Max" FontWeight="SemiBold" TextAlignment="Center" />
                                     <TextBlock Grid.Row="0" Grid.Column="4" Text="Samples" FontWeight="SemiBold" TextAlignment="Center" />
 
-                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding MinFuelPerLapWet, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding AvgFuelPerLapWet, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding MaxFuelPerLapWet, StringFormat={}{0:0.00}}" TextAlignment="Center" />
-                                    <TextBlock Grid.Row="1" Grid.Column="4" Text="{Binding WetFuelSampleCount}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Text="{Binding FuelLastUpdatedText}" FontStyle="Italic" Foreground="#FF9AA0A6" HorizontalAlignment="Right" />
+
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
+                                    <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
+                                    <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding MaxFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
+                                    <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding WetFuelSampleCount}" TextAlignment="Center" />
                                 </Grid>
 
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
