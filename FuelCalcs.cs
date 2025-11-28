@@ -990,6 +990,28 @@ namespace LaunchPlugin
         return value.HasValue ? $"{value.Value:F2} L" : "-";
     }
 
+    private bool IsWetSurface() => _liveWeatherIsWet ?? IsWet;
+
+    private string FormatConditionSourceLabel(string baseLabel)
+    {
+        return IsWetSurface() ? $"{baseLabel} (wet)" : $"{baseLabel} (dry)";
+    }
+
+    private double? GetLiveAverageFuelPerLapForCurrentCondition()
+    {
+        bool isWetSurface = IsWetSurface();
+
+        if (isWetSurface && _liveWetFuelAvg > 0)
+        {
+            return _liveWetFuelAvg;
+        }
+
+        if (!isWetSurface && _liveDryFuelAvg > 0)
+        {
+            return _liveDryFuelAvg;
+        }
+
+        return LiveFuelPerLap > 0 ? LiveFuelPerLap : (double?)null;
     private (double? value, string source) GetActiveAverageFuel()
     {
         if (IsWet)
@@ -1009,13 +1031,13 @@ namespace LaunchPlugin
 
     private double? GetActiveLiveFuelMin()
     {
-        double value = IsWet ? _liveWetFuelMin : _liveDryFuelMin;
+        double value = IsWetSurface() ? _liveWetFuelMin : _liveDryFuelMin;
         return value > 0 ? value : (double?)null;
     }
 
     private double? GetActiveLiveFuelMax()
     {
-        double value = IsWet ? _liveWetFuelMax : _liveDryFuelMax;
+        double value = IsWetSurface() ? _liveWetFuelMax : _liveDryFuelMax;
         return value > 0 ? value : (double?)null;
     }
 
@@ -1025,7 +1047,7 @@ namespace LaunchPlugin
         if (min.HasValue)
         {
             FuelPerLap = min.Value;
-            FuelPerLapSourceInfo = "Live save";
+            FuelPerLapSourceInfo = FormatConditionSourceLabel("Live save");
         }
     }
 
@@ -1035,7 +1057,7 @@ namespace LaunchPlugin
         if (liveMax.HasValue)
         {
             FuelPerLap = liveMax.Value;
-            FuelPerLapSourceInfo = "Live max";
+            FuelPerLapSourceInfo = FormatConditionSourceLabel("Live max");
             return;
         }
 
@@ -1275,6 +1297,27 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(IsProfileFuelMaxAvailable));
     }
 
+    private void UpdateProfileAverageDisplays()
+    {
+        var ts = SelectedTrackStats;
+        var dryLap = ts?.AvgLapTimeDry;
+        var wetLap = ts?.AvgLapTimeWet;
+        var dryFuel = ts?.AvgFuelPerLapDry;
+        var wetFuel = ts?.AvgFuelPerLapWet;
+
+        ProfileAvgLapTimeDisplay = IsDry
+            ? (dryLap.HasValue ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff") : "-")
+            : (wetLap.HasValue ? TimeSpan.FromMilliseconds(wetLap.Value).ToString(@"m\:ss\.fff") : "-");
+
+        ProfileAvgFuelDisplay = IsDry
+            ? (dryFuel.HasValue ? dryFuel.Value.ToString("F2") + " L" : "-")
+            : (wetFuel.HasValue ? wetFuel.Value.ToString("F2") + " L" : "-");
+
+        OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
+        OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
+        OnPropertyChanged(nameof(ShowProfileLapHelper));
+    }
+
     public void SetLastPitDriveThroughSeconds(double seconds)
     {
         var disp = Application.Current?.Dispatcher;
@@ -1345,6 +1388,22 @@ namespace LaunchPlugin
                 UpdateLiveFuelChoiceDisplays();
                 UpdateProfileFuelChoiceDisplays();
 
+                // Apply fuel factor
+                if (IsWet) { ApplyWetFactor(); }
+                else { FuelPerLap = _baseDryFuelPerLap; }
+
+                // --- NEW LOGIC: Update Estimated Lap Time based on condition ---
+                var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
+
+                if (ts != null)
+                {
+                    int? lapTimeMs = IsWet ? ts.AvgLapTimeWet : ts.AvgLapTimeDry;
+                    if (lapTimeMs.HasValue && lapTimeMs > 0)
+                    {
+                        EstimatedLapTime = TimeSpan.FromMilliseconds(lapTimeMs.Value).ToString(@"m\:ss\.fff");
+                        LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
+                    }
+                }
                 UpdateProfileAverageDisplaysForCondition();
                 RefreshProfilePlanningData();
                 UpdateTrackDerivedSummaries();
@@ -1353,6 +1412,7 @@ namespace LaunchPlugin
             OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
             OnPropertyChanged(nameof(ShowProfileLapHelper));
             OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
+            UpdateProfileAverageDisplays();
             RefreshConditionParameters();
         }
     }
@@ -1530,8 +1590,8 @@ namespace LaunchPlugin
 
         if (lap.HasValue)
         {
-            EstimatedLapTime = lap.Value.ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = FormatLabel(lapSource, "Profile avg");
+            EstimatedLapTime = TimeSpan.FromMilliseconds(lapMs.Value).ToString(@"m\:ss\.fff");
+            LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
             OnPropertyChanged(nameof(EstimatedLapTime));
             OnPropertyChanged(nameof(LapTimeSourceInfo));
             CalculateStrategy();
@@ -1616,13 +1676,11 @@ namespace LaunchPlugin
 
     private void UseProfileFuelPerLap()
     {
-        var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
-        if (ts == null) return;
-
-        if (TryGetProfileFuelForCondition(IsWet, out var fuelPerLap, out var sourceLabel))
+        var avg = GetProfileAverageFuelPerLapForCurrentCondition();
+        if (avg.HasValue)
         {
-            FuelPerLap = fuelPerLap;
-            FuelPerLapSourceInfo = FormatLabel(sourceLabel, "Profile avg");
+            FuelPerLap = avg.Value;
+            FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile avg");
         }
     }
 
@@ -1632,7 +1690,7 @@ namespace LaunchPlugin
         if (min.HasValue)
         {
             FuelPerLap = min.Value;
-            FuelPerLapSourceInfo = "Profile eco";
+            FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile eco");
         }
     }
 
@@ -1642,7 +1700,7 @@ namespace LaunchPlugin
         if (max.HasValue)
         {
             FuelPerLap = max.Value;
-            FuelPerLapSourceInfo = "Profile max";
+            FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile max");
         }
     }
     public double TotalFuelNeeded { get => _totalFuelNeeded; private set { _totalFuelNeeded = value; OnPropertyChanged("TotalFuelNeeded"); } }
@@ -1717,11 +1775,11 @@ namespace LaunchPlugin
     }
     private void UseLiveFuelPerLap()
     {
-        var active = GetActiveAverageFuel();
-        if (active.value.HasValue)
+        var liveFuel = GetLiveAverageFuelPerLapForCurrentCondition();
+        if (liveFuel.HasValue)
         {
-            FuelPerLap = active.value.Value;
-            FuelPerLapSourceInfo = string.IsNullOrWhiteSpace(active.source) ? "Live avg" : active.source;
+            FuelPerLap = liveFuel.Value;
+            FuelPerLapSourceInfo = FormatConditionSourceLabel("Live avg");
         }
     }
 
@@ -2182,8 +2240,8 @@ namespace LaunchPlugin
                     EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
                     IsEstimatedLapTimeManual = false;
                     LapTimeSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
-                        ? $"Profile avg ({(IsWet ? "wet" : "dry")})"
-                        : "Live avg";
+                        ? FormatConditionSourceLabel("Profile avg")
+                        : FormatConditionSourceLabel("Live avg");
                 }
             }
 
@@ -2200,10 +2258,9 @@ namespace LaunchPlugin
                         fuelSource = profileSource;
                     }
                 }
-                else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot && LiveFuelPerLap > 0)
+                else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
                 {
-                    fuel = LiveFuelPerLap;
-                    fuelSource = "Live";
+                    fuel = GetLiveAverageFuelPerLapForCurrentCondition();
                 }
 
                 if (fuel.HasValue)
@@ -2212,8 +2269,8 @@ namespace LaunchPlugin
                     FuelPerLapText = fuel.Value.ToString("0.00", CultureInfo.InvariantCulture);
                     IsFuelPerLapManual = false;
                     FuelPerLapSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
-                        ? FormatLabel(fuelSource, "Profile avg")
-                        : FormatLabel(fuelSource, "Live");
+                        ? FormatConditionSourceLabel("Profile avg")
+                        : FormatConditionSourceLabel("Live avg");
                 }
             }
         }
@@ -2309,7 +2366,7 @@ namespace LaunchPlugin
             EstimatedLapTime = TimeSpan.FromSeconds(estSeconds).ToString(@"m\:ss\.fff");
 
             // This is explicitly “live average”, not manual
-            LapTimeSourceInfo = "Live avg";
+            LapTimeSourceInfo = FormatConditionSourceLabel("Live avg");
             IsEstimatedLapTimeManual = false;
         }
         finally
@@ -2915,12 +2972,12 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(HistoricalBestLapDisplay));
 
 
-        // --- Set the initial estimated lap time from the profile average (condition aware) ---
-        var initialLap = GetProfileLapTimeForCondition(IsWet, out var lapSource);
+        // --- Set the initial estimated lap time from the profile's condition average ---
+        var initialLap = GetProfileAverageLapTimeForCurrentCondition();
         if (initialLap.HasValue)
         {
             EstimatedLapTime = initialLap.Value.ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = FormatLabel(lapSource, "Profile avg");
+            LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
         }
         else
         {
@@ -2934,6 +2991,11 @@ namespace LaunchPlugin
         {
             _baseDryFuelPerLap = avg;
 
+            var initialFuel = GetProfileAverageFuelPerLapForCurrentCondition();
+            if (initialFuel.HasValue)
+            {
+                FuelPerLap = initialFuel.Value;
+                FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile avg");
             double factor = WetFactorPercent / 100.0;
             if (IsWet && ts.AvgFuelPerLapWet.HasValue && ts.AvgFuelPerLapWet.Value > 0)
             {
@@ -2967,7 +3029,23 @@ namespace LaunchPlugin
             SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
         }
 
-        UpdateProfileAverageDisplaysForCondition(ts);
+        // --- CONSOLIDATED: Populate all display properties ---
+        var dryLap = ts?.AvgLapTimeDry;
+        var wetLap = ts?.AvgLapTimeWet;
+        var dryFuel = ts?.AvgFuelPerLapDry;
+        var wetFuel = ts?.AvgFuelPerLapWet;
+
+        UpdateProfileAverageDisplays();
+
+        ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
+            ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
+            : "-";
+
+        ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
+            ? dryFuel.Value.ToString("F2") + " L"
+            : "-";
+
+        HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
 
         _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
         _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
