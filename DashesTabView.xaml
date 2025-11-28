@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="LaunchPlugin.DashesTabView"
+<UserControl x:Class="LaunchPlugin.DashesTabView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -36,8 +36,7 @@
             <Grid Margin="0,0,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="2*"/>
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0">
@@ -46,29 +45,60 @@
                     <ui:TitledSlider Title="Post-Launch Results Display Time: " Minimum="0" Maximum="30" Value="{Binding Settings.ResultsDisplayTime, Mode=TwoWay}"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1">
-                    <TextBlock Text="LALADASH OPTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
-                    <styles:SHToggleCheckbox Content="Show Launch Screen" IsChecked="{Binding Settings.LalaDashShowLaunchScreen, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Pit Limiter Screen" IsChecked="{Binding Settings.LalaDashShowPitLimiter, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Automatic Pit Screen" IsChecked="{Binding Settings.LalaDashShowPitScreen, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Track Rejoin Assist" IsChecked="{Binding Settings.LalaDashShowRejoinAssist, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Verbose Race Messages" IsChecked="{Binding Settings.LalaDashShowVerboseMessaging, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Race Flags" IsChecked="{Binding Settings.LalaDashShowRaceFlags, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Radio Messages" IsChecked="{Binding Settings.LalaDashShowRadioMessages, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Traffic Alerts" IsChecked="{Binding Settings.LalaDashShowTraffic, Mode=TwoWay}" Margin="0,5,0,0"/>
-                </StackPanel>
+                <Grid Grid.Column="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="MESSAGE SYSTEM OPTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
-                    <styles:SHToggleCheckbox Content="Show Launch Screen" IsChecked="{Binding Settings.MsgDashShowLaunchScreen, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Pit Limiter Screen" IsChecked="{Binding Settings.MsgDashShowPitLimiter, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Automatic Pit Screen" IsChecked="{Binding Settings.MsgDashShowPitScreen, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Track Rejoin Assist" IsChecked="{Binding Settings.MsgDashShowRejoinAssist, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Verbose Race Messages" IsChecked="{Binding Settings.MsgDashShowVerboseMessaging, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Race Flags" IsChecked="{Binding Settings.MsgDashShowRaceFlags, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Radio Messages" IsChecked="{Binding Settings.MsgDashShowRadioMessages, Mode=TwoWay}" Margin="0,5,0,0"/>
-                    <styles:SHToggleCheckbox Content="Show Traffic Alerts" IsChecked="{Binding Settings.MsgDashShowTraffic, Mode=TwoWay}" Margin="0,5,0,0"/>
-                </StackPanel>
+                    <TextBlock Text="" Grid.Row="0" Grid.Column="0" />
+                    <TextBlock Text="MAIN OPTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5" Grid.Row="0" Grid.Column="1" />
+                    <TextBlock Text="MESSAGE OPTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5" Grid.Row="0" Grid.Column="2" />
+
+                    <TextBlock Text="Show Launch Screen" Margin="0,5,0,0" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowLaunchScreen, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="1" Grid.Column="1" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowLaunchScreen, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="1" Grid.Column="2" />
+
+                    <TextBlock Text="Show Pit Limiter Screen" Margin="0,5,0,0" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowPitLimiter, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="2" Grid.Column="1" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowPitLimiter, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="2" Grid.Column="2" />
+
+                    <TextBlock Text="Show Automatic Pit Screen" Margin="0,5,0,0" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowPitScreen, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="3" Grid.Column="1" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowPitScreen, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="3" Grid.Column="2" />
+
+                    <TextBlock Text="Show Track Rejoin Assist" Margin="0,5,0,0" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowRejoinAssist, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="4" Grid.Column="1" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowRejoinAssist, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="4" Grid.Column="2" />
+
+                    <TextBlock Text="Show Verbose Race Messages" Margin="0,5,0,0" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowVerboseMessaging, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="5" Grid.Column="1" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowVerboseMessaging, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="5" Grid.Column="2" />
+
+                    <TextBlock Text="Show Race Flags" Margin="0,5,0,0" Grid.Row="6" Grid.Column="0" VerticalAlignment="Center" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowRaceFlags, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="6" Grid.Column="1" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowRaceFlags, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="6" Grid.Column="2" />
+
+                    <TextBlock Text="Show Radio Messages" Margin="0,5,0,0" Grid.Row="7" Grid.Column="0" VerticalAlignment="Center" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowRadioMessages, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="7" Grid.Column="1" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowRadioMessages, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="7" Grid.Column="2" />
+
+                    <TextBlock Text="Show Traffic Alerts" Margin="0,5,0,0" Grid.Row="8" Grid.Column="0" VerticalAlignment="Center" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowTraffic, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="8" Grid.Column="1" />
+                    <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowTraffic, Mode=TwoWay}" Margin="0,5,0,0" Grid.Row="8" Grid.Column="2" />
+                </Grid>
             </Grid>
 
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" />
