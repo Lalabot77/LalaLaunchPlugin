@@ -59,8 +59,6 @@ namespace LaunchPlugin
     private double _baseDryFuelPerLap;
     
     private double _lastLoggedLeaderDeltaSeconds = 0.0;
-   
-    private bool _leaderDeltaClearLogged = false;
     private double _lastLoggedStrategyLeaderLap = 0.0;
     private double _lastLoggedStrategyEstLap = 0.0;
 
@@ -88,9 +86,6 @@ namespace LaunchPlugin
 
     private string _liveLapPaceInfo = "-";
     private double _liveAvgLapSeconds = 0;   // internal cache of live estimate
-    private int _liveFuelConfidence;
-    private int _livePaceConfidence;
-    private int _liveOverallConfidence;
     private bool? _liveWeatherIsWet;
     private string _liveSurfaceSummary;
     private bool _isLiveSessionActive;
