@@ -1024,6 +1024,7 @@ namespace LaunchPlugin
         }
 
         return LiveFuelPerLap > 0 ? LiveFuelPerLap : (double?)null;
+    }
     private (double? value, string source) GetActiveAverageFuel()
     {
         if (IsWet)
@@ -1607,26 +1608,25 @@ namespace LaunchPlugin
     }
 
 
-    // --- REWIRED "What-If" Properties ---
-    public void LoadProfileLapTime()
-    {
-        var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
-        if (ts == null) return;
-
-        var lap = GetProfileLapTimeForCondition(IsWet, out var lapSource);
-
-        if (lap.HasValue)
+        // --- REWIRED "What-If" Properties ---
+        public void LoadProfileLapTime()
         {
-            EstimatedLapTime = TimeSpan.FromMilliseconds(lapMs.Value).ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
-            OnPropertyChanged(nameof(EstimatedLapTime));
-            OnPropertyChanged(nameof(LapTimeSourceInfo));
-            CalculateStrategy();
+            var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
+            if (ts == null) return;
+
+            var lap = GetProfileLapTimeForCondition(IsWet, out var lapSource);
+
+            if (lap.HasValue)
+            {
+                EstimatedLapTime = lap.Value.ToString(@"m\:ss\.fff");
+                LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
+                OnPropertyChanged(nameof(EstimatedLapTime));
+                OnPropertyChanged(nameof(LapTimeSourceInfo));
+                CalculateStrategy();
+            }
         }
 
-    }
-
-    public double WetFactorPercent
+        public double WetFactorPercent
     {
         get => _wetFactorPercent;
         set
@@ -3061,85 +3061,86 @@ namespace LaunchPlugin
             {
                 FuelPerLap = initialFuel.Value;
                 FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile avg");
-            double factor = WetFactorPercent / 100.0;
-            if (IsWet && ts.AvgFuelPerLapWet.HasValue && ts.AvgFuelPerLapWet.Value > 0)
-            {
-                FuelPerLap = ts.AvgFuelPerLapWet.Value;
-                FuelPerLapSourceInfo = "Profile avg (wet)";
-            }
-            else if (IsWet)
-            {
-                FuelPerLap = avg * factor;
-                FuelPerLapSourceInfo = "Profile dry avg × wet factor";
+                double factor = WetFactorPercent / 100.0;
+                if (IsWet && ts.AvgFuelPerLapWet.HasValue && ts.AvgFuelPerLapWet.Value > 0)
+                {
+                    FuelPerLap = ts.AvgFuelPerLapWet.Value;
+                    FuelPerLapSourceInfo = "Profile avg (wet)";
+                }
+                else if (IsWet)
+                {
+                    FuelPerLap = avg * factor;
+                    FuelPerLapSourceInfo = "Profile dry avg × wet factor";
+                }
+                else
+                {
+                    FuelPerLap = avg;
+                    FuelPerLapSourceInfo = "Profile avg (dry)";
+                }
             }
             else
             {
-                FuelPerLap = avg;
-                FuelPerLapSourceInfo = "Profile avg (dry)";
+                // Handle case where track exists but has no fuel data.
+                // Reset to the global default value and update the source text.
+                var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
+                var defaultFuel = defaultProfile?.TrackStats?["default"]?.AvgFuelPerLapDry ?? 2.8;
+                FuelPerLap = defaultFuel;
+                FuelPerLapSourceInfo = "Default";
             }
+
+            if (ts?.PitLaneLossSeconds is double pll && pll > 0)
+            {
+                PitLaneTimeLoss = pll;
+                SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
+            }
+
+            // --- CONSOLIDATED: Populate all display properties ---
+            var dryLap = ts?.AvgLapTimeDry;
+            var wetLap = ts?.AvgLapTimeWet;
+            var dryFuel = ts?.AvgFuelPerLapDry;
+            var wetFuel = ts?.AvgFuelPerLapWet;
+
+            UpdateProfileAverageDisplays();
+
+            ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
+                ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
+                : "-";
+
+            ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
+                ? dryFuel.Value.ToString("F2") + " L"
+                : "-";
+
+            HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
+
+            _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
+            _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
+            _profileDryFuelMax = ts?.MaxFuelPerLapDry ?? 0;
+            _profileDrySamples = ts?.DryFuelSampleCount ?? 0;
+            _profileWetFuelAvg = ts?.AvgFuelPerLapWet ?? 0;
+            _profileWetFuelMin = ts?.MinFuelPerLapWet ?? 0;
+            _profileWetFuelMax = ts?.MaxFuelPerLapWet ?? 0;
+            _profileWetSamples = ts?.WetFuelSampleCount ?? 0;
+
+            UpdateProfileFuelChoiceDisplays();
+            UpdateFuelBurnSummaries();
+
+            RefreshConditionParameters();
+            // Only reset race-strategy defaults when the car changes; track changes should not touch these values.
+            if (carChanged)
+            {
+                // When switching cars, reinitialize the max-fuel override from the new car's tank size
+                // (or default) but keep the user's race duration/type selections intact.
+                ResetStrategyInputs(preserveMaxFuel: false, preserveRaceDuration: true);
+            }
+
+            // Recompute with the newly loaded data
+            CalculateStrategy();
+
+            UpdateTrackDerivedSummaries();
+
+            _lastLoadedCarProfile = car;
+            _lastLoadedTrackKey = trackKey;
         }
-        else
-        {
-            // Handle case where track exists but has no fuel data.
-            // Reset to the global default value and update the source text.
-            var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
-            var defaultFuel = defaultProfile?.TrackStats?["default"]?.AvgFuelPerLapDry ?? 2.8;
-            FuelPerLap = defaultFuel;
-            FuelPerLapSourceInfo = "Default";
-        }
-
-        if (ts?.PitLaneLossSeconds is double pll && pll > 0)
-        {
-            PitLaneTimeLoss = pll;
-            SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
-        }
-
-        // --- CONSOLIDATED: Populate all display properties ---
-        var dryLap = ts?.AvgLapTimeDry;
-        var wetLap = ts?.AvgLapTimeWet;
-        var dryFuel = ts?.AvgFuelPerLapDry;
-        var wetFuel = ts?.AvgFuelPerLapWet;
-
-        UpdateProfileAverageDisplays();
-
-        ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
-            ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
-            : "-";
-
-        ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
-            ? dryFuel.Value.ToString("F2") + " L"
-            : "-";
-
-        HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
-
-        _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
-        _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
-        _profileDryFuelMax = ts?.MaxFuelPerLapDry ?? 0;
-        _profileDrySamples = ts?.DryFuelSampleCount ?? 0;
-        _profileWetFuelAvg = ts?.AvgFuelPerLapWet ?? 0;
-        _profileWetFuelMin = ts?.MinFuelPerLapWet ?? 0;
-        _profileWetFuelMax = ts?.MaxFuelPerLapWet ?? 0;
-        _profileWetSamples = ts?.WetFuelSampleCount ?? 0;
-
-        UpdateProfileFuelChoiceDisplays();
-        UpdateFuelBurnSummaries();
-
-        RefreshConditionParameters();
-        // Only reset race-strategy defaults when the car changes; track changes should not touch these values.
-        if (carChanged)
-        {
-            // When switching cars, reinitialize the max-fuel override from the new car's tank size
-            // (or default) but keep the user's race duration/type selections intact.
-            ResetStrategyInputs(preserveMaxFuel: false, preserveRaceDuration: true);
-        }
-
-        // Recompute with the newly loaded data
-        CalculateStrategy();
-
-        UpdateTrackDerivedSummaries();
-
-        _lastLoadedCarProfile = car;
-        _lastLoadedTrackKey = trackKey;
     }
 
     private void ApplySourceWetFactorFromSource()
