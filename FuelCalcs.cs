@@ -208,6 +208,14 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(IsLiveMaxFuelChoiceActive));
     }
 
+    private void RaiseSourceWetFactorIndicators()
+    {
+        OnPropertyChanged(nameof(SourceWetFactorPercent));
+        OnPropertyChanged(nameof(HasSourceWetFactor));
+        OnPropertyChanged(nameof(SourceWetFactorDisplay));
+        CommandManager.InvalidateRequerySuggested();
+    }
+
     public bool IsFuelPerLapManual
     {
         get => _isFuelPerLapManual;
@@ -252,6 +260,7 @@ namespace LaunchPlugin
             OnPropertyChanged(nameof(ShowLiveLapHelper));
             OnPropertyChanged(nameof(ShowProfileLapHelper));
             RaiseFuelChoiceIndicators();
+            RaiseSourceWetFactorIndicators();
 
             // When the user changes the global planning source,
             // drop any manual overrides so the new source fully takes over.
@@ -576,15 +585,16 @@ namespace LaunchPlugin
     public ICommand UseLiveLapPaceCommand { get; }
     public ICommand LoadProfileLapTimeCommand { get; }
     public ICommand SavePlannerDataToProfileCommand { get; }
-    public ICommand UseProfileFuelPerLapCommand { get; }
-    public ICommand UseProfileFuelSaveCommand { get; }
-    public ICommand UseProfileFuelMaxCommand { get; }
-    public ICommand UseMaxFuelPerLapCommand { get; }
-    public ICommand RefreshLiveSnapshotCommand { get; }
-    public ICommand ResetEstimatedLapTimeToSourceCommand { get; }
-    public ICommand ResetFuelPerLapToSourceCommand { get; }
-    public ICommand ApplyPresetCommand { get; private set; }
-    public ICommand ClearPresetCommand { get; private set; }
+        public ICommand UseProfileFuelPerLapCommand { get; }
+        public ICommand UseProfileFuelSaveCommand { get; }
+        public ICommand UseProfileFuelMaxCommand { get; }
+        public ICommand UseMaxFuelPerLapCommand { get; }
+        public ICommand RefreshLiveSnapshotCommand { get; }
+        public ICommand ResetEstimatedLapTimeToSourceCommand { get; }
+        public ICommand ResetFuelPerLapToSourceCommand { get; }
+        public ICommand ApplyPresetCommand { get; private set; }
+        public ICommand ClearPresetCommand { get; private set; }
+        public ICommand ApplySourceWetFactorCommand { get; }
 
     private void ApplySelectedPreset()
     {
@@ -1167,6 +1177,7 @@ namespace LaunchPlugin
 
         UpdateFuelBurnSummaries();
         UpdateLiveFuelChoiceDisplays();
+        RaiseSourceWetFactorIndicators();
     }
 
     private void UpdateLiveFuelChoiceDisplays()
@@ -1339,10 +1350,11 @@ namespace LaunchPlugin
                 UpdateTrackDerivedSummaries();
                 UpdateSurfaceModeLabel();
             }
-            OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
-            OnPropertyChanged(nameof(ShowProfileLapHelper));
-            OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
-            RefreshConditionParameters();
+                OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
+                OnPropertyChanged(nameof(ShowProfileLapHelper));
+                OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
+                RefreshConditionParameters();
+                RaiseSourceWetFactorIndicators();
         }
     }
 
@@ -1539,6 +1551,42 @@ namespace LaunchPlugin
                 OnPropertyChanged();
                 ApplyWetFactor();
             }
+        }
+    }
+
+    public double? SourceWetFactorPercent
+    {
+        get
+        {
+            if (!IsWet) return null;
+
+            if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
+            {
+                var trackMultipliers = (SelectedTrackStats ?? ResolveSelectedTrackStats())?.GetConditionMultipliers(true);
+                var carMultipliers = SelectedCarProfile?.GetConditionMultipliers(true);
+                return trackMultipliers?.WetFactorPercent ?? carMultipliers?.WetFactorPercent ?? SelectedCarProfile?.WetFuelMultiplier;
+            }
+
+            if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+            {
+                if (_liveDryFuelAvg > 0 && _liveWetFuelAvg > 0)
+                {
+                    return (_liveWetFuelAvg / _liveDryFuelAvg) * 100.0;
+                }
+            }
+
+            return null;
+        }
+    }
+
+    public bool HasSourceWetFactor => SourceWetFactorPercent.HasValue;
+
+    public string SourceWetFactorDisplay
+    {
+        get
+        {
+            var prefix = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot ? "Live" : "Profile";
+            return SourceWetFactorPercent.HasValue ? $"{prefix} wet factor: {SourceWetFactorPercent.Value:0.#}%" : $"{prefix} wet factor unavailable";
         }
     }
 
@@ -2078,6 +2126,7 @@ namespace LaunchPlugin
         ResetEstimatedLapTimeToSourceCommand = new RelayCommand(_ => ResetEstimatedLapTimeToSource());
         ResetFuelPerLapToSourceCommand = new RelayCommand(_ => ResetFuelPerLapToSource());
         ResetLeaderDeltaToLiveCommand = new RelayCommand(_ => ResetLeaderDeltaToLive());
+        ApplySourceWetFactorCommand = new RelayCommand(_ => ApplySourceWetFactorFromSource(), _ => HasSourceWetFactor);
 
         ApplyPresetCommand = new RelayCommand(o => ApplySelectedPreset(), o => HasSelectedPreset);
         ClearPresetCommand = new RelayCommand(o => ClearAppliedPreset());
@@ -2526,6 +2575,7 @@ namespace LaunchPlugin
 
         UpdateFuelBurnSummaries();
         UpdateLiveFuelChoiceDisplays();
+        RaiseSourceWetFactorIndicators();
     }
 
     private void UpdateTrackDerivedSummaries()
@@ -2910,6 +2960,15 @@ namespace LaunchPlugin
         _lastLoadedTrackKey = trackKey;
     }
 
+    private void ApplySourceWetFactorFromSource()
+    {
+        var source = SourceWetFactorPercent;
+        if (source.HasValue)
+        {
+            WetFactorPercent = source.Value;
+        }
+    }
+
     private void ApplyWetFactor()
     {
         if (IsWet) { FuelPerLap = _baseDryFuelPerLap * (WetFactorPercent / 100.0); }
@@ -2955,6 +3014,8 @@ namespace LaunchPlugin
         {
             _isRefreshingConditionParameters = false;
         }
+
+        RaiseSourceWetFactorIndicators();
     }
 
     public void UpdateLiveDisplay(double liveMaxFuel)

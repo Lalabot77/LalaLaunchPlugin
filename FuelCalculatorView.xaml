@@ -255,11 +255,15 @@
                             <!-- Track condition (Profile planning only) -->
                             <StackPanel Grid.Row="3" Margin="0,5,0,5" Visibility="{Binding IsPlanningSourceProfile,Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                <TextBlock Text="Track Condition:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <RadioButton Content="Dry" IsChecked="{Binding IsDry, Mode=TwoWay}" GroupName="TrackCondition"/>
-                                <RadioButton Content="Wet" IsChecked="{Binding IsWet, Mode=TwoWay}" GroupName="TrackCondition" Margin="10,0,0,0"/>
-                            </StackPanel>
-                            <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
+                                    <TextBlock Text="Track Condition:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <RadioButton Content="Dry" IsChecked="{Binding IsDry, Mode=TwoWay}" GroupName="TrackCondition"/>
+                                    <RadioButton Content="Wet" IsChecked="{Binding IsWet, Mode=TwoWay}" GroupName="TrackCondition" Margin="10,0,0,0"/>
+                                </StackPanel>
+                                <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="{Binding SourceWetFactorDisplay}" Style="{StaticResource UnitHint}" VerticalAlignment="Center" Visibility="{Binding HasSourceWetFactor, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <Button Content="Use source" Command="{Binding ApplySourceWetFactorCommand}" Margin="10,0,0,0" Visibility="{Binding HasSourceWetFactor, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                </StackPanel>
                             </StackPanel>
 
                             <!-- Avg Lap Time -->
