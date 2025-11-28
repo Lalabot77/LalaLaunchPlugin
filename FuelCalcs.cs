@@ -1160,11 +1160,14 @@ namespace LaunchPlugin
         _liveSurfaceSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
 
         bool shouldFollowLiveSurface = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot;
-        bool shouldSetWetFromLive = isDeclaredWet == true && shouldFollowLiveSurface;
 
-        if (shouldSetWetFromLive && !IsWet)
+        if (shouldFollowLiveSurface && isDeclaredWet.HasValue)
         {
-            SelectedTrackCondition = TrackCondition.Wet;
+            var liveCondition = isDeclaredWet.Value ? TrackCondition.Wet : TrackCondition.Dry;
+            if (SelectedTrackCondition != liveCondition)
+            {
+                SelectedTrackCondition = liveCondition;
+            }
         }
 
         bool isWetVisible = ShowWetSnapshotRows;
