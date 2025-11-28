@@ -186,7 +186,6 @@ namespace LaunchPlugin
         private TimeSpan _lastSeenBestLap = TimeSpan.Zero;
         private readonly List<double> _recentLeaderLapTimes = new List<double>(); // seconds
         private double _lastLeaderLapTimeSec = 0.0;
-        private bool _leaderSourceUnavailableLogged = false;
         private bool _leaderPaceClearedLogged = false;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
         private double _lastPitLossSaved = 0.0;
@@ -499,7 +498,6 @@ namespace LaunchPlugin
             _recentLeaderLapTimes.Clear();
             _lastLeaderLapTimeSec = 0.0;
             LiveLeaderAvgPaceSeconds = 0.0;
-            _leaderSourceUnavailableLogged = false;
             _leaderPaceClearedLogged = false;
             Pace_StintAvgLapTimeSec = 0.0;
             Pace_Last5LapAvgSec = 0.0;

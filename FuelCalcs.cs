@@ -53,7 +53,6 @@ namespace LaunchPlugin
     private string _extraTimeAfterLeader;
     private double _firstStintFuel;
     private string _validationMessage;
-    private bool _isMissingTrackValidation;
     private double _firstStopTimeLoss;
     private double _refuelRate;
     private double _baseDryFuelPerLap;
@@ -3050,8 +3049,7 @@ namespace LaunchPlugin
             }
 
             // --- Validation guards ---------------------------------------------------
-            _isMissingTrackValidation = false;
-
+            
             bool lapInvalid = double.IsNaN(num3) || double.IsInfinity(num3) ||
                               num3 <= 0.0 || num3 < 20.0 || num3 > 900.0;
 
