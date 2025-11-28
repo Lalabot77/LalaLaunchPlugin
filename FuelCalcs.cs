@@ -2981,27 +2981,25 @@ namespace LaunchPlugin
 
         // Phase within each lap when the clock hits zero
         double phaseL = raceSeconds % leaderLapSec;
-        double tL_rem = leaderLapSec - phaseL;        // leader time-to-line
-        if (tL_rem >= leaderLapSec - 1e-6) tL_rem = 0.0;
+        double tL_rem = (phaseL <= 1e-6) ? leaderLapSec : (leaderLapSec - phaseL); // leader time-to-line from zero
 
         double phaseY = raceSeconds % yourLapSec;
-        double tY_rem = yourLapSec - phaseY;          // your time-to-line
-        if (tY_rem >= yourLapSec - 1e-6) tY_rem = 0.0;
+        double tY_rem = (phaseY <= 1e-6) ? yourLapSec : (yourLapSec - phaseY);     // your time-to-line from zero
 
-        // Baseline: assume one additional lap after zero
-        double extra = tY_rem + yourLapSec;
+        // Leader finishes the race when they next cross the line after the clock expires.
+        double leaderFinishAfterZero = tL_rem;
 
-        // Edge case: leader crosses nearly immediately and you narrowly AVOID being lapped,
-        // which can force you into two full laps after your next line crossing.
-        // If the leader will complete their next lap before you can reach the line once,
-        // you likely owe a second full lap.
-        bool leaderNextLapBeatsYouToLine = (tL_rem + leaderLapSec) < tY_rem;
-
-        if (leaderNextLapBeatsYouToLine)
+        // You receive the checkered on the first time you cross start/finish AFTER the leader has finished.
+        // If you cross after the leader, you are done on that same crossing.
+        // Otherwise, you owe as many full laps as needed until your crossing time clears the leader's finish.
+        if (tY_rem >= leaderFinishAfterZero)
         {
-            // Two-lap overrun: you finish current partial + two full laps
-            extra = tY_rem + (2.0 * yourLapSec);
+            return tY_rem; // you finish this lap after the leader has already ended the race
         }
+
+        double remainingAfterYourNextCross = leaderFinishAfterZero - tY_rem;
+        long extraFullLaps = (long)Math.Ceiling(remainingAfterYourNextCross / yourLapSec);
+        double extra = tY_rem + (extraFullLaps * yourLapSec);
 
         return Math.Max(0.0, extra);
     }
