@@ -1098,9 +1098,18 @@ namespace LaunchPlugin
     private void ApplyLiveSurfaceSummary(bool? isDeclaredWet, string summary)
     {
         bool wasWetVisible = ShowWetSnapshotRows;
+        bool wasWetCondition = IsWet;
 
         _liveWeatherIsWet = isDeclaredWet;
         _liveSurfaceSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
+
+        bool shouldFollowLiveSurface = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot;
+        bool shouldSetWetFromLive = isDeclaredWet == true && shouldFollowLiveSurface;
+
+        if (shouldSetWetFromLive && !IsWet)
+        {
+            SelectedTrackCondition = TrackCondition.Wet;
+        }
 
         bool isWetVisible = ShowWetSnapshotRows;
         if (isWetVisible != wasWetVisible)
@@ -1108,6 +1117,11 @@ namespace LaunchPlugin
             OnPropertyChanged(nameof(ShowWetSnapshotRows));
             UpdateLapTimeSummaries();
             UpdatePaceSummaries();
+        }
+
+        if (IsWet != wasWetCondition && shouldFollowLiveSurface)
+        {
+            ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
         }
 
         UpdateSurfaceModeLabel();
