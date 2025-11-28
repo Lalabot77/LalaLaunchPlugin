@@ -2981,27 +2981,25 @@ namespace LaunchPlugin
 
         // Phase within each lap when the clock hits zero
         double phaseL = raceSeconds % leaderLapSec;
-        double tL_rem = leaderLapSec - phaseL;        // leader time-to-line
-        if (tL_rem >= leaderLapSec - 1e-6) tL_rem = 0.0;
+        double tL_rem = (phaseL <= 1e-6) ? leaderLapSec : (leaderLapSec - phaseL); // leader time-to-line from zero
 
         double phaseY = raceSeconds % yourLapSec;
-        double tY_rem = yourLapSec - phaseY;          // your time-to-line
-        if (tY_rem >= yourLapSec - 1e-6) tY_rem = 0.0;
+        double tY_rem = (phaseY <= 1e-6) ? yourLapSec : (yourLapSec - phaseY);     // your time-to-line from zero
 
-        // Baseline: assume one additional lap after zero
-        double extra = tY_rem + yourLapSec;
+        // Leader finishes the race when they next cross the line after the clock expires.
+        double leaderFinishAfterZero = tL_rem;
 
-        // Edge case: leader crosses nearly immediately and you narrowly AVOID being lapped,
-        // which can force you into two full laps after your next line crossing.
-        // If the leader will complete their next lap before you can reach the line once,
-        // you likely owe a second full lap.
-        bool leaderNextLapBeatsYouToLine = (tL_rem + leaderLapSec) < tY_rem;
-
-        if (leaderNextLapBeatsYouToLine)
+        // You receive the checkered on the first time you cross start/finish AFTER the leader has finished.
+        // If you cross after the leader, you are done on that same crossing.
+        // Otherwise, you owe as many full laps as needed until your crossing time clears the leader's finish.
+        if (tY_rem >= leaderFinishAfterZero)
         {
-            // Two-lap overrun: you finish current partial + two full laps
-            extra = tY_rem + (2.0 * yourLapSec);
+            return tY_rem; // you finish this lap after the leader has already ended the race
         }
+
+        double remainingAfterYourNextCross = leaderFinishAfterZero - tY_rem;
+        long extraFullLaps = (long)Math.Ceiling(remainingAfterYourNextCross / yourLapSec);
+        double extra = tY_rem + (extraFullLaps * yourLapSec);
 
         return Math.Max(0.0, extra);
     }
@@ -3365,10 +3363,10 @@ namespace LaunchPlugin
         double totalPitTime = 0.0;
 
         // --- Lapping bookkeeping (multi-events, leader pits same cadence) ---
-        double cumPlayerTime = 0.0;   // your race clock (s)
-        double cumLeaderTime = 0.0;   // leader's race clock (s) – advance same wall time
-        int playerLapsSoFar = 0;   // completed player laps
-        int nextCatchAhead = 1;    // we’ll report +1 lap first, then +2, etc.
+        double cumPlayerTime = 0.0;        // your race clock (s)
+        double cumLeaderDriveTime = 0.0;   // leader's DRIVING time (s) – excludes pit time
+        int playerLapsSoFar = 0;           // completed player laps
+        int nextCatchAhead = 1;            // we’ll report +1 lap first, then +2, etc.
         var lappedEvents = new List<int>(); // for Summary: lap numbers the leader catches you
 
         // Calculate how many stops are required
@@ -3399,10 +3397,10 @@ namespace LaunchPlugin
             for (int lap = 0; lap < (int)lapsInFirstStint; lap++)
             {
                 cumPlayerTime += playerPaceSeconds;
-                cumLeaderTime += playerPaceSeconds;
+                cumLeaderDriveTime += playerPaceSeconds;
                 playerLapsSoFar++;
 
-                int leaderLaps = (int)Math.Floor(cumLeaderTime / leaderPaceSeconds);
+                int leaderLaps = (int)Math.Floor(cumLeaderDriveTime / leaderPaceSeconds);
 
                 while (leaderLaps >= (playerLapsSoFar + nextCatchAhead))
                 {
@@ -3419,7 +3417,7 @@ namespace LaunchPlugin
         {
             // no lapping possible; advance in bulk
             cumPlayerTime += lapsInFirstStint * playerPaceSeconds;
-            cumLeaderTime += lapsInFirstStint * playerPaceSeconds;
+            cumLeaderDriveTime += lapsInFirstStint * playerPaceSeconds;
             playerLapsSoFar += (int)lapsInFirstStint;
         }
 
@@ -3502,9 +3500,9 @@ namespace LaunchPlugin
                 lapsInNextStint = 0.0;
             }
 
-            // Advance both timelines by the *same* pit time (assume leader pits when you pit)
+            // Advance your race clock by the pit time. The leader loses the same wall time,
+            // but we do **not** convert that into laps for the leader’s driving time.
             cumPlayerTime += totalStopTime;
-            cumLeaderTime += totalStopTime;
 
             // Now walk the stint lap-by-lap and emit every catch that occurs
             if (anyLappingPossible)
@@ -3512,11 +3510,11 @@ namespace LaunchPlugin
                 for (int lap = 0; lap < (int)lapsInNextStint; lap++)
                 {
                     cumPlayerTime += playerPaceSeconds;
-                    cumLeaderTime += playerPaceSeconds;
+                    cumLeaderDriveTime += playerPaceSeconds;
 
                     playerLapsSoFar++;
 
-                    int leaderLaps = (int)Math.Floor(cumLeaderTime / leaderPaceSeconds);
+                    int leaderLaps = (int)Math.Floor(cumLeaderDriveTime / leaderPaceSeconds);
 
                     while (leaderLaps >= (playerLapsSoFar + nextCatchAhead))
                     {
@@ -3533,7 +3531,7 @@ namespace LaunchPlugin
             {
                 // no lapping expected; advance in bulk
                 cumPlayerTime += lapsInNextStint * playerPaceSeconds;
-                cumLeaderTime += lapsInNextStint * playerPaceSeconds;
+                cumLeaderDriveTime += lapsInNextStint * playerPaceSeconds;
                 playerLapsSoFar += (int)lapsInNextStint;
             }
 
