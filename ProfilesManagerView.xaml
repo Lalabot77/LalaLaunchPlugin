@@ -374,7 +374,7 @@
                                     <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
                                     <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
                                     <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding MaxFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
-                                    <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding WetFuelSampleCount}" TextAlignment="Center" />
+                                    <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding WetFuelSampleCount}" TextAlignment="Center" Width="70" />
                                 </Grid>
 
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
