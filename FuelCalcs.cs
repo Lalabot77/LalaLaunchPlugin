@@ -488,7 +488,7 @@ namespace LaunchPlugin
 
     // Live availability (fuel per lap comes from LalaLaunch)
     public double LiveFuelPerLap { get; private set; }
-    public bool IsLiveFuelPerLapAvailable => LiveFuelPerLap > 0;
+    public bool IsLiveFuelPerLapAvailable => GetActiveAverageFuel().value.HasValue;
     public bool IsLiveFuelSaveAvailable { get; private set; }
 
     public bool HasLiveMaxFuelSuggestion => _liveMaxFuel > 0;
@@ -985,6 +985,23 @@ namespace LaunchPlugin
         return value.HasValue ? $"{value.Value:F2} L" : "-";
     }
 
+    private (double? value, string source) GetActiveAverageFuel()
+    {
+        if (IsWet)
+        {
+            if (_liveWetFuelAvg > 0) return (_liveWetFuelAvg, "Live avg (wet)");
+            if (_profileWetFuelAvg > 0) return (_profileWetFuelAvg, "Profile avg (wet)");
+        }
+        else
+        {
+            if (LiveFuelPerLap > 0) return (LiveFuelPerLap, "Live avg");
+            if (_liveDryFuelAvg > 0) return (_liveDryFuelAvg, "Live avg");
+            if (_profileDryFuelAvg > 0) return (_profileDryFuelAvg, "Profile avg");
+        }
+
+        return (null, null);
+    }
+
     private double? GetActiveLiveFuelMin()
     {
         double value = IsWet ? _liveWetFuelMin : _liveDryFuelMin;
@@ -1040,11 +1057,10 @@ namespace LaunchPlugin
     private void ApplySetLiveFuelPerLap(double value)
     {
         LiveFuelPerLap = value;
-        LiveFuelPerLapDisplay = (value > 0) ? $"{value:F2} L" : "-";
-        OnPropertyChanged(nameof(LiveFuelPerLap));
-        OnPropertyChanged(nameof(LiveFuelPerLapDisplay));
-        OnPropertyChanged(nameof(IsLiveFuelPerLapAvailable));
         UpdateLiveFuelChoiceDisplays();
+
+        OnPropertyChanged(nameof(LiveFuelPerLap));
+        OnPropertyChanged(nameof(IsLiveFuelPerLapAvailable));
 
         if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
             && !IsFuelPerLapManual
@@ -1171,6 +1187,7 @@ namespace LaunchPlugin
 
     private void UpdateLiveFuelChoiceDisplays()
     {
+        var avg = GetActiveAverageFuel();
         var min = GetActiveLiveFuelMin();
         var max = GetActiveLiveFuelMax();
 
@@ -1180,14 +1197,17 @@ namespace LaunchPlugin
             max = _plugin.MaxFuelPerLapDisplay;
         }
 
+        LiveFuelPerLapDisplay = FormatFuelPerLapDisplay(avg.value);
         LiveFuelSaveDisplay = FormatFuelPerLapDisplay(min);
         LiveFuelMaxDisplay = FormatFuelPerLapDisplay(max);
 
         IsLiveFuelSaveAvailable = min.HasValue;
 
+        OnPropertyChanged(nameof(LiveFuelPerLapDisplay));
         OnPropertyChanged(nameof(LiveFuelSaveDisplay));
         OnPropertyChanged(nameof(LiveFuelMaxDisplay));
         OnPropertyChanged(nameof(IsLiveFuelSaveAvailable));
+        OnPropertyChanged(nameof(IsLiveFuelPerLapAvailable));
         OnPropertyChanged(nameof(IsMaxFuelAvailable));
     }
 
@@ -1707,10 +1727,11 @@ namespace LaunchPlugin
     }
     private void UseLiveFuelPerLap()
     {
-        if (LiveFuelPerLap > 0)
+        var active = GetActiveAverageFuel();
+        if (active.value.HasValue)
         {
-            FuelPerLap = LiveFuelPerLap;
-            FuelPerLapSourceInfo = "Live avg";
+            FuelPerLap = active.value.Value;
+            FuelPerLapSourceInfo = string.IsNullOrWhiteSpace(active.source) ? "Live avg" : active.source;
         }
     }
 
@@ -1793,9 +1814,12 @@ namespace LaunchPlugin
         targetProfile.WetFuelMultiplier = this.WetFactorPercent;
         targetProfile.TireChangeTime = this.TireChangeTime;
 
-        var profileCondition = targetProfile.GetConditionMultipliers(IsWet);
+        bool saveWet = IsWet || (IsPlanningSourceLiveSnapshot && _liveWeatherIsWet == true);
+        bool saveDry = !saveWet;
+
+        var profileCondition = targetProfile.GetConditionMultipliers(saveWet);
         profileCondition.FormationLapBurnLiters = this.FormationLapFuelLiters;
-        if (IsWet)
+        if (saveWet)
         {
             profileCondition.WetFactorPercent = this.WetFactorPercent;
         }
@@ -1805,7 +1829,7 @@ namespace LaunchPlugin
         double.TryParse(FuelPerLapText.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out double fuelVal);
         bool fuelStamped = false;
 
-        if (IsDry)
+        if (saveDry)
         {
             if (lapTimeMs.HasValue) trackRecord.AvgLapTimeDry = lapTimeMs;
             if (fuelVal > 0)
@@ -1824,24 +1848,30 @@ namespace LaunchPlugin
             }
         }
 
-        if (_liveDryFuelAvg > 0)
+        if (saveWet)
         {
-            trackRecord.AvgFuelPerLapDry = _liveDryFuelAvg;
-            fuelStamped = true;
+            if (_liveWetFuelAvg > 0)
+            {
+                trackRecord.AvgFuelPerLapWet = _liveWetFuelAvg;
+                fuelStamped = true;
+            }
+
+            if (_liveWetFuelMin > 0) trackRecord.MinFuelPerLapWet = _liveWetFuelMin;
+            if (_liveWetFuelMax > 0) trackRecord.MaxFuelPerLapWet = _liveWetFuelMax;
+            if (_liveWetSamples > 0) trackRecord.WetFuelSampleCount = _liveWetSamples;
         }
-        if (_liveWetFuelAvg > 0)
+        else
         {
-            trackRecord.AvgFuelPerLapWet = _liveWetFuelAvg;
-            fuelStamped = true;
+            if (_liveDryFuelAvg > 0)
+            {
+                trackRecord.AvgFuelPerLapDry = _liveDryFuelAvg;
+                fuelStamped = true;
+            }
+
+            if (_liveDryFuelMin > 0) trackRecord.MinFuelPerLapDry = _liveDryFuelMin;
+            if (_liveDryFuelMax > 0) trackRecord.MaxFuelPerLapDry = _liveDryFuelMax;
+            if (_liveDrySamples > 0) trackRecord.DryFuelSampleCount = _liveDrySamples;
         }
-
-        if (_liveDryFuelMin > 0) trackRecord.MinFuelPerLapDry = _liveDryFuelMin;
-        if (_liveDryFuelMax > 0) trackRecord.MaxFuelPerLapDry = _liveDryFuelMax;
-        if (_liveDrySamples > 0) trackRecord.DryFuelSampleCount = _liveDrySamples;
-
-        if (_liveWetFuelMin > 0) trackRecord.MinFuelPerLapWet = _liveWetFuelMin;
-        if (_liveWetFuelMax > 0) trackRecord.MaxFuelPerLapWet = _liveWetFuelMax;
-        if (_liveWetSamples > 0) trackRecord.WetFuelSampleCount = _liveWetSamples;
 
         if (fuelStamped)
         {
@@ -1854,9 +1884,9 @@ namespace LaunchPlugin
         if (IsPersonalBestAvailable && _loadedBestLapTimeSeconds > 0)
             trackRecord.BestLapMs = (int)(_loadedBestLapTimeSeconds * 1000);
 
-        var trackCondition = trackRecord.GetConditionMultipliers(IsWet);
+        var trackCondition = trackRecord.GetConditionMultipliers(saveWet);
         trackCondition.FormationLapBurnLiters = this.FormationLapFuelLiters;
-        if (IsWet)
+        if (saveWet)
         {
             trackCondition.WetFactorPercent = this.WetFactorPercent;
         }
