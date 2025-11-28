@@ -387,6 +387,8 @@ namespace LaunchPlugin
         private set { if (_liveLeaderPaceInfo != value) { _liveLeaderPaceInfo = value; OnPropertyChanged(); } }
     }
 
+    public double LiveLeaderAvgPaceSeconds => _plugin?.LiveLeaderAvgPaceSeconds ?? 0.0;
+
     public void RefreshConditionRefuelParameters(double baseSeconds, double secondsPerLiter, double secondsPerSquare)
     {
         // Prevent UI-triggered loops if bindings update while we set the backing fields
@@ -3157,7 +3159,10 @@ namespace LaunchPlugin
 
     private void UpdateProfileAverageDisplaysForCondition(TrackStats ts = null)
     {
-        ts ??= SelectedTrackStats ?? ResolveSelectedTrackStats();
+        if (ts == null)
+        {
+            ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
+        }
 
         var dryLap = ts?.AvgLapTimeDry;
         var wetLap = ts?.AvgLapTimeWet;
