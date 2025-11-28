@@ -249,12 +249,14 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" />
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" MinWidth="170" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn1" MinWidth="110" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn2" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn3" MinWidth="90" />
+                                        <ColumnDefinition Width="*" SharedSizeGroup="HelperColumn" MinWidth="220" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Best Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" MinWidth="150" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Best Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" />
                                     <TextBox Grid.Row="0" Grid.Column="1" Width="120" MinWidth="110" TextAlignment="Right">
                                         <TextBox.Text>
                                             <Binding Path="BestLapMsText"
@@ -269,10 +271,10 @@
                                         </TextBox.Text>
                                     </TextBox>
 
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Pit Lane Loss (s):" Margin="0,0,10,0" VerticalAlignment="Center" MinWidth="150" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Pit Lane Loss (s):" Margin="0,0,10,0" VerticalAlignment="Center" />
                                     <TextBox Grid.Row="1" Grid.Column="1" Width="120" MinWidth="110" TextAlignment="Right" Padding="2,0,2,0"
                                              Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Margin="10,2,0,0" FontStyle="Italic" Foreground="#FF9AA0A6" TextWrapping="Wrap">
+                                    <TextBlock Grid.Row="1" Grid.Column="4" Margin="12,2,0,0" FontStyle="Italic" Foreground="#FF9AA0A6" TextWrapping="Wrap">
                                         <Run Text="{Binding PitLaneLossSource, TargetNullValue=unknown}"/>
                                         <Run Text=" — Updated (UTC): "/>
                                         <Run Text="{Binding PitLaneLossUpdatedUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}"/>
@@ -289,11 +291,11 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="70" />
-                                        <ColumnDefinition Width="70" />
-                                        <ColumnDefinition Width="70" />
-                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" MinWidth="170" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn1" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn2" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn3" MinWidth="90" />
+                                        <ColumnDefinition Width="*" SharedSizeGroup="HelperColumn" MinWidth="220" />
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel Burn (L/lap):" Margin="0,0,10,0" VerticalAlignment="Center" />
@@ -304,18 +306,20 @@
 
                                     <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Text="{Binding FuelLastUpdatedText}" FontStyle="Italic" Foreground="#FF9AA0A6" HorizontalAlignment="Right" />
 
-                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
-                                    <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
-                                    <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding MaxFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="90" />
+                                    <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="90" />
+                                    <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding MaxFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="90" />
                                     <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding DryFuelSampleCount}" TextAlignment="Center" />
                                 </Grid>
 
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
                                 <Grid Margin="0,2,0,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" />
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" MinWidth="170" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn1" MinWidth="110" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn2" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn3" MinWidth="90" />
+                                        <ColumnDefinition Width="*" SharedSizeGroup="HelperColumn" MinWidth="220" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" MinWidth="150"/>
                                     <TextBox Grid.Column="1" Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}"
@@ -325,9 +329,11 @@
                                 <!-- Avg Lap Time (m:ss.fff), right-aligned -->
                                 <Grid Margin="0,2,0,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" />
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" MinWidth="170" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn1" MinWidth="110" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn2" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn3" MinWidth="90" />
+                                        <ColumnDefinition Width="*" SharedSizeGroup="HelperColumn" MinWidth="220" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Avg Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" MinWidth="150"/>
                                     <TextBox Grid.Column="1" TextAlignment="Right" Width="120" MinWidth="110">
@@ -356,11 +362,11 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="70" />
-                                        <ColumnDefinition Width="70" />
-                                        <ColumnDefinition Width="70" />
-                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" MinWidth="170" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn1" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn2" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn3" MinWidth="90" />
+                                        <ColumnDefinition Width="*" SharedSizeGroup="HelperColumn" MinWidth="220" />
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel Burn (L/lap):" Margin="0,0,10,0" VerticalAlignment="Center" />
@@ -371,18 +377,20 @@
 
                                     <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Text="{Binding FuelLastUpdatedText}" FontStyle="Italic" Foreground="#FF9AA0A6" HorizontalAlignment="Right" />
 
-                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
-                                    <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
-                                    <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding MaxFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="70" />
-                                    <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding WetFuelSampleCount}" TextAlignment="Center" Width="70" />
+                                    <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MinFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="90" />
+                                    <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="90" />
+                                    <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding MaxFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextAlignment="Center" Width="90" />
+                                    <TextBlock Grid.Row="2" Grid.Column="4" Text="{Binding WetFuelSampleCount}" TextAlignment="Center" />
                                 </Grid>
 
                                 <!-- Avg Fuel/Lap (2dp, right-aligned) -->
                                 <Grid Margin="0,2,0,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" />
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" MinWidth="170" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn1" MinWidth="110" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn2" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn3" MinWidth="90" />
+                                        <ColumnDefinition Width="*" SharedSizeGroup="HelperColumn" MinWidth="220" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Avg Fuel/Lap:" VerticalAlignment="Center" Margin="0,0,10,0" MinWidth="150"/>
                                     <TextBox Grid.Column="1" Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}"
@@ -392,9 +400,11 @@
                                 <!-- Avg Lap Time (m:ss.fff), right-aligned -->
                                 <Grid Margin="0,2,0,0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" />
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" MinWidth="170" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn1" MinWidth="110" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn2" MinWidth="90" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="InputColumn3" MinWidth="90" />
+                                        <ColumnDefinition Width="*" SharedSizeGroup="HelperColumn" MinWidth="220" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Avg Lap Time (m:ss.fff):" VerticalAlignment="Center" Margin="0,0,10,0" MinWidth="150"/>
                                     <TextBox Grid.Column="1" TextAlignment="Right" Width="120" MinWidth="110">
