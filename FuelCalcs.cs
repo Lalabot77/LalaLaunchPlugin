@@ -269,6 +269,11 @@ namespace LaunchPlugin
 
             ApplyPlanningSourceToAutoFields(applyLapTime: false, applyFuel: true);
 
+            if (value == PlanningSourceMode.Profile)
+            {
+                UpdateProfileAverageDisplaysForCondition();
+            }
+
         }
     }
 
@@ -1320,22 +1325,8 @@ namespace LaunchPlugin
                 UpdateLiveFuelChoiceDisplays();
                 UpdateProfileFuelChoiceDisplays();
 
-                // Apply fuel factor
-                if (IsWet) { ApplyWetFactor(); }
-                else { FuelPerLap = _baseDryFuelPerLap; }
-
-                // --- NEW LOGIC: Update Estimated Lap Time based on condition ---
-                var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
-
-                if (ts != null)
-                {
-                    var lap = GetProfileLapTimeForCondition(IsWet, out var lapSource);
-                    if (lap.HasValue)
-                    {
-                        EstimatedLapTime = lap.Value.ToString(@"m\:ss\.fff");
-                        LapTimeSourceInfo = FormatLabel(lapSource, "Profile avg");
-                    }
-                }
+                UpdateProfileAverageDisplaysForCondition();
+                RefreshProfilePlanningData();
                 UpdateTrackDerivedSummaries();
                 UpdateSurfaceModeLabel();
             }
@@ -2161,8 +2152,8 @@ namespace LaunchPlugin
                     EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
                     IsEstimatedLapTimeManual = false;
                     LapTimeSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
-                        ? FormatLabel(lapSource, "Profile avg")
-                        : FormatLabel(lapSource, "Live avg");
+                        ? $"Profile avg ({(IsWet ? "wet" : "dry")})"
+                        : "Live avg";
                 }
             }
 
@@ -2946,29 +2937,7 @@ namespace LaunchPlugin
             SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
         }
 
-        // --- CONSOLIDATED: Populate all display properties ---
-        var dryLap = ts?.AvgLapTimeDry;
-        var wetLap = ts?.AvgLapTimeWet;
-        var dryFuel = ts?.AvgFuelPerLapDry;
-        var wetFuel = ts?.AvgFuelPerLapWet;
-
-        ProfileAvgLapTimeDisplay = IsDry
-            ? (dryLap.HasValue ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff") : "-")
-            : (wetLap.HasValue ? TimeSpan.FromMilliseconds(wetLap.Value).ToString(@"m\:ss\.fff") : "-");
-
-        ProfileAvgFuelDisplay = IsDry
-            ? (dryFuel.HasValue ? dryFuel.Value.ToString("F2") + " L" : "-")
-            : (wetFuel.HasValue ? wetFuel.Value.ToString("F2") + " L" : "-");
-
-        ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
-            ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
-            : "-";
-
-        ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
-            ? dryFuel.Value.ToString("F2") + " L"
-            : "-";
-
-        HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
+        UpdateProfileAverageDisplaysForCondition(ts);
 
         _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
         _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
@@ -2991,14 +2960,6 @@ namespace LaunchPlugin
             ResetStrategyInputs(preserveMaxFuel: false, preserveRaceDuration: true);
         }
 
-        // Manually notify the UI of all changes
-        OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
-        OnPropertyChanged(nameof(ShowProfileLapHelper));
-        OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
-        OnPropertyChanged(nameof(ProfileAvgDryLapTimeDisplay));
-        OnPropertyChanged(nameof(ProfileAvgDryFuelDisplay));
-        OnPropertyChanged(nameof(HasProfileFuelPerLap));
-
         // Recompute with the newly loaded data
         CalculateStrategy();
 
@@ -3012,6 +2973,79 @@ namespace LaunchPlugin
     {
         if (IsWet) { FuelPerLap = _baseDryFuelPerLap * (WetFactorPercent / 100.0); }
         UpdateProfileFuelChoiceDisplays();
+    }
+
+    private void UpdateProfileAverageDisplaysForCondition(TrackStats ts = null)
+    {
+        ts ??= SelectedTrackStats ?? ResolveSelectedTrackStats();
+
+        var dryLap = ts?.AvgLapTimeDry;
+        var wetLap = ts?.AvgLapTimeWet;
+        var dryFuel = ts?.AvgFuelPerLapDry;
+        var wetFuel = ts?.AvgFuelPerLapWet;
+
+        ProfileAvgLapTimeDisplay = IsDry
+            ? (dryLap.HasValue && dryLap.Value > 0
+                ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
+                : "-")
+            : (wetLap.HasValue && wetLap.Value > 0
+                ? TimeSpan.FromMilliseconds(wetLap.Value).ToString(@"m\:ss\.fff")
+                : "-");
+
+        ProfileAvgFuelDisplay = IsDry
+            ? (dryFuel.HasValue && dryFuel.Value > 0 ? $"{dryFuel.Value:F2} L" : "-")
+            : (wetFuel.HasValue && wetFuel.Value > 0 ? $"{wetFuel.Value:F2} L" : "-");
+
+        ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
+            ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
+            : "-";
+
+        ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
+            ? dryFuel.Value.ToString("F2") + " L"
+            : "-";
+
+        HasProfileFuelPerLap = (dryFuel.HasValue && dryFuel.Value > 0) || (wetFuel.HasValue && wetFuel.Value > 0);
+
+        OnPropertyChanged(nameof(ProfileAvgLapTimeDisplay));
+        OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
+        OnPropertyChanged(nameof(ProfileAvgDryLapTimeDisplay));
+        OnPropertyChanged(nameof(ProfileAvgDryFuelDisplay));
+        OnPropertyChanged(nameof(HasProfileFuelPerLap));
+        OnPropertyChanged(nameof(ShowProfileLapHelper));
+    }
+
+    private void RefreshProfilePlanningData()
+    {
+        if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
+        {
+            ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
+            return;
+        }
+
+        // Maintain live/manual values unless the user left the auto fields untouched.
+        if (!IsFuelPerLapManual)
+        {
+            if (IsWet)
+            {
+                ApplyWetFactor();
+            }
+            else
+            {
+                FuelPerLap = _baseDryFuelPerLap;
+                FuelPerLapText = _baseDryFuelPerLap.ToString("0.00", CultureInfo.InvariantCulture);
+            }
+        }
+
+        if (!IsEstimatedLapTimeManual)
+        {
+            var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
+            int? lapTimeMs = IsWet ? ts?.AvgLapTimeWet : ts?.AvgLapTimeDry;
+            if (lapTimeMs.HasValue && lapTimeMs > 0)
+            {
+                EstimatedLapTime = TimeSpan.FromMilliseconds(lapTimeMs.Value).ToString(@"m\:ss\.fff");
+                LapTimeSourceInfo = $"Profile avg ({(IsWet ? "wet" : "dry")})";
+            }
+        }
     }
 
     private void RefreshConditionParameters()
