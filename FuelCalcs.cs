@@ -3033,6 +3033,21 @@ namespace LaunchPlugin
         var trackKey = ts?.Key ?? SelectedTrack;
         bool carChanged = !ReferenceEquals(car, _lastLoadedCarProfile);
 
+        // Always clear stale track-scoped state before applying new data so
+        // a car/track swap cannot leak lap times or fuel numbers from the
+        // previous selection (e.g., switching from McLaren 720S to Ferrari 296).
+        ResetTrackScopedProfileData();
+
+        if (ts == null)
+        {
+            UpdateProfileAverageDisplaysForCondition(null);
+            UpdateTrackDerivedSummaries();
+            CalculateStrategy();
+            _lastLoadedCarProfile = car;
+            _lastLoadedTrackKey = trackKey;
+            return;
+        }
+
         // --- Load Refuel Rate and car-level settings only when the car changes ---
         if (carChanged || _lastLoadedCarProfile == null)
         {
@@ -3164,6 +3179,40 @@ namespace LaunchPlugin
             _lastLoadedCarProfile = car;
             _lastLoadedTrackKey = trackKey;
         }
+    }
+
+    // Clears lap/fuel caches and display helpers that are scoped to the
+    // current track selection. This avoids showing stale values when the
+    // next track lacks saved data.
+    private void ResetTrackScopedProfileData()
+    {
+        _loadedBestLapTimeSeconds = 0;
+        IsPersonalBestAvailable = false;
+        HistoricalBestLapDisplay = "-";
+        OnPropertyChanged(nameof(IsPersonalBestAvailable));
+        OnPropertyChanged(nameof(HistoricalBestLapDisplay));
+
+        ProfileAvgLapTimeDisplay = "-";
+        ProfileAvgFuelDisplay = "-";
+        ProfileAvgDryLapTimeDisplay = "-";
+        ProfileAvgDryFuelDisplay = "-";
+        ProfileFuelSaveDisplay = "-";
+        ProfileFuelMaxDisplay = "-";
+        HasProfileFuelPerLap = false;
+        HasProfilePitLaneLoss = false;
+
+        _profileDryFuelAvg = 0;
+        _profileDryFuelMin = 0;
+        _profileDryFuelMax = 0;
+        _profileWetFuelAvg = 0;
+        _profileWetFuelMin = 0;
+        _profileWetFuelMax = 0;
+        _profileDrySamples = 0;
+        _profileWetSamples = 0;
+        _baseDryFuelPerLap = 0;
+
+        UpdateProfileFuelChoiceDisplays();
+        UpdateFuelBurnSummaries();
     }
 
     private void ApplySourceWetFactorFromSource()
