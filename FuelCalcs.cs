@@ -497,7 +497,19 @@ namespace LaunchPlugin
     }
 
     // ---- Profile/live availability flags for buttons ----
-    public bool HasProfileFuelPerLap { get; private set; }
+    private bool _hasProfileFuelPerLap;
+    public bool HasProfileFuelPerLap
+    {
+        get => _hasProfileFuelPerLap;
+        private set
+        {
+            if (_hasProfileFuelPerLap != value)
+            {
+                _hasProfileFuelPerLap = value;
+                OnPropertyChanged();
+            }
+        }
+    }
     public bool IsProfileFuelSaveAvailable { get; private set; }
     public bool IsProfileFuelMaxAvailable { get; private set; }
     public bool HasProfilePitLaneLoss { get; private set; }
@@ -3055,7 +3067,6 @@ namespace LaunchPlugin
             this.ContingencyValue = car.FuelContingencyValue;
             this.IsContingencyInLaps = car.IsContingencyInLaps;
             this.WetFactorPercent = car.WetFuelMultiplier;
-            this.TireChangeTime = car.TireChangeTime;
         }
 
         if (ts?.BestLapMs is int ms && ms > 0)
@@ -3268,7 +3279,6 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
         OnPropertyChanged(nameof(ProfileAvgDryLapTimeDisplay));
         OnPropertyChanged(nameof(ProfileAvgDryFuelDisplay));
-        OnPropertyChanged(nameof(HasProfileFuelPerLap));
         OnPropertyChanged(nameof(ShowProfileLapHelper));
     }
 
