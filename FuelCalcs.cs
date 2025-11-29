@@ -751,16 +751,23 @@ namespace LaunchPlugin
                     preferredTrack = AvailableTrackStats.FirstOrDefault();
                 }
 
+                // Temporarily suppress reloads while syncing the selected track; we'll trigger
+                // one explicit LoadProfileData after the selection is settled.
+                _suppressProfileDataReload = true;
                 if (!ReferenceEquals(SelectedTrackStats, preferredTrack))
                 {
                     SelectedTrackStats = preferredTrack;
                 }
                 else
                 {
-                    // The selected track didn't change (e.g., same reference after a profile swap),
-                    // so force a reload to refresh fuel/lap data for the new car.
-                    LoadProfileData();
+                    // Keep the legacy string SelectedTrack in sync even when the object didn't change
+                    _suppressSelectedTrackSync = true;
+                    SelectedTrack = preferredTrack?.DisplayName ?? string.Empty;
+                    _suppressSelectedTrackSync = false;
                 }
+                _suppressProfileDataReload = false;
+
+                LoadProfileData();
             }
         }
     }
@@ -768,6 +775,7 @@ namespace LaunchPlugin
     // Cache of the resolved TrackStats for the current SelectedCarProfile + SelectedTrack
     private TrackStats _selectedTrackStats;
     private bool _suppressSelectedTrackSync;
+    private bool _suppressProfileDataReload;
 
     public TrackStats SelectedTrackStats
     {
@@ -785,7 +793,10 @@ namespace LaunchPlugin
                 _suppressSelectedTrackSync = false;
 
                 // One authoritative reload when selection changes
-                LoadProfileData();
+                if (!_suppressProfileDataReload)
+                {
+                    LoadProfileData();
+                }
             }
         }
     }
