@@ -729,6 +729,10 @@ namespace LaunchPlugin
                 AvailableTracks.Clear();        // legacy string list – safe to keep for now
                 AvailableTrackStats.Clear();    // object list for ComboBox
 
+                // Preserve the user's current track selection when possible
+                // so a car swap keeps the planner focused on the same circuit.
+                var preferredTrack = _selectedCarProfile?.ResolveTrackByNameOrKey(_selectedTrack);
+
                 if (_selectedCarProfile?.TrackStats != null)
                 {
                     foreach (var t in _selectedCarProfile.TrackStats.Values
@@ -741,17 +745,29 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(AvailableTracks));
                 OnPropertyChanged(nameof(AvailableTrackStats));
 
-                // Select first track by instance (triggers LoadProfileData via SelectedTrackStats setter)
-                if (AvailableTrackStats.Count > 0)
+                // Select the preferred track if it exists on the new profile; otherwise fall back to first
+                if (preferredTrack == null)
                 {
-                    if (!ReferenceEquals(SelectedTrackStats, AvailableTrackStats[0]))
-                        SelectedTrackStats = AvailableTrackStats[0];
+                    preferredTrack = AvailableTrackStats.FirstOrDefault();
+                }
+
+                // Temporarily suppress reloads while syncing the selected track; we'll trigger
+                // one explicit LoadProfileData after the selection is settled.
+                _suppressProfileDataReload = true;
+                if (!ReferenceEquals(SelectedTrackStats, preferredTrack))
+                {
+                    SelectedTrackStats = preferredTrack;
                 }
                 else
                 {
-                    if (SelectedTrackStats != null)
-                        SelectedTrackStats = null;
+                    // Keep the legacy string SelectedTrack in sync even when the object didn't change
+                    _suppressSelectedTrackSync = true;
+                    SelectedTrack = preferredTrack?.DisplayName ?? string.Empty;
+                    _suppressSelectedTrackSync = false;
                 }
+                _suppressProfileDataReload = false;
+
+                LoadProfileData();
             }
         }
     }
@@ -759,6 +775,7 @@ namespace LaunchPlugin
     // Cache of the resolved TrackStats for the current SelectedCarProfile + SelectedTrack
     private TrackStats _selectedTrackStats;
     private bool _suppressSelectedTrackSync;
+    private bool _suppressProfileDataReload;
 
     public TrackStats SelectedTrackStats
     {
@@ -776,7 +793,10 @@ namespace LaunchPlugin
                 _suppressSelectedTrackSync = false;
 
                 // One authoritative reload when selection changes
-                LoadProfileData();
+                if (!_suppressProfileDataReload)
+                {
+                    LoadProfileData();
+                }
             }
         }
     }
