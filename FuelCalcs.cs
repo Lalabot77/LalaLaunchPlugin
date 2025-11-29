@@ -729,6 +729,10 @@ namespace LaunchPlugin
                 AvailableTracks.Clear();        // legacy string list – safe to keep for now
                 AvailableTrackStats.Clear();    // object list for ComboBox
 
+                // Preserve the user's current track selection when possible
+                // so a car swap keeps the planner focused on the same circuit.
+                var preferredTrack = _selectedCarProfile?.ResolveTrackByNameOrKey(_selectedTrack);
+
                 if (_selectedCarProfile?.TrackStats != null)
                 {
                     foreach (var t in _selectedCarProfile.TrackStats.Values
@@ -741,16 +745,18 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(AvailableTracks));
                 OnPropertyChanged(nameof(AvailableTrackStats));
 
-                // Select first track by instance (triggers LoadProfileData via SelectedTrackStats setter)
-                if (AvailableTrackStats.Count > 0)
+                // Select the preferred track if it exists on the new profile; otherwise fall back to first
+                preferredTrack ??= AvailableTrackStats.FirstOrDefault();
+
+                if (!ReferenceEquals(SelectedTrackStats, preferredTrack))
                 {
-                    if (!ReferenceEquals(SelectedTrackStats, AvailableTrackStats[0]))
-                        SelectedTrackStats = AvailableTrackStats[0];
+                    SelectedTrackStats = preferredTrack;
                 }
                 else
                 {
-                    if (SelectedTrackStats != null)
-                        SelectedTrackStats = null;
+                    // The selected track didn't change (e.g., same reference after a profile swap),
+                    // so force a reload to refresh fuel/lap data for the new car.
+                    LoadProfileData();
                 }
             }
         }
