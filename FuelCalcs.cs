@@ -746,7 +746,10 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(AvailableTrackStats));
 
                 // Select the preferred track if it exists on the new profile; otherwise fall back to first
-                preferredTrack ??= AvailableTrackStats.FirstOrDefault();
+                if (preferredTrack == null)
+                {
+                    preferredTrack = AvailableTrackStats.FirstOrDefault();
+                }
 
                 if (!ReferenceEquals(SelectedTrackStats, preferredTrack))
                 {
