@@ -21,6 +21,49 @@ namespace LaunchPlugin
         public int MaxScanBehind { get; set; } = 5;          // Fallback scans
         public string OvertakeApproachLine { get; private set; } = string.Empty;
 
+        // --- MsgCx placeholders (dash-controlled messaging lanes) ---
+
+        /// <summary>
+        /// Timed message lane (e.g., "BOX BOX"). When the driver presses MsgCx while this lane is active,
+        /// we silence this lane only for <see cref="MsgCxTimeSilence"/>; other lanes remain eligible.
+        /// </summary>
+        public string MsgCxTimeMessage { get; private set; } = string.Empty;
+        public TimeSpan MsgCxTimeSilence { get; set; } = TimeSpan.FromSeconds(8);
+        public double MsgCxTimeSilenceRemainingSeconds
+        {
+            get
+            {
+                var remaining = _msgCxTimeSilencedUntilUtc - DateTime.UtcNow;
+                return remaining > TimeSpan.Zero ? remaining.TotalSeconds : 0.0;
+            }
+        }
+        public bool IsMsgCxTimeActive => !string.IsNullOrEmpty(MsgCxTimeMessage) && DateTime.UtcNow >= _msgCxTimeSilencedUntilUtc;
+
+        /// <summary>
+        /// State-change message lane (e.g., position changed). Pressing MsgCx hides the current state/token
+        /// until the token changes; other lanes stay untouched.
+        /// </summary>
+        public string MsgCxStateMessage { get; private set; } = string.Empty;
+        public string MsgCxStateToken { get; private set; } = string.Empty;
+        public bool IsMsgCxStateActive =>
+            !string.IsNullOrEmpty(MsgCxStateMessage) &&
+            (!_msgCxStateCleared || !StringEqualsCI(_msgCxStateClearedToken, MsgCxStateToken));
+
+        /// <summary>
+        /// Action-trigger lane (e.g., "Refuel Not Selected" → jump to fuel dash). Pressing MsgCx raises
+        /// <see cref="MsgCxActionRequested"/> and emits a short pulse.
+        /// </summary>
+        public string MsgCxActionMessage { get; private set; } = string.Empty;
+        public bool MsgCxActionPulse { get; private set; }
+        public event Action<string> MsgCxActionRequested;
+
+        private DateTime _msgCxTimeSilencedUntilUtc = DateTime.MinValue;
+        private DateTime _msgCxActionPulseUtc = DateTime.MinValue;
+        private string _msgCxTimeCurrentKey = string.Empty;
+        private string _msgCxStateClearedToken = string.Empty;
+        private bool _msgCxStateCleared;
+        private const double MsgCxActionPulseHoldSec = 0.5;
+
         // Very short hold to avoid flicker if the signal blips
         private DateTime _lastHitUtc = DateTime.MinValue;
         private const double HoldAfterMissSec = 0.35;
@@ -30,6 +73,7 @@ namespace LaunchPlugin
             if (!Enabled || data?.NewData == null || pm == null || data.GameName != "IRacing")
             {
                 OvertakeApproachLine = string.Empty;
+                MaintainMsgCxTimers();
                 return;
             }
 
@@ -144,18 +188,136 @@ namespace LaunchPlugin
                 {
                     OvertakeApproachLine = $"P{bestPos} {bestClass} {bestEta:0.0}s";
                     _lastHitUtc = DateTime.UtcNow;
+                    MaintainMsgCxTimers();
                     return;
                 }
             }
 
             // Nothing qualified → clear with tiny hold
             ClearWithTinyHold();
+            MaintainMsgCxTimers();
         }
 
         private void ClearWithTinyHold()
         {
             if ((DateTime.UtcNow - _lastHitUtc).TotalSeconds >= HoldAfterMissSec)
                 OvertakeApproachLine = string.Empty;
+        }
+
+        // --- MsgCx helpers ----------------------------------------------------
+
+        public void PublishTimedMessage(string message, TimeSpan? silence = null)
+        {
+            var key = message ?? string.Empty;
+
+            // If the text changes, release any existing silence window immediately.
+            if (!string.Equals(key, _msgCxTimeCurrentKey, StringComparison.Ordinal))
+            {
+                _msgCxTimeSilencedUntilUtc = DateTime.MinValue;
+            }
+
+            _msgCxTimeCurrentKey = key;
+            MsgCxTimeMessage = key;
+            if (silence.HasValue && silence.Value > TimeSpan.Zero)
+            {
+                MsgCxTimeSilence = silence.Value;
+            }
+        }
+
+        public void PublishStateMessage(string message, string stateToken)
+        {
+            var token = stateToken ?? string.Empty;
+
+            // When the token changes, the message should become visible again.
+            if (!StringEqualsCI(token, MsgCxStateToken))
+            {
+                _msgCxStateCleared = false;
+                _msgCxStateClearedToken = string.Empty;
+            }
+
+            MsgCxStateMessage = message ?? string.Empty;
+            MsgCxStateToken = token;
+        }
+
+        public void PublishActionMessage(string message)
+        {
+            MsgCxActionMessage = message ?? string.Empty;
+            if (string.IsNullOrEmpty(MsgCxActionMessage))
+            {
+                MsgCxActionPulse = false;
+                _msgCxActionPulseUtc = DateTime.MinValue;
+            }
+        }
+
+        public void TriggerMsgCx(bool includeAction = true)
+        {
+            // Priority order: time-cleared lane → state-cleared lane → action lane.
+            // Only the active lane is affected so messages in other lanes remain eligible.
+            if (IsMsgCxTimeActive)
+            {
+                TriggerTimedSilence();
+                return;
+            }
+
+            if (IsMsgCxStateActive)
+            {
+                TriggerStateClear();
+                return;
+            }
+
+            if (includeAction && !string.IsNullOrEmpty(MsgCxActionMessage))
+            {
+                TriggerAction();
+            }
+        }
+
+        public void TriggerTimedSilence()
+        {
+            if (string.IsNullOrEmpty(MsgCxTimeMessage)) return;
+
+            var duration = MsgCxTimeSilence > TimeSpan.Zero ? MsgCxTimeSilence : TimeSpan.FromSeconds(5);
+            _msgCxTimeSilencedUntilUtc = DateTime.UtcNow + duration;
+        }
+
+        public void TriggerStateClear()
+        {
+            if (string.IsNullOrEmpty(MsgCxStateMessage)) return;
+
+            _msgCxStateCleared = true;
+            _msgCxStateClearedToken = MsgCxStateToken ?? string.Empty;
+        }
+
+        public void TriggerAction()
+        {
+            if (string.IsNullOrEmpty(MsgCxActionMessage)) return;
+
+            MsgCxActionRequested?.Invoke(MsgCxActionMessage);
+            _msgCxActionPulseUtc = DateTime.UtcNow;
+            MsgCxActionPulse = true;
+        }
+
+        public void MaintainMsgCxTimers()
+        {
+            var now = DateTime.UtcNow;
+
+            // Release time-silenced messages when the window expires.
+            if (_msgCxTimeSilencedUntilUtc != DateTime.MinValue && now >= _msgCxTimeSilencedUntilUtc)
+            {
+                _msgCxTimeSilencedUntilUtc = DateTime.MinValue;
+            }
+
+            // Clear the action pulse after a brief hold so dashboards can latch it.
+            if (MsgCxActionPulse && (now - _msgCxActionPulseUtc).TotalSeconds >= MsgCxActionPulseHoldSec)
+            {
+                MsgCxActionPulse = false;
+            }
+
+            // If the state token has changed while silenced, restore visibility immediately.
+            if (_msgCxStateCleared && !StringEqualsCI(_msgCxStateClearedToken, MsgCxStateToken))
+            {
+                _msgCxStateCleared = false;
+                _msgCxStateClearedToken = string.Empty;
+            }
         }
 
         // ---------------- helpers (robust getters) ----------------
