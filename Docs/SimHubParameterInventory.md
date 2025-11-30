@@ -104,6 +104,18 @@ This document maps every custom SimHub-exported parameter defined in `LalaLaunch
 | ZeroTo100Time | double | Seconds | Per launch event | Launch performance | Launch |
 | MSG.OvertakeApproachLine | double | meters/seconds (relative line) | Per-tick when enabled | MessagingSystem overtake model | Messaging |
 | MSG.OvertakeWarnSeconds | double | Seconds | Per-tick when enabled | ActiveProfile traffic warning setting | Messaging |
+| MSG.MsgCxTimeMessage | string | Message text | Dash-driven | Placeholder lane for time-silenced alerts (e.g., BOX BOX) | Messaging |
+| MSG.MsgCxTimeVisible | bool | Flag | Dash-driven | True when the time-silenced lane is active/visible | Messaging |
+| MSG.MsgCxTimeSilenceRemaining | double | Seconds | Dash-driven | Remaining silence on the time lane after MsgCx press | Messaging |
+| MSG.MsgCxStateMessage | string | Message text | Dash-driven | Placeholder lane cleared until state/token changes | Messaging |
+| MSG.MsgCxStateVisible | bool | Flag | Dash-driven | True when the state-change lane is active/visible | Messaging |
+| MSG.MsgCxStateToken | string | Token | Dash-driven | Current state token controlling re-appearance | Messaging |
+| MSG.MsgCxActionMessage | string | Message text | Dash-driven | Placeholder lane that fires an action on MsgCx press | Messaging |
+| MSG.MsgCxActionPulse | bool | Flag | Dash-driven | One-shot pulse when the action lane is triggered | Messaging |
+
+**MsgCx dash actions (button bindings)**
+- `MsgCx` — single-button entry point; automatically targets the active lane in priority order (time → state → action).
+- `MsgCxTimeOnly` / `MsgCxStateOnly` / `MsgCxActionOnly` — optional lane-specific bindings if you want separate buttons.
 | Fuel.LastPitLaneTravelTime | double | Seconds | On valid measurement | PitEngine direct travel time | Pit timing |
 
 ### Verbose / debug parameters (published only when `SimhubPublish.VERBOSE` is true)
