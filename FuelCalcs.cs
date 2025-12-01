@@ -91,6 +91,8 @@ namespace LaunchPlugin
     private bool _isLiveSessionSnapshotExpanded;
     private string _liveCarName = "—";
     private string _liveTrackName = "—";
+    private string _activeLiveCarKey;
+    private string _activeLiveTrackKey;
     private string _liveSurfaceModeDisplay = "Dry";
     private string _liveFuelTankSizeDisplay = "-";
     private string _dryLapTimeSummary = "-";
@@ -2638,6 +2640,8 @@ namespace LaunchPlugin
         IsLiveSessionActive = false;
         LiveCarName = "-";
         LiveTrackName = "-";
+        _activeLiveCarKey = null;
+        _activeLiveTrackKey = null;
         LiveFuelTankSizeDisplay = "-";
         LiveBestLapDisplay = "-";
         LiveLeaderPaceInfo = "-";
@@ -2708,6 +2712,26 @@ namespace LaunchPlugin
         UpdateFuelBurnSummaries();
         UpdateLiveFuelChoiceDisplays();
         RaiseSourceWetFactorIndicators();
+    }
+
+    private void ClearLiveSnapshotForNewCombination()
+    {
+        ClearLiveFuelSnapshot();
+
+        _liveAvgLapSeconds = 0;
+        IsLiveLapPaceAvailable = false;
+        LiveLapPaceInfo = "-";
+        LivePaceDeltaInfo = string.Empty;
+        AvgDeltaToPbValue = "-";
+        LiveBestLapDisplay = "-";
+        LiveLeaderPaceInfo = "-";
+        AvgDeltaToLdrValue = "-";
+        RacePaceVsLeaderSummary = "-";
+        ClearLeaderDeltaState();
+
+        ApplyLiveConfidenceLevels(0, 0, 0);
+
+        UpdateTrackDerivedSummaries();
     }
 
     private void UpdateTrackDerivedSummaries()
@@ -2929,7 +2953,19 @@ namespace LaunchPlugin
             return;
         }
 
-        bool startingNewLiveSession = !IsLiveSessionActive && hasCar && hasTrack;
+        string liveTrackKey = (!string.IsNullOrWhiteSpace(_plugin.CurrentTrackKey)
+                               && !_plugin.CurrentTrackKey.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+            ? _plugin.CurrentTrackKey
+            : trackName;
+
+        string normalizedCar = hasCar ? carName?.Trim() : null;
+        string normalizedTrack = hasTrack ? liveTrackKey?.Trim() : null;
+
+        bool comboChanged = IsLiveSessionActive
+            && (!string.Equals(normalizedCar, _activeLiveCarKey, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(normalizedTrack, _activeLiveTrackKey, StringComparison.OrdinalIgnoreCase));
+
+        bool startingNewLiveSession = hasCar && hasTrack && (!IsLiveSessionActive || comboChanged);
 
         // 1) Make sure the car profile object is selected (this will also rebuild AvailableTracks once below)
         var carProfile = AvailableCarProfiles.FirstOrDefault(
@@ -2981,8 +3017,11 @@ namespace LaunchPlugin
 
         if (startingNewLiveSession)
         {
-            ClearLiveFuelSnapshot();
+            ClearLiveSnapshotForNewCombination();
         }
+
+        _activeLiveCarKey = IsLiveSessionActive ? normalizedCar : null;
+        _activeLiveTrackKey = IsLiveSessionActive ? normalizedTrack : null;
 
         UpdateTrackDerivedSummaries();
 
