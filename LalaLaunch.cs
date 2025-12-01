@@ -49,6 +49,42 @@ namespace LaunchPlugin
         // --- Dashboard Manager ---
         public ScreenManager Screens = new ScreenManager();
 
+        // --- MsgCx dash helpers ---
+        public void MsgCx()
+        {
+            RegisterMsgCxPress();
+            // Single-button binding entry point: follows timed → state → action priority
+            _msgSystem?.TriggerMsgCx();
+            _rejoinEngine?.TriggerMsgCxOverride();
+        }
+
+        public void MsgCxTimeOnly()
+        {
+            RegisterMsgCxPress();
+            _msgSystem?.TriggerTimedSilence();
+        }
+
+        public void MsgCxStateOnly()
+        {
+            RegisterMsgCxPress();
+            _msgSystem?.TriggerStateClear();
+        }
+
+        public void MsgCxActionOnly()
+        {
+            RegisterMsgCxPress();
+            _msgSystem?.TriggerAction();
+        }
+
+        public void SetMsgCxTimeMessage(string message, TimeSpan? silence = null)
+            => _msgSystem?.PublishTimedMessage(message, silence);
+
+        public void SetMsgCxStateMessage(string message, string stateToken)
+            => _msgSystem?.PublishStateMessage(message, stateToken);
+
+        public void SetMsgCxActionMessage(string message)
+            => _msgSystem?.PublishActionMessage(message);
+
         // --- Fuel Calculator Engine ---
         public FuelCalcs FuelCalculator { get; private set; }
         public TrackStats EnsureTrackRecord(string carProfileName, string trackName)
@@ -1641,6 +1677,12 @@ namespace LaunchPlugin
         private bool IsLaunchActive => IsPrimed || IsInProgress || IsLogging;
         private bool IsLaunchVisible => IsLaunchActive || IsCompleted;
 
+        private void RegisterMsgCxPress()
+        {
+            _msgCxPressed = true;
+            _msgCxCooldownTimer.Restart();
+        }
+
         // Centralized state machine for launch phases
         private void SetLaunchState(LaunchState newState)
         {
@@ -2002,6 +2044,14 @@ namespace LaunchPlugin
             _msgSystem = new MessagingSystem();
             AttachCore("MSG.OvertakeApproachLine", () => _msgSystem.OvertakeApproachLine);
             AttachCore("MSG.OvertakeWarnSeconds", () => ActiveProfile.TrafficApproachWarnSeconds);
+            AttachCore("MSG.MsgCxTimeMessage", () => _msgSystem.MsgCxTimeMessage);
+            AttachCore("MSG.MsgCxTimeVisible", () => _msgSystem.IsMsgCxTimeActive);
+            AttachCore("MSG.MsgCxTimeSilenceRemaining", () => _msgSystem.MsgCxTimeSilenceRemainingSeconds);
+            AttachCore("MSG.MsgCxStateMessage", () => _msgSystem.MsgCxStateMessage);
+            AttachCore("MSG.MsgCxStateVisible", () => _msgSystem.IsMsgCxStateActive);
+            AttachCore("MSG.MsgCxStateToken", () => _msgSystem.MsgCxStateToken);
+            AttachCore("MSG.MsgCxActionMessage", () => _msgSystem.MsgCxActionMessage);
+            AttachCore("MSG.MsgCxActionPulse", () => _msgSystem.MsgCxActionPulse);
 
             _pit = new PitEngine(() =>
             {
@@ -2275,6 +2325,12 @@ namespace LaunchPlugin
             }
             catch (Exception ex) { SimHub.Logging.Current.Warn($"[LalaLaunch] Simplified Car/Track probe failed: {ex.Message}"); }
 
+            if (_msgCxCooldownTimer.IsRunning && _msgCxCooldownTimer.ElapsedMilliseconds > 500)
+            {
+                _msgCxCooldownTimer.Reset();
+                _msgCxPressed = false;
+            }
+
             // --- MASTER GUARD CLAUSES ---
             if (Settings == null) return;
             if (!data.GameRunning || data.NewData == null) return;
@@ -2511,6 +2567,8 @@ namespace LaunchPlugin
                 _msgSystem.WarnSeconds = warn;
                 if (_msgSystem.Enabled)
                     _msgSystem.Update(data, pluginManager);
+                else
+                    _msgSystem.MaintainMsgCxTimers();
             }
 
             // --- Launch State helpers (need tick-level responsiveness) ---
