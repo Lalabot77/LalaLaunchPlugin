@@ -224,6 +224,7 @@ namespace LaunchPlugin
         private double _lastLeaderLapTimeSec = 0.0;
         private bool _leaderPaceClearedLogged = false;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
+        public double Pace_LeaderDeltaToPlayerSec { get; private set; }
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
@@ -449,6 +450,18 @@ namespace LaunchPlugin
             return (int)Math.Round(finalConf);
         }
 
+        private void UpdateLeaderDelta()
+        {
+            if (Pace_Last5LapAvgSec > 0.0 && LiveLeaderAvgPaceSeconds > 0.0)
+            {
+                Pace_LeaderDeltaToPlayerSec = Pace_Last5LapAvgSec - LiveLeaderAvgPaceSeconds;
+            }
+            else
+            {
+                Pace_LeaderDeltaToPlayerSec = 0.0;
+            }
+        }
+
         private void CaptureFuelSeedForNextSession(string fromSessionType)
         {
             try
@@ -537,6 +550,7 @@ namespace LaunchPlugin
             _leaderPaceClearedLogged = false;
             Pace_StintAvgLapTimeSec = 0.0;
             Pace_Last5LapAvgSec = 0.0;
+            Pace_LeaderDeltaToPlayerSec = 0.0;
             PaceConfidence = 0;
 
             LiveFuelPerLap = 0.0;
@@ -913,6 +927,7 @@ namespace LaunchPlugin
                     _recentLeaderLapTimes.Clear();
                     _lastLeaderLapTimeSec = 0.0;
                     LiveLeaderAvgPaceSeconds = 0.0;
+                    Pace_LeaderDeltaToPlayerSec = 0.0;
                 }
 
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
@@ -1062,10 +1077,12 @@ namespace LaunchPlugin
 
                         _lastLeaderLapTimeSec = leaderLastLapSec;
                         LiveLeaderAvgPaceSeconds = _recentLeaderLapTimes.Average();
+                        UpdateLeaderDelta();
                     }
                     else if (_recentLeaderLapTimes.Count == 0)
                     {
                         LiveLeaderAvgPaceSeconds = 0.0;
+                        Pace_LeaderDeltaToPlayerSec = 0.0;
                     }
 
                     double currentAvgLeader = LiveLeaderAvgPaceSeconds;
@@ -1174,6 +1191,8 @@ namespace LaunchPlugin
                         {
                             Pace_Last5LapAvgSec = 0.0;
                         }
+
+                        UpdateLeaderDelta();
 
                         // Update pace confidence
                         PaceConfidence = ComputePaceConfidence();
@@ -1452,6 +1471,7 @@ namespace LaunchPlugin
 
                 Pace_StintAvgLapTimeSec = 0.0;
                 Pace_Last5LapAvgSec = 0.0;
+                Pace_LeaderDeltaToPlayerSec = 0.0;
                 PaceConfidence = 0;
                 FuelCalculator?.SetLiveLapPaceEstimate(0, 0);
                 FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
@@ -1877,6 +1897,8 @@ namespace LaunchPlugin
             // --- Pace metrics (CORE) ---
             AttachCore("Pace.StintAvgLapTimeSec", () => Pace_StintAvgLapTimeSec);
             AttachCore("Pace.Last5LapAvgSec", () => Pace_Last5LapAvgSec);
+            AttachCore("Pace.LeaderAvgLapTimeSec", () => LiveLeaderAvgPaceSeconds);
+            AttachCore("Pace.LeaderDeltaToPlayerSec", () => Pace_LeaderDeltaToPlayerSec);
             AttachCore("Pace.PaceConfidence", () => PaceConfidence);
             AttachCore("Pace.OverallConfidence", () => OverallConfidence);
 
