@@ -542,6 +542,8 @@ namespace LaunchPlugin
             _latchedIncidentReason = null;
             _lastPitLaneSeenUtc = DateTime.MinValue;
 
+            FuelCalculator?.ResetTrackConditionOverrideForSessionChange();
+
             // Clear pace tracking alongside fuel model resets so session transitions don't carry stale data
             _recentLapTimes.Clear();
             _recentLeaderLapTimes.Clear();

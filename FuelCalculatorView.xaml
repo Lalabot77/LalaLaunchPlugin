@@ -259,6 +259,7 @@
                                     <RadioButton Content="Dry" IsChecked="{Binding IsDry, Mode=TwoWay}" GroupName="TrackCondition"/>
                                     <RadioButton Content="Wet" IsChecked="{Binding IsWet, Mode=TwoWay}" GroupName="TrackCondition" Margin="10,0,0,0"/>
                                 </StackPanel>
+                                <TextBlock Text="{Binding TrackConditionModeLabel}" Style="{StaticResource UnitHint}" Margin="2,2,0,0" />
                                 <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <TextBlock Text="{Binding SourceWetFactorDisplay}" Style="{StaticResource UnitHint}" VerticalAlignment="Center" Visibility="{Binding HasSourceWetFactor, Converter={StaticResource BooleanToVisibilityConverter}}"/>

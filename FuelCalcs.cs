@@ -56,6 +56,9 @@ namespace LaunchPlugin
     private double _firstStopTimeLoss;
     private double _refuelRate;
     private double _baseDryFuelPerLap;
+    private bool _isTrackConditionManualOverride;
+    private bool _isApplyingAutomaticTrackCondition;
+    private string _trackConditionModeLabel = "Automatic (dry)";
     
     private double _lastLoggedLeaderDeltaSeconds = 0.0;
     private double _lastLoggedStrategyLeaderLap = 0.0;
@@ -738,6 +741,7 @@ namespace LaunchPlugin
             if (_selectedCarProfile != value)
             {
                 _selectedCarProfile = value;
+                ResetTrackConditionOverrideForSessionChange();
                 OnPropertyChanged();
 
                 // Rebuild lists
@@ -800,6 +804,7 @@ namespace LaunchPlugin
             if (!ReferenceEquals(_selectedTrackStats, value))
             {
                 _selectedTrackStats = value;
+                ResetTrackConditionOverrideForSessionChange();
                 OnPropertyChanged(nameof(SelectedTrackStats));
 
                 // Keep the legacy string SelectedTrack in sync (avoids touching other code)
@@ -1193,6 +1198,12 @@ namespace LaunchPlugin
         }
     }
 
+    public void ResetTrackConditionOverrideForSessionChange()
+    {
+        _isTrackConditionManualOverride = false;
+        MaybeAutoApplyTrackConditionFromTelemetry(_liveWeatherIsWet);
+    }
+
     private void ApplyLiveSurfaceSummary(bool? isDeclaredWet, string summary)
     {
         bool wasWetVisible = ShowWetSnapshotRows;
@@ -1201,16 +1212,7 @@ namespace LaunchPlugin
         _liveWeatherIsWet = isDeclaredWet;
         _liveSurfaceSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
 
-        bool shouldFollowLiveSurface = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot;
-
-        if (shouldFollowLiveSurface && isDeclaredWet.HasValue)
-        {
-            var liveCondition = isDeclaredWet.Value ? TrackCondition.Wet : TrackCondition.Dry;
-            if (SelectedTrackCondition != liveCondition)
-            {
-                SelectedTrackCondition = liveCondition;
-            }
-        }
+        MaybeAutoApplyTrackConditionFromTelemetry(isDeclaredWet);
 
         bool isWetVisible = ShowWetSnapshotRows;
         if (isWetVisible != wasWetVisible)
@@ -1220,12 +1222,13 @@ namespace LaunchPlugin
             UpdatePaceSummaries();
         }
 
-        if (IsWet != wasWetCondition && shouldFollowLiveSurface)
+        if (IsWet != wasWetCondition && !_isTrackConditionManualOverride && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
         {
             ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
         }
 
         UpdateSurfaceModeLabel();
+        UpdateTrackConditionModeLabel();
     }
 
     public void SetConditionRefuelParameters(double baseSeconds, double secondsPerLiter, double secondsPerSquare)
@@ -1453,11 +1456,18 @@ namespace LaunchPlugin
             if (_selectedTrackCondition != value)
             {
                 _selectedTrackCondition = value;
+
+                if (!_isApplyingAutomaticTrackCondition)
+                {
+                    _isTrackConditionManualOverride = true;
+                }
+
                 OnPropertyChanged(nameof(SelectedTrackCondition));
                 OnPropertyChanged(nameof(IsDry));
                 OnPropertyChanged(nameof(IsWet));
                 OnPropertyChanged(nameof(ShowDrySnapshotRows));
                 OnPropertyChanged(nameof(ShowWetSnapshotRows));
+                UpdateTrackConditionModeLabel();
                 UpdateLiveFuelChoiceDisplays();
                 UpdateProfileFuelChoiceDisplays();
 
@@ -1487,6 +1497,19 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
                 RefreshConditionParameters();
                 RaiseSourceWetFactorIndicators();
+        }
+    }
+
+    public string TrackConditionModeLabel
+    {
+        get => _trackConditionModeLabel;
+        private set
+        {
+            if (_trackConditionModeLabel != value)
+            {
+                _trackConditionModeLabel = value;
+                OnPropertyChanged(nameof(TrackConditionModeLabel));
+            }
         }
     }
 
@@ -2281,6 +2304,7 @@ namespace LaunchPlugin
             _ => _selectedCarProfile != null && !string.IsNullOrEmpty(_selectedTrack)
         );
         SetUIDefaults();
+        UpdateTrackConditionModeLabel();
         CalculateStrategy();
     }
 
@@ -2624,6 +2648,41 @@ namespace LaunchPlugin
         }
 
         return $"Fuel {LiveFuelConfidence}% | Pace {LivePaceConfidence}% | Overall {LiveOverallConfidence}%";
+    }
+
+    private void MaybeAutoApplyTrackConditionFromTelemetry(bool? isDeclaredWet)
+    {
+        if (_isTrackConditionManualOverride || !isDeclaredWet.HasValue)
+        {
+            UpdateTrackConditionModeLabel();
+            return;
+        }
+
+        var liveCondition = isDeclaredWet.Value ? TrackCondition.Wet : TrackCondition.Dry;
+        if (SelectedTrackCondition != liveCondition)
+        {
+            _isApplyingAutomaticTrackCondition = true;
+            SelectedTrackCondition = liveCondition;
+            _isApplyingAutomaticTrackCondition = false;
+        }
+
+        UpdateTrackConditionModeLabel();
+    }
+
+    private void UpdateTrackConditionModeLabel()
+    {
+        string modeText;
+        if (_isTrackConditionManualOverride)
+        {
+            modeText = "Manual override";
+        }
+        else
+        {
+            string condition = IsWet ? "wet" : "dry";
+            modeText = $"Automatic ({condition})";
+        }
+
+        TrackConditionModeLabel = modeText;
     }
 
     private void UpdateSurfaceModeLabel()
