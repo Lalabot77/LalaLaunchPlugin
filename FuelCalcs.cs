@@ -132,6 +132,10 @@ namespace LaunchPlugin
     private double _conditionRefuelSecondsPerSquare = 0;
     private bool _isRefreshingConditionParameters = false;
     private string _lastTyreChangeDisplay = "-";
+
+    // --- Planner state tracking ---
+    private bool _isPlannerDirty = false;
+    private bool _suppressPlannerDirtyUpdates = false;
                                              
     // --- NEW: Local properties for "what-if" parameters ---
     private double _contingencyValue = 1.5;
@@ -164,6 +168,30 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(LapTimeSourceInfo));
             }
         }
+    }
+
+    public bool IsPlannerDirty
+    {
+        get => _isPlannerDirty;
+        private set
+        {
+            if (_isPlannerDirty != value)
+            {
+                _isPlannerDirty = value;
+                OnPropertyChanged(nameof(IsPlannerDirty));
+            }
+        }
+    }
+
+    private void MarkPlannerDirty()
+    {
+        if (_suppressPlannerDirtyUpdates || _isApplyingPlanningSourceUpdates) return;
+        IsPlannerDirty = true;
+    }
+
+    private void ResetPlannerDirty()
+    {
+        IsPlannerDirty = false;
     }
 
     public bool IsEstimatedLapTimeManual
@@ -715,6 +743,8 @@ namespace LaunchPlugin
                 FuelPerLapSourceInfo = "Manual";
             }
 
+            MarkPlannerDirty();
+
             // Accept partial inputs like "2.", ".8", "2," while typing.
             var s = _fuelPerLapText.Replace(',', '.').Trim();
 
@@ -919,6 +949,7 @@ namespace LaunchPlugin
                     LapTimeSourceInfo = "Manual (user entry)";
                 }
                 CalculateStrategy();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1003,6 +1034,8 @@ namespace LaunchPlugin
                     IsFuelPerLapManual = true;
                     FuelPerLapSourceInfo = "Manual";
                 }
+
+                MarkPlannerDirty();
 
                 if (IsDry) { _baseDryFuelPerLap = _fuelPerLap; }
                 CalculateStrategy();
@@ -1554,6 +1587,7 @@ namespace LaunchPlugin
                 OnPropertyChanged("TireChangeTime");
                 CalculateStrategy();
                 RaisePresetStateChanged();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1568,6 +1602,7 @@ namespace LaunchPlugin
                 _pitLaneTimeLoss = value;
                 OnPropertyChanged("PitLaneTimeLoss");
                 CalculateStrategy();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1610,6 +1645,7 @@ namespace LaunchPlugin
                 _formationLapFuelLiters = value;
                 OnPropertyChanged("FormationLapFuelLiters");
                 CalculateStrategy();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1704,6 +1740,7 @@ namespace LaunchPlugin
                 _wetFactorPercent = value;
                 OnPropertyChanged();
                 ApplyWetFactor();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1755,6 +1792,7 @@ namespace LaunchPlugin
                 OnPropertyChanged();
                 CalculateStrategy(); // Recalculate when changed
                 RaisePresetStateChanged();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1771,6 +1809,7 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(IsContingencyLitres));
                 CalculateStrategy();
                 RaisePresetStateChanged();
+                MarkPlannerDirty();
             }
         }
     }
@@ -2079,6 +2118,73 @@ namespace LaunchPlugin
             $"All planner settings have been saved to the '{targetProfile.ProfileName}' profile for the track '{trackRecord.DisplayName}'.",
             "Planner Data Saved", MessageBoxButton.OK, MessageBoxImage.Information);
 
+        ResetPlannerDirty();
+
+    }
+
+    public void PromptToSaveLiveFuelOnExit()
+    {
+        if (!HasHigherQualityLiveFuelData(out var trackStats))
+        {
+            return;
+        }
+
+        var carName = _plugin.CurrentCarModel;
+        var trackLabel = trackStats?.DisplayName ?? _plugin.CurrentTrackName ?? _plugin.CurrentTrackKey;
+
+        var result = MessageBox.Show(
+            $"New live fuel data was collected for {carName} @ {trackLabel}. Save planner data to the profile before exiting?",
+            "Save Live Fuel Data?",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            _selectedCarProfile = _plugin.ActiveProfile;
+            _selectedTrack = _plugin.CurrentTrackKey ?? _plugin.CurrentTrackName;
+            SavePlannerDataToProfile();
+        }
+    }
+
+    private bool HasHigherQualityLiveFuelData(out TrackStats activeTrack)
+    {
+        activeTrack = null;
+
+        if (_plugin?.ActiveProfile == null)
+        {
+            return false;
+        }
+
+        var activeCarName = _plugin.CurrentCarModel;
+        var activeTrackKey = _plugin.CurrentTrackKey;
+
+        if (string.IsNullOrWhiteSpace(activeCarName) || string.Equals(activeCarName, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(activeTrackKey) || string.Equals(activeTrackKey, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.Equals(_plugin.ActiveProfile.ProfileName, activeCarName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        activeTrack = _plugin.ActiveProfile.ResolveTrackByNameOrKey(activeTrackKey)
+            ?? _plugin.ActiveProfile.ResolveTrackByNameOrKey(_plugin.CurrentTrackName);
+
+        if (activeTrack == null)
+        {
+            return false;
+        }
+
+        bool hasBetterDry = _liveDrySamples > 0 && _liveDryFuelAvg > 0 && _liveDrySamples > (activeTrack.DryFuelSampleCount ?? 0);
+        bool hasBetterWet = _liveWetSamples > 0 && _liveWetFuelAvg > 0 && _liveWetSamples > (activeTrack.WetFuelSampleCount ?? 0);
+
+        return hasBetterDry || hasBetterWet;
     }
 
     public void ReloadPresetsFromDisk()
@@ -3131,168 +3237,177 @@ namespace LaunchPlugin
     }
     public void LoadProfileData()
     {
-        if (SelectedCarProfile == null || string.IsNullOrEmpty(SelectedTrack))
+        _suppressPlannerDirtyUpdates = true;
+        try
         {
-            _lastLoadedCarProfile = null;
-            _lastLoadedTrackKey = null;
-            SetUIDefaults();
-            CalculateStrategy();
-            return;
-        }
-
-        var car = SelectedCarProfile;
-
-        // Keep an internal object reference in sync with the dropdown string
-        SelectedTrackStats = ResolveSelectedTrackStats();
-        var ts = SelectedTrackStats;
-
-        var trackKey = ts?.Key ?? SelectedTrack;
-        bool carChanged = !ReferenceEquals(car, _lastLoadedCarProfile);
-
-        // Always clear stale track-scoped state before applying new data so
-        // a car/track swap cannot leak lap times or fuel numbers from the
-        // previous selection (e.g., switching from McLaren 720S to Ferrari 296).
-        ResetTrackScopedProfileData();
-
-        if (ts == null)
-        {
-            UpdateProfileAverageDisplaysForCondition(null);
-            UpdateTrackDerivedSummaries();
-            CalculateStrategy();
-            _lastLoadedCarProfile = car;
-            _lastLoadedTrackKey = trackKey;
-            return;
-        }
-
-        // --- Load Refuel Rate and car-level settings only when the car changes ---
-        if (carChanged || _lastLoadedCarProfile == null)
-        {
-            this._refuelRate = car.RefuelRate;
-            this.ContingencyValue = car.FuelContingencyValue;
-            this.IsContingencyInLaps = car.IsContingencyInLaps;
-            this.WetFactorPercent = car.WetFuelMultiplier;
-        }
-
-        if (ts?.BestLapMs is int ms && ms > 0)
-        {
-            _loadedBestLapTimeSeconds = ms / 1000.0;
-            IsPersonalBestAvailable = true;
-            HistoricalBestLapDisplay = TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss\.fff");
-        }
-        else
-        {
-            _loadedBestLapTimeSeconds = 0;
-            IsPersonalBestAvailable = false;
-            HistoricalBestLapDisplay = "-";
-        }
-        // Manually notify the UI that these properties have changed
-        OnPropertyChanged(nameof(IsPersonalBestAvailable));
-        OnPropertyChanged(nameof(HistoricalBestLapDisplay));
-
-
-        // --- Set the initial estimated lap time from the profile's condition average ---
-        var initialLap = GetProfileAverageLapTimeForCurrentCondition();
-        if (initialLap.HasValue)
-        {
-            EstimatedLapTime = initialLap.Value.ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
-        }
-        else
-        {
-            // If there's no data at all, use the UI default
-            EstimatedLapTime = "2:45.500";
-            LapTimeSourceInfo = "Manual (user entry)";
-        }
-
-        // --- Load historical/track-specific data ---
-        if (ts?.AvgFuelPerLapDry is double avg && avg > 0)
-        {
-            _baseDryFuelPerLap = avg;
-
-            var initialFuel = GetProfileAverageFuelPerLapForCurrentCondition();
-            if (initialFuel.HasValue)
+            if (SelectedCarProfile == null || string.IsNullOrEmpty(SelectedTrack))
             {
-                FuelPerLap = initialFuel.Value;
-                FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile avg");
-                double factor = WetFactorPercent / 100.0;
-                if (IsWet && ts.AvgFuelPerLapWet.HasValue && ts.AvgFuelPerLapWet.Value > 0)
-                {
-                    FuelPerLap = ts.AvgFuelPerLapWet.Value;
-                    FuelPerLapSourceInfo = "Profile avg (wet)";
-                }
-                else if (IsWet)
-                {
-                    FuelPerLap = avg * factor;
-                    FuelPerLapSourceInfo = "Profile dry avg × wet factor";
-                }
-                else
-                {
-                    FuelPerLap = avg;
-                    FuelPerLapSourceInfo = "Profile avg (dry)";
-                }
+                _lastLoadedCarProfile = null;
+                _lastLoadedTrackKey = null;
+                SetUIDefaults();
+                CalculateStrategy();
+                return;
+            }
+
+            var car = SelectedCarProfile;
+
+            // Keep an internal object reference in sync with the dropdown string
+            SelectedTrackStats = ResolveSelectedTrackStats();
+            var ts = SelectedTrackStats;
+
+            var trackKey = ts?.Key ?? SelectedTrack;
+            bool carChanged = !ReferenceEquals(car, _lastLoadedCarProfile);
+
+            // Always clear stale track-scoped state before applying new data so
+            // a car/track swap cannot leak lap times or fuel numbers from the
+            // previous selection (e.g., switching from McLaren 720S to Ferrari 296).
+            ResetTrackScopedProfileData();
+
+            if (ts == null)
+            {
+                UpdateProfileAverageDisplaysForCondition(null);
+                UpdateTrackDerivedSummaries();
+                CalculateStrategy();
+                _lastLoadedCarProfile = car;
+                _lastLoadedTrackKey = trackKey;
+                return;
+            }
+
+            // --- Load Refuel Rate and car-level settings only when the car changes ---
+            if (carChanged || _lastLoadedCarProfile == null)
+            {
+                this._refuelRate = car.RefuelRate;
+                this.ContingencyValue = car.FuelContingencyValue;
+                this.IsContingencyInLaps = car.IsContingencyInLaps;
+                this.WetFactorPercent = car.WetFuelMultiplier;
+            }
+
+            if (ts?.BestLapMs is int ms && ms > 0)
+            {
+                _loadedBestLapTimeSeconds = ms / 1000.0;
+                IsPersonalBestAvailable = true;
+                HistoricalBestLapDisplay = TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss\.fff");
             }
             else
             {
-                // Handle case where track exists but has no fuel data.
-                // Reset to the global default value and update the source text.
-                var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
-                var defaultFuel = defaultProfile?.TrackStats?["default"]?.AvgFuelPerLapDry ?? 2.8;
-                FuelPerLap = defaultFuel;
-                FuelPerLapSourceInfo = "Default";
+                _loadedBestLapTimeSeconds = 0;
+                IsPersonalBestAvailable = false;
+                HistoricalBestLapDisplay = "-";
             }
+            // Manually notify the UI that these properties have changed
+            OnPropertyChanged(nameof(IsPersonalBestAvailable));
+            OnPropertyChanged(nameof(HistoricalBestLapDisplay));
 
-            if (ts?.PitLaneLossSeconds is double pll && pll > 0)
+
+            // --- Set the initial estimated lap time from the profile's condition average ---
+            var initialLap = GetProfileAverageLapTimeForCurrentCondition();
+            if (initialLap.HasValue)
             {
-                PitLaneTimeLoss = pll;
-                SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
+                EstimatedLapTime = initialLap.Value.ToString(@"m\:ss\.fff");
+                LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
             }
-
-            // --- CONSOLIDATED: Populate all display properties ---
-            var dryLap = ts?.AvgLapTimeDry;
-            var wetLap = ts?.AvgLapTimeWet;
-            var dryFuel = ts?.AvgFuelPerLapDry;
-            var wetFuel = ts?.AvgFuelPerLapWet;
-
-            UpdateProfileAverageDisplays();
-
-            ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
-                ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
-                : "-";
-
-            ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
-                ? dryFuel.Value.ToString("F2") + " L"
-                : "-";
-
-            HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
-
-            _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
-            _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
-            _profileDryFuelMax = ts?.MaxFuelPerLapDry ?? 0;
-            _profileDrySamples = ts?.DryFuelSampleCount ?? 0;
-            _profileWetFuelAvg = ts?.AvgFuelPerLapWet ?? 0;
-            _profileWetFuelMin = ts?.MinFuelPerLapWet ?? 0;
-            _profileWetFuelMax = ts?.MaxFuelPerLapWet ?? 0;
-            _profileWetSamples = ts?.WetFuelSampleCount ?? 0;
-
-            UpdateProfileFuelChoiceDisplays();
-            UpdateFuelBurnSummaries();
-
-            RefreshConditionParameters();
-            // Only reset race-strategy defaults when the car changes; track changes should not touch these values.
-            if (carChanged)
+            else
             {
-                // When switching cars, reinitialize the max-fuel override from the new car's tank size
-                // (or default) but keep the user's race duration/type selections intact.
-                ResetStrategyInputs(preserveMaxFuel: false, preserveRaceDuration: true);
+                // If there's no data at all, use the UI default
+                EstimatedLapTime = "2:45.500";
+                LapTimeSourceInfo = "Manual (user entry)";
             }
 
-            // Recompute with the newly loaded data
-            CalculateStrategy();
+            // --- Load historical/track-specific data ---
+            if (ts?.AvgFuelPerLapDry is double avg && avg > 0)
+            {
+                _baseDryFuelPerLap = avg;
 
-            UpdateTrackDerivedSummaries();
+                var initialFuel = GetProfileAverageFuelPerLapForCurrentCondition();
+                if (initialFuel.HasValue)
+                {
+                    FuelPerLap = initialFuel.Value;
+                    FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile avg");
+                    double factor = WetFactorPercent / 100.0;
+                    if (IsWet && ts.AvgFuelPerLapWet.HasValue && ts.AvgFuelPerLapWet.Value > 0)
+                    {
+                        FuelPerLap = ts.AvgFuelPerLapWet.Value;
+                        FuelPerLapSourceInfo = "Profile avg (wet)";
+                    }
+                    else if (IsWet)
+                    {
+                        FuelPerLap = avg * factor;
+                        FuelPerLapSourceInfo = "Profile dry avg × wet factor";
+                    }
+                    else
+                    {
+                        FuelPerLap = avg;
+                        FuelPerLapSourceInfo = "Profile avg (dry)";
+                    }
+                }
+                else
+                {
+                    // Handle case where track exists but has no fuel data.
+                    // Reset to the global default value and update the source text.
+                    var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
+                    var defaultFuel = defaultProfile?.TrackStats?["default"]?.AvgFuelPerLapDry ?? 2.8;
+                    FuelPerLap = defaultFuel;
+                    FuelPerLapSourceInfo = "Default";
+                }
 
-            _lastLoadedCarProfile = car;
-            _lastLoadedTrackKey = trackKey;
+                if (ts?.PitLaneLossSeconds is double pll && pll > 0)
+                {
+                    PitLaneTimeLoss = pll;
+                    SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
+                }
+
+                // --- CONSOLIDATED: Populate all display properties ---
+                var dryLap = ts?.AvgLapTimeDry;
+                var wetLap = ts?.AvgLapTimeWet;
+                var dryFuel = ts?.AvgFuelPerLapDry;
+                var wetFuel = ts?.AvgFuelPerLapWet;
+
+                UpdateProfileAverageDisplays();
+
+                ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
+                    ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
+                    : "-";
+
+                ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
+                    ? dryFuel.Value.ToString("F2") + " L"
+                    : "-";
+
+                HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
+
+                _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
+                _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
+                _profileDryFuelMax = ts?.MaxFuelPerLapDry ?? 0;
+                _profileDrySamples = ts?.DryFuelSampleCount ?? 0;
+                _profileWetFuelAvg = ts?.AvgFuelPerLapWet ?? 0;
+                _profileWetFuelMin = ts?.MinFuelPerLapWet ?? 0;
+                _profileWetFuelMax = ts?.MaxFuelPerLapWet ?? 0;
+                _profileWetSamples = ts?.WetFuelSampleCount ?? 0;
+
+                UpdateProfileFuelChoiceDisplays();
+                UpdateFuelBurnSummaries();
+
+                RefreshConditionParameters();
+                // Only reset race-strategy defaults when the car changes; track changes should not touch these values.
+                if (carChanged)
+                {
+                    // When switching cars, reinitialize the max-fuel override from the new car's tank size
+                    // (or default) but keep the user's race duration/type selections intact.
+                    ResetStrategyInputs(preserveMaxFuel: false, preserveRaceDuration: true);
+                }
+
+                // Recompute with the newly loaded data
+                CalculateStrategy();
+
+                UpdateTrackDerivedSummaries();
+
+                _lastLoadedCarProfile = car;
+                _lastLoadedTrackKey = trackKey;
+            }
+        }
+        finally
+        {
+            _suppressPlannerDirtyUpdates = false;
+            ResetPlannerDirty();
         }
     }
 

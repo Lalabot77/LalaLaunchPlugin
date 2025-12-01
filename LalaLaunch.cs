@@ -2182,6 +2182,8 @@ namespace LaunchPlugin
             // Optionally discard only if you really want to delete last file on exit
             // _telemetryTraceLogger?.DiscardCurrentTrace();
 
+            FuelCalculator?.PromptToSaveLiveFuelOnExit();
+
             // Persist settings
             this.SaveCommonSettings("GlobalSettings_V2", Settings);
             ProfilesViewModel.SaveProfiles();
