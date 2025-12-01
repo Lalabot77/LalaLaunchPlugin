@@ -147,6 +147,7 @@ namespace LaunchPlugin
     public ObservableCollection<string> AvailableTracks { get; set; } = new ObservableCollection<string>();
     public string DetectedMaxFuelDisplay { get; private set; }
     public ICommand ResetLeaderDeltaToLiveCommand { get; }
+    public ICommand SetLiveMaxFuelOverrideCommand { get; }
     private string _fuelPerLapText = "";
     private bool _suppressFuelTextSync = false;
     public string LapTimeSourceInfo
@@ -376,7 +377,7 @@ namespace LaunchPlugin
     public string LiveFuelTankSizeDisplay
     {
         get => _liveFuelTankSizeDisplay;
-        private set { if (_liveFuelTankSizeDisplay != value) { _liveFuelTankSizeDisplay = value; OnPropertyChanged(); } }
+        private set { _liveFuelTankSizeDisplay = value; OnPropertyChanged(); }
     }
     public string LiveBestLapDisplay
     {
@@ -1113,6 +1114,13 @@ namespace LaunchPlugin
             FuelPerLap = _plugin.MaxFuelPerLapDisplay;
             FuelPerLapSourceInfo = "Max";
         }
+    }
+
+    private void ApplyLiveMaxFuelSuggestion()
+    {
+        if (_liveMaxFuel <= 0) return;
+
+        MaxFuelOverride = _liveMaxFuel;
     }
 
     // This pair correctly handles UI thread updates for Live Fuel
@@ -2252,6 +2260,7 @@ namespace LaunchPlugin
         UseProfileFuelSaveCommand = new RelayCommand(_ => UseProfileFuelSave(), _ => IsProfileFuelSaveAvailable);
         UseProfileFuelMaxCommand = new RelayCommand(_ => UseProfileFuelMax(), _ => IsProfileFuelMaxAvailable);
         UseMaxFuelPerLapCommand = new RelayCommand(_ => UseMaxFuelPerLap(), _ => IsMaxFuelAvailable);
+        SetLiveMaxFuelOverrideCommand = new RelayCommand(_ => ApplyLiveMaxFuelSuggestion(), _ => HasLiveMaxFuelSuggestion);
         RefreshLiveSnapshotCommand = new RelayCommand(_ => RefreshLiveSnapshot());
         ResetEstimatedLapTimeToSourceCommand = new RelayCommand(_ => ResetEstimatedLapTimeToSource());
         ResetFuelPerLapToSourceCommand = new RelayCommand(_ => ResetFuelPerLapToSource());
@@ -2642,7 +2651,7 @@ namespace LaunchPlugin
         LiveTrackName = "-";
         _activeLiveCarKey = null;
         _activeLiveTrackKey = null;
-        LiveFuelTankSizeDisplay = "-";
+        RefreshLiveMaxFuelDisplays(0);
         LiveBestLapDisplay = "-";
         LiveLeaderPaceInfo = "-";
         LiveLapPaceInfo = "-";
@@ -2683,14 +2692,11 @@ namespace LaunchPlugin
         SeenTrackName = LiveTrackName;
         SeenSessionSummary = "No Live Data";
         LiveSessionHeader = "LIVE SESSION (no live data)";
-        OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
-        OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh));
     }
 
     private void ClearLiveFuelSnapshot()
     {
-        _liveMaxFuel = 0;
-        _liveFuelTankLiters = 0;
+        RefreshLiveMaxFuelDisplays(0);
         _liveDryFuelAvg = 0;
         _liveDryFuelMin = 0;
         _liveDryFuelMax = 0;
@@ -3398,16 +3404,23 @@ namespace LaunchPlugin
         RaiseSourceWetFactorIndicators();
     }
 
+    private void RefreshLiveMaxFuelDisplays(double liveMaxFuel)
+    {
+        _liveMaxFuel = liveMaxFuel;
+        _liveFuelTankLiters = liveMaxFuel;
+
+        LiveFuelTankSizeDisplay = liveMaxFuel > 0 ? $"{liveMaxFuel:F1} L" : "-";
+        DetectedMaxFuelDisplay = liveMaxFuel > 0 ? $"(Detected Max: {liveMaxFuel:F1} L)" : "(Detected Max: N/A)";
+
+        OnPropertyChanged(nameof(DetectedMaxFuelDisplay));
+        OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
+        OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh));
+        CommandManager.InvalidateRequerySuggested();
+    }
+
     public void UpdateLiveDisplay(double liveMaxFuel)
     {
-        _liveMaxFuel = liveMaxFuel; // Store the latest value for the next check
-        _liveFuelTankLiters = liveMaxFuel;
-        if (liveMaxFuel > 0) { DetectedMaxFuelDisplay = $"(Detected Max: {liveMaxFuel:F1} L)"; }
-        else { DetectedMaxFuelDisplay = "(Detected Max: N/A)"; }
-        LiveFuelTankSizeDisplay = liveMaxFuel > 0 ? $"{liveMaxFuel:F1} L" : "-";
-        OnPropertyChanged(nameof(DetectedMaxFuelDisplay));
-        OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh)); // Notify UI to re-check the highlight
-        OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
+        RefreshLiveMaxFuelDisplays(liveMaxFuel);
     }
 
     private static double ComputeExtraSecondsAfterTimerZero(double leaderLapSec, double yourLapSec, double raceSeconds)

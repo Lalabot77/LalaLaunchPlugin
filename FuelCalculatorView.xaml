@@ -361,6 +361,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
                                 <TextBlock Text="Max Fuel Override (litres):" VerticalAlignment="Center"/>
@@ -378,6 +379,11 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+
+                                <Button Grid.Column="2" Content="Set live" Margin="10,0,0,0" VerticalAlignment="Center"
+                                        Command="{Binding SetLiveMaxFuelOverrideCommand}"
+                                        Visibility="{Binding HasLiveMaxFuelSuggestion, Converter={StaticResource BoolToVisibilityConverter}}"
+                                        IsEnabled="{Binding HasLiveMaxFuelSuggestion}" />
                             </Grid>
 
                             <ui:TitledSlider Title="" Minimum="1" Maximum="150" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel.">
