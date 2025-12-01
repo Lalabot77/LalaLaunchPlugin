@@ -3425,31 +3425,26 @@ namespace LaunchPlugin
 
     private static double ComputeExtraSecondsAfterTimerZero(double leaderLapSec, double yourLapSec, double raceSeconds)
     {
+        // Continuous, decimal-lap model: compute when the leader finishes (time + one lap),
+        // then find the first time you cross the line after that moment without flooring laps.
         if (leaderLapSec <= 0.0 || yourLapSec <= 0.0 || raceSeconds <= 0.0) return 0.0;
 
-        // Phase within each lap when the clock hits zero
-        double phaseL = raceSeconds % leaderLapSec;
-        double tL_rem = (phaseL <= 1e-6) ? leaderLapSec : (leaderLapSec - phaseL); // leader time-to-line from zero
+        // How many leader laps elapse by the time the race clock hits zero (fractional allowed)
+        double leaderLapsAtZero = raceSeconds / leaderLapSec;
 
-        double phaseY = raceSeconds % yourLapSec;
-        double tY_rem = (phaseY <= 1e-6) ? yourLapSec : (yourLapSec - phaseY);     // your time-to-line from zero
+        // Leader's actual finish timestamp = smallest whole-lap crossing after the timer expires
+        double leaderFinishClock = Math.Ceiling(leaderLapsAtZero - 1e-9) * leaderLapSec;
 
-        // Leader finishes the race when they next cross the line after the clock expires.
-        double leaderFinishAfterZero = tL_rem;
+        // Using the leader's finish timestamp, compute your fractional lap count at that instant
+        double yourLapsWhenLeaderFinishes = leaderFinishClock / yourLapSec;
 
-        // You receive the checkered on the first time you cross start/finish AFTER the leader has finished.
-        // If you cross after the leader, you are done on that same crossing.
-        // Otherwise, you owe as many full laps as needed until your crossing time clears the leader's finish.
-        if (tY_rem >= leaderFinishAfterZero)
-        {
-            return tY_rem; // you finish this lap after the leader has already ended the race
-        }
+        // You take the checkered on your first crossing AFTER the leader finishes
+        double yourFinishClock = Math.Ceiling(yourLapsWhenLeaderFinishes - 1e-9) * yourLapSec;
 
-        double remainingAfterYourNextCross = leaderFinishAfterZero - tY_rem;
-        long extraFullLaps = (long)Math.Ceiling(remainingAfterYourNextCross / yourLapSec);
-        double extra = tY_rem + (extraFullLaps * yourLapSec);
+        // Extra seconds you keep driving after the timer hits zero
+        double extraSecondsAfterZero = yourFinishClock - raceSeconds;
 
-        return Math.Max(0.0, extra);
+        return Math.Max(0.0, extraSecondsAfterZero);
     }
 
 
