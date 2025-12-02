@@ -298,6 +298,7 @@ namespace LaunchPlugin
 
             // When the user changes the global planning source,
             // drop any manual overrides so the new source fully takes over.
+            IsEstimatedLapTimeManual = false;
             IsFuelPerLapManual = false;
 
             // Auto-expand/collapse the Live Session telemetry panel based on planning source.
@@ -310,7 +311,7 @@ namespace LaunchPlugin
                 IsLiveSessionSnapshotExpanded = false;
             }
 
-            ApplyPlanningSourceToAutoFields(applyLapTime: false, applyFuel: true);
+            ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
 
             if (value == PlanningSourceMode.Profile)
             {
@@ -2797,13 +2798,12 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(AvgDeltaToPbValue));
         UpdateTrackDerivedSummaries();
 
-        if (IsLiveSessionActive
-        && IsLiveLapPaceAvailable
-        && !IsEstimatedLapTimeManual
-        && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
-            {
-            UseLiveLapPace();
-            }
+        if (IsLiveLapPaceAvailable
+            && !IsEstimatedLapTimeManual
+            && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+        {
+            ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: false);
+        }
     }
 
     public void SetLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
