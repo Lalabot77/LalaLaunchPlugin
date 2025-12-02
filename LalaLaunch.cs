@@ -147,6 +147,19 @@ namespace LaunchPlugin
         // --- Expose the direct travel time calculated by PitEngine ---
         public double LastDirectTravelTime => _pit?.LastDirectTravelTime ?? 0.0;
 
+        public bool LeaderHasFinished
+        {
+            get => _leaderHasFinishedFlag;
+            private set
+            {
+                if (_leaderHasFinishedFlag != value)
+                {
+                    _leaderHasFinishedFlag = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         // --- Live Fuel Calculation State ---
         private double _lastFuelLevel = -1;
         private double _lapStartFuel = -1;
@@ -160,6 +173,15 @@ namespace LaunchPlugin
         private double _lapDetectorPendingLastPct = -1.0;
         private DateTime _lapDetectorLastLogUtc = DateTime.MinValue;
         private string _lapDetectorLastLogKey = string.Empty;
+
+        // --- Finish timing + flag detection ---
+        private bool _timerZeroSeen;
+        private double _timerZeroSessionTime = double.NaN;
+        private double _whiteFlagSessionTime = double.NaN;
+        private double _leaderCheckeredSessionTime = double.NaN;
+        private double _driverCheckeredSessionTime = double.NaN;
+        private bool _leaderHasFinishedFlag;
+        private int _lastCompletedLapForFinish = -1;
 
         // New per-mode rolling windows
         private readonly List<double> _recentDryFuelLaps = new List<double>();
@@ -1959,6 +1981,7 @@ namespace LaunchPlugin
             _poll500ms.Start();
 
             ResetAllValues();
+            ResetFinishTimingState();
             _pit?.ResetPitPhaseState();
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
@@ -2058,6 +2081,7 @@ namespace LaunchPlugin
             AttachCore("DashControlMode", () => Screens.Mode);
             AttachCore("FalseStartDetected", () => _falseStartDetected);
             AttachCore("LastSessionType", () => _lastSessionType);
+            AttachCore("Race.LeaderHasFinished", () => LeaderHasFinished);
             AttachCore("MsgCxPressed", () => _msgCxPressed);
             AttachCore("PitScreenActive", () => _pitScreenActive);
 
@@ -2357,6 +2381,17 @@ namespace LaunchPlugin
             _maxThrottlePostLaunch = -1.0;
         }
 
+        private void ResetFinishTimingState()
+        {
+            _timerZeroSeen = false;
+            _timerZeroSessionTime = double.NaN;
+            _whiteFlagSessionTime = double.NaN;
+            _leaderCheckeredSessionTime = double.NaN;
+            _driverCheckeredSessionTime = double.NaN;
+            _lastCompletedLapForFinish = -1;
+            LeaderHasFinished = false;
+        }
+
 
         #region Core Update Method
 
@@ -2490,6 +2525,7 @@ namespace LaunchPlugin
                 _lastAnnouncedMaxFuel = -1;
                 _lastSessionId = currentSessionId;
                 FuelCalculator.ForceProfileDataReload();
+                ResetFinishTimingState();
 
                 SimHub.Logging.Current.Info($"[LalaLaunch] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
             }
@@ -2554,6 +2590,9 @@ namespace LaunchPlugin
                 );
             }
             catch { sessionTime = 0.0; }
+
+            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+            UpdateFinishTiming(pluginManager, data, sessionTime, sessionTimeRemain, completedLaps);
 
             bool inPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
 
@@ -2860,6 +2899,124 @@ namespace LaunchPlugin
         #endregion
 
         #region Private Helper Methods for DataUpdate
+
+        private static double SafeReadDouble(PluginManager pluginManager, string propertyName, double fallback)
+        {
+            try
+            {
+                return Convert.ToDouble(pluginManager.GetPropertyValue(propertyName) ?? fallback);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        private static bool ReadFlagBool(PluginManager pluginManager, params string[] propertyNames)
+        {
+            foreach (var name in propertyNames)
+            {
+                try
+                {
+                    var raw = pluginManager.GetPropertyValue(name);
+                    if (raw != null)
+                    {
+                        return Convert.ToBoolean(raw);
+                    }
+                }
+                catch
+                {
+                    // ignore and try the next candidate
+                }
+            }
+
+            return false;
+        }
+
+        private static string FormatSecondsOrNA(double seconds)
+        {
+            return (double.IsNaN(seconds) || double.IsInfinity(seconds))
+                ? "n/a"
+                : seconds.ToString("F1", CultureInfo.InvariantCulture);
+        }
+
+        private double ComputeObservedExtraSeconds(double finishSessionTime, double sessionTimeRemain)
+        {
+            if (double.IsNaN(finishSessionTime) || finishSessionTime <= 0.0)
+            {
+                return 0.0;
+            }
+
+            if (_timerZeroSeen && !double.IsNaN(_timerZeroSessionTime))
+            {
+                return Math.Max(0.0, finishSessionTime - _timerZeroSessionTime);
+            }
+
+            if (!double.IsNaN(sessionTimeRemain))
+            {
+                return Math.Max(0.0, -sessionTimeRemain);
+            }
+
+            return 0.0;
+        }
+
+        private void UpdateFinishTiming(PluginManager pluginManager, GameData data, double sessionTime, double sessionTimeRemain, int completedLaps)
+        {
+            string sessionType = data.NewData?.SessionTypeName ?? string.Empty;
+            if (!string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase))
+            {
+                ResetFinishTimingState();
+                return;
+            }
+
+            if (!_timerZeroSeen && !double.IsNaN(sessionTimeRemain) && sessionTimeRemain <= 0.0)
+            {
+                _timerZeroSeen = true;
+                _timerZeroSessionTime = sessionTime;
+            }
+
+            bool whiteFlag = ReadFlagBool(
+                pluginManager,
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhiteFlag",
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhite"
+            );
+
+            if (whiteFlag && double.IsNaN(_whiteFlagSessionTime))
+            {
+                _whiteFlagSessionTime = sessionTime;
+            }
+
+            bool checkeredFlag = ReadFlagBool(
+                pluginManager,
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckeredFlag",
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
+            );
+
+            if (checkeredFlag && !LeaderHasFinished)
+            {
+                _leaderCheckeredSessionTime = sessionTime;
+                LeaderHasFinished = true;
+            }
+
+            bool lapCompleted = (_lastCompletedLapForFinish >= 0) && (completedLaps > _lastCompletedLapForFinish);
+            _lastCompletedLapForFinish = completedLaps;
+
+            if (lapCompleted && checkeredFlag)
+            {
+                _driverCheckeredSessionTime = sessionTime;
+
+                double leaderExtra = ComputeObservedExtraSeconds(_leaderCheckeredSessionTime, sessionTimeRemain);
+                double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime, sessionTimeRemain);
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaLaunch] Finish timing: timer0={FormatSecondsOrNA(_timerZeroSessionTime)}s white={FormatSecondsOrNA(_whiteFlagSessionTime)}s " +
+                    $"leaderChk={FormatSecondsOrNA(_leaderCheckeredSessionTime)}s driverChk={FormatSecondsOrNA(_driverCheckeredSessionTime)}s " +
+                    $"leader after 00:00={leaderExtra:F1}s driver after 00:00={driverExtra:F1}s remain={FormatSecondsOrNA(sessionTimeRemain)}s"
+                );
+
+                ResetFinishTimingState();
+            }
+        }
 
         private static double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
         {
