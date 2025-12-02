@@ -650,11 +650,11 @@ namespace LaunchPlugin
         public ICommand ClearPresetCommand { get; private set; }
         public ICommand ApplySourceWetFactorCommand { get; }
 
-    private void ApplySelectedPreset()
+    private void ApplyPresetValues(RacePreset preset)
     {
-        if (_selectedPreset == null) return;
+        if (preset == null) return;
 
-        var p = _selectedPreset;
+        var p = preset;
 
         // Race type + duration
         if (p.Type == RacePresetType.TimeLimited)
@@ -688,6 +688,11 @@ namespace LaunchPlugin
 
         _appliedPreset = p;
         RaisePresetStateChanged();
+    }
+
+    private void ApplySelectedPreset()
+    {
+        ApplyPresetValues(_selectedPreset);
     }
 
     private void ClearAppliedPreset()
@@ -2197,7 +2202,7 @@ namespace LaunchPlugin
     {
         try
         {
-            _availablePresets = LaunchPlugin.RacePresetStore.LoadAll();
+            _availablePresets = LaunchPlugin.RacePresetStore.LoadAll() ?? new List<RacePreset>();
 
             // Do NOT auto-select anything on load.
             // Leave both selection and applied preset null until the user picks one.
@@ -2222,70 +2227,142 @@ namespace LaunchPlugin
         }
     }
 
-    public void SavePresetEdits(string originalName, RacePreset updated)
+    private List<RacePreset> PresetList => _availablePresets ?? (_availablePresets = new List<RacePreset>());
+
+    private static void CopyPresetValues(RacePreset source, RacePreset target)
     {
-        if (updated == null || string.IsNullOrWhiteSpace(updated.Name)) return;
+        if (source == null || target == null) return;
 
-        var list = _availablePresets ?? new List<RacePreset>();
+        target.Type = source.Type;
+        target.RaceMinutes = source.RaceMinutes;
+        target.RaceLaps = source.RaceLaps;
+        target.MandatoryStopRequired = source.MandatoryStopRequired;
+        target.TireChangeTimeSec = source.TireChangeTimeSec;
+        target.MaxFuelLitres = source.MaxFuelLitres;
+        target.ContingencyInLaps = source.ContingencyInLaps;
+        target.ContingencyValue = source.ContingencyValue;
+    }
 
-        // Find by original name first (supports rename-on-save)
-        var existing = !string.IsNullOrWhiteSpace(originalName)
-            ? list.FirstOrDefault(x => string.Equals(x.Name, originalName, StringComparison.OrdinalIgnoreCase))
-            : list.FirstOrDefault(x => string.Equals(x.Name, updated.Name, StringComparison.OrdinalIgnoreCase));
+    private static RacePreset ClonePreset(RacePreset source)
+    {
+        if (source == null) return null;
 
-        var wasApplied =
-            _appliedPreset != null &&
-            existing != null &&
-            string.Equals(_appliedPreset.Name, existing.Name, StringComparison.OrdinalIgnoreCase);
-
-        if (existing == null)
+        return new RacePreset
         {
-            // New entry (not found by original/new name) => add one and then update it in-place
-            existing = new RacePreset();
-            list.Add(existing);
+            Name = source.Name,
+            Type = source.Type,
+            RaceMinutes = source.RaceMinutes,
+            RaceLaps = source.RaceLaps,
+            MandatoryStopRequired = source.MandatoryStopRequired,
+            TireChangeTimeSec = source.TireChangeTimeSec,
+            MaxFuelLitres = source.MaxFuelLitres,
+            ContingencyInLaps = source.ContingencyInLaps,
+            ContingencyValue = source.ContingencyValue
+        };
+    }
+
+    private RacePreset FindPresetByName(string name, RacePreset ignore = null)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
+        return PresetList.FirstOrDefault(x => !ReferenceEquals(x, ignore)
+            && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string GetUniquePresetName(string baseName, RacePreset ignore = null)
+    {
+        var seed = string.IsNullOrWhiteSpace(baseName) ? "Preset" : baseName.Trim();
+        var candidate = seed;
+        var i = 1;
+
+        while (FindPresetByName(candidate, ignore) != null)
+        {
+            i++;
+            candidate = $"{seed} {i}";
         }
 
-        // In-place update to keep references (ListBox selection etc.) stable
-        existing.Name = updated.Name;
-        existing.Type = updated.Type;
-        existing.RaceMinutes = updated.RaceMinutes;
-        existing.RaceLaps = updated.RaceLaps;
-        existing.MandatoryStopRequired = updated.MandatoryStopRequired;
-        existing.TireChangeTimeSec = updated.TireChangeTimeSec;
-        existing.MaxFuelLitres = updated.MaxFuelLitres;
-        existing.ContingencyInLaps = updated.ContingencyInLaps;
-        existing.ContingencyValue = updated.ContingencyValue;
+        return candidate;
+    }
 
-        // Persist
-        LaunchPlugin.RacePresetStore.SaveAll(list);
+    private RacePreset CreateOrUpdatePreset(RacePreset template, string originalName, bool allowOverwrite, bool forceUniqueName)
+    {
+        if (template == null || string.IsNullOrWhiteSpace(template.Name))
+            throw new ArgumentException("Preset must include a name.", nameof(template));
 
-        // Force the ItemsSource to refresh without touching _selectedPreset
-        _availablePresets = list.ToList();
+        var requestedName = template.Name.Trim();
+        var list = PresetList;
 
-        // If the applied preset is the one we just edited, apply it live so Fuel values refresh
-        if (wasApplied)
+        var target = FindPresetByName(originalName);
+        if (target == null)
         {
-            _appliedPreset = existing;
-            ApplySelectedPreset();
+            target = FindPresetByName(requestedName);
+        }
+
+        var finalName = forceUniqueName ? GetUniquePresetName(requestedName, target) : requestedName;
+        var conflict = FindPresetByName(finalName, target);
+
+        if (conflict != null && !allowOverwrite)
+        {
+            throw new InvalidOperationException("A preset with that name already exists.");
+        }
+
+        if (conflict != null)
+        {
+            target = conflict;
+        }
+
+        if (target == null)
+        {
+            target = new RacePreset();
+            list.Add(target);
+        }
+
+        CopyPresetValues(template, target);
+        target.Name = finalName;
+
+        return target;
+    }
+
+    private RacePreset ResolveSelection(RacePreset desired)
+    {
+        if (desired != null && PresetList.Contains(desired))
+            return desired;
+
+        return desired == null ? null : PresetList.FirstOrDefault();
+    }
+
+    private RacePreset ResolveAppliedPreset(RacePreset desired)
+    {
+        if (desired != null && PresetList.Contains(desired))
+            return desired;
+
+        return null;
+    }
+
+    private void CommitPresetChanges(RacePreset preferredSelection, bool reapplyAppliedPreset)
+    {
+        LaunchPlugin.RacePresetStore.SaveAll(PresetList);
+
+        _selectedPreset = ResolveSelection(preferredSelection ?? _selectedPreset);
+        _appliedPreset = ResolveAppliedPreset(_appliedPreset);
+
+        OnPropertyChanged(nameof(AvailablePresets));
+        OnPropertyChanged(nameof(SelectedPreset));
+        OnPropertyChanged(nameof(HasSelectedPreset));
+
+        if (reapplyAppliedPreset && _appliedPreset != null)
+        {
+            ApplyPresetValues(_appliedPreset);
         }
         else
         {
             RaisePresetStateChanged();
         }
-
-        OnPropertyChanged(nameof(AvailablePresets));
-        // We did NOT change SelectedPreset; no need to re-raise unless your UI requires it
-        OnPropertyChanged(nameof(HasSelectedPreset));
     }
 
-    public void SaveCurrentAsPreset(string name, bool overwriteIfExists)
+    private RacePreset BuildPresetFromCurrentState(string name)
     {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Preset name cannot be empty.", nameof(name));
-
-        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
-
-        var p = new RacePreset
+        return new RacePreset
         {
             Name = name,
             Type = IsTimeLimitedRace ? RacePresetType.TimeLimited : RacePresetType.LapLimited,
@@ -2299,76 +2376,87 @@ namespace LaunchPlugin
             ContingencyInLaps = IsContingencyInLaps,
             ContingencyValue = ContingencyValue
         };
+    }
 
-        var existing = list.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (existing != null)
+    private RacePreset BuildDefaultPresetTemplate()
+    {
+        return new RacePreset
         {
-            if (!overwriteIfExists)
-                throw new InvalidOperationException("A preset with that name already exists.");
-            var idx = list.IndexOf(existing);
-            list[idx] = p;
-        }
-        else
-        {
-            list.Add(p);
-        }
+            Name = "New Preset",
+            Type = RacePresetType.TimeLimited,
+            RaceLaps = null,
+            RaceMinutes = 40,
+            MandatoryStopRequired = false,
+            TireChangeTimeSec = 23,
+            MaxFuelLitres = 110,
+            ContingencyInLaps = true,
+            ContingencyValue = 1
+        };
+    }
 
-        LaunchPlugin.RacePresetStore.SaveAll(list);
+    public RacePreset CreatePresetFromDefaults()
+    {
+        var template = BuildDefaultPresetTemplate();
+        var preset = CreateOrUpdatePreset(template, originalName: null, allowOverwrite: false, forceUniqueName: true);
 
-        // Refresh the collection instance so UI lists redraw, but do NOT change Fuel tab selection
-        _availablePresets = list.ToList();
+        CommitPresetChanges(preferredSelection: preset, reapplyAppliedPreset: false);
+        return preset;
+    }
 
-        // DO NOT touch _selectedPreset or _appliedPreset here.
-        OnPropertyChanged(nameof(AvailablePresets));
-        OnPropertyChanged(nameof(HasSelectedPreset));
-        RaisePresetStateChanged();
+    public RacePreset SavePresetEdits(string originalName, RacePreset updated)
+    {
+        if (updated == null || string.IsNullOrWhiteSpace(updated.Name)) return null;
+
+        var template = ClonePreset(updated);
+        var preset = CreateOrUpdatePreset(template, originalName, allowOverwrite: false, forceUniqueName: string.IsNullOrWhiteSpace(originalName));
+
+        var keepSelection = ReferenceEquals(_selectedPreset, preset)
+            || (!string.IsNullOrWhiteSpace(originalName)
+                && _selectedPreset != null
+                && string.Equals(_selectedPreset.Name, originalName, StringComparison.OrdinalIgnoreCase));
+        var wasApplied = ReferenceEquals(_appliedPreset, preset);
+
+        CommitPresetChanges(preferredSelection: keepSelection ? preset : null, reapplyAppliedPreset: wasApplied);
+        return preset;
+    }
+
+    public RacePreset SaveCurrentAsPreset(string name, bool overwriteIfExists)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Preset name cannot be empty.", nameof(name));
+
+        var template = BuildPresetFromCurrentState(name);
+        var preset = CreateOrUpdatePreset(template, originalName: null, allowOverwrite: overwriteIfExists, forceUniqueName: !overwriteIfExists);
+
+        CommitPresetChanges(preferredSelection: preset, reapplyAppliedPreset: false);
+        return preset;
     }
 
     public void DeletePreset(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return;
-        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
-        var match = list.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+        var match = FindPresetByName(name);
         if (match == null) return;
 
-        list.Remove(match);
-        LaunchPlugin.RacePresetStore.SaveAll(list);
+        PresetList.Remove(match);
+        var preferSelection = ReferenceEquals(_selectedPreset, match) ? PresetList.FirstOrDefault() : null;
 
-        _availablePresets = list;
-        if (_selectedPreset == match) _selectedPreset = list.FirstOrDefault();
-        if (_appliedPreset == match) _appliedPreset = null;
-
-        OnPropertyChanged(nameof(AvailablePresets));
-        OnPropertyChanged(nameof(SelectedPreset));
-        OnPropertyChanged(nameof(HasSelectedPreset));
-        RaisePresetStateChanged();
+        CommitPresetChanges(preferredSelection: preferSelection, reapplyAppliedPreset: false);
     }
 
     public void RenamePreset(string oldName, string newName)
     {
         if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName)) return;
 
-        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
-        var match = list.FirstOrDefault(x => string.Equals(x.Name, oldName, StringComparison.OrdinalIgnoreCase));
+        var match = FindPresetByName(oldName);
         if (match == null) return;
 
-        if (list.Any(x => string.Equals(x.Name, newName, StringComparison.OrdinalIgnoreCase)))
+        if (FindPresetByName(newName, match) != null)
             throw new InvalidOperationException("A preset with that name already exists.");
 
-        match.Name = newName;
-        LaunchPlugin.RacePresetStore.SaveAll(list);
+        match.Name = newName.Trim();
 
-        // keep selection/applied pointers stable
-        _availablePresets = list;
-        if (_selectedPreset != null && string.Equals(_selectedPreset.Name, oldName, StringComparison.OrdinalIgnoreCase))
-            _selectedPreset = match;
-        if (_appliedPreset != null && string.Equals(_appliedPreset.Name, oldName, StringComparison.OrdinalIgnoreCase))
-            _appliedPreset = match;
-
-        OnPropertyChanged(nameof(AvailablePresets));
-        OnPropertyChanged(nameof(SelectedPreset));
-        OnPropertyChanged(nameof(HasSelectedPreset));
-        RaisePresetStateChanged();
+        CommitPresetChanges(preferredSelection: match, reapplyAppliedPreset: ReferenceEquals(_appliedPreset, match));
     }
 
     // Unique id to make sure the UI and the engine are the same instance

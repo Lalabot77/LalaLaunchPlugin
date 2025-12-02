@@ -109,11 +109,11 @@ namespace LaunchPlugin
                 }
 
                 // Save (VM updates in place, persists, refreshes collection, reapplies if active)
-                _vm.SavePresetEdits(_originalName, Clone(EditingPreset));
-                _originalName = EditingPreset.Name; // track new name for subsequent edits
+                var saved = _vm.SavePresetEdits(_originalName, Clone(EditingPreset));
+                _originalName = saved?.Name ?? EditingPreset.Name; // track new name for subsequent edits
 
                 // Keep editing the same (possibly renamed) preset using LOCAL selection
-                EditorSelection = _vm.AvailablePresets?.FirstOrDefault(x =>
+                EditorSelection = saved ?? _vm.AvailablePresets?.FirstOrDefault(x =>
                     string.Equals(x.Name, _originalName, StringComparison.OrdinalIgnoreCase));
 
                 MessageBox.Show("Preset saved.", "Presets",
@@ -130,40 +130,10 @@ namespace LaunchPlugin
         {
             try
             {
-                // Generate a unique friendly name
-                var baseName = "New Preset";
-                var name = baseName;
-                int i = 1;
-                if (_vm.AvailablePresets != null)
-                {
-                    while (_vm.AvailablePresets.Any(rp => string.Equals(rp.Name, name, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        i++;
-                        name = $"{baseName} {i}";
-                    }
-                }
-
-                // Create with good defaults
-                var newPreset = new RacePreset
-                {
-                    Name = name,
-                    Type = RacePresetType.TimeLimited,
-                    RaceLaps = null,
-                    RaceMinutes = 40,
-                    MandatoryStopRequired = false,
-                    TireChangeTimeSec = 23,
-                    MaxFuelLitres = 110,
-                    ContingencyInLaps = true,
-                    ContingencyValue = 1
-                };
-
-                // Save as NEW (VM refreshes the collection instance)
-                _vm.SavePresetEdits(originalName: null, updated: newPreset);
+                var created = _vm.CreatePresetFromDefaults();
 
                 // Immediately select it locally so the right-hand editor shows it
-                EditorSelection = _vm.AvailablePresets?
-                    .FirstOrDefault(x => string.Equals(x.Name, newPreset.Name, StringComparison.OrdinalIgnoreCase))
-                    ?? newPreset; // fallback (shouldn't be hit, but safe)
+                EditorSelection = created;
 
                 // No need to call RebuildWorkingCopy... the EditorSelection setter already rebuilds
             }
@@ -192,11 +162,11 @@ namespace LaunchPlugin
                     return;
                 }
 
-                _vm.SaveCurrentAsPreset(name, overwriteIfExists: false);
+                var saved = _vm.SaveCurrentAsPreset(name, overwriteIfExists: false);
                 ActionNameBox.Clear();
 
                 // After VM save, reselect the newly created preset locally if it exists
-                EditorSelection = _vm.AvailablePresets?.FirstOrDefault(x =>
+                EditorSelection = saved ?? _vm.AvailablePresets?.FirstOrDefault(x =>
                     string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
             }
             catch (Exception ex)
