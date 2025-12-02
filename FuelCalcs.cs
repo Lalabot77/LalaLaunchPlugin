@@ -56,6 +56,9 @@ namespace LaunchPlugin
     private double _firstStopTimeLoss;
     private double _refuelRate;
     private double _baseDryFuelPerLap;
+    private bool _isTrackConditionManualOverride;
+    private bool _isApplyingAutomaticTrackCondition;
+    private string _trackConditionModeLabel = "Automatic (dry)";
     
     private double _lastLoggedLeaderDeltaSeconds = 0.0;
     private double _lastLoggedStrategyLeaderLap = 0.0;
@@ -129,6 +132,10 @@ namespace LaunchPlugin
     private double _conditionRefuelSecondsPerSquare = 0;
     private bool _isRefreshingConditionParameters = false;
     private string _lastTyreChangeDisplay = "-";
+
+    // --- Planner state tracking ---
+    private bool _isPlannerDirty = false;
+    private bool _suppressPlannerDirtyUpdates = false;
                                              
     // --- NEW: Local properties for "what-if" parameters ---
     private double _contingencyValue = 1.5;
@@ -161,6 +168,30 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(LapTimeSourceInfo));
             }
         }
+    }
+
+    public bool IsPlannerDirty
+    {
+        get => _isPlannerDirty;
+        private set
+        {
+            if (_isPlannerDirty != value)
+            {
+                _isPlannerDirty = value;
+                OnPropertyChanged(nameof(IsPlannerDirty));
+            }
+        }
+    }
+
+    private void MarkPlannerDirty()
+    {
+        if (_suppressPlannerDirtyUpdates || _isApplyingPlanningSourceUpdates) return;
+        IsPlannerDirty = true;
+    }
+
+    private void ResetPlannerDirty()
+    {
+        IsPlannerDirty = false;
     }
 
     public bool IsEstimatedLapTimeManual
@@ -576,6 +607,8 @@ namespace LaunchPlugin
         get { return _selectedPreset != null; }
     }
 
+    public RacePreset AppliedPreset => _appliedPreset;
+
     // Last applied preset (for badge + modified flag)
     private RacePreset _appliedPreset;
 
@@ -607,22 +640,23 @@ namespace LaunchPlugin
     public ICommand UseLiveLapPaceCommand { get; }
     public ICommand LoadProfileLapTimeCommand { get; }
     public ICommand SavePlannerDataToProfileCommand { get; }
-        public ICommand UseProfileFuelPerLapCommand { get; }
+    public ICommand UseProfileFuelPerLapCommand { get; }
         public ICommand UseProfileFuelSaveCommand { get; }
         public ICommand UseProfileFuelMaxCommand { get; }
         public ICommand UseMaxFuelPerLapCommand { get; }
         public ICommand RefreshLiveSnapshotCommand { get; }
+        public ICommand RefreshPlannerViewCommand { get; }
         public ICommand ResetEstimatedLapTimeToSourceCommand { get; }
         public ICommand ResetFuelPerLapToSourceCommand { get; }
         public ICommand ApplyPresetCommand { get; private set; }
         public ICommand ClearPresetCommand { get; private set; }
         public ICommand ApplySourceWetFactorCommand { get; }
 
-    private void ApplySelectedPreset()
+    private void ApplyPresetValues(RacePreset preset)
     {
-        if (_selectedPreset == null) return;
+        if (preset == null) return;
 
-        var p = _selectedPreset;
+        var p = preset;
 
         // Race type + duration
         if (p.Type == RacePresetType.TimeLimited)
@@ -656,6 +690,11 @@ namespace LaunchPlugin
 
         _appliedPreset = p;
         RaisePresetStateChanged();
+    }
+
+    private void ApplySelectedPreset()
+    {
+        ApplyPresetValues(_selectedPreset);
     }
 
     private void ClearAppliedPreset()
@@ -693,6 +732,7 @@ namespace LaunchPlugin
 
     private void RaisePresetStateChanged()
     {
+        OnPropertyChanged(nameof(AppliedPreset));
         OnPropertyChanged(nameof(PresetBadge));
         OnPropertyChanged(nameof(IsPresetModifiedFlag));
     }
@@ -711,6 +751,8 @@ namespace LaunchPlugin
                 IsFuelPerLapManual = true;
                 FuelPerLapSourceInfo = "Manual";
             }
+
+            MarkPlannerDirty();
 
             // Accept partial inputs like "2.", ".8", "2," while typing.
             var s = _fuelPerLapText.Replace(',', '.').Trim();
@@ -738,6 +780,7 @@ namespace LaunchPlugin
             if (_selectedCarProfile != value)
             {
                 _selectedCarProfile = value;
+                ResetTrackConditionOverrideForSessionChange();
                 OnPropertyChanged();
 
                 // Rebuild lists
@@ -800,6 +843,7 @@ namespace LaunchPlugin
             if (!ReferenceEquals(_selectedTrackStats, value))
             {
                 _selectedTrackStats = value;
+                ResetTrackConditionOverrideForSessionChange();
                 OnPropertyChanged(nameof(SelectedTrackStats));
 
                 // Keep the legacy string SelectedTrack in sync (avoids touching other code)
@@ -914,6 +958,7 @@ namespace LaunchPlugin
                     LapTimeSourceInfo = "Manual (user entry)";
                 }
                 CalculateStrategy();
+                MarkPlannerDirty();
             }
         }
     }
@@ -998,6 +1043,8 @@ namespace LaunchPlugin
                     IsFuelPerLapManual = true;
                     FuelPerLapSourceInfo = "Manual";
                 }
+
+                MarkPlannerDirty();
 
                 if (IsDry) { _baseDryFuelPerLap = _fuelPerLap; }
                 CalculateStrategy();
@@ -1193,6 +1240,12 @@ namespace LaunchPlugin
         }
     }
 
+    public void ResetTrackConditionOverrideForSessionChange()
+    {
+        _isTrackConditionManualOverride = false;
+        MaybeAutoApplyTrackConditionFromTelemetry(_liveWeatherIsWet);
+    }
+
     private void ApplyLiveSurfaceSummary(bool? isDeclaredWet, string summary)
     {
         bool wasWetVisible = ShowWetSnapshotRows;
@@ -1201,16 +1254,7 @@ namespace LaunchPlugin
         _liveWeatherIsWet = isDeclaredWet;
         _liveSurfaceSummary = string.IsNullOrWhiteSpace(summary) ? null : summary.Trim();
 
-        bool shouldFollowLiveSurface = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot;
-
-        if (shouldFollowLiveSurface && isDeclaredWet.HasValue)
-        {
-            var liveCondition = isDeclaredWet.Value ? TrackCondition.Wet : TrackCondition.Dry;
-            if (SelectedTrackCondition != liveCondition)
-            {
-                SelectedTrackCondition = liveCondition;
-            }
-        }
+        MaybeAutoApplyTrackConditionFromTelemetry(isDeclaredWet);
 
         bool isWetVisible = ShowWetSnapshotRows;
         if (isWetVisible != wasWetVisible)
@@ -1220,12 +1264,13 @@ namespace LaunchPlugin
             UpdatePaceSummaries();
         }
 
-        if (IsWet != wasWetCondition && shouldFollowLiveSurface)
+        if (IsWet != wasWetCondition && !_isTrackConditionManualOverride && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
         {
             ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
         }
 
         UpdateSurfaceModeLabel();
+        UpdateTrackConditionModeLabel();
     }
 
     public void SetConditionRefuelParameters(double baseSeconds, double secondsPerLiter, double secondsPerSquare)
@@ -1453,11 +1498,18 @@ namespace LaunchPlugin
             if (_selectedTrackCondition != value)
             {
                 _selectedTrackCondition = value;
+
+                if (!_isApplyingAutomaticTrackCondition)
+                {
+                    _isTrackConditionManualOverride = true;
+                }
+
                 OnPropertyChanged(nameof(SelectedTrackCondition));
                 OnPropertyChanged(nameof(IsDry));
                 OnPropertyChanged(nameof(IsWet));
                 OnPropertyChanged(nameof(ShowDrySnapshotRows));
                 OnPropertyChanged(nameof(ShowWetSnapshotRows));
+                UpdateTrackConditionModeLabel();
                 UpdateLiveFuelChoiceDisplays();
                 UpdateProfileFuelChoiceDisplays();
 
@@ -1487,6 +1539,19 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(ProfileAvgFuelDisplay));
                 RefreshConditionParameters();
                 RaiseSourceWetFactorIndicators();
+        }
+    }
+
+    public string TrackConditionModeLabel
+    {
+        get => _trackConditionModeLabel;
+        private set
+        {
+            if (_trackConditionModeLabel != value)
+            {
+                _trackConditionModeLabel = value;
+                OnPropertyChanged(nameof(TrackConditionModeLabel));
+            }
         }
     }
 
@@ -1531,6 +1596,7 @@ namespace LaunchPlugin
                 OnPropertyChanged("TireChangeTime");
                 CalculateStrategy();
                 RaisePresetStateChanged();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1545,6 +1611,7 @@ namespace LaunchPlugin
                 _pitLaneTimeLoss = value;
                 OnPropertyChanged("PitLaneTimeLoss");
                 CalculateStrategy();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1587,6 +1654,7 @@ namespace LaunchPlugin
                 _formationLapFuelLiters = value;
                 OnPropertyChanged("FormationLapFuelLiters");
                 CalculateStrategy();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1681,6 +1749,7 @@ namespace LaunchPlugin
                 _wetFactorPercent = value;
                 OnPropertyChanged();
                 ApplyWetFactor();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1732,6 +1801,7 @@ namespace LaunchPlugin
                 OnPropertyChanged();
                 CalculateStrategy(); // Recalculate when changed
                 RaisePresetStateChanged();
+                MarkPlannerDirty();
             }
         }
     }
@@ -1748,6 +1818,7 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(IsContingencyLitres));
                 CalculateStrategy();
                 RaisePresetStateChanged();
+                MarkPlannerDirty();
             }
         }
     }
@@ -2056,6 +2127,73 @@ namespace LaunchPlugin
             $"All planner settings have been saved to the '{targetProfile.ProfileName}' profile for the track '{trackRecord.DisplayName}'.",
             "Planner Data Saved", MessageBoxButton.OK, MessageBoxImage.Information);
 
+        ResetPlannerDirty();
+
+    }
+
+    public void PromptToSaveLiveFuelOnExit()
+    {
+        if (!HasHigherQualityLiveFuelData(out var trackStats))
+        {
+            return;
+        }
+
+        var carName = _plugin.CurrentCarModel;
+        var trackLabel = trackStats?.DisplayName ?? _plugin.CurrentTrackName ?? _plugin.CurrentTrackKey;
+
+        var result = MessageBox.Show(
+            $"New live fuel data was collected for {carName} @ {trackLabel}. Save planner data to the profile before exiting?",
+            "Save Live Fuel Data?",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            _selectedCarProfile = _plugin.ActiveProfile;
+            _selectedTrack = _plugin.CurrentTrackKey ?? _plugin.CurrentTrackName;
+            SavePlannerDataToProfile();
+        }
+    }
+
+    private bool HasHigherQualityLiveFuelData(out TrackStats activeTrack)
+    {
+        activeTrack = null;
+
+        if (_plugin?.ActiveProfile == null)
+        {
+            return false;
+        }
+
+        var activeCarName = _plugin.CurrentCarModel;
+        var activeTrackKey = _plugin.CurrentTrackKey;
+
+        if (string.IsNullOrWhiteSpace(activeCarName) || string.Equals(activeCarName, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(activeTrackKey) || string.Equals(activeTrackKey, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.Equals(_plugin.ActiveProfile.ProfileName, activeCarName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        activeTrack = _plugin.ActiveProfile.ResolveTrackByNameOrKey(activeTrackKey)
+            ?? _plugin.ActiveProfile.ResolveTrackByNameOrKey(_plugin.CurrentTrackName);
+
+        if (activeTrack == null)
+        {
+            return false;
+        }
+
+        bool hasBetterDry = _liveDrySamples > 0 && _liveDryFuelAvg > 0 && _liveDrySamples > (activeTrack.DryFuelSampleCount ?? 0);
+        bool hasBetterWet = _liveWetSamples > 0 && _liveWetFuelAvg > 0 && _liveWetSamples > (activeTrack.WetFuelSampleCount ?? 0);
+
+        return hasBetterDry || hasBetterWet;
     }
 
     public void ReloadPresetsFromDisk()
@@ -2067,7 +2205,7 @@ namespace LaunchPlugin
     {
         try
         {
-            _availablePresets = LaunchPlugin.RacePresetStore.LoadAll();
+            _availablePresets = LaunchPlugin.RacePresetStore.LoadAll() ?? new List<RacePreset>();
 
             // Do NOT auto-select anything on load.
             // Leave both selection and applied preset null until the user picks one.
@@ -2092,70 +2230,142 @@ namespace LaunchPlugin
         }
     }
 
-    public void SavePresetEdits(string originalName, RacePreset updated)
+    private List<RacePreset> PresetList => _availablePresets ?? (_availablePresets = new List<RacePreset>());
+
+    private static void CopyPresetValues(RacePreset source, RacePreset target)
     {
-        if (updated == null || string.IsNullOrWhiteSpace(updated.Name)) return;
+        if (source == null || target == null) return;
 
-        var list = _availablePresets ?? new List<RacePreset>();
+        target.Type = source.Type;
+        target.RaceMinutes = source.RaceMinutes;
+        target.RaceLaps = source.RaceLaps;
+        target.MandatoryStopRequired = source.MandatoryStopRequired;
+        target.TireChangeTimeSec = source.TireChangeTimeSec;
+        target.MaxFuelLitres = source.MaxFuelLitres;
+        target.ContingencyInLaps = source.ContingencyInLaps;
+        target.ContingencyValue = source.ContingencyValue;
+    }
 
-        // Find by original name first (supports rename-on-save)
-        var existing = !string.IsNullOrWhiteSpace(originalName)
-            ? list.FirstOrDefault(x => string.Equals(x.Name, originalName, StringComparison.OrdinalIgnoreCase))
-            : list.FirstOrDefault(x => string.Equals(x.Name, updated.Name, StringComparison.OrdinalIgnoreCase));
+    private static RacePreset ClonePreset(RacePreset source)
+    {
+        if (source == null) return null;
 
-        var wasApplied =
-            _appliedPreset != null &&
-            existing != null &&
-            string.Equals(_appliedPreset.Name, existing.Name, StringComparison.OrdinalIgnoreCase);
-
-        if (existing == null)
+        return new RacePreset
         {
-            // New entry (not found by original/new name) => add one and then update it in-place
-            existing = new RacePreset();
-            list.Add(existing);
+            Name = source.Name,
+            Type = source.Type,
+            RaceMinutes = source.RaceMinutes,
+            RaceLaps = source.RaceLaps,
+            MandatoryStopRequired = source.MandatoryStopRequired,
+            TireChangeTimeSec = source.TireChangeTimeSec,
+            MaxFuelLitres = source.MaxFuelLitres,
+            ContingencyInLaps = source.ContingencyInLaps,
+            ContingencyValue = source.ContingencyValue
+        };
+    }
+
+    private RacePreset FindPresetByName(string name, RacePreset ignore = null)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
+        return PresetList.FirstOrDefault(x => !ReferenceEquals(x, ignore)
+            && string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private string GetUniquePresetName(string baseName, RacePreset ignore = null)
+    {
+        var seed = string.IsNullOrWhiteSpace(baseName) ? "Preset" : baseName.Trim();
+        var candidate = seed;
+        var i = 1;
+
+        while (FindPresetByName(candidate, ignore) != null)
+        {
+            i++;
+            candidate = $"{seed} {i}";
         }
 
-        // In-place update to keep references (ListBox selection etc.) stable
-        existing.Name = updated.Name;
-        existing.Type = updated.Type;
-        existing.RaceMinutes = updated.RaceMinutes;
-        existing.RaceLaps = updated.RaceLaps;
-        existing.MandatoryStopRequired = updated.MandatoryStopRequired;
-        existing.TireChangeTimeSec = updated.TireChangeTimeSec;
-        existing.MaxFuelLitres = updated.MaxFuelLitres;
-        existing.ContingencyInLaps = updated.ContingencyInLaps;
-        existing.ContingencyValue = updated.ContingencyValue;
+        return candidate;
+    }
 
-        // Persist
-        LaunchPlugin.RacePresetStore.SaveAll(list);
+    private RacePreset CreateOrUpdatePreset(RacePreset template, string originalName, bool allowOverwrite, bool forceUniqueName)
+    {
+        if (template == null || string.IsNullOrWhiteSpace(template.Name))
+            throw new ArgumentException("Preset must include a name.", nameof(template));
 
-        // Force the ItemsSource to refresh without touching _selectedPreset
-        _availablePresets = list.ToList();
+        var requestedName = template.Name.Trim();
+        var list = PresetList;
 
-        // If the applied preset is the one we just edited, apply it live so Fuel values refresh
-        if (wasApplied)
+        var target = FindPresetByName(originalName);
+        if (target == null)
         {
-            _appliedPreset = existing;
-            ApplySelectedPreset();
+            target = FindPresetByName(requestedName);
+        }
+
+        var finalName = forceUniqueName ? GetUniquePresetName(requestedName, target) : requestedName;
+        var conflict = FindPresetByName(finalName, target);
+
+        if (conflict != null && !allowOverwrite)
+        {
+            throw new InvalidOperationException("A preset with that name already exists.");
+        }
+
+        if (conflict != null)
+        {
+            target = conflict;
+        }
+
+        if (target == null)
+        {
+            target = new RacePreset();
+            list.Add(target);
+        }
+
+        CopyPresetValues(template, target);
+        target.Name = finalName;
+
+        return target;
+    }
+
+    private RacePreset ResolveSelection(RacePreset desired)
+    {
+        if (desired != null && PresetList.Contains(desired))
+            return desired;
+
+        return desired == null ? null : PresetList.FirstOrDefault();
+    }
+
+    private RacePreset ResolveAppliedPreset(RacePreset desired)
+    {
+        if (desired != null && PresetList.Contains(desired))
+            return desired;
+
+        return null;
+    }
+
+    private void CommitPresetChanges(RacePreset preferredSelection, bool reapplyAppliedPreset)
+    {
+        LaunchPlugin.RacePresetStore.SaveAll(PresetList);
+
+        _selectedPreset = ResolveSelection(preferredSelection ?? _selectedPreset);
+        _appliedPreset = ResolveAppliedPreset(_appliedPreset);
+
+        OnPropertyChanged(nameof(AvailablePresets));
+        OnPropertyChanged(nameof(SelectedPreset));
+        OnPropertyChanged(nameof(HasSelectedPreset));
+
+        if (reapplyAppliedPreset && _appliedPreset != null)
+        {
+            ApplyPresetValues(_appliedPreset);
         }
         else
         {
             RaisePresetStateChanged();
         }
-
-        OnPropertyChanged(nameof(AvailablePresets));
-        // We did NOT change SelectedPreset; no need to re-raise unless your UI requires it
-        OnPropertyChanged(nameof(HasSelectedPreset));
     }
 
-    public void SaveCurrentAsPreset(string name, bool overwriteIfExists)
+    private RacePreset BuildPresetFromCurrentState(string name)
     {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Preset name cannot be empty.", nameof(name));
-
-        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
-
-        var p = new RacePreset
+        return new RacePreset
         {
             Name = name,
             Type = IsTimeLimitedRace ? RacePresetType.TimeLimited : RacePresetType.LapLimited,
@@ -2169,76 +2379,87 @@ namespace LaunchPlugin
             ContingencyInLaps = IsContingencyInLaps,
             ContingencyValue = ContingencyValue
         };
+    }
 
-        var existing = list.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
-        if (existing != null)
+    private RacePreset BuildDefaultPresetTemplate()
+    {
+        return new RacePreset
         {
-            if (!overwriteIfExists)
-                throw new InvalidOperationException("A preset with that name already exists.");
-            var idx = list.IndexOf(existing);
-            list[idx] = p;
-        }
-        else
-        {
-            list.Add(p);
-        }
+            Name = "New Preset",
+            Type = RacePresetType.TimeLimited,
+            RaceLaps = null,
+            RaceMinutes = 40,
+            MandatoryStopRequired = false,
+            TireChangeTimeSec = 23,
+            MaxFuelLitres = 110,
+            ContingencyInLaps = true,
+            ContingencyValue = 1
+        };
+    }
 
-        LaunchPlugin.RacePresetStore.SaveAll(list);
+    public RacePreset CreatePresetFromDefaults()
+    {
+        var template = BuildDefaultPresetTemplate();
+        var preset = CreateOrUpdatePreset(template, originalName: null, allowOverwrite: false, forceUniqueName: true);
 
-        // Refresh the collection instance so UI lists redraw, but do NOT change Fuel tab selection
-        _availablePresets = list.ToList();
+        CommitPresetChanges(preferredSelection: preset, reapplyAppliedPreset: false);
+        return preset;
+    }
 
-        // DO NOT touch _selectedPreset or _appliedPreset here.
-        OnPropertyChanged(nameof(AvailablePresets));
-        OnPropertyChanged(nameof(HasSelectedPreset));
-        RaisePresetStateChanged();
+    public RacePreset SavePresetEdits(string originalName, RacePreset updated)
+    {
+        if (updated == null || string.IsNullOrWhiteSpace(updated.Name)) return null;
+
+        var template = ClonePreset(updated);
+        var preset = CreateOrUpdatePreset(template, originalName, allowOverwrite: false, forceUniqueName: string.IsNullOrWhiteSpace(originalName));
+
+        var keepSelection = ReferenceEquals(_selectedPreset, preset)
+            || (!string.IsNullOrWhiteSpace(originalName)
+                && _selectedPreset != null
+                && string.Equals(_selectedPreset.Name, originalName, StringComparison.OrdinalIgnoreCase));
+        var wasApplied = ReferenceEquals(_appliedPreset, preset);
+
+        CommitPresetChanges(preferredSelection: keepSelection ? preset : null, reapplyAppliedPreset: wasApplied);
+        return preset;
+    }
+
+    public RacePreset SaveCurrentAsPreset(string name, bool overwriteIfExists)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Preset name cannot be empty.", nameof(name));
+
+        var template = BuildPresetFromCurrentState(name);
+        var preset = CreateOrUpdatePreset(template, originalName: null, allowOverwrite: overwriteIfExists, forceUniqueName: !overwriteIfExists);
+
+        CommitPresetChanges(preferredSelection: preset, reapplyAppliedPreset: false);
+        return preset;
     }
 
     public void DeletePreset(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return;
-        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
-        var match = list.FirstOrDefault(x => string.Equals(x.Name, name, StringComparison.OrdinalIgnoreCase));
+        var match = FindPresetByName(name);
         if (match == null) return;
 
-        list.Remove(match);
-        LaunchPlugin.RacePresetStore.SaveAll(list);
+        PresetList.Remove(match);
+        var preferSelection = ReferenceEquals(_selectedPreset, match) ? PresetList.FirstOrDefault() : null;
 
-        _availablePresets = list;
-        if (_selectedPreset == match) _selectedPreset = list.FirstOrDefault();
-        if (_appliedPreset == match) _appliedPreset = null;
-
-        OnPropertyChanged(nameof(AvailablePresets));
-        OnPropertyChanged(nameof(SelectedPreset));
-        OnPropertyChanged(nameof(HasSelectedPreset));
-        RaisePresetStateChanged();
+        CommitPresetChanges(preferredSelection: preferSelection, reapplyAppliedPreset: false);
     }
 
     public void RenamePreset(string oldName, string newName)
     {
         if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName)) return;
 
-        var list = _availablePresets?.ToList() ?? new List<RacePreset>();
-        var match = list.FirstOrDefault(x => string.Equals(x.Name, oldName, StringComparison.OrdinalIgnoreCase));
+        var match = FindPresetByName(oldName);
         if (match == null) return;
 
-        if (list.Any(x => string.Equals(x.Name, newName, StringComparison.OrdinalIgnoreCase)))
+        if (FindPresetByName(newName, match) != null)
             throw new InvalidOperationException("A preset with that name already exists.");
 
-        match.Name = newName;
-        LaunchPlugin.RacePresetStore.SaveAll(list);
+        match.Name = newName.Trim();
 
-        // keep selection/applied pointers stable
-        _availablePresets = list;
-        if (_selectedPreset != null && string.Equals(_selectedPreset.Name, oldName, StringComparison.OrdinalIgnoreCase))
-            _selectedPreset = match;
-        if (_appliedPreset != null && string.Equals(_appliedPreset.Name, oldName, StringComparison.OrdinalIgnoreCase))
-            _appliedPreset = match;
-
-        OnPropertyChanged(nameof(AvailablePresets));
-        OnPropertyChanged(nameof(SelectedPreset));
-        OnPropertyChanged(nameof(HasSelectedPreset));
-        RaisePresetStateChanged();
+        CommitPresetChanges(preferredSelection: match, reapplyAppliedPreset: ReferenceEquals(_appliedPreset, match));
     }
 
     // Unique id to make sure the UI and the engine are the same instance
@@ -2262,6 +2483,7 @@ namespace LaunchPlugin
         UseMaxFuelPerLapCommand = new RelayCommand(_ => UseMaxFuelPerLap(), _ => IsMaxFuelAvailable);
         SetLiveMaxFuelOverrideCommand = new RelayCommand(_ => ApplyLiveMaxFuelSuggestion(), _ => HasLiveMaxFuelSuggestion);
         RefreshLiveSnapshotCommand = new RelayCommand(_ => RefreshLiveSnapshot());
+        RefreshPlannerViewCommand = new RelayCommand(_ => RefreshPlannerView());
         ResetEstimatedLapTimeToSourceCommand = new RelayCommand(_ => ResetEstimatedLapTimeToSource());
         ResetFuelPerLapToSourceCommand = new RelayCommand(_ => ResetFuelPerLapToSource());
         ResetLeaderDeltaToLiveCommand = new RelayCommand(_ => ResetLeaderDeltaToLive());
@@ -2281,6 +2503,7 @@ namespace LaunchPlugin
             _ => _selectedCarProfile != null && !string.IsNullOrEmpty(_selectedTrack)
         );
         SetUIDefaults();
+        UpdateTrackConditionModeLabel();
         CalculateStrategy();
     }
 
@@ -2624,6 +2847,41 @@ namespace LaunchPlugin
         }
 
         return $"Fuel {LiveFuelConfidence}% | Pace {LivePaceConfidence}% | Overall {LiveOverallConfidence}%";
+    }
+
+    private void MaybeAutoApplyTrackConditionFromTelemetry(bool? isDeclaredWet)
+    {
+        if (_isTrackConditionManualOverride || !isDeclaredWet.HasValue)
+        {
+            UpdateTrackConditionModeLabel();
+            return;
+        }
+
+        var liveCondition = isDeclaredWet.Value ? TrackCondition.Wet : TrackCondition.Dry;
+        if (SelectedTrackCondition != liveCondition)
+        {
+            _isApplyingAutomaticTrackCondition = true;
+            SelectedTrackCondition = liveCondition;
+            _isApplyingAutomaticTrackCondition = false;
+        }
+
+        UpdateTrackConditionModeLabel();
+    }
+
+    private void UpdateTrackConditionModeLabel()
+    {
+        string modeText;
+        if (_isTrackConditionManualOverride)
+        {
+            modeText = "Manual override";
+        }
+        else
+        {
+            string condition = IsWet ? "wet" : "dry";
+            modeText = $"Automatic ({condition})";
+        }
+
+        TrackConditionModeLabel = modeText;
     }
 
     private void UpdateSurfaceModeLabel()
@@ -3070,170 +3328,227 @@ namespace LaunchPlugin
     {
         LoadProfileData();
     }
+
+    public void RefreshPlannerView()
+    {
+        _suppressPlannerDirtyUpdates = true;
+        try
+        {
+            // Keep the car selection aligned with the active profile if available
+            var activeProfile = _plugin?.ActiveProfile;
+            if (activeProfile != null && !ReferenceEquals(SelectedCarProfile, activeProfile))
+            {
+                SelectedCarProfile = activeProfile;
+            }
+
+            // Re-resolve the track against the active profile and live telemetry identifiers
+            TrackStats resolvedTrack = SelectedTrackStats;
+            if (SelectedCarProfile != null)
+            {
+                var liveTrackKey = _plugin?.CurrentTrackKey;
+                var liveTrackName = _plugin?.CurrentTrackName;
+
+                resolvedTrack = SelectedCarProfile.ResolveTrackByNameOrKey(
+                                    resolvedTrack?.Key
+                                    ?? (!string.IsNullOrWhiteSpace(liveTrackKey) ? liveTrackKey : liveTrackName)
+                                    ?? SelectedTrack)
+                               ?? resolvedTrack;
+            }
+
+            if (!ReferenceEquals(resolvedTrack, SelectedTrackStats) && resolvedTrack != null)
+            {
+                _suppressProfileDataReload = true;
+                SelectedTrackStats = resolvedTrack;
+                _suppressProfileDataReload = false;
+            }
+
+            LoadProfileData();
+            RefreshProfilePlanningData();
+            RefreshConditionParameters();
+            UpdateTrackDerivedSummaries();
+            UpdateFuelBurnSummaries();
+            UpdateLiveFuelChoiceDisplays();
+            CalculateStrategy();
+        }
+        finally
+        {
+            _suppressPlannerDirtyUpdates = false;
+            ResetPlannerDirty();
+        }
+    }
     public void LoadProfileData()
     {
-        if (SelectedCarProfile == null || string.IsNullOrEmpty(SelectedTrack))
+        _suppressPlannerDirtyUpdates = true;
+        try
         {
-            _lastLoadedCarProfile = null;
-            _lastLoadedTrackKey = null;
-            SetUIDefaults();
-            CalculateStrategy();
-            return;
-        }
-
-        var car = SelectedCarProfile;
-
-        // Keep an internal object reference in sync with the dropdown string
-        SelectedTrackStats = ResolveSelectedTrackStats();
-        var ts = SelectedTrackStats;
-
-        var trackKey = ts?.Key ?? SelectedTrack;
-        bool carChanged = !ReferenceEquals(car, _lastLoadedCarProfile);
-
-        // Always clear stale track-scoped state before applying new data so
-        // a car/track swap cannot leak lap times or fuel numbers from the
-        // previous selection (e.g., switching from McLaren 720S to Ferrari 296).
-        ResetTrackScopedProfileData();
-
-        if (ts == null)
-        {
-            UpdateProfileAverageDisplaysForCondition(null);
-            UpdateTrackDerivedSummaries();
-            CalculateStrategy();
-            _lastLoadedCarProfile = car;
-            _lastLoadedTrackKey = trackKey;
-            return;
-        }
-
-        // --- Load Refuel Rate and car-level settings only when the car changes ---
-        if (carChanged || _lastLoadedCarProfile == null)
-        {
-            this._refuelRate = car.RefuelRate;
-            this.ContingencyValue = car.FuelContingencyValue;
-            this.IsContingencyInLaps = car.IsContingencyInLaps;
-            this.WetFactorPercent = car.WetFuelMultiplier;
-        }
-
-        if (ts?.BestLapMs is int ms && ms > 0)
-        {
-            _loadedBestLapTimeSeconds = ms / 1000.0;
-            IsPersonalBestAvailable = true;
-            HistoricalBestLapDisplay = TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss\.fff");
-        }
-        else
-        {
-            _loadedBestLapTimeSeconds = 0;
-            IsPersonalBestAvailable = false;
-            HistoricalBestLapDisplay = "-";
-        }
-        // Manually notify the UI that these properties have changed
-        OnPropertyChanged(nameof(IsPersonalBestAvailable));
-        OnPropertyChanged(nameof(HistoricalBestLapDisplay));
-
-
-        // --- Set the initial estimated lap time from the profile's condition average ---
-        var initialLap = GetProfileAverageLapTimeForCurrentCondition();
-        if (initialLap.HasValue)
-        {
-            EstimatedLapTime = initialLap.Value.ToString(@"m\:ss\.fff");
-            LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
-        }
-        else
-        {
-            // If there's no data at all, use the UI default
-            EstimatedLapTime = "2:45.500";
-            LapTimeSourceInfo = "Manual (user entry)";
-        }
-
-        // --- Load historical/track-specific data ---
-        if (ts?.AvgFuelPerLapDry is double avg && avg > 0)
-        {
-            _baseDryFuelPerLap = avg;
-
-            var initialFuel = GetProfileAverageFuelPerLapForCurrentCondition();
-            if (initialFuel.HasValue)
+            if (SelectedCarProfile == null || string.IsNullOrEmpty(SelectedTrack))
             {
-                FuelPerLap = initialFuel.Value;
-                FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile avg");
-                double factor = WetFactorPercent / 100.0;
-                if (IsWet && ts.AvgFuelPerLapWet.HasValue && ts.AvgFuelPerLapWet.Value > 0)
-                {
-                    FuelPerLap = ts.AvgFuelPerLapWet.Value;
-                    FuelPerLapSourceInfo = "Profile avg (wet)";
-                }
-                else if (IsWet)
-                {
-                    FuelPerLap = avg * factor;
-                    FuelPerLapSourceInfo = "Profile dry avg × wet factor";
-                }
-                else
-                {
-                    FuelPerLap = avg;
-                    FuelPerLapSourceInfo = "Profile avg (dry)";
-                }
+                _lastLoadedCarProfile = null;
+                _lastLoadedTrackKey = null;
+                SetUIDefaults();
+                CalculateStrategy();
+                return;
+            }
+
+            var car = SelectedCarProfile;
+
+            // Keep an internal object reference in sync with the dropdown string
+            SelectedTrackStats = ResolveSelectedTrackStats();
+            var ts = SelectedTrackStats;
+
+            var trackKey = ts?.Key ?? SelectedTrack;
+            bool carChanged = !ReferenceEquals(car, _lastLoadedCarProfile);
+
+            // Always clear stale track-scoped state before applying new data so
+            // a car/track swap cannot leak lap times or fuel numbers from the
+            // previous selection (e.g., switching from McLaren 720S to Ferrari 296).
+            ResetTrackScopedProfileData();
+
+            if (ts == null)
+            {
+                UpdateProfileAverageDisplaysForCondition(null);
+                UpdateTrackDerivedSummaries();
+                CalculateStrategy();
+                _lastLoadedCarProfile = car;
+                _lastLoadedTrackKey = trackKey;
+                return;
+            }
+
+            // --- Load Refuel Rate and car-level settings only when the car changes ---
+            if (carChanged || _lastLoadedCarProfile == null)
+            {
+                this._refuelRate = car.RefuelRate;
+                this.ContingencyValue = car.FuelContingencyValue;
+                this.IsContingencyInLaps = car.IsContingencyInLaps;
+                this.WetFactorPercent = car.WetFuelMultiplier;
+            }
+
+            if (ts?.BestLapMs is int ms && ms > 0)
+            {
+                _loadedBestLapTimeSeconds = ms / 1000.0;
+                IsPersonalBestAvailable = true;
+                HistoricalBestLapDisplay = TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss\.fff");
             }
             else
             {
-                // Handle case where track exists but has no fuel data.
-                // Reset to the global default value and update the source text.
-                var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
-                var defaultFuel = defaultProfile?.TrackStats?["default"]?.AvgFuelPerLapDry ?? 2.8;
-                FuelPerLap = defaultFuel;
-                FuelPerLapSourceInfo = "Default";
+                _loadedBestLapTimeSeconds = 0;
+                IsPersonalBestAvailable = false;
+                HistoricalBestLapDisplay = "-";
             }
+            // Manually notify the UI that these properties have changed
+            OnPropertyChanged(nameof(IsPersonalBestAvailable));
+            OnPropertyChanged(nameof(HistoricalBestLapDisplay));
 
-            if (ts?.PitLaneLossSeconds is double pll && pll > 0)
+
+            // --- Set the initial estimated lap time from the profile's condition average ---
+            var initialLap = GetProfileAverageLapTimeForCurrentCondition();
+            if (initialLap.HasValue)
             {
-                PitLaneTimeLoss = pll;
-                SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
+                EstimatedLapTime = initialLap.Value.ToString(@"m\:ss\.fff");
+                LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
             }
-
-            // --- CONSOLIDATED: Populate all display properties ---
-            var dryLap = ts?.AvgLapTimeDry;
-            var wetLap = ts?.AvgLapTimeWet;
-            var dryFuel = ts?.AvgFuelPerLapDry;
-            var wetFuel = ts?.AvgFuelPerLapWet;
-
-            UpdateProfileAverageDisplays();
-
-            ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
-                ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
-                : "-";
-
-            ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
-                ? dryFuel.Value.ToString("F2") + " L"
-                : "-";
-
-            HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
-
-            _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
-            _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
-            _profileDryFuelMax = ts?.MaxFuelPerLapDry ?? 0;
-            _profileDrySamples = ts?.DryFuelSampleCount ?? 0;
-            _profileWetFuelAvg = ts?.AvgFuelPerLapWet ?? 0;
-            _profileWetFuelMin = ts?.MinFuelPerLapWet ?? 0;
-            _profileWetFuelMax = ts?.MaxFuelPerLapWet ?? 0;
-            _profileWetSamples = ts?.WetFuelSampleCount ?? 0;
-
-            UpdateProfileFuelChoiceDisplays();
-            UpdateFuelBurnSummaries();
-
-            RefreshConditionParameters();
-            // Only reset race-strategy defaults when the car changes; track changes should not touch these values.
-            if (carChanged)
+            else
             {
-                // When switching cars, reinitialize the max-fuel override from the new car's tank size
-                // (or default) but keep the user's race duration/type selections intact.
-                ResetStrategyInputs(preserveMaxFuel: false, preserveRaceDuration: true);
+                // If there's no data at all, use the UI default
+                EstimatedLapTime = "2:45.500";
+                LapTimeSourceInfo = "Manual (user entry)";
             }
 
-            // Recompute with the newly loaded data
-            CalculateStrategy();
+            // --- Load historical/track-specific data ---
+            if (ts?.AvgFuelPerLapDry is double avg && avg > 0)
+            {
+                _baseDryFuelPerLap = avg;
 
-            UpdateTrackDerivedSummaries();
+                var initialFuel = GetProfileAverageFuelPerLapForCurrentCondition();
+                if (initialFuel.HasValue)
+                {
+                    FuelPerLap = initialFuel.Value;
+                    FuelPerLapSourceInfo = FormatConditionSourceLabel("Profile avg");
+                    double factor = WetFactorPercent / 100.0;
+                    if (IsWet && ts.AvgFuelPerLapWet.HasValue && ts.AvgFuelPerLapWet.Value > 0)
+                    {
+                        FuelPerLap = ts.AvgFuelPerLapWet.Value;
+                        FuelPerLapSourceInfo = "Profile avg (wet)";
+                    }
+                    else if (IsWet)
+                    {
+                        FuelPerLap = avg * factor;
+                        FuelPerLapSourceInfo = "Profile dry avg × wet factor";
+                    }
+                    else
+                    {
+                        FuelPerLap = avg;
+                        FuelPerLapSourceInfo = "Profile avg (dry)";
+                    }
+                }
+                else
+                {
+                    // Handle case where track exists but has no fuel data.
+                    // Reset to the global default value and update the source text.
+                    var defaultProfile = _plugin.ProfilesViewModel.GetProfileForCar("Default Settings");
+                    var defaultFuel = defaultProfile?.TrackStats?["default"]?.AvgFuelPerLapDry ?? 2.8;
+                    FuelPerLap = defaultFuel;
+                    FuelPerLapSourceInfo = "Default";
+                }
 
-            _lastLoadedCarProfile = car;
-            _lastLoadedTrackKey = trackKey;
+                if (ts?.PitLaneLossSeconds is double pll && pll > 0)
+                {
+                    PitLaneTimeLoss = pll;
+                    SetLastPitDriveThroughSeconds(PitLaneTimeLoss);
+                }
+
+                // --- CONSOLIDATED: Populate all display properties ---
+                var dryLap = ts?.AvgLapTimeDry;
+                var wetLap = ts?.AvgLapTimeWet;
+                var dryFuel = ts?.AvgFuelPerLapDry;
+                var wetFuel = ts?.AvgFuelPerLapWet;
+
+                UpdateProfileAverageDisplays();
+
+                ProfileAvgDryLapTimeDisplay = (dryLap.HasValue && dryLap.Value > 0)
+                    ? TimeSpan.FromMilliseconds(dryLap.Value).ToString(@"m\:ss\.fff")
+                    : "-";
+
+                ProfileAvgDryFuelDisplay = (dryFuel.HasValue && dryFuel.Value > 0)
+                    ? dryFuel.Value.ToString("F2") + " L"
+                    : "-";
+
+                HasProfileFuelPerLap = ts?.AvgFuelPerLapDry > 0 || ts?.AvgFuelPerLapWet > 0;
+
+                _profileDryFuelAvg = ts?.AvgFuelPerLapDry ?? 0;
+                _profileDryFuelMin = ts?.MinFuelPerLapDry ?? 0;
+                _profileDryFuelMax = ts?.MaxFuelPerLapDry ?? 0;
+                _profileDrySamples = ts?.DryFuelSampleCount ?? 0;
+                _profileWetFuelAvg = ts?.AvgFuelPerLapWet ?? 0;
+                _profileWetFuelMin = ts?.MinFuelPerLapWet ?? 0;
+                _profileWetFuelMax = ts?.MaxFuelPerLapWet ?? 0;
+                _profileWetSamples = ts?.WetFuelSampleCount ?? 0;
+
+                UpdateProfileFuelChoiceDisplays();
+                UpdateFuelBurnSummaries();
+
+                RefreshConditionParameters();
+                // Only reset race-strategy defaults when the car changes; track changes should not touch these values.
+                if (carChanged)
+                {
+                    // When switching cars, reinitialize the max-fuel override from the new car's tank size
+                    // (or default) but keep the user's race duration/type selections intact.
+                    ResetStrategyInputs(preserveMaxFuel: false, preserveRaceDuration: true);
+                }
+
+                // Recompute with the newly loaded data
+                CalculateStrategy();
+
+                UpdateTrackDerivedSummaries();
+
+                _lastLoadedCarProfile = car;
+                _lastLoadedTrackKey = trackKey;
+            }
+        }
+        finally
+        {
+            _suppressPlannerDirtyUpdates = false;
+            ResetPlannerDirty();
         }
     }
 

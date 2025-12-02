@@ -189,6 +189,14 @@ namespace LaunchPlugin
         private int _seedWetSampleCount = 0;
         private string _seedCarModel = "";
         private string _seedTrackKey = "";
+        private bool _hasActiveDrySeed = false;
+        private bool _hasActiveWetSeed = false;
+        private int _freshDrySamplesInWindow = 0;
+        private int _freshWetSamplesInWindow = 0;
+        private string _confidenceCarModel = string.Empty;
+        private string _confidenceTrackIdentity = string.Empty;
+        private bool _usingFallbackFuelProfile = false;
+        private bool _usingFallbackPaceProfile = false;
 
         // --- Live Fuel Calculation Outputs ---
         public double LiveFuelPerLap { get; private set; }
@@ -301,6 +309,22 @@ namespace LaunchPlugin
             return (arr.Length % 2 == 1) ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2.0;
         }
 
+        private static double ComputeCoefficientOfVariation(List<double> samples, double average)
+        {
+            if (samples == null || samples.Count == 0 || average <= 0.0) return 0.0;
+            if (samples.Count == 1) return 0.0;
+
+            double sumSquared = 0.0;
+            foreach (var s in samples)
+            {
+                double delta = s - average;
+                sumSquared += delta * delta;
+            }
+
+            double variance = sumSquared / samples.Count;
+            return Math.Sqrt(variance) / average;
+        }
+
         // Returns profile average lap in *seconds* for the current car+track, 0 if none.
         // Prefers Dry avg, falls back to Wet if Dry is unset.
         private double GetProfileAvgLapSeconds()
@@ -352,102 +376,103 @@ namespace LaunchPlugin
             }
         }
 
-        // 0–100 confidence for the current mode, based on lap count, baseline deviation, and variance
-        // 0–100 confidence for the current mode, based on lap count, baseline deviation, and variance
+        // 0–100 confidence for the current mode using weighted samples, variance, wet/dry match, and fallback usage
         private int ComputeFuelModelConfidence(bool isWetMode)
         {
-            var count = isWetMode ? _validWetLaps : _validDryLaps;
             var window = isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
             var avg = isWetMode ? _avgWetFuelPerLap : _avgDryFuelPerLap;
+            var min = isWetMode ? _minWetFuelPerLap : _minDryFuelPerLap;
+            var max = isWetMode ? _maxWetFuelPerLap : _maxDryFuelPerLap;
 
-            // Base confidence from sample count (C# 7.3-friendly)
-            int baseConf;
-            if (count <= 0)
-                baseConf = 0;
-            else if (count == 1)
-                baseConf = 40;
-            else if (count == 2)
-                baseConf = 65;
-            else if (count == 3 || count == 4)
-                baseConf = 80;
+            int freshSamples = isWetMode ? _freshWetSamplesInWindow : _freshDrySamplesInWindow;
+            bool hasSeed = isWetMode ? _hasActiveWetSeed : _hasActiveDrySeed;
+
+            if (window.Count <= 0 || avg <= 0.0)
+                return 0;
+
+            double inheritedFloor = hasSeed ? 0.30 : 0.0; // seeded laps should give a small/moderate start
+            double weightedSampleCount = freshSamples + (hasSeed ? 0.35 : 0.0);
+            double sampleFactor = Math.Min(1.0, inheritedFloor + (weightedSampleCount / 5.0));
+
+            // Variance factor (uses both coefficient of variation and spread)
+            double varianceFactor;
+            double cv = ComputeCoefficientOfVariation(window, avg);
+            if (window.Count == 1)
+                varianceFactor = 0.85; // single sample: allow moderate confidence only
+            else if (cv <= 0.03)
+                varianceFactor = 1.0;
+            else if (cv <= 0.08)
+                varianceFactor = 0.9;
+            else if (cv <= 0.15)
+                varianceFactor = 0.7;
             else
-                baseConf = 100;
+                varianceFactor = 0.5;
 
-            // Penalty for deviation from profile baseline
-            var baselines = GetProfileFuelBaselines();
-            double baseline = isWetMode ? baselines.wet : baselines.dry; // or Item2/Item1 if you prefer
-            double penaltyBaseline = 0.0;
-
-            if (baseline > 0 && avg > 0)
+            double spreadFactor = 1.0;
+            if (avg > 0.0 && max > 0.0 && min > 0.0)
             {
-                var ratio = avg / baseline;
-                var absDev = Math.Abs(ratio - 1.0);
-
-                // No penalty in [0.9, 1.1]; then scale up to -50%
-                if (absDev > 0.1)
-                {
-                    penaltyBaseline = Math.Min(50.0, (absDev - 0.1) * 200.0);
-                }
+                double spreadRatio = (max - min) / avg;
+                if (spreadRatio > 0.25)
+                    spreadFactor = 0.75;
+                if (spreadRatio > 0.40)
+                    spreadFactor = 0.55;
             }
 
-            // Penalty for high internal variance in the sliding window
-            double penaltyVar = 0.0;
-            if (window.Count >= 3 && avg > 0)
-            {
-                double min = window.Min();
-                double max = window.Max();
-                double spread = max - min;
+            // Wet/dry match penalty when we are borrowing opposite-condition data
+            bool hasModeData = isWetMode ? _validWetLaps > 0 : _validDryLaps > 0;
+            bool usingCrossModeData = !hasModeData && ((isWetMode && _validDryLaps > 0) || (!isWetMode && _validWetLaps > 0));
+            double wetMatchFactor = usingCrossModeData ? 0.6 : 1.0;
 
-                if (spread / avg > 0.15) // >15% spread
-                {
-                    penaltyVar = 20.0;
-                }
-            }
+            double fallbackFactor = _usingFallbackFuelProfile ? 0.65 : 1.0;
 
-            double finalConf = baseConf - penaltyBaseline - penaltyVar;
-            if (finalConf < 0.0) finalConf = 0.0;
-            if (finalConf > 100.0) finalConf = 100.0;
+            double final = sampleFactor * varianceFactor * spreadFactor * wetMatchFactor * fallbackFactor;
+            if (final < 0.0) final = 0.0;
+            if (final > 1.0) final = 1.0;
 
-            return (int)Math.Round(finalConf);
+            return (int)Math.Round(final * 100.0);
         }
 
-        // 0–100 confidence for the lap-time model, based on clean sample count and variance
+        // 0–100 confidence for the lap-time model using sample strength, pace variance, and fallback weighting
         private int ComputePaceConfidence()
         {
             int count = _recentLapTimes.Count;
             if (count <= 0) return 0;
 
-            int baseConf;
-            if (count == 1)
-                baseConf = 40;
-            else if (count == 2)
-                baseConf = 65;
-            else if (count == 3 || count == 4)
-                baseConf = 80;
-            else
-                baseConf = 100;
-
             double avg = _recentLapTimes.Average();
-            double penaltyVar = 0.0;
+            if (avg <= 0.0) return 0;
 
-            if (count >= 3 && avg > 0.0)
-            {
-                double min = _recentLapTimes.Min();
-                double max = _recentLapTimes.Max();
-                double spread = max - min;
+            double sampleFactor = Math.Min(1.0, 0.2 + (count / 6.0));
 
-                // If lap times vary more than 3% across the window, knock confidence down
-                if (spread / avg > 0.03)
-                {
-                    penaltyVar = 20.0;
-                }
-            }
+            double varianceFactor;
+            double cv = ComputeCoefficientOfVariation(_recentLapTimes, avg);
+            if (count == 1)
+                varianceFactor = 0.8;
+            else if (cv <= 0.015)
+                varianceFactor = 1.0;
+            else if (cv <= 0.04)
+                varianceFactor = 0.9;
+            else if (cv <= 0.08)
+                varianceFactor = 0.7;
+            else
+                varianceFactor = 0.5;
 
-            double finalConf = baseConf - penaltyVar;
-            if (finalConf < 0.0) finalConf = 0.0;
-            if (finalConf > 100.0) finalConf = 100.0;
+            double spreadFactor = 1.0;
+            double min = _recentLapTimes.Min();
+            double max = _recentLapTimes.Max();
+            double spreadRatio = avg > 0 ? (max - min) / avg : 0.0;
+            if (spreadRatio > 0.06)
+                spreadFactor = 0.8;
+            if (spreadRatio > 0.12)
+                spreadFactor = 0.6;
 
-            return (int)Math.Round(finalConf);
+            bool fallbackUsed = _usingFallbackPaceProfile || count < 2;
+            double fallbackFactor = fallbackUsed ? 0.7 : 1.0;
+
+            double final = sampleFactor * varianceFactor * spreadFactor * fallbackFactor;
+            if (final < 0.0) final = 0.0;
+            if (final > 1.0) final = 1.0;
+
+            return (int)Math.Round(final * 100.0);
         }
 
         private void UpdateLeaderDelta()
@@ -541,6 +566,13 @@ namespace LaunchPlugin
             _hadOffTrackThisLap = false;
             _latchedIncidentReason = null;
             _lastPitLaneSeenUtc = DateTime.MinValue;
+            _freshDrySamplesInWindow = 0;
+            _freshWetSamplesInWindow = 0;
+            _hasActiveDrySeed = false;
+            _hasActiveWetSeed = false;
+            _usingFallbackFuelProfile = false;
+
+            FuelCalculator?.ResetTrackConditionOverrideForSessionChange();
 
             // Clear pace tracking alongside fuel model resets so session transitions don't carry stale data
             _recentLapTimes.Clear();
@@ -552,6 +584,7 @@ namespace LaunchPlugin
             Pace_Last5LapAvgSec = 0.0;
             Pace_LeaderDeltaToPlayerSec = 0.0;
             PaceConfidence = 0;
+            _usingFallbackPaceProfile = false;
 
             LiveFuelPerLap = 0.0;
             Confidence = 0;
@@ -575,6 +608,7 @@ namespace LaunchPlugin
                     _avgDryFuelPerLap = _seedDryFuelPerLap;
                     _maxDryFuelPerLap = _seedDryFuelPerLap;
                     _minDryFuelPerLap = _seedDryFuelPerLap;
+                    _hasActiveDrySeed = true;
                     seededAny = true;
                 }
 
@@ -585,6 +619,7 @@ namespace LaunchPlugin
                     _avgWetFuelPerLap = _seedWetFuelPerLap;
                     _maxWetFuelPerLap = _seedWetFuelPerLap;
                     _minWetFuelPerLap = _seedWetFuelPerLap;
+                    _hasActiveWetSeed = true;
                     seededAny = true;
                 }
 
@@ -608,6 +643,29 @@ namespace LaunchPlugin
                 FuelCalculator?.SetLiveFuelWindowStats(_avgDryFuelPerLap, _minDryFuelPerLap, _maxDryFuelPerLap, _validDryLaps,
                     _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
             }
+
+            _confidenceCarModel = CurrentCarModel ?? string.Empty;
+            _confidenceTrackIdentity =
+                !string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase)
+                    ? CurrentTrackKey
+                    : (CurrentTrackName ?? string.Empty);
+        }
+
+        private void ResetConfidenceForNewCombo(string sessionType)
+        {
+            _seedDryFuelPerLap = 0.0;
+            _seedDrySampleCount = 0;
+            _seedWetFuelPerLap = 0.0;
+            _seedWetSampleCount = 0;
+            _seedCarModel = string.Empty;
+            _seedTrackKey = string.Empty;
+            ResetLiveFuelModelForNewSession(sessionType, false);
+
+            try
+            {
+                SimHub.Logging.Current.Info("[LiveFuel] Car/track change detected – clearing seeds and confidence");
+            }
+            catch { /* logging must not throw */ }
         }
 
         private void HandleSessionChangeForFuelModel(string fromSession, string toSession)
@@ -942,6 +1000,7 @@ namespace LaunchPlugin
 
                     // Get a stable average pace to compare against
                     double stableAvgPace = ComputeStableMedian(_recentLapTimes);
+                    bool usedProfileFallback = false;
 
                     // --- Add fallback logic if live pace is unavailable ---
                     if (stableAvgPace <= 0 && ActiveProfile != null)
@@ -951,6 +1010,7 @@ namespace LaunchPlugin
                         {
                             stableAvgPace = trackRecord.AvgLapTimeDry.Value / 1000.0;
                             SimHub.Logging.Current.Info($"[Pace] No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
+                            usedProfileFallback = true;
                         }
                     }
                     // --- PB tertiary fallback (for replays / no live median and no profile avg) ---
@@ -958,6 +1018,7 @@ namespace LaunchPlugin
                     {
                         stableAvgPace = _lastSeenBestLap.TotalSeconds;
                     }
+                    _usingFallbackPaceProfile = usedProfileFallback;
                     SimHub.Logging.Current.Info($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
 
                     // Decide and publish baseline (profile-avg → live-median → session-pb)
@@ -1303,9 +1364,33 @@ namespace LaunchPlugin
                     {
                         var window = isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
 
+                        if (isWetMode)
+                            _freshWetSamplesInWindow++;
+                        else
+                            _freshDrySamplesInWindow++;
+
                         window.Add(fuelUsed);
                         while (window.Count > FuelWindowSize)
-                            window.RemoveAt(0);
+                        {
+                            if (isWetMode && _hasActiveWetSeed)
+                            {
+                                window.RemoveAt(0);
+                                _hasActiveWetSeed = false;
+                            }
+                            else if (!isWetMode && _hasActiveDrySeed)
+                            {
+                                window.RemoveAt(0);
+                                _hasActiveDrySeed = false;
+                            }
+                            else
+                            {
+                                window.RemoveAt(0);
+                                if (isWetMode && _freshWetSamplesInWindow > 0)
+                                    _freshWetSamplesInWindow--;
+                                else if (!isWetMode && _freshDrySamplesInWindow > 0)
+                                    _freshDrySamplesInWindow--;
+                            }
+                        }
 
                         if (isWetMode)
                         {
@@ -1346,6 +1431,7 @@ namespace LaunchPlugin
                             ? (_avgWetFuelPerLap > 0 ? _avgWetFuelPerLap : _avgDryFuelPerLap)
                             : (_avgDryFuelPerLap > 0 ? _avgDryFuelPerLap : _avgWetFuelPerLap);
 
+                        _usingFallbackFuelProfile = false;
                         Confidence = ComputeFuelModelConfidence(isWetMode);
 
                         // Overall confidence is computed in its getter from Confidence + PaceConfidence
@@ -1440,6 +1526,7 @@ namespace LaunchPlugin
                 LiveFuelPerLap = Convert.ToDouble(
                     PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
                 );
+                _usingFallbackFuelProfile = true;
                 Confidence = 0;
                 FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
 
@@ -2180,6 +2267,8 @@ namespace LaunchPlugin
             // Optionally discard only if you really want to delete last file on exit
             // _telemetryTraceLogger?.DiscardCurrentTrace();
 
+            FuelCalculator?.PromptToSaveLiveFuelOnExit();
+
             // Persist settings
             this.SaveCommonSettings("GlobalSettings_V2", Settings);
             ProfilesViewModel.SaveProfiles();
@@ -2356,6 +2445,21 @@ namespace LaunchPlugin
             // --- MASTER GUARD CLAUSES ---
             if (Settings == null) return;
             if (!data.GameRunning || data.NewData == null) return;
+
+            string currentSessionTypeForConfidence = data.NewData?.SessionTypeName ?? string.Empty;
+            string trackIdentityForConfidence =
+                (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+                    ? CurrentTrackKey
+                    : CurrentTrackName;
+
+            if (!string.IsNullOrWhiteSpace(CurrentCarModel) && !string.IsNullOrWhiteSpace(trackIdentityForConfidence))
+            {
+                if (!string.Equals(CurrentCarModel, _confidenceCarModel, StringComparison.Ordinal) ||
+                    !string.Equals(trackIdentityForConfidence, _confidenceTrackIdentity, StringComparison.Ordinal))
+                {
+                    ResetConfidenceForNewCombo(currentSessionTypeForConfidence);
+                }
+            }
 
             long currentSessionId = Convert.ToInt64(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.SessionID") ?? -1);
             if (currentSessionId != _lastSessionId)

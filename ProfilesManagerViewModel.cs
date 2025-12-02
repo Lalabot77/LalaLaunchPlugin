@@ -631,27 +631,6 @@ namespace LaunchPlugin
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(CarProfiles, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(_profilesFilePath, json);
                 SimHub.Logging.Current.Info("[Profiles] All car profiles saved to JSON file.");
-
-                if (SelectedProfile != null)
-                {
-                    string activeCar = _getCurrentCarModel();
-                    string selectedName = SelectedProfile.ProfileName;
-
-                    // --- MODIFIED LOGIC ---
-                    // Condition to auto-apply:
-                    // 1. The profile being saved is the same as the active car.
-                    // OR
-                    // 2. There is no active car, AND the profile being saved is the "Default Settings" profile.
-                    bool isActiveCarMatch = selectedName.Equals(activeCar, StringComparison.OrdinalIgnoreCase);
-                    bool isEditingDefaultsWithNoCar = (activeCar == "Unknown" || string.IsNullOrEmpty(activeCar))
-                                                      && selectedName.Equals("Default Settings", StringComparison.OrdinalIgnoreCase);
-
-                    if (SelectedProfile != null)
-                    {
-                        _applyProfileToLiveAction(SelectedProfile);
-                        SimHub.Logging.Current.Info($"[Profiles] Saved profile '{selectedName}' changes applied to live session.");
-                    }
-                }
             }
             catch (Exception ex)
             {
