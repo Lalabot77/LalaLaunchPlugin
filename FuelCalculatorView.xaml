@@ -588,10 +588,9 @@
                     </Grid>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <styles:SHButtonPrimary
-                            Content="Refresh"
+                            Content="Refresh Calcs"
                             Command="{Binding RefreshPlannerViewCommand}"
                             Padding="8,2"
-                            Margin="0,0,10,0"
                             HorizontalAlignment="Left"
                             ToolTip="Reload the planner from the active profile and live session without clearing live samples."/>
                         <styles:SHButtonPrimary
