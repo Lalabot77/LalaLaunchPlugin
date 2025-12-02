@@ -638,11 +638,12 @@ namespace LaunchPlugin
     public ICommand UseLiveLapPaceCommand { get; }
     public ICommand LoadProfileLapTimeCommand { get; }
     public ICommand SavePlannerDataToProfileCommand { get; }
-        public ICommand UseProfileFuelPerLapCommand { get; }
+    public ICommand UseProfileFuelPerLapCommand { get; }
         public ICommand UseProfileFuelSaveCommand { get; }
         public ICommand UseProfileFuelMaxCommand { get; }
         public ICommand UseMaxFuelPerLapCommand { get; }
         public ICommand RefreshLiveSnapshotCommand { get; }
+        public ICommand RefreshPlannerViewCommand { get; }
         public ICommand ResetEstimatedLapTimeToSourceCommand { get; }
         public ICommand ResetFuelPerLapToSourceCommand { get; }
         public ICommand ApplyPresetCommand { get; private set; }
@@ -2391,6 +2392,7 @@ namespace LaunchPlugin
         UseMaxFuelPerLapCommand = new RelayCommand(_ => UseMaxFuelPerLap(), _ => IsMaxFuelAvailable);
         SetLiveMaxFuelOverrideCommand = new RelayCommand(_ => ApplyLiveMaxFuelSuggestion(), _ => HasLiveMaxFuelSuggestion);
         RefreshLiveSnapshotCommand = new RelayCommand(_ => RefreshLiveSnapshot());
+        RefreshPlannerViewCommand = new RelayCommand(_ => RefreshPlannerView());
         ResetEstimatedLapTimeToSourceCommand = new RelayCommand(_ => ResetEstimatedLapTimeToSource());
         ResetFuelPerLapToSourceCommand = new RelayCommand(_ => ResetFuelPerLapToSource());
         ResetLeaderDeltaToLiveCommand = new RelayCommand(_ => ResetLeaderDeltaToLive());
@@ -3234,6 +3236,54 @@ namespace LaunchPlugin
     public void ForceProfileDataReload()
     {
         LoadProfileData();
+    }
+
+    public void RefreshPlannerView()
+    {
+        _suppressPlannerDirtyUpdates = true;
+        try
+        {
+            // Keep the car selection aligned with the active profile if available
+            var activeProfile = _plugin?.ActiveProfile;
+            if (activeProfile != null && !ReferenceEquals(SelectedCarProfile, activeProfile))
+            {
+                SelectedCarProfile = activeProfile;
+            }
+
+            // Re-resolve the track against the active profile and live telemetry identifiers
+            TrackStats resolvedTrack = SelectedTrackStats;
+            if (SelectedCarProfile != null)
+            {
+                var liveTrackKey = _plugin?.CurrentTrackKey;
+                var liveTrackName = _plugin?.CurrentTrackName;
+
+                resolvedTrack = SelectedCarProfile.ResolveTrackByNameOrKey(
+                                    resolvedTrack?.Key
+                                    ?? (!string.IsNullOrWhiteSpace(liveTrackKey) ? liveTrackKey : liveTrackName)
+                                    ?? SelectedTrack)
+                               ?? resolvedTrack;
+            }
+
+            if (!ReferenceEquals(resolvedTrack, SelectedTrackStats) && resolvedTrack != null)
+            {
+                _suppressProfileDataReload = true;
+                SelectedTrackStats = resolvedTrack;
+                _suppressProfileDataReload = false;
+            }
+
+            LoadProfileData();
+            RefreshProfilePlanningData();
+            RefreshConditionParameters();
+            UpdateTrackDerivedSummaries();
+            UpdateFuelBurnSummaries();
+            UpdateLiveFuelChoiceDisplays();
+            CalculateStrategy();
+        }
+        finally
+        {
+            _suppressPlannerDirtyUpdates = false;
+            ResetPlannerDirty();
+        }
     }
     public void LoadProfileData()
     {
