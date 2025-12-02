@@ -18,13 +18,16 @@ namespace LaunchPlugin
 
         public event PropertyChangedEventHandler PropertyChanged;
 
+        private void OnPropertyChanged(string propertyName) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
         public RacePreset EditingPreset
         {
             get => _editingPreset;
             private set
             {
                 _editingPreset = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditingPreset)));
+                OnPropertyChanged(nameof(EditingPreset));
             }
         }
 
@@ -40,9 +43,31 @@ namespace LaunchPlugin
                 if (!ReferenceEquals(_editorSelection, value))
                 {
                     _editorSelection = value;
-                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EditorSelection)));
+                    OnPropertyChanged(nameof(EditorSelection));
                     RebuildWorkingCopyFromEditorSelection();
+                    NotifyActivePresetIndicator();
                 }
+            }
+        }
+
+        public string ActivePresetHelperText
+        {
+            get
+            {
+                var active = GetActivePreset();
+                var name = active?.Name ?? "(none)";
+                return $"Active preset in Fuel tab: {name}";
+            }
+        }
+
+        public bool IsEditingActivePreset
+        {
+            get
+            {
+                var active = GetActivePreset();
+                if (active == null || EditorSelection == null) return false;
+
+                return string.Equals(active.Name, EditorSelection.Name, StringComparison.OrdinalIgnoreCase);
             }
         }
 
@@ -54,8 +79,28 @@ namespace LaunchPlugin
             // Use the VM as DataContext for lists/collections, but keep selection local
             DataContext = _vm;
 
+            _vm.PropertyChanged += OnVmPropertyChanged;
+
             // Start by mirroring whatever the Fuel tab had selected; from now on selection is local
             EditorSelection = _vm.SelectedPreset;
+        }
+
+        private RacePreset GetActivePreset() => _vm?.AppliedPreset ?? _vm?.SelectedPreset;
+
+        private void OnVmPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(FuelCalcs.SelectedPreset) ||
+                e.PropertyName == nameof(FuelCalcs.AppliedPreset) ||
+                e.PropertyName == nameof(FuelCalcs.HasSelectedPreset))
+            {
+                NotifyActivePresetIndicator();
+            }
+        }
+
+        private void NotifyActivePresetIndicator()
+        {
+            OnPropertyChanged(nameof(ActivePresetHelperText));
+            OnPropertyChanged(nameof(IsEditingActivePreset));
         }
 
         /// <summary>

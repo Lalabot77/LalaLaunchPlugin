@@ -607,6 +607,8 @@ namespace LaunchPlugin
         get { return _selectedPreset != null; }
     }
 
+    public RacePreset AppliedPreset => _appliedPreset;
+
     // Last applied preset (for badge + modified flag)
     private RacePreset _appliedPreset;
 
@@ -730,6 +732,7 @@ namespace LaunchPlugin
 
     private void RaisePresetStateChanged()
     {
+        OnPropertyChanged(nameof(AppliedPreset));
         OnPropertyChanged(nameof(PresetBadge));
         OnPropertyChanged(nameof(IsPresetModifiedFlag));
     }
