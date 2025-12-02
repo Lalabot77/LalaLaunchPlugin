@@ -40,6 +40,7 @@ This document maps every custom SimHub-exported parameter defined in `LalaLaunch
 | DashControlMode | string | Enum string | Per-tick | ScreenManager.Mode | Dashboard control |
 | FalseStartDetected | bool | Flag | Per-tick | Launch state detection | Launch |
 | LastSessionType | string | Session type | Per-tick | Cached from telemetry | Session |
+| Race.LeaderHasFinished | bool | Flag | Per-tick | Checkered flag latch for leader | Session |
 | MsgCxPressed | bool | Flag | Per-tick | Messaging input state | Messaging |
 | PitScreenActive | bool | Flag | Per-tick | Launch/Msg screen selection | Dashboard control |
 | RejoinAlertReasonCode | int | Code | Per-tick | RejoinAssistEngine.CurrentLogicCode | Rejoin assist |

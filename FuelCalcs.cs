@@ -3740,26 +3740,38 @@ namespace LaunchPlugin
 
     private static double ComputeExtraSecondsAfterTimerZero(double leaderLapSec, double yourLapSec, double raceSeconds)
     {
-        // Continuous, decimal-lap model: compute when the leader finishes (time + one lap),
-        // then find the first time you cross the line after that moment without flooring laps.
-        if (leaderLapSec <= 0.0 || yourLapSec <= 0.0 || raceSeconds <= 0.0) return 0.0;
+        // Continuous, decimal-lap model: compute the "time + one lap" finish for the leader,
+        // project how long it takes you to complete the same fractional lap distance, and
+        // return the extra seconds after the race clock hits zero without flooring/ceiling laps.
+        bool invalidInput =
+            double.IsNaN(leaderLapSec) || double.IsInfinity(leaderLapSec) || leaderLapSec <= 0.0 ||
+            double.IsNaN(yourLapSec) || double.IsInfinity(yourLapSec) || yourLapSec <= 0.0 ||
+            double.IsNaN(raceSeconds) || double.IsInfinity(raceSeconds) || raceSeconds <= 0.0;
 
-        // How many leader laps elapse by the time the race clock hits zero (fractional allowed)
+        if (invalidInput)
+        {
+            return 0.0;
+        }
+
         double leaderLapsAtZero = raceSeconds / leaderLapSec;
+        double leaderFinishLapCount = leaderLapsAtZero + 1.0; // honour time + one lap
 
-        // Leader's actual finish timestamp = smallest whole-lap crossing after the timer expires
-        double leaderFinishClock = Math.Ceiling(leaderLapsAtZero - 1e-9) * leaderLapSec;
+        // Leader's finish is always after the timer expires, by exactly one of their laps.
+        double leaderFinishClock = leaderFinishLapCount * leaderLapSec; // = raceSeconds + leaderLapSec
 
-        // Using the leader's finish timestamp, compute your fractional lap count at that instant
-        double yourLapsWhenLeaderFinishes = leaderFinishClock / yourLapSec;
+        // Project your finish time using the same fractional lap count; ensure you cannot
+        // finish before the leader even if yourLapSec is faster.
+        double yourProjectedFinishClock = leaderFinishLapCount * yourLapSec;
+        double yourFinishClock = Math.Max(leaderFinishClock, yourProjectedFinishClock);
 
-        // You take the checkered on your first crossing AFTER the leader finishes
-        double yourFinishClock = Math.Ceiling(yourLapsWhenLeaderFinishes - 1e-9) * yourLapSec;
-
-        // Extra seconds you keep driving after the timer hits zero
         double extraSecondsAfterZero = yourFinishClock - raceSeconds;
 
-        return Math.Max(0.0, extraSecondsAfterZero);
+        if (double.IsNaN(extraSecondsAfterZero) || double.IsInfinity(extraSecondsAfterZero) || extraSecondsAfterZero < 0.0)
+        {
+            return 0.0;
+        }
+
+        return extraSecondsAfterZero;
     }
 
 
