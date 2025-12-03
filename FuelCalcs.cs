@@ -51,6 +51,8 @@ namespace LaunchPlugin
     private int _stopsSaved;
     private string _totalTimeDifference;
     private string _extraTimeAfterLeader;
+    private double _strategyLeaderExtraSecondsAfterZero;
+    private double _strategyDriverExtraSecondsAfterZero;
     private double _firstStintFuel;
     private string _validationMessage;
     private double _firstStopTimeLoss;
@@ -1889,6 +1891,16 @@ namespace LaunchPlugin
     public int StopsSaved { get => _stopsSaved; private set { _stopsSaved = value; OnPropertyChanged("StopsSaved"); } }
     public string TotalTimeDifference { get => _totalTimeDifference; private set { _totalTimeDifference = value; OnPropertyChanged("TotalTimeDifference"); } }
     public string ExtraTimeAfterLeader { get => _extraTimeAfterLeader; private set { _extraTimeAfterLeader = value; OnPropertyChanged("ExtraTimeAfterLeader"); } }
+    public double StrategyLeaderExtraSecondsAfterZero
+    {
+        get => _strategyLeaderExtraSecondsAfterZero;
+        private set { _strategyLeaderExtraSecondsAfterZero = value; OnPropertyChanged(); }
+    }
+    public double StrategyDriverExtraSecondsAfterZero
+    {
+        get => _strategyDriverExtraSecondsAfterZero;
+        private set { _strategyDriverExtraSecondsAfterZero = value; OnPropertyChanged(); }
+    }
     public double FirstStintFuel { get => _firstStintFuel; private set { _firstStintFuel = value; OnPropertyChanged("FirstStintFuel"); } }
     public string ValidationMessage
     {
@@ -3738,43 +3750,6 @@ namespace LaunchPlugin
         RefreshLiveMaxFuelDisplays(liveMaxFuel);
     }
 
-    private static double ComputeExtraSecondsAfterTimerZero(double leaderLapSec, double yourLapSec, double raceSeconds)
-    {
-        // Continuous, decimal-lap model: compute the "time + one lap" finish for the leader,
-        // project how long it takes you to complete the same fractional lap distance, and
-        // return the extra seconds after the race clock hits zero without flooring/ceiling laps.
-        bool invalidInput =
-            double.IsNaN(leaderLapSec) || double.IsInfinity(leaderLapSec) || leaderLapSec <= 0.0 ||
-            double.IsNaN(yourLapSec) || double.IsInfinity(yourLapSec) || yourLapSec <= 0.0 ||
-            double.IsNaN(raceSeconds) || double.IsInfinity(raceSeconds) || raceSeconds <= 0.0;
-
-        if (invalidInput)
-        {
-            return 0.0;
-        }
-
-        double leaderLapsAtZero = raceSeconds / leaderLapSec;
-        double leaderFinishLapCount = leaderLapsAtZero + 1.0; // honour time + one lap
-
-        // Leader's finish is always after the timer expires, by exactly one of their laps.
-        double leaderFinishClock = leaderFinishLapCount * leaderLapSec; // = raceSeconds + leaderLapSec
-
-        // Project your finish time using the same fractional lap count; ensure you cannot
-        // finish before the leader even if yourLapSec is faster.
-        double yourProjectedFinishClock = leaderFinishLapCount * yourLapSec;
-        double yourFinishClock = Math.Max(leaderFinishClock, yourProjectedFinishClock);
-
-        double extraSecondsAfterZero = yourFinishClock - raceSeconds;
-
-        if (double.IsNaN(extraSecondsAfterZero) || double.IsInfinity(extraSecondsAfterZero) || extraSecondsAfterZero < 0.0)
-        {
-            return 0.0;
-        }
-
-        return extraSecondsAfterZero;
-    }
-
-
         public void CalculateStrategy()
         {
             var ts = _plugin.ProfilesViewModel.TryGetCarTrack(SelectedCarProfile?.ProfileName, SelectedTrack);
@@ -3867,6 +3842,8 @@ namespace LaunchPlugin
                 StopsSaved = 0;
                 TotalTimeDifference = "N/A";
                 ExtraTimeAfterLeader = "N/A";
+                StrategyLeaderExtraSecondsAfterZero = 0.0;
+                StrategyDriverExtraSecondsAfterZero = 0.0;
                 FirstStintFuel = 0.0;
                 return;
             }
@@ -3915,8 +3892,10 @@ namespace LaunchPlugin
                 num6 = Math.Max(0.0, RaceLaps - (double)num20);
             }
 
+            double raceSeconds = RaceMinutes * 60.0;
+
             StrategyResult strategyResult = CalculateSingleStrategy(
-                num6, fuelPerLap, num3, num2, num, RaceMinutes * 60.0);
+                num6, fuelPerLap, num3, num2, num, raceSeconds);
 
             TotalFuelNeeded = strategyResult.TotalFuel;
             RequiredPitStops = strategyResult.Stops;
@@ -3927,15 +3906,24 @@ namespace LaunchPlugin
 
             if (IsTimeLimitedRace && num3 > 0.0)
             {
-                double extra = ComputeExtraSecondsAfterTimerZero(
-                    leaderLapSec: num2,   // leader pace (your pace - delta)
-                    yourLapSec: num3,     // your estimated pace
-                    raceSeconds: RaceMinutes * 60.0
-                );
-                ExtraTimeAfterLeader = TimeSpan.FromSeconds(extra).ToString("m\\:ss");
+                double leaderExtraSeconds = (num2 > 0.0) ? Math.Max(0.0, num2) : 0.0;
+                double driverExtraSeconds = Math.Max(0.0, strategyResult.TotalTime - raceSeconds);
+
+                // Cap to a realistic window of roughly two of the driver's current laps.
+                if (num3 > 0.0)
+                {
+                    double driverCap = Math.Max(0.0, num3 * 2.0);
+                    driverExtraSeconds = Math.Min(driverExtraSeconds, driverCap);
+                }
+
+                StrategyLeaderExtraSecondsAfterZero = leaderExtraSeconds;
+                StrategyDriverExtraSecondsAfterZero = driverExtraSeconds;
+                ExtraTimeAfterLeader = TimeSpan.FromSeconds(driverExtraSeconds).ToString("m\\:ss");
             }
             else
             {
+                StrategyLeaderExtraSecondsAfterZero = 0.0;
+                StrategyDriverExtraSecondsAfterZero = 0.0;
                 ExtraTimeAfterLeader = "N/A";
             }
 
