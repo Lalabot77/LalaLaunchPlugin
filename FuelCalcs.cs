@@ -4020,9 +4020,6 @@ namespace LaunchPlugin
         }
         // Mandatory-tyres integration: if baseline would be 0-stop, force exactly one stop
         // If baseline would be 0-stop but a mandatory stop is requested, force exactly one stop
-        // If baseline would be 0-stop but a mandatory stop is requested, force exactly one stop
-        // If baseline would be 0-stop but a mandatory stop is requested, force exactly one stop
-        // If baseline would be 0-stop but a mandatory stop is requested, force exactly one stop
         else if (result.TotalFuel <= MaxFuelOverride && MandatoryStopRequired)
         {
             // Base components
