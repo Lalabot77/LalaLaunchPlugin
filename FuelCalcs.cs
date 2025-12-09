@@ -578,8 +578,8 @@ namespace LaunchPlugin
     }
 
     // Presets — list exposed to UI
-    private List<RacePreset> _availablePresets = new List<RacePreset>();
-    public List<RacePreset> AvailablePresets
+    private ObservableCollection<RacePreset> _availablePresets = new ObservableCollection<RacePreset>();
+    public ObservableCollection<RacePreset> AvailablePresets
     {
         get { return _availablePresets; }
     }
@@ -2218,7 +2218,8 @@ namespace LaunchPlugin
     {
         try
         {
-            _availablePresets = LaunchPlugin.RacePresetStore.LoadAll() ?? new List<RacePreset>();
+            var loaded = LaunchPlugin.RacePresetStore.LoadAll() ?? new List<RacePreset>();
+            ReplacePresetCollection(loaded);
 
             // Do NOT auto-select anything on load.
             // Leave both selection and applied preset null until the user picks one.
@@ -2233,7 +2234,7 @@ namespace LaunchPlugin
         catch (Exception ex)
         {
             SimHub.Logging.Current.Error("FuelCalcs.InitPresets: " + ex.Message);
-            _availablePresets = new List<RacePreset>();
+            ReplacePresetCollection(Array.Empty<RacePreset>());
             _selectedPreset = null;
             _appliedPreset = null;
             OnPropertyChanged(nameof(AvailablePresets));
@@ -2243,7 +2244,24 @@ namespace LaunchPlugin
         }
     }
 
-    private List<RacePreset> PresetList => _availablePresets ?? (_availablePresets = new List<RacePreset>());
+    private ObservableCollection<RacePreset> PresetList => _availablePresets ?? (_availablePresets = new ObservableCollection<RacePreset>());
+
+    private void ReplacePresetCollection(IEnumerable<RacePreset> presets)
+    {
+        if (_availablePresets == null)
+        {
+            _availablePresets = new ObservableCollection<RacePreset>();
+        }
+        else
+        {
+            _availablePresets.Clear();
+        }
+
+        foreach (var preset in presets ?? Array.Empty<RacePreset>())
+        {
+            _availablePresets.Add(preset);
+        }
+    }
 
     private static void CopyPresetValues(RacePreset source, RacePreset target)
     {
@@ -2357,7 +2375,7 @@ namespace LaunchPlugin
 
     private void CommitPresetChanges(RacePreset preferredSelection, bool reapplyAppliedPreset)
     {
-        LaunchPlugin.RacePresetStore.SaveAll(PresetList);
+        LaunchPlugin.RacePresetStore.SaveAll(PresetList.ToList());
 
         _selectedPreset = ResolveSelection(preferredSelection ?? _selectedPreset);
         _appliedPreset = ResolveAppliedPreset(_appliedPreset);
