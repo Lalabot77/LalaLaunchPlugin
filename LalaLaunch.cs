@@ -1620,11 +1620,23 @@ namespace LaunchPlugin
                 double fuelToRequest = Convert.ToDouble(
                     PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PitSvFuel") ?? 0.0);
 
-                // Use the same session-max fuel the Fuel tab uses if available.
-                double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel;
+                // Use the MaxTankCapacity already surfaced by the Fuel Calculator so we respect
+                // iRacing's percentage-based tank limits. Fall back to the live/session max if
+                // the calculator has not established a value yet.
+                double maxTankCapacity = FuelCalculator?.MaxFuelOverride ?? 0.0;
+                if (maxTankCapacity <= 0)
+                {
+                    double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel;
+                    if (LiveCarMaxFuel > 0 && maxFuel > 0)
+                        sessionMaxFuel = Math.Min(LiveCarMaxFuel, maxFuel);
 
-                Pit_TankSpaceAvailable = Math.Max(0, sessionMaxFuel - currentFuel);
-                Pit_WillAdd = Math.Min(fuelToRequest, Pit_TankSpaceAvailable);
+                    maxTankCapacity = sessionMaxFuel;
+                }
+
+                Pit_TankSpaceAvailable = Math.Max(0, maxTankCapacity - currentFuel);
+
+                double safeFuelRequest = Math.Max(0, fuelToRequest);
+                Pit_WillAdd = Math.Min(safeFuelRequest, Pit_TankSpaceAvailable);
 
                 Pit_FuelOnExit = currentFuel + Pit_WillAdd;
                 Pit_DeltaAfterStop = (LiveFuelPerLap > 0)
