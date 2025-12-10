@@ -72,6 +72,7 @@ The plugin exposes a mix of pit-lane timing, loss calculations, PitLite telemetr
 | `Fuel.Pit.DeltaAfterStop` | Core | Laps delta after refuel (`FuelOnExit/LapsPerLap - lapsRemaining`). | Driver strategy. |
 | `Fuel.Pit.FuelOnExit` | Core | Estimated fuel after stop. | Driver strategy. |
 | `Fuel.Pit.StopsRequiredToEnd` | Core | Integer stops needed to finish. | Driver strategy. |
+| `Fuel.Live.TotalStopLoss` | Core | Pit lane loss plus concurrent box time from fuel/tyre selections. | Driver strategy. |
 | `Fuel.IsPitWindowOpen` | Core | Boolean pit window flag. | Driver strategy. |
 | `Fuel.PitWindowOpeningLap` | Core | Lap when pit window opens. | Driver strategy. |
 | `Fuel.LastPitLaneTravelTime` | Core | Alias noted above; also fuels consumption model. | Driver strategy. |

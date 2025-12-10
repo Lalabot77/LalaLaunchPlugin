@@ -236,6 +236,8 @@ namespace LaunchPlugin
         public double Pit_DeltaAfterStop { get; private set; }
         public double Pit_FuelOnExit { get; private set; }
         public int Pit_StopsRequiredToEnd { get; private set; }
+        private bool _isRefuelSelected = true;
+        private bool _isTireChangeSelected = true;
         public double LiveCarMaxFuel { get; private set; }
 
         // Push / max-burn guidance
@@ -1620,11 +1622,28 @@ namespace LaunchPlugin
                 double fuelToRequest = Convert.ToDouble(
                     PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PitSvFuel") ?? 0.0);
 
-                // Use the same session-max fuel the Fuel tab uses if available.
-                double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel;
+                if (!_isRefuelSelected)
+                {
+                    fuelToRequest = 0.0;
+                }
 
-                Pit_TankSpaceAvailable = Math.Max(0, sessionMaxFuel - currentFuel);
-                Pit_WillAdd = Math.Min(fuelToRequest, Pit_TankSpaceAvailable);
+                // Use the MaxTankCapacity already surfaced by the Fuel Calculator so we respect
+                // iRacing's percentage-based tank limits. Fall back to the live/session max if
+                // the calculator has not established a value yet.
+                double maxTankCapacity = FuelCalculator?.MaxFuelOverride ?? 0.0;
+                if (maxTankCapacity <= 0)
+                {
+                    double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel;
+                    if (LiveCarMaxFuel > 0 && maxFuel > 0)
+                        sessionMaxFuel = Math.Min(LiveCarMaxFuel, maxFuel);
+
+                    maxTankCapacity = sessionMaxFuel;
+                }
+
+                Pit_TankSpaceAvailable = Math.Max(0, maxTankCapacity - currentFuel);
+
+                double safeFuelRequest = Math.Max(0, fuelToRequest);
+                Pit_WillAdd = Math.Min(safeFuelRequest, Pit_TankSpaceAvailable);
 
                 Pit_FuelOnExit = currentFuel + Pit_WillAdd;
                 Pit_DeltaAfterStop = (LiveFuelPerLap > 0)
@@ -2003,6 +2022,10 @@ namespace LaunchPlugin
             AttachCore("Fuel.Pit.DeltaAfterStop", () => Pit_DeltaAfterStop);
             AttachCore("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
             AttachCore("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
+            AttachCore("Fuel.Live.RefuelRate_Lps", () => FuelCalculator?.EffectiveRefuelRateLps ?? 0.0);
+            AttachCore("Fuel.Live.TireChangeTime_S", () => GetEffectiveTireChangeTimeSeconds());
+            AttachCore("Fuel.Live.PitLaneLoss_S", () => FuelCalculator?.PitLaneTimeLoss ?? 0.0);
+            AttachCore("Fuel.Live.TotalStopLoss", () => CalculateTotalStopLossSeconds());
 
             // --- Pace metrics (CORE) ---
             AttachCore("Pace.StintAvgLapTimeSec", () => Pace_StintAvgLapTimeSec);
@@ -2481,6 +2504,9 @@ namespace LaunchPlugin
             if (Settings == null) return;
             if (!data.GameRunning || data.NewData == null) return;
 
+            _isRefuelSelected = IsRefuelSelected(pluginManager);
+            _isTireChangeSelected = IsAnyTireChangeSelected(pluginManager);
+
             string currentSessionTypeForConfidence = data.NewData?.SessionTypeName ?? string.Empty;
             string trackIdentityForConfidence =
                 (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase))
@@ -2931,6 +2957,86 @@ namespace LaunchPlugin
             }
 
             return false;
+        }
+
+        private bool IsRefuelSelected(PluginManager pluginManager)
+        {
+            try
+            {
+                var raw = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.dpFuelFill");
+                if (raw != null)
+                {
+                    return Convert.ToBoolean(raw);
+                }
+            }
+            catch
+            {
+                // Treat read failures as "selected" to preserve prior behavior.
+            }
+
+            return true;
+        }
+
+        private bool IsAnyTireChangeSelected(PluginManager pluginManager)
+        {
+            bool sawFlag = false;
+            string[] selectors = new[]
+            {
+                "DataCorePlugin.GameRawData.Telemetry.dpLFTireChange",
+                "DataCorePlugin.GameRawData.Telemetry.dpRFTireChange",
+                "DataCorePlugin.GameRawData.Telemetry.dpLRTireChange",
+                "DataCorePlugin.GameRawData.Telemetry.dpRRTireChange"
+            };
+
+            foreach (var name in selectors)
+            {
+                try
+                {
+                    var raw = pluginManager.GetPropertyValue(name);
+                    if (raw != null)
+                    {
+                        sawFlag = true;
+                        if (Convert.ToBoolean(raw))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore and keep looking
+                }
+            }
+
+            return !sawFlag;
+        }
+
+        private double GetEffectiveTireChangeTimeSeconds()
+        {
+            double baseTime = FuelCalculator?.TireChangeTime ?? 0.0;
+            if (!_isTireChangeSelected)
+            {
+                return 0.0;
+            }
+
+            return baseTime < 0.0 ? 0.0 : baseTime;
+        }
+
+        private double CalculateTotalStopLossSeconds()
+        {
+            double pitLaneLoss = FuelCalculator?.PitLaneTimeLoss ?? 0.0;
+            if (pitLaneLoss < 0.0) pitLaneLoss = 0.0;
+
+            double willAdd = Pit_WillAdd;
+            double refuelRate = FuelCalculator?.EffectiveRefuelRateLps ?? 0.0;
+            double fuelTime = (willAdd > 0.0 && refuelRate > 0.0) ? (willAdd / refuelRate) : 0.0;
+            if (fuelTime < 0.0 || double.IsNaN(fuelTime) || double.IsInfinity(fuelTime)) fuelTime = 0.0;
+
+            double tireTime = GetEffectiveTireChangeTimeSeconds();
+            double boxTime = Math.Max(fuelTime, tireTime);
+
+            double total = pitLaneLoss + boxTime;
+            return (total < 0.0 || double.IsNaN(total) || double.IsInfinity(total)) ? 0.0 : total;
         }
 
         private static string FormatSecondsOrNA(double seconds)
