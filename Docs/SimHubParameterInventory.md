@@ -25,9 +25,9 @@ This document maps every custom SimHub-exported parameter defined in `LalaLaunch
 | Fuel.Pit.DeltaAfterStop | double | Laps | 500 ms fuel update | Post-stop lap delta | Pit/fuel |
 | Fuel.Pit.FuelOnExit | double | Liters | 500 ms fuel update | Predicted post-stop fuel | Pit/fuel |
 | Fuel.Pit.StopsRequiredToEnd | int | Count | 500 ms fuel update | FuelCalcs | Pit/fuel |
-| Lala.Fuel.RefuelRate_Lps | double | Liters/sec | Per-tick | FuelCalcs effective refuel rate (profile or default) | Fuel strategy |
-| Lala.Fuel.TireChangeTime_S | double | Seconds | Per-tick | FuelCalcs tyre change time currently used | Fuel strategy |
-| Lala.Fuel.PitLaneLoss_S | double | Seconds | Per-tick | FuelCalcs pit lane loss (DTL) currently used | Fuel strategy |
+| Fuel.Live.RefuelRate_Lps | double | Liters/sec | Per-tick | FuelCalcs effective refuel rate (profile or default) | Fuel strategy |
+| Fuel.Live.TireChangeTime_S | double | Seconds | Per-tick | FuelCalcs tyre change time currently used | Fuel strategy |
+| Fuel.Live.PitLaneLoss_S | double | Seconds | Per-tick | FuelCalcs pit lane loss (DTL) currently used | Fuel strategy |
 | Pace.StintAvgLapTimeSec | double | Seconds | 500 ms update | Rolling stint average from live laps | Pace |
 | Pace.Last5LapAvgSec | double | Seconds | 500 ms update | Rolling 5-lap average | Pace |
 | Pace.PaceConfidence | int | Score | 500 ms update | Internal confidence heuristics | Pace |
