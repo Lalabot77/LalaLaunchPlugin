@@ -2003,6 +2003,9 @@ namespace LaunchPlugin
             AttachCore("Fuel.Pit.DeltaAfterStop", () => Pit_DeltaAfterStop);
             AttachCore("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
             AttachCore("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
+            AttachCore("Lala.Fuel.RefuelRate_Lps", () => FuelCalculator?.EffectiveRefuelRateLps ?? 0.0);
+            AttachCore("Lala.Fuel.TireChangeTime_S", () => FuelCalculator?.TireChangeTime ?? 0.0);
+            AttachCore("Lala.Fuel.PitLaneLoss_S", () => FuelCalculator?.PitLaneTimeLoss ?? 0.0);
 
             // --- Pace metrics (CORE) ---
             AttachCore("Pace.StintAvgLapTimeSec", () => Pace_StintAvgLapTimeSec);

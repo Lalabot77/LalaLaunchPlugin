@@ -19,6 +19,20 @@ namespace LaunchPlugin
         public enum RaceType { LapLimited, TimeLimited }
         public enum TrackCondition { Dry, Wet }
         public enum PlanningSourceMode { Profile, LiveSnapshot }
+    public readonly struct FuelTimingSnapshot
+    {
+        public double RefuelRateLps { get; }
+        public double TireChangeTimeSeconds { get; }
+        public double PitLaneLossSeconds { get; }
+
+        public FuelTimingSnapshot(double refuelRateLps, double tireChangeTimeSeconds, double pitLaneLossSeconds)
+        {
+            RefuelRateLps = refuelRateLps;
+            TireChangeTimeSeconds = tireChangeTimeSeconds;
+            PitLaneLossSeconds = pitLaneLossSeconds;
+        }
+    }
+
     private struct StrategyResult
     {
         public int Stops;
@@ -563,19 +577,43 @@ namespace LaunchPlugin
     public string MaxFuelPerLapDisplay { get; private set; } = "-";
     public bool IsMaxFuelAvailable => GetActiveLiveFuelMax().HasValue || (_plugin?.MaxFuelPerLapDisplay > 0);
 
-    // Update profile if the incoming rate differs (> tiny epsilon), then recalc.
-    public void SetRefuelRateLps(double rateLps)
-    {
-        if (rateLps <= 0) return;
+        public double RefuelRateLps => _refuelRate;
 
-        if (Math.Abs(_refuelRate - rateLps) > 1e-6)
+        // Update profile if the incoming rate differs (> tiny epsilon), then recalc.
+        public void SetRefuelRateLps(double rateLps)
         {
-            _refuelRate = rateLps;
-            _plugin?.SaveRefuelRateToActiveProfile(rateLps); // call into LalaLaunch
-            OnPropertyChanged(nameof(_refuelRate));
-            CalculateStrategy();
+            if (rateLps <= 0) return;
+
+            if (Math.Abs(_refuelRate - rateLps) > 1e-6)
+            {
+                _refuelRate = rateLps;
+                _plugin?.SaveRefuelRateToActiveProfile(rateLps); // call into LalaLaunch
+                RaiseRefuelRateChanged();
+                CalculateStrategy();
+            }
         }
-    }
+
+        private void RaiseRefuelRateChanged()
+        {
+            OnPropertyChanged(nameof(RefuelRateLps));
+            OnPropertyChanged(nameof(EffectiveRefuelRateLps));
+            OnPropertyChanged(nameof(TimingParameters));
+        }
+
+        private void ApplyRefuelRateFromProfile(double rateLps)
+        {
+            if (Math.Abs(_refuelRate - rateLps) > 1e-6)
+            {
+                _refuelRate = rateLps;
+                RaiseRefuelRateChanged();
+            }
+            else
+            {
+                // Notify dependents even if the stored value matches the incoming one to refresh defaults/fallbacks.
+                OnPropertyChanged(nameof(EffectiveRefuelRateLps));
+                OnPropertyChanged(nameof(TimingParameters));
+            }
+        }
 
     // Presets — list exposed to UI
     private ObservableCollection<RacePreset> _availablePresets = new ObservableCollection<RacePreset>();
@@ -1597,6 +1635,7 @@ namespace LaunchPlugin
             {
                 _tireChangeTime = value;
                 OnPropertyChanged("TireChangeTime");
+                OnPropertyChanged(nameof(TimingParameters));
                 CalculateStrategy();
                 RaisePresetStateChanged();
                 MarkPlannerDirty();
@@ -1613,6 +1652,7 @@ namespace LaunchPlugin
             {
                 _pitLaneTimeLoss = value;
                 OnPropertyChanged("PitLaneTimeLoss");
+                OnPropertyChanged(nameof(TimingParameters));
                 CalculateStrategy();
                 MarkPlannerDirty();
             }
@@ -1685,16 +1725,20 @@ namespace LaunchPlugin
         return "(Drive-through)";
     }
 
-    // --- Default refuel rate to use when no car/profile rate is available (L/s) ---
-    // Default refuel rate (L/s) used when no car/profile rate is available.
-    public double DefaultRefuelRateLps { get; set; } = 2.5;
+        // --- Default refuel rate to use when no car/profile rate is available (L/s) ---
+        // Default refuel rate (L/s) used when no car/profile rate is available.
+        public double DefaultRefuelRateLps { get; set; } = 2.5;
 
-    // Return the effective refuel rate (L/s): profile if present, else fallback default.
-    private double GetEffectiveRefuelRateLps()
-    {
-        // _refuelRate is set from car.RefuelRate when a car/profile is loaded.
-        return (_refuelRate > 0.0) ? _refuelRate : DefaultRefuelRateLps;
-    }
+        // Return the effective refuel rate (L/s): profile if present, else fallback default.
+        private double GetEffectiveRefuelRateLps()
+        {
+            // _refuelRate is set from car.RefuelRate when a car/profile is loaded.
+            return (_refuelRate > 0.0) ? _refuelRate : DefaultRefuelRateLps;
+        }
+
+        public double EffectiveRefuelRateLps => GetEffectiveRefuelRateLps();
+
+        public FuelTimingSnapshot TimingParameters => new FuelTimingSnapshot(EffectiveRefuelRateLps, TireChangeTime, PitLaneTimeLoss);
 
     private double ComputeRefuelSeconds(double fuelToAdd)
     {
@@ -3447,7 +3491,7 @@ namespace LaunchPlugin
             // --- Load Refuel Rate and car-level settings only when the car changes ---
             if (carChanged || _lastLoadedCarProfile == null)
             {
-                this._refuelRate = car.RefuelRate;
+                ApplyRefuelRateFromProfile(car.RefuelRate);
                 this.ContingencyValue = car.FuelContingencyValue;
                 this.IsContingencyInLaps = car.IsContingencyInLaps;
                 this.WetFactorPercent = car.WetFuelMultiplier;
