@@ -860,7 +860,9 @@ namespace LaunchPlugin
             // --- 1) Gather required data ---
             double currentFuel = data.NewData?.Fuel ?? 0.0;
             double rawLapPct = data.NewData?.TrackPositionPercent ?? 0.0;
-            double maxFuel = data.NewData?.MaxFuel ?? 0.0;
+            double maxFuel = (LiveCarMaxFuel > 0)
+                ? LiveCarMaxFuel
+                : (data.NewData?.MaxFuel ?? 0.0);
 
             // Pit detection: use both signals (some installs expose only one reliably)
             bool isInPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
@@ -1491,8 +1493,10 @@ namespace LaunchPlugin
                 double fuelToRequest = Convert.ToDouble(
                     PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PitSvFuel") ?? 0.0);
 
-                // Use the same session-max fuel the Fuel tab uses if available.
-                double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel;
+                double suggestedMaxTank = FuelCalculator?.SuggestedMaxTankLiters ?? 0.0;
+                double sessionMaxFuel = suggestedMaxTank > 0
+                    ? suggestedMaxTank
+                    : (LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel);
 
                 Pit_TankSpaceAvailable = Math.Max(0, sessionMaxFuel - currentFuel);
                 Pit_WillAdd = Math.Min(fuelToRequest, Pit_TankSpaceAvailable);
@@ -1503,9 +1507,9 @@ namespace LaunchPlugin
                     : 0;
 
                 // Pit window logic
-                double lapsPerTank = (LiveFuelPerLap > 0) ? (maxFuel / LiveFuelPerLap) : 0;
-                int stopsRequired = (maxFuel > 0)
-                    ? (int)Math.Ceiling((fuelNeededToEnd - currentFuel) / maxFuel)
+                double lapsPerTank = (LiveFuelPerLap > 0) ? (sessionMaxFuel / LiveFuelPerLap) : 0;
+                int stopsRequired = (sessionMaxFuel > 0)
+                    ? (int)Math.Ceiling((fuelNeededToEnd - currentFuel) / sessionMaxFuel)
                     : 0;
                 Pit_StopsRequiredToEnd = Math.Max(0, stopsRequired);
 
@@ -2551,7 +2555,10 @@ namespace LaunchPlugin
             if (_poll250ms.ElapsedMilliseconds >= 250)
             {
                 _poll250ms.Restart();
-                double baseMaxFuel = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
+                double telemetryMaxFuel = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.FuelLevelMax") ?? 0.0);
+                double baseMaxFuel = (telemetryMaxFuel > 0)
+                    ? telemetryMaxFuel
+                    : Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
                 double bopPercent = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct") ?? 1.0);
                 if (bopPercent <= 0) { bopPercent = 1.0; }
                 double maxFuel = baseMaxFuel * bopPercent;
