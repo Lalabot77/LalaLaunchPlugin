@@ -1683,9 +1683,10 @@ namespace LaunchPlugin
                     maxTankCapacity = sessionMaxFuel;
                 }
 
+                double requestedAddLitres = Math.Max(0, fuelToRequest);
                 Pit_TankSpaceAvailable = Math.Max(0, maxTankCapacity - currentFuel);
 
-                double safeFuelRequest = Math.Max(0, fuelToRequest);
+                double safeFuelRequest = requestedAddLitres;
                 Pit_WillAdd = Math.Min(safeFuelRequest, Pit_TankSpaceAvailable);
 
                 Pit_FuelOnExit = currentFuel + Pit_WillAdd;
@@ -1706,36 +1707,49 @@ namespace LaunchPlugin
                     ? (Pit_FuelOnExit / fuelSaveRate) - LiveLapsRemainingInRace
                     : 0;
 
-                // Pit window logic
-                double lapsPerTank = (LiveFuelPerLap > 0) ? (maxFuel / LiveFuelPerLap) : 0;
-                int stopsRequired = (maxFuel > 0)
-                    ? (int)Math.Ceiling((fuelNeededToEnd - currentFuel) / maxFuel)
-                    : 0;
+                // Pit window logic – single-stop only, based on requested MFD refuel amount and
+                // the effective tank capacity shared with the Fuel tab's detected max.
+                int strategyRequiredStops = FuelCalculator?.RequiredPitStops ?? 0;
+                int stopsRequired = strategyRequiredStops;
+                if (stopsRequired <= 0 && maxTankCapacity > 0)
+                {
+                    stopsRequired = (int)Math.Ceiling((fuelNeededToEnd - currentFuel) / maxTankCapacity);
+                }
+
                 Pit_StopsRequiredToEnd = Math.Max(0, stopsRequired);
 
-                if (stopsRequired <= 0)
+                bool isSingleStopStrategy = strategyRequiredStops == 1;
+                bool hasValidFuelPerLap = LiveFuelPerLap > 0.0;
+                bool hasRequestedAdd = requestedAddLitres > 0.0;
+                bool hasTankCapacity = maxTankCapacity > 0.0;
+
+                // CompletedLaps is decimal? -> normalize to double and translate to human lap number
+                double completedLaps = Convert.ToDouble(data.NewData?.CompletedLaps ?? 0m);
+                int currentLapNumber = (int)Math.Max(0, Math.Floor(completedLaps) + 1);
+
+                if (!isSingleStopStrategy || !_isRefuelSelected || !hasValidFuelPerLap || !hasRequestedAdd || !hasTankCapacity)
                 {
                     IsPitWindowOpen = false;
                     PitWindowOpeningLap = 0;
                 }
                 else
                 {
-                    double lapsUntilEmpty = LapsRemainingInTank;
-                    double pitWindowLapThreshold = lapsPerTank;
-                    IsPitWindowOpen = lapsUntilEmpty <= pitWindowLapThreshold;
+                    double tankSpace = Pit_TankSpaceAvailable;
 
-                    if (IsPitWindowOpen)
+                    if (tankSpace >= requestedAddLitres)
                     {
-                        PitWindowOpeningLap = 0;
+                        IsPitWindowOpen = true;
+                        // Use the in-progress lap number (completed laps + 1) for the opening marker.
+                        PitWindowOpeningLap = currentLapNumber;
                     }
                     else
                     {
-                        double lapsUntilWindowOpens = lapsUntilEmpty - pitWindowLapThreshold;
+                        double fuelToBurn = requestedAddLitres - tankSpace;
+                        int lapsToOpen = (int)Math.Ceiling(fuelToBurn / LiveFuelPerLap);
+                        if (lapsToOpen < 0) lapsToOpen = 0;
 
-                        // CompletedLaps is decimal? -> normalize to double
-                        double completedLaps = Convert.ToDouble(data.NewData?.CompletedLaps ?? 0m);
-
-                        PitWindowOpeningLap = (int)Math.Floor(completedLaps + lapsUntilWindowOpens);
+                        PitWindowOpeningLap = currentLapNumber + lapsToOpen;
+                        IsPitWindowOpen = false;
                     }
                 }
 
