@@ -99,6 +99,7 @@
     </Compile>
     <Compile Include="EnumEqualsConverter.cs" />
     <Compile Include="FuelCalcs.cs" />
+    <Compile Include="FuelProjectionMath.cs" />
     <Compile Include="FuelCalculatorView.xaml.cs">
       <DependentUpon>FuelCalculatorView.xaml</DependentUpon>
     </Compile>
