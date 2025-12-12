@@ -1604,7 +1604,6 @@ namespace LaunchPlugin
                 PaceConfidence = 0;
                 FuelCalculator?.SetLiveLapPaceEstimate(0, 0);
                 FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
-                FuelCalculator?.SetLiveDriveTimeAfterZero(0.0);
             }
             else
             {
@@ -1616,12 +1615,8 @@ namespace LaunchPlugin
 
                 bool isTimedRace = !double.IsNaN(sessionTimeRemain);
                 double projectionLapSeconds = GetProjectionLapSeconds(data);
-                double projectedDriveAfterZero = ComputeDriveTimeAfterZeroProjection(
-                    sessionTime,
-                    sessionTimeRemain,
-                    isTimedRace ? projectionLapSeconds : 0.0);
+                double projectedDriveAfterZero = FuelCalculator?.StrategyDriverExtraSecondsAfterZero ?? 0.0;
                 LiveProjectedDriveTimeAfterZero = projectedDriveAfterZero;
-                FuelCalculator?.SetLiveDriveTimeAfterZero(LiveProjectedDriveTimeAfterZero);
                 double projectedLapsRemaining = ComputeProjectedLapsRemaining(simLapsRemaining, projectionLapSeconds, sessionTimeRemain, projectedDriveAfterZero);
 
                 if (projectedLapsRemaining > 0.0)
@@ -3146,19 +3141,6 @@ namespace LaunchPlugin
                 return ts.TotalSeconds;
 
             return 0.0;
-        }
-
-        private double ComputeDriveTimeAfterZeroProjection(double sessionTime, double sessionTimeRemain, double lapSeconds)
-        {
-            double strategyProjection = FuelCalculator?.StrategyDriverExtraSecondsAfterZero ?? 0.0;
-
-            return FuelProjectionMath.EstimateDriveTimeAfterZero(
-                sessionTime,
-                sessionTimeRemain,
-                lapSeconds,
-                strategyProjection,
-                _timerZeroSeen,
-                _timerZeroSessionTime);
         }
 
         private double ComputeProjectedLapsRemaining(double simLapsRemaining, double lapSeconds, double sessionTimeRemain, double driveTimeAfterZero)
