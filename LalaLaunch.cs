@@ -960,12 +960,15 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"{prefix} | {pacePart} | {fuelPart}");
         }
 
-        private void UpdateLiveFuelCalcs(GameData data)
+        private void UpdateLiveFuelCalcs(GameData data, PluginManager pluginManager)
         {
             // --- 1) Gather required data ---
             double currentFuel = data.NewData?.Fuel ?? 0.0;
             double rawLapPct = data.NewData?.TrackPositionPercent ?? 0.0;
             double maxFuel = data.NewData?.MaxFuel ?? 0.0;
+
+            double sessionTime = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
+            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
 
             // Pit detection: use both signals (some installs expose only one reliably)
             bool isInPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
@@ -2573,6 +2576,18 @@ namespace LaunchPlugin
             _isRefuelSelected = IsRefuelSelected(pluginManager);
             _isTireChangeSelected = IsAnyTireChangeSelected(pluginManager);
 
+            // Pull raw session time from SimHub property engine so projections and refuel learning share the same values.
+            double sessionTime = 0.0;
+            try
+            {
+                sessionTime = Convert.ToDouble(
+                    pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionTime") ?? 0.0
+                );
+            }
+            catch { sessionTime = 0.0; }
+
+            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+
             string currentSessionTypeForConfidence = data.NewData?.SessionTypeName ?? string.Empty;
             string trackIdentityForConfidence =
                 (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase))
@@ -2629,6 +2644,7 @@ namespace LaunchPlugin
             // --- PitLite tick: after PitEngine update and baseline selection ---
             bool inLane = _pit?.IsOnPitRoad ?? (data.NewData.IsInPitLane != 0);
             int completedLaps = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
+            UpdateFinishTiming(pluginManager, data, sessionTime, sessionTimeRemain, completedLaps);
             double lastLapSec = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
             // IMPORTANT: give PitLite a *real* baseline pace.
             // Order: stable avg (from your fuel/baseline logic) → pit debug avg → profile avg → 0
@@ -2672,19 +2688,6 @@ namespace LaunchPlugin
 
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
             double currentFuel = data.NewData?.Fuel ?? 0.0;
-
-            // Pull raw session time from SimHub property engine
-            double sessionTime = 0.0;
-            try
-            {
-                sessionTime = Convert.ToDouble(
-                    pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionTime") ?? 0.0
-                );
-            }
-            catch { sessionTime = 0.0; }
-
-            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
-            UpdateFinishTiming(pluginManager, data, sessionTime, sessionTimeRemain, completedLaps);
 
             bool inPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
 
@@ -2842,7 +2845,7 @@ namespace LaunchPlugin
             if (_poll500ms.ElapsedMilliseconds >= 500)
             {
                 _poll500ms.Restart();
-                UpdateLiveFuelCalcs(data);
+                UpdateLiveFuelCalcs(data, pluginManager);
 
                 var currentBestLap = data.NewData?.BestLapTime ?? TimeSpan.Zero;
                 if (currentBestLap > TimeSpan.Zero && currentBestLap != _lastSeenBestLap)
