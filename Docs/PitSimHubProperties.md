@@ -70,9 +70,14 @@ The plugin exposes a mix of pit-lane timing, loss calculations, PitLite telemetr
 | `Fuel.Pit.TankSpaceAvailable` | Core | Max fuel that fits given tank size. | Driver strategy. |
 | `Fuel.Pit.WillAdd` | Core | Planned fuel to add this stop. | Driver strategy. |
 | `Fuel.Pit.DeltaAfterStop` | Core | Laps delta after refuel (`FuelOnExit/LapsPerLap - lapsRemaining`). | Driver strategy. |
+| `Fuel.Pit.FuelSaveDeltaAfterStop` | Core | Laps delta after refuel using low-burn profile. | Driver strategy. |
+| `Fuel.Pit.PushDeltaAfterStop` | Core | Laps delta after refuel using push/max-burn profile. | Driver strategy. |
 | `Fuel.Pit.FuelOnExit` | Core | Estimated fuel after stop. | Driver strategy. |
 | `Fuel.Pit.StopsRequiredToEnd` | Core | Integer stops needed to finish. | Driver strategy. |
+| `Fuel.FuelSavePerLap` | Core | Current low-burn per-lap estimate. | Driver strategy. |
 | `Fuel.Live.TotalStopLoss` | Core | Pit lane loss plus concurrent box time from fuel/tyre selections. | Driver strategy. |
+| `Fuel.Live.DriveTimeAfterZero` | Core | Projected driving time once the race clock reaches 0. | Driver strategy. |
+| `Fuel.Live.ProjectedDriveSecondsRemaining` | Core | Projected wall time remaining including after-zero driving. | Driver strategy. |
 | `Fuel.IsPitWindowOpen` | Core | Boolean pit window flag. | Driver strategy. |
 | `Fuel.PitWindowOpeningLap` | Core | Lap when pit window opens. | Driver strategy. |
 | `Fuel.LastPitLaneTravelTime` | Core | Alias noted above; also fuels consumption model. | Driver strategy. |
