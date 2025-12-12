@@ -2895,19 +2895,6 @@ namespace LaunchPlugin
         }
     }
 
-    public void SetLiveDriveTimeAfterZero(double seconds)
-    {
-        var disp = System.Windows.Application.Current?.Dispatcher;
-        if (disp == null || disp.CheckAccess())
-        {
-            LiveDriverExtraSecondsAfterZero = seconds;
-        }
-        else
-        {
-            disp.Invoke(() => LiveDriverExtraSecondsAfterZero = seconds);
-        }
-    }
-
     public void SetLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
     {
         var disp = System.Windows.Application.Current?.Dispatcher;
@@ -3940,11 +3927,10 @@ namespace LaunchPlugin
             // ------------------------------------------------------------------------
 
             double num6 = 0.0;
+            double baseSeconds = RaceMinutes * 60.0;
             if (IsTimeLimitedRace)
             {
-                double baseRaceSeconds = RaceMinutes * 60.0;
-                double driveTimeAfterZero = Math.Max(0.0, LiveDriverExtraSecondsAfterZero);
-                double availableDriveSeconds = baseRaceSeconds + driveTimeAfterZero;
+                double availableDriveSeconds = baseSeconds;
                 int num7 = 0;
                 int num8 = -1;
                 int num9 = 0;
@@ -3985,8 +3971,7 @@ namespace LaunchPlugin
                 num6 = Math.Max(0.0, RaceLaps - (double)num20);
             }
 
-            double baseSeconds = RaceMinutes * 60.0;
-            double driveSecondsAvailable = baseSeconds + Math.Max(0.0, LiveDriverExtraSecondsAfterZero);
+            double driveSecondsAvailable = baseSeconds;
 
             StrategyResult strategyResult = CalculateSingleStrategy(
                 num6, fuelPerLap, num3, num2, num, driveSecondsAvailable);
@@ -3998,28 +3983,7 @@ namespace LaunchPlugin
             FirstStopTimeLoss = strategyResult.FirstStopTimeLoss;
             OnPropertyChanged(nameof(IsPitstopRequired));
 
-            if (IsTimeLimitedRace && num3 > 0.0)
-            {
-                double leaderExtraSeconds = (num2 > 0.0) ? Math.Max(0.0, num2) : 0.0;
-                double driverExtraSeconds = Math.Max(0.0, strategyResult.TotalTime - baseSeconds);
-
-                // Cap to a realistic window of roughly two of the driver's current laps.
-                if (num3 > 0.0)
-                {
-                    double driverCap = Math.Max(0.0, num3 * 2.0);
-                    driverExtraSeconds = Math.Min(driverExtraSeconds, driverCap);
-                }
-
-                StrategyLeaderExtraSecondsAfterZero = leaderExtraSeconds;
-                StrategyDriverExtraSecondsAfterZero = driverExtraSeconds;
-                ExtraTimeAfterLeader = TimeSpan.FromSeconds(driverExtraSeconds).ToString("m\\:ss");
-            }
-            else
-            {
-                StrategyLeaderExtraSecondsAfterZero = 0.0;
-                StrategyDriverExtraSecondsAfterZero = 0.0;
-                ExtraTimeAfterLeader = "N/A";
-            }
+            ApplyStrategyDriveTimeAfterZero(baseSeconds, num2, num3, strategyResult);
 
             double num24 = fuelPerLap - FuelSaveTarget;
             if (num24 <= 0.0)
@@ -4038,6 +4002,73 @@ namespace LaunchPlugin
                 $"{(num25 >= 0.0 ? "+" : "-")}{TimeSpan.FromSeconds(Math.Abs(num25)):m\\:ss\\.fff}";
         }
 
+
+        private void ApplyStrategyDriveTimeAfterZero(double raceClockSeconds, double leaderPaceSeconds, double playerPaceSeconds, StrategyResult strategyResult)
+        {
+            if (IsTimeLimitedRace && playerPaceSeconds > 0.0)
+            {
+                var (leaderExtraSeconds, driverExtraSeconds) = ComputeDriveTimeAfterZero(
+                    raceClockSeconds,
+                    leaderPaceSeconds,
+                    playerPaceSeconds,
+                    strategyResult.PlayerLaps,
+                    strategyResult.TotalTime);
+
+                StrategyLeaderExtraSecondsAfterZero = leaderExtraSeconds;
+                StrategyDriverExtraSecondsAfterZero = driverExtraSeconds;
+                LiveDriverExtraSecondsAfterZero = StrategyDriverExtraSecondsAfterZero;
+                ExtraTimeAfterLeader = TimeSpan.FromSeconds(driverExtraSeconds).ToString("m\\:ss");
+            }
+            else
+            {
+                StrategyLeaderExtraSecondsAfterZero = 0.0;
+                StrategyDriverExtraSecondsAfterZero = 0.0;
+                LiveDriverExtraSecondsAfterZero = StrategyDriverExtraSecondsAfterZero;
+                ExtraTimeAfterLeader = "N/A";
+            }
+        }
+
+        private (double leaderExtraSeconds, double driverExtraSeconds) ComputeDriveTimeAfterZero(
+            double raceClockSeconds,
+            double leaderPaceSeconds,
+            double playerPaceSeconds,
+            double strategyTotalLaps,
+            double strategyTotalSeconds)
+        {
+            double leaderExtraSeconds = 0.0;
+            if (leaderPaceSeconds > 0.0 && raceClockSeconds > 0.0)
+            {
+                double leaderLapsAtZero = raceClockSeconds / leaderPaceSeconds;
+                double leaderLapFraction = leaderLapsAtZero - Math.Floor(leaderLapsAtZero);
+                leaderExtraSeconds = leaderPaceSeconds * (1.0 - leaderLapFraction);
+            }
+
+            double driverExtraSeconds = Math.Max(0.0, strategyTotalSeconds - raceClockSeconds);
+
+            double fractionalLaps = strategyTotalLaps - Math.Floor(strategyTotalLaps);
+            if (playerPaceSeconds > 0.0 && fractionalLaps > 0.0)
+            {
+                double fractionalSeconds = fractionalLaps * playerPaceSeconds;
+                driverExtraSeconds = Math.Max(driverExtraSeconds, fractionalSeconds);
+            }
+
+            if (leaderExtraSeconds > 0.0 && playerPaceSeconds > 0.0)
+            {
+                double maxAfterZero = leaderExtraSeconds + playerPaceSeconds;
+                driverExtraSeconds = Math.Min(driverExtraSeconds, maxAfterZero);
+            }
+
+            if (playerPaceSeconds > 0.0)
+            {
+                double driverCap = Math.Max(0.0, playerPaceSeconds * 2.0);
+                driverExtraSeconds = Math.Min(driverExtraSeconds, driverCap);
+            }
+
+            leaderExtraSeconds = Math.Max(0.0, leaderExtraSeconds);
+            driverExtraSeconds = Math.Max(0.0, driverExtraSeconds);
+
+            return (leaderExtraSeconds, driverExtraSeconds);
+        }
 
         private StrategyResult CalculateSingleStrategy(double totalLaps, double fuelPerLap, double playerPaceSeconds, double leaderPaceSeconds, double pitLaneTimeLoss, double raceClockSeconds)
     {
