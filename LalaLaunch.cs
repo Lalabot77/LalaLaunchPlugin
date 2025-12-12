@@ -235,10 +235,17 @@ namespace LaunchPlugin
         public double Pit_WillAdd { get; private set; }
         public double Pit_DeltaAfterStop { get; private set; }
         public double Pit_FuelOnExit { get; private set; }
+        public double Pit_FuelSaveDeltaAfterStop { get; private set; }
+        public double Pit_PushDeltaAfterStop { get; private set; }
         public int Pit_StopsRequiredToEnd { get; private set; }
         private bool _isRefuelSelected = true;
         private bool _isTireChangeSelected = true;
         public double LiveCarMaxFuel { get; private set; }
+
+        public double FuelSaveFuelPerLap { get; private set; }
+
+        public double LiveProjectedDriveTimeAfterZero { get; private set; }
+        public double LiveProjectedDriveSecondsRemaining { get; private set; }
 
         // Push / max-burn guidance
         public double PushFuelPerLap { get; private set; }
@@ -261,6 +268,8 @@ namespace LaunchPlugin
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
         private DateTime _lastPitLaneSeenUtc = DateTime.MinValue;
+        private double _lastLoggedProjectedLaps = double.NaN;
+        private DateTime _lastProjectionLogUtc = DateTime.MinValue;
 
         // --- Stint / Pace tracking ---
         public double Pace_StintAvgLapTimeSec { get; private set; }
@@ -951,12 +960,15 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"{prefix} | {pacePart} | {fuelPart}");
         }
 
-        private void UpdateLiveFuelCalcs(GameData data)
+        private void UpdateLiveFuelCalcs(GameData data, PluginManager pluginManager)
         {
             // --- 1) Gather required data ---
             double currentFuel = data.NewData?.Fuel ?? 0.0;
             double rawLapPct = data.NewData?.TrackPositionPercent ?? 0.0;
             double maxFuel = data.NewData?.MaxFuel ?? 0.0;
+
+            double sessionTime = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
+            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
 
             // Pit detection: use both signals (some installs expose only one reliably)
             bool isInPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
@@ -1574,11 +1586,17 @@ namespace LaunchPlugin
                 Pit_WillAdd = 0;
                 Pit_FuelOnExit = 0;
                 Pit_DeltaAfterStop = 0;
+                Pit_FuelSaveDeltaAfterStop = 0;
+                Pit_PushDeltaAfterStop = 0;
                 Pit_StopsRequiredToEnd = 0;
 
                 PushFuelPerLap = 0;
                 DeltaLapsIfPush = 0;
                 CanAffordToPush = false;
+
+                FuelSaveFuelPerLap = 0;
+                LiveProjectedDriveTimeAfterZero = 0;
+                LiveProjectedDriveSecondsRemaining = 0;
 
                 Pace_StintAvgLapTimeSec = 0.0;
                 Pace_Last5LapAvgSec = 0.0;
@@ -1586,14 +1604,39 @@ namespace LaunchPlugin
                 PaceConfidence = 0;
                 FuelCalculator?.SetLiveLapPaceEstimate(0, 0);
                 FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
+                FuelCalculator?.SetLiveDriveTimeAfterZero(0.0);
             }
             else
             {
                 LapsRemainingInTank = currentFuel / LiveFuelPerLap;
 
-                LiveLapsRemainingInRace = Convert.ToDouble(
+                double simLapsRemaining = Convert.ToDouble(
                     PluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LapsRemainingFloat") ?? 0.0
                 );
+
+                bool isTimedRace = !double.IsNaN(sessionTimeRemain);
+                double projectionLapSeconds = GetProjectionLapSeconds(data);
+                double projectedDriveAfterZero = ComputeDriveTimeAfterZeroProjection(
+                    sessionTime,
+                    sessionTimeRemain,
+                    isTimedRace ? projectionLapSeconds : 0.0);
+                LiveProjectedDriveTimeAfterZero = projectedDriveAfterZero;
+                FuelCalculator?.SetLiveDriveTimeAfterZero(LiveProjectedDriveTimeAfterZero);
+                double projectedLapsRemaining = ComputeProjectedLapsRemaining(simLapsRemaining, projectionLapSeconds, sessionTimeRemain, projectedDriveAfterZero);
+
+                if (projectedLapsRemaining > 0.0)
+                {
+                    LiveLapsRemainingInRace = projectedLapsRemaining;
+
+                    if (ShouldLogProjection(simLapsRemaining, projectedLapsRemaining))
+                    {
+                        LogProjectionDifference(simLapsRemaining, projectedLapsRemaining, projectionLapSeconds);
+                    }
+                }
+                else
+                {
+                    LiveLapsRemainingInRace = simLapsRemaining;
+                }
 
                 double fuelNeededToEnd = LiveLapsRemainingInRace * LiveFuelPerLap;
                 DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace;
@@ -1646,8 +1689,21 @@ namespace LaunchPlugin
                 Pit_WillAdd = Math.Min(safeFuelRequest, Pit_TankSpaceAvailable);
 
                 Pit_FuelOnExit = currentFuel + Pit_WillAdd;
+                bool isWetModeNow = FuelCalculator?.IsWet ?? false;
+                double fuelSaveRate = isWetModeNow ? _minWetFuelPerLap : _minDryFuelPerLap;
+                if (fuelSaveRate <= 0.0 && LiveFuelPerLap > 0.0)
+                {
+                    fuelSaveRate = LiveFuelPerLap * 0.97; // light saving fallback
+                }
+
+                FuelSaveFuelPerLap = fuelSaveRate;
+
                 Pit_DeltaAfterStop = (LiveFuelPerLap > 0)
                     ? (Pit_FuelOnExit / LiveFuelPerLap) - LiveLapsRemainingInRace
+                    : 0;
+
+                Pit_FuelSaveDeltaAfterStop = (fuelSaveRate > 0)
+                    ? (Pit_FuelOnExit / fuelSaveRate) - LiveLapsRemainingInRace
                     : 0;
 
                 // Pit window logic
@@ -1701,11 +1757,16 @@ namespace LaunchPlugin
                     double lapsRemainingIfPush = currentFuel / pushFuel;
                     DeltaLapsIfPush = lapsRemainingIfPush - LiveLapsRemainingInRace;
                     CanAffordToPush = DeltaLapsIfPush >= 0.0;
+
+                    Pit_PushDeltaAfterStop = (Pit_FuelOnExit > 0.0)
+                        ? (Pit_FuelOnExit / pushFuel) - LiveLapsRemainingInRace
+                        : 0.0;
                 }
                 else
                 {
                     DeltaLapsIfPush = 0.0;
                     CanAffordToPush = false;
+                    Pit_PushDeltaAfterStop = 0.0;
                 }
             }
 
@@ -1964,6 +2025,9 @@ namespace LaunchPlugin
             // --- INITIALIZATION ---
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
+#if DEBUG
+            FuelProjectionMath.RunSelfTests();
+#endif
             // The Action for "Apply to Live" in the Profiles tab is now simplified: just update the ActiveProfile
             ProfilesViewModel = new ProfilesManagerViewModel(
                 this.PluginManager,
@@ -2013,6 +2077,7 @@ namespace LaunchPlugin
             AttachCore("Fuel.LapsRemainingInTank", () => LapsRemainingInTank);
             AttachCore("Fuel.Confidence", () => Confidence);
             AttachCore("Fuel.PushFuelPerLap", () => PushFuelPerLap);
+            AttachCore("Fuel.FuelSavePerLap", () => FuelSaveFuelPerLap);
             AttachCore("Fuel.DeltaLapsIfPush", () => DeltaLapsIfPush);
             AttachCore("Fuel.CanAffordToPush", () => CanAffordToPush);
             AttachCore("Fuel.Pit.TotalNeededToEnd", () => Pit_TotalNeededToEnd);
@@ -2020,12 +2085,16 @@ namespace LaunchPlugin
             AttachCore("Fuel.Pit.TankSpaceAvailable", () => Pit_TankSpaceAvailable);
             AttachCore("Fuel.Pit.WillAdd", () => Pit_WillAdd);
             AttachCore("Fuel.Pit.DeltaAfterStop", () => Pit_DeltaAfterStop);
+            AttachCore("Fuel.Pit.FuelSaveDeltaAfterStop", () => Pit_FuelSaveDeltaAfterStop);
+            AttachCore("Fuel.Pit.PushDeltaAfterStop", () => Pit_PushDeltaAfterStop);
             AttachCore("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
             AttachCore("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
             AttachCore("Fuel.Live.RefuelRate_Lps", () => FuelCalculator?.EffectiveRefuelRateLps ?? 0.0);
             AttachCore("Fuel.Live.TireChangeTime_S", () => GetEffectiveTireChangeTimeSeconds());
             AttachCore("Fuel.Live.PitLaneLoss_S", () => FuelCalculator?.PitLaneTimeLoss ?? 0.0);
             AttachCore("Fuel.Live.TotalStopLoss", () => CalculateTotalStopLossSeconds());
+            AttachCore("Fuel.Live.DriveTimeAfterZero", () => LiveProjectedDriveTimeAfterZero);
+            AttachCore("Fuel.Live.ProjectedDriveSecondsRemaining", () => LiveProjectedDriveSecondsRemaining);
 
             // --- Pace metrics (CORE) ---
             AttachCore("Pace.StintAvgLapTimeSec", () => Pace_StintAvgLapTimeSec);
@@ -2507,6 +2576,18 @@ namespace LaunchPlugin
             _isRefuelSelected = IsRefuelSelected(pluginManager);
             _isTireChangeSelected = IsAnyTireChangeSelected(pluginManager);
 
+            // Pull raw session time from SimHub property engine so projections and refuel learning share the same values.
+            double sessionTime = 0.0;
+            try
+            {
+                sessionTime = Convert.ToDouble(
+                    pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionTime") ?? 0.0
+                );
+            }
+            catch { sessionTime = 0.0; }
+
+            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+
             string currentSessionTypeForConfidence = data.NewData?.SessionTypeName ?? string.Empty;
             string trackIdentityForConfidence =
                 (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase))
@@ -2563,6 +2644,7 @@ namespace LaunchPlugin
             // --- PitLite tick: after PitEngine update and baseline selection ---
             bool inLane = _pit?.IsOnPitRoad ?? (data.NewData.IsInPitLane != 0);
             int completedLaps = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
+            UpdateFinishTiming(pluginManager, data, sessionTime, sessionTimeRemain, completedLaps);
             double lastLapSec = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
             // IMPORTANT: give PitLite a *real* baseline pace.
             // Order: stable avg (from your fuel/baseline logic) → pit debug avg → profile avg → 0
@@ -2606,19 +2688,6 @@ namespace LaunchPlugin
 
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
             double currentFuel = data.NewData?.Fuel ?? 0.0;
-
-            // Pull raw session time from SimHub property engine
-            double sessionTime = 0.0;
-            try
-            {
-                sessionTime = Convert.ToDouble(
-                    pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionTime") ?? 0.0
-                );
-            }
-            catch { sessionTime = 0.0; }
-
-            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
-            UpdateFinishTiming(pluginManager, data, sessionTime, sessionTimeRemain, completedLaps);
 
             bool inPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
 
@@ -2776,7 +2845,7 @@ namespace LaunchPlugin
             if (_poll500ms.ElapsedMilliseconds >= 500)
             {
                 _poll500ms.Restart();
-                UpdateLiveFuelCalcs(data);
+                UpdateLiveFuelCalcs(data, pluginManager);
 
                 var currentBestLap = data.NewData?.BestLapTime ?? TimeSpan.Zero;
                 if (currentBestLap > TimeSpan.Zero && currentBestLap != _lastSeenBestLap)
@@ -3044,6 +3113,77 @@ namespace LaunchPlugin
             return (double.IsNaN(seconds) || double.IsInfinity(seconds))
                 ? "n/a"
                 : seconds.ToString("F1", CultureInfo.InvariantCulture);
+        }
+
+        private double GetProjectionLapSeconds(GameData data)
+        {
+            if (Pace_StintAvgLapTimeSec > 0.0)
+                return Pace_StintAvgLapTimeSec;
+
+            if (Pace_Last5LapAvgSec > 0.0)
+                return Pace_Last5LapAvgSec;
+
+            double lastLapSeconds = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
+            if (lastLapSeconds > 0.0)
+                return lastLapSeconds;
+
+            string estimatedLap = FuelCalculator?.EstimatedLapTime ?? string.Empty;
+            if (TimeSpan.TryParse(estimatedLap, out var ts) && ts.TotalSeconds > 0.0)
+                return ts.TotalSeconds;
+
+            return 0.0;
+        }
+
+        private double ComputeDriveTimeAfterZeroProjection(double sessionTime, double sessionTimeRemain, double lapSeconds)
+        {
+            double strategyProjection = FuelCalculator?.StrategyDriverExtraSecondsAfterZero ?? 0.0;
+
+            return FuelProjectionMath.EstimateDriveTimeAfterZero(
+                sessionTime,
+                sessionTimeRemain,
+                lapSeconds,
+                strategyProjection,
+                _timerZeroSeen,
+                _timerZeroSessionTime);
+        }
+
+        private double ComputeProjectedLapsRemaining(double simLapsRemaining, double lapSeconds, double sessionTimeRemain, double driveTimeAfterZero)
+        {
+            double projectedSeconds;
+            double projectedLaps = FuelProjectionMath.ProjectLapsRemaining(
+                lapSeconds,
+                sessionTimeRemain,
+                driveTimeAfterZero,
+                simLapsRemaining,
+                out projectedSeconds);
+
+            LiveProjectedDriveSecondsRemaining = projectedSeconds;
+            return projectedLaps;
+        }
+
+        private bool ShouldLogProjection(double simLapsRemaining, double projectedLapsRemaining)
+        {
+            double diff = Math.Abs(projectedLapsRemaining - simLapsRemaining);
+            if (diff < 0.25)
+                return false;
+
+            if ((DateTime.UtcNow - _lastProjectionLogUtc) < TimeSpan.FromSeconds(20))
+                return false;
+
+            if (!double.IsNaN(_lastLoggedProjectedLaps) && Math.Abs(projectedLapsRemaining - _lastLoggedProjectedLaps) < 0.25)
+                return false;
+
+            return true;
+        }
+
+        private void LogProjectionDifference(double simLapsRemaining, double projectedLapsRemaining, double lapSeconds)
+        {
+            _lastProjectionLogUtc = DateTime.UtcNow;
+            _lastLoggedProjectedLaps = projectedLapsRemaining;
+
+            SimHub.Logging.Current.Info(
+                $"[FuelProjection] using drive-time projection laps={projectedLapsRemaining:F2} (sim={simLapsRemaining:F2}, lap={lapSeconds:F2}s, after0={LiveProjectedDriveTimeAfterZero:F1}s)"
+            );
         }
 
         private double ComputeObservedExtraSeconds(double finishSessionTime, double sessionTimeRemain)

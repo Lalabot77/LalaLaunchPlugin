@@ -104,6 +104,7 @@ namespace LaunchPlugin
 
     private string _liveLapPaceInfo = "-";
     private double _liveAvgLapSeconds = 0;   // internal cache of live estimate
+    private double _liveDriverExtraSecondsAfterZero = 0.0;
     private bool? _liveWeatherIsWet;
     private string _liveSurfaceSummary;
     private bool _isLiveSessionActive;
@@ -376,6 +377,20 @@ namespace LaunchPlugin
             {
                 _liveLapPaceInfo = value;
                 OnPropertyChanged(nameof(LiveLapPaceInfo));
+            }
+        }
+    }
+
+    public double LiveDriverExtraSecondsAfterZero
+    {
+        get => _liveDriverExtraSecondsAfterZero;
+        private set
+        {
+            double clamped = Math.Max(0.0, value);
+            if (Math.Abs(_liveDriverExtraSecondsAfterZero - clamped) > 0.001)
+            {
+                _liveDriverExtraSecondsAfterZero = clamped;
+                OnPropertyChanged();
             }
         }
     }
@@ -2880,6 +2895,19 @@ namespace LaunchPlugin
         }
     }
 
+    public void SetLiveDriveTimeAfterZero(double seconds)
+    {
+        var disp = System.Windows.Application.Current?.Dispatcher;
+        if (disp == null || disp.CheckAccess())
+        {
+            LiveDriverExtraSecondsAfterZero = seconds;
+        }
+        else
+        {
+            disp.Invoke(() => LiveDriverExtraSecondsAfterZero = seconds);
+        }
+    }
+
     public void SetLiveConfidenceLevels(int fuelConfidence, int paceConfidence, int overallConfidence)
     {
         var disp = System.Windows.Application.Current?.Dispatcher;
@@ -3914,11 +3942,14 @@ namespace LaunchPlugin
             double num6 = 0.0;
             if (IsTimeLimitedRace)
             {
+                double baseRaceSeconds = RaceMinutes * 60.0;
+                double driveTimeAfterZero = Math.Max(0.0, LiveDriverExtraSecondsAfterZero);
+                double availableDriveSeconds = baseRaceSeconds + driveTimeAfterZero;
                 int num7 = 0;
                 int num8 = -1;
                 int num9 = 0;
                 double num10 = fuelPerLap; // already includes wet factor when IsWet
-                double num11 = RaceMinutes * 60.0;
+                double num11 = availableDriveSeconds;
                 while (num7 != num8 && num9 < 10)
                 {
                     num9++;
@@ -3954,10 +3985,11 @@ namespace LaunchPlugin
                 num6 = Math.Max(0.0, RaceLaps - (double)num20);
             }
 
-            double raceSeconds = RaceMinutes * 60.0;
+            double baseSeconds = RaceMinutes * 60.0;
+            double driveSecondsAvailable = baseSeconds + Math.Max(0.0, LiveDriverExtraSecondsAfterZero);
 
             StrategyResult strategyResult = CalculateSingleStrategy(
-                num6, fuelPerLap, num3, num2, num, raceSeconds);
+                num6, fuelPerLap, num3, num2, num, driveSecondsAvailable);
 
             TotalFuelNeeded = strategyResult.TotalFuel;
             RequiredPitStops = strategyResult.Stops;
@@ -3969,7 +4001,7 @@ namespace LaunchPlugin
             if (IsTimeLimitedRace && num3 > 0.0)
             {
                 double leaderExtraSeconds = (num2 > 0.0) ? Math.Max(0.0, num2) : 0.0;
-                double driverExtraSeconds = Math.Max(0.0, strategyResult.TotalTime - raceSeconds);
+                double driverExtraSeconds = Math.Max(0.0, strategyResult.TotalTime - baseSeconds);
 
                 // Cap to a realistic window of roughly two of the driver's current laps.
                 if (num3 > 0.0)
