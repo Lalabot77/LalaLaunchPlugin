@@ -149,12 +149,12 @@ namespace LaunchPlugin
 
         public bool LeaderHasFinished
         {
-            get => _leaderHasFinishedFlag;
+            get => _leaderHasFinished;
             private set
             {
-                if (_leaderHasFinishedFlag != value)
+                if (_leaderHasFinished != value)
                 {
-                    _leaderHasFinishedFlag = value;
+                    _leaderHasFinished = value;
                     OnPropertyChanged();
                 }
             }
@@ -182,7 +182,7 @@ namespace LaunchPlugin
         private double _leaderCheckeredSessionTime = double.NaN;
         private double _driverCheckeredSessionTime = double.NaN;
         private bool _leaderFinishedSeen;
-        private bool _leaderHasFinishedFlag;
+        private bool _leaderHasFinished;
         private int _lastCompletedLapForFinish = -1;
 
         // New per-mode rolling windows
@@ -3409,6 +3409,18 @@ namespace LaunchPlugin
                 "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckeredFlag",
                 "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
             );
+
+            bool leaderFinishSignal = ReadFlagBool(
+                pluginManager,
+                "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_IsCheckered",
+                "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_Checkered",
+                "DataCorePlugin.GameData.LeaderHasFinished"
+            );
+
+            if (leaderFinishSignal && !LeaderHasFinished)
+            {
+                LeaderHasFinished = true;
+            }
 
             if (LeaderHasFinished && !_leaderFinishedSeen)
             {
