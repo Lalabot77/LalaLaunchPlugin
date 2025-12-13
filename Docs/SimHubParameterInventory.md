@@ -1,39 +1,39 @@
 # SimHub Parameter Inventory
 
-This document maps every custom SimHub-exported parameter defined in `LalaLaunch.cs` (core plus verbose/debug). It captures the internal name, type, units/meaning, update cadence, primary source, and a short description to aid dashboard design.
+This document maps every custom SimHub-exported parameter defined in `LalaLaunch.cs` (core plus verbose/debug). It captures the internal name, type, units/meaning, update cadence, primary source, and a short description to aid dashboard design. All names below are shown without the implicit `LalaLaunch.` prefix that SimHub adds at runtime. See `Docs/FuelProperties_Spec.md` for the authoritative fuel-property formulas.
 
 ## SimHub Parameter Inventory
 
 ### Core parameters (always published)
 | Exported name | Type | Units / meaning | Update mechanism | Primary source | Notes / grouping |
 | --- | --- | --- | --- | --- | --- |
-| Fuel.LiveFuelPerLap | double | L/lap | Recomputed in `UpdateLiveFuelCalcs` (500 ms tick inside `DataUpdate`) | Live telemetry fuel delta per lap with filtering | Fuel strategy |
-| Fuel.LiveLapsRemainingInRace | double | Laps | 500 ms fuel update | Live fuel per lap vs. remaining distance | Fuel strategy |
-| Fuel.DeltaLaps | double | Laps | 500 ms fuel update | Live fuel vs. projected need | Fuel strategy |
-| Fuel.TargetFuelPerLap | double | L/lap | 500 ms fuel update | FuelCalcs target based on session context | Fuel strategy |
-| Fuel.IsPitWindowOpen | bool | Flag | 500 ms fuel update | FuelCalcs pit window logic | Fuel strategy |
-| Fuel.PitWindowOpeningLap | double | Lap index | 500 ms fuel update | FuelCalcs | Fuel strategy |
-| Fuel.LapsRemainingInTank | double | Laps | 500 ms fuel update | FuelCalcs | Fuel strategy |
-| Fuel.Confidence | int | Score | 500 ms fuel update | FuelCalcs confidence logic | Fuel strategy |
-| Fuel.PushFuelPerLap | double | L/lap | 500 ms fuel update | Live rolling max fuel | Fuel strategy |
-| Fuel.FuelSavePerLap | double | L/lap | 500 ms fuel update | Rolling min/low-burn estimate | Fuel strategy |
-| Fuel.DeltaLapsIfPush | double | Laps | 500 ms fuel update | Push fuel vs. target | Fuel strategy |
-| Fuel.CanAffordToPush | bool | Flag | 500 ms fuel update | Push analysis | Fuel strategy |
-| Fuel.Pit.TotalNeededToEnd | double | Liters | 500 ms fuel update | FuelCalcs total fill needed | Pit/fuel |
-| Fuel.Pit.NeedToAdd | double | Liters | 500 ms fuel update | Tank deficit | Pit/fuel |
-| Fuel.Pit.TankSpaceAvailable | double | Liters | 500 ms fuel update | Live fuel level vs. max | Pit/fuel |
-| Fuel.Pit.WillAdd | double | Liters | 500 ms fuel update | Clamped planned add | Pit/fuel |
-| Fuel.Pit.DeltaAfterStop | double | Laps | 500 ms fuel update | Post-stop lap delta | Pit/fuel |
-| Fuel.Pit.FuelSaveDeltaAfterStop | double | Laps | 500 ms fuel update | Post-stop lap delta using low-burn rate | Pit/fuel |
-| Fuel.Pit.PushDeltaAfterStop | double | Laps | 500 ms fuel update | Post-stop lap delta using push rate | Pit/fuel |
-| Fuel.Pit.FuelOnExit | double | Liters | 500 ms fuel update | Predicted post-stop fuel | Pit/fuel |
-| Fuel.Pit.StopsRequiredToEnd | int | Count | 500 ms fuel update | FuelCalcs | Pit/fuel |
-| Fuel.Live.RefuelRate_Lps | double | Liters/sec | Per-tick | FuelCalcs effective refuel rate (profile or default) | Fuel strategy |
-| Fuel.Live.TireChangeTime_S | double | Seconds | Per-tick | FuelCalcs tyre change time currently used (0 if no tyre change selected) | Fuel strategy |
-| Fuel.Live.PitLaneLoss_S | double | Seconds | Per-tick | FuelCalcs pit lane loss (DTL) currently used | Fuel strategy |
-| Fuel.Live.TotalStopLoss | double | Seconds | Per-tick | Pit lane loss plus concurrent box time (fuel vs. tyres) | Fuel strategy |
-| Fuel.Live.DriveTimeAfterZero | double | Seconds | 500 ms fuel update | Projected driving time once race clock hits zero | Fuel strategy |
-| Fuel.Live.ProjectedDriveSecondsRemaining | double | Seconds | 500 ms fuel update | Projected wall time remaining including overrun | Fuel strategy |
+| Fuel.LiveFuelPerLap | double | L/lap | Recomputed in `UpdateLiveFuelCalcs` (500 ms tick inside `DataUpdate`) | Rolling accepted lap burns (wet/dry aware) | Fuel strategy |
+| Fuel.LiveLapsRemainingInRace | double | Laps | 500 ms fuel update | Projection of laps remaining incl. after-zero drive time | Fuel strategy |
+| Fuel.DeltaLaps | double | Laps | 500 ms fuel update | `LapsRemainingInTank - LiveLapsRemainingInRace` | Fuel strategy |
+| Fuel.TargetFuelPerLap | double | L/lap | 500 ms fuel update | Clamp of `currentFuel / projectedLaps` (≥90% of live rate) when short | Fuel strategy |
+| Fuel.IsPitWindowOpen | bool | Flag | 500 ms fuel update | True when single-stop request fits in tank now | Fuel strategy |
+| Fuel.PitWindowOpeningLap | double | Lap index | 500 ms fuel update | Lap when requested add will fit (current lap if already fits) | Fuel strategy |
+| Fuel.LapsRemainingInTank | double | Laps | 500 ms fuel update | `currentFuel / LiveFuelPerLap` | Fuel strategy |
+| Fuel.Confidence | int | Percent | 500 ms fuel update | Confidence score from live fuel window | Fuel strategy |
+| Fuel.PushFuelPerLap | double | L/lap | 500 ms fuel update | Max burn estimate (session max or +2%) | Fuel strategy |
+| Fuel.FuelSavePerLap | double | L/lap | 500 ms fuel update | Conservative burn (window min or 97% of live) | Fuel strategy |
+| Fuel.DeltaLapsIfPush | double | Laps | 500 ms fuel update | Surplus if driving at push burn | Fuel strategy |
+| Fuel.CanAffordToPush | bool | Flag | 500 ms fuel update | True when `DeltaLapsIfPush >= 0` | Fuel strategy |
+| Fuel.Pit.TotalNeededToEnd | double | Liters | 500 ms fuel update | `LiveLapsRemainingInRace * LiveFuelPerLap` | Pit/fuel |
+| Fuel.Pit.NeedToAdd | double | Liters | 500 ms fuel update | `max(0, TotalNeededToEnd - currentFuel)` | Pit/fuel |
+| Fuel.Pit.TankSpaceAvailable | double | Liters | 500 ms fuel update | `max(0, capacity - currentFuel)` using BoP/override max | Pit/fuel |
+| Fuel.Pit.WillAdd | double | Liters | 500 ms fuel update | Requested add (telemetry) clamped to tank space; 0 if refuel not selected | Pit/fuel |
+| Fuel.Pit.DeltaAfterStop | double | Laps | 500 ms fuel update | Post-stop surplus using live burn | Pit/fuel |
+| Fuel.Pit.FuelSaveDeltaAfterStop | double | Laps | 500 ms fuel update | Post-stop surplus using save burn | Pit/fuel |
+| Fuel.Pit.PushDeltaAfterStop | double | Laps | 500 ms fuel update | Post-stop surplus using push burn | Pit/fuel |
+| Fuel.Pit.FuelOnExit | double | Liters | 500 ms fuel update | `currentFuel + WillAdd` | Pit/fuel |
+| Fuel.Pit.StopsRequiredToEnd | int | Count | 500 ms fuel update | Strategy-required stops or capacity-based ceil | Pit/fuel |
+| Fuel.Live.RefuelRate_Lps | double | Liters/sec | Per-tick | FuelCalcs effective refuel rate (profile/measured) | Fuel strategy |
+| Fuel.Live.TireChangeTime_S | double | Seconds | Per-tick | Tyre change time if any tyre selected, else 0 | Fuel strategy |
+| Fuel.Live.PitLaneLoss_S | double | Seconds | Per-tick | PitEngine lane loss (DTL) used for fuel strategy | Fuel strategy |
+| Fuel.Live.TotalStopLoss | double | Seconds | Per-tick | Lane loss + box time max(fuel, tyres) | Fuel strategy |
+| Fuel.Live.DriveTimeAfterZero | double | Seconds | 500 ms fuel update | Projected drive after timer zero (max of observed/strategy/lap) | Fuel strategy |
+| Fuel.Live.ProjectedDriveSecondsRemaining | double | Seconds | 500 ms fuel update | Remaining wall time including overrun | Fuel strategy |
 | Pace.StintAvgLapTimeSec | double | Seconds | 500 ms update | Rolling stint average from live laps | Pace |
 | Pace.Last5LapAvgSec | double | Seconds | 500 ms update | Rolling 5-lap average | Pace |
 | Pace.PaceConfidence | int | Score | 500 ms update | Internal confidence heuristics | Pace |
