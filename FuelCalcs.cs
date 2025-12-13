@@ -3972,9 +3972,36 @@ namespace LaunchPlugin
             }
 
             double driveSecondsAvailable = baseSeconds;
+            StrategyResult strategyResult;
 
-            StrategyResult strategyResult = CalculateSingleStrategy(
-                num6, fuelPerLap, num3, num2, num, driveSecondsAvailable);
+            if (IsTimeLimitedRace)
+            {
+                var provisional = CalculateSingleStrategy(
+                    num6, fuelPerLap, num3, num2, num, driveSecondsAvailable);
+
+                double projectedDriverAfterZero = 0.0;
+                if (num3 > 0.0)
+                {
+                    var afterZero = ComputeDriveTimeAfterZero(
+                        baseSeconds,
+                        num2,
+                        num3,
+                        provisional.PlayerLaps,
+                        provisional.TotalTime);
+
+                    projectedDriverAfterZero = afterZero.driverExtraSeconds;
+                }
+
+                driveSecondsAvailable = baseSeconds + Math.Max(0.0, projectedDriverAfterZero);
+
+                strategyResult = CalculateSingleStrategy(
+                    num6, fuelPerLap, num3, num2, num, driveSecondsAvailable);
+            }
+            else
+            {
+                strategyResult = CalculateSingleStrategy(
+                    num6, fuelPerLap, num3, num2, num, driveSecondsAvailable);
+            }
 
             TotalFuelNeeded = strategyResult.TotalFuel;
             RequiredPitStops = strategyResult.Stops;

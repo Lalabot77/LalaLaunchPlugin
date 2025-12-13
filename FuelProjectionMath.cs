@@ -14,6 +14,14 @@ namespace LaunchPlugin
             double timerZeroSessionTime)
         {
             double projected = Math.Max(0.0, strategyProjection);
+
+            if (projected <= 0.0 && lapSeconds > 0.0)
+            {
+                // Fall back to at least a lap's worth of buffer when the strategy projection
+                // is unavailable; keep it bounded to avoid runaway values.
+                projected = lapSeconds;
+            }
+
             return projected;
         }
 

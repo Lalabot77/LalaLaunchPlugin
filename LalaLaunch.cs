@@ -1639,7 +1639,14 @@ namespace LaunchPlugin
 
                 bool isTimedRace = !double.IsNaN(sessionTimeRemain);
                 double projectionLapSeconds = GetProjectionLapSeconds(data);
-                double projectedDriveAfterZero = FuelCalculator?.StrategyDriverExtraSecondsAfterZero ?? 0.0;
+                double projectedDriveAfterZero = FuelProjectionMath.EstimateDriveTimeAfterZero(
+                    sessionTime,
+                    sessionTimeRemain,
+                    projectionLapSeconds,
+                    FuelCalculator?.StrategyDriverExtraSecondsAfterZero ?? 0.0,
+                    _timerZeroSeen,
+                    _timerZeroSessionTime);
+
                 LiveProjectedDriveTimeAfterZero = projectedDriveAfterZero;
                 double projectedLapsRemaining = ComputeProjectedLapsRemaining(simLapsRemaining, projectionLapSeconds, sessionTimeRemain, projectedDriveAfterZero);
 
@@ -3348,7 +3355,7 @@ namespace LaunchPlugin
             );
         }
 
-        private double ComputeObservedExtraSeconds(double finishSessionTime, double sessionTimeRemain)
+        private double ComputeObservedExtraSeconds(double finishSessionTime)
         {
             if (double.IsNaN(finishSessionTime) || finishSessionTime <= 0.0)
             {
@@ -3358,11 +3365,6 @@ namespace LaunchPlugin
             if (_timerZeroSeen && !double.IsNaN(_timerZeroSessionTime))
             {
                 return Math.Max(0.0, finishSessionTime - _timerZeroSessionTime);
-            }
-
-            if (!double.IsNaN(sessionTimeRemain))
-            {
-                return Math.Max(0.0, -sessionTimeRemain);
             }
 
             return 0.0;
@@ -3375,12 +3377,6 @@ namespace LaunchPlugin
             {
                 ResetFinishTimingState();
                 return;
-            }
-
-            if (!_timerZeroSeen && !double.IsNaN(sessionTimeRemain) && sessionTimeRemain <= 0.0)
-            {
-                _timerZeroSeen = true;
-                _timerZeroSessionTime = sessionTime;
             }
 
             bool whiteFlag = ReadFlagBool(
@@ -3406,6 +3402,15 @@ namespace LaunchPlugin
                 LeaderHasFinished = true;
             }
 
+            bool timerLikelyZero = (!double.IsNaN(sessionTimeRemain) && sessionTimeRemain <= 0.5);
+            bool finishIndicators = checkeredFlag || whiteFlag || !double.IsNaN(_whiteFlagSessionTime) || LeaderHasFinished;
+
+            if (!_timerZeroSeen && timerLikelyZero && finishIndicators)
+            {
+                _timerZeroSeen = true;
+                _timerZeroSessionTime = sessionTime;
+            }
+
             bool lapCompleted = (_lastCompletedLapForFinish >= 0) && (completedLaps > _lastCompletedLapForFinish);
             _lastCompletedLapForFinish = completedLaps;
 
@@ -3413,8 +3418,8 @@ namespace LaunchPlugin
             {
                 _driverCheckeredSessionTime = sessionTime;
 
-                double leaderExtra = ComputeObservedExtraSeconds(_leaderCheckeredSessionTime, sessionTimeRemain);
-                double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime, sessionTimeRemain);
+                double leaderExtra = ComputeObservedExtraSeconds(_leaderCheckeredSessionTime);
+                double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime);
 
                 SimHub.Logging.Current.Info(
                     $"[LalaLaunch] Finish timing: timer0={FormatSecondsOrNA(_timerZeroSessionTime)}s white={FormatSecondsOrNA(_whiteFlagSessionTime)}s " +
