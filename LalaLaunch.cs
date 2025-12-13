@@ -238,6 +238,11 @@ namespace LaunchPlugin
         public double Pit_FuelSaveDeltaAfterStop { get; private set; }
         public double Pit_PushDeltaAfterStop { get; private set; }
         public int Pit_StopsRequiredToEnd { get; private set; }
+        public double LiveLapsRemainingInRace_S { get; private set; }
+        public double Pit_DeltaAfterStop_S { get; private set; }
+        public double Pit_PushDeltaAfterStop_S { get; private set; }
+        public double Pit_FuelSaveDeltaAfterStop_S { get; private set; }
+        public double Pit_TotalNeededToEnd_S { get; private set; }
         private bool _isRefuelSelected = true;
         private bool _isTireChangeSelected = true;
         public double LiveCarMaxFuel { get; private set; }
@@ -270,6 +275,9 @@ namespace LaunchPlugin
         private DateTime _lastPitLaneSeenUtc = DateTime.MinValue;
         private double _lastLoggedProjectedLaps = double.NaN;
         private DateTime _lastProjectionLogUtc = DateTime.MinValue;
+        private string _lastProjectionLapSource = string.Empty;
+        private double _lastProjectionLapSeconds = 0.0;
+        private DateTime _lastProjectionLapLogUtc = DateTime.MinValue;
 
         // --- Stint / Pace tracking ---
         public double Pace_StintAvgLapTimeSec { get; private set; }
@@ -318,6 +326,17 @@ namespace LaunchPlugin
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
         private long _lastSessionId = -1;
+        private double _smoothedLiveLapsRemainingState = double.NaN;
+        private double _smoothedPitDeltaState = double.NaN;
+        private double _smoothedPitPushDeltaState = double.NaN;
+        private double _smoothedPitFuelSaveDeltaState = double.NaN;
+        private double _smoothedPitTotalNeededState = double.NaN;
+        private bool _smoothedProjectionValid = false;
+        private bool _smoothedPitValid = false;
+        private bool _pendingSmoothingReset = true;
+        private bool _lastRefuelSelectionForSmooth = true;
+        private double _lastRequestedAddLitresForSmooth = double.NaN;
+        private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
 
         public RelayCommand SaveActiveProfileCommand { get; private set; }
         public RelayCommand ReturnToDefaultsCommand { get; private set; }
@@ -1003,10 +1022,13 @@ namespace LaunchPlugin
             }
 
             double leaderLastLapSec = 0.0;
+            bool leaderLapWasFallback = false;
 
             if (lapCrossed)
             {
-                leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
+                var leaderLap = ReadLeaderLapTimeSeconds(PluginManager, data, Pace_Last5LapAvgSec, LiveLeaderAvgPaceSeconds);
+                leaderLastLapSec = leaderLap.seconds;
+                leaderLapWasFallback = leaderLap.isFallback;
 
                 if (leaderLastLapSec <= 0.0 && _recentLeaderLapTimes.Count > 0)
                 {
@@ -1162,7 +1184,7 @@ namespace LaunchPlugin
                     double lastLapSec = lastLapTs.TotalSeconds;
 
                     // Refresh the leader rolling average whenever we see a new lap time
-                    if (leaderLastLapSec > 20.0 && leaderLastLapSec < 900.0 &&
+                    if (!leaderLapWasFallback && leaderLastLapSec > 20.0 && leaderLastLapSec < 900.0 &&
                         Math.Abs(leaderLastLapSec - _lastLeaderLapTimeSec) > 1e-6)
                     {
                         _leaderPaceClearedLogged = false;
@@ -1571,6 +1593,8 @@ namespace LaunchPlugin
             }
 
             // --- 3) Core dashboard properties (guarded by a valid consumption rate) ---
+            double requestedAddLitresForSmooth = 0.0;
+
             if (LiveFuelPerLap <= 0)
             {
                 LiveLapsRemainingInRace = 0;
@@ -1679,6 +1703,7 @@ namespace LaunchPlugin
                 }
 
                 double requestedAddLitres = Math.Max(0, fuelToRequest);
+                requestedAddLitresForSmooth = requestedAddLitres;
                 Pit_TankSpaceAvailable = Math.Max(0, maxTankCapacity - currentFuel);
 
                 double safeFuelRequest = requestedAddLitres;
@@ -1778,6 +1803,8 @@ namespace LaunchPlugin
                     Pit_PushDeltaAfterStop = 0.0;
                 }
             }
+
+            UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
 
             // --- 4) Update "last" values for next tick ---
             _lastFuelLevel = currentFuel;
@@ -2079,6 +2106,7 @@ namespace LaunchPlugin
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
             AttachCore("Fuel.LiveFuelPerLap", () => LiveFuelPerLap);
             AttachCore("Fuel.LiveLapsRemainingInRace", () => LiveLapsRemainingInRace);
+            AttachCore("Fuel.LiveLapsRemainingInRace_S", () => LiveLapsRemainingInRace_S);
             AttachCore("Fuel.DeltaLaps", () => DeltaLaps);
             AttachCore("Fuel.TargetFuelPerLap", () => TargetFuelPerLap);
             AttachCore("Fuel.IsPitWindowOpen", () => IsPitWindowOpen);
@@ -2090,12 +2118,16 @@ namespace LaunchPlugin
             AttachCore("Fuel.DeltaLapsIfPush", () => DeltaLapsIfPush);
             AttachCore("Fuel.CanAffordToPush", () => CanAffordToPush);
             AttachCore("Fuel.Pit.TotalNeededToEnd", () => Pit_TotalNeededToEnd);
+            AttachCore("Fuel.Pit.TotalNeededToEnd_S", () => Pit_TotalNeededToEnd_S);
             AttachCore("Fuel.Pit.NeedToAdd", () => Pit_NeedToAdd);
             AttachCore("Fuel.Pit.TankSpaceAvailable", () => Pit_TankSpaceAvailable);
             AttachCore("Fuel.Pit.WillAdd", () => Pit_WillAdd);
             AttachCore("Fuel.Pit.DeltaAfterStop", () => Pit_DeltaAfterStop);
+            AttachCore("Fuel.Pit.DeltaAfterStop_S", () => Pit_DeltaAfterStop_S);
             AttachCore("Fuel.Pit.FuelSaveDeltaAfterStop", () => Pit_FuelSaveDeltaAfterStop);
+            AttachCore("Fuel.Pit.FuelSaveDeltaAfterStop_S", () => Pit_FuelSaveDeltaAfterStop_S);
             AttachCore("Fuel.Pit.PushDeltaAfterStop", () => Pit_PushDeltaAfterStop);
+            AttachCore("Fuel.Pit.PushDeltaAfterStop_S", () => Pit_PushDeltaAfterStop_S);
             AttachCore("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
             AttachCore("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
             AttachCore("Fuel.Live.RefuelRate_Lps", () => FuelCalculator?.EffectiveRefuelRateLps ?? 0.0);
@@ -2642,6 +2674,8 @@ namespace LaunchPlugin
                 _lastSessionId = currentSessionId;
                 FuelCalculator.ForceProfileDataReload();
                 ResetFinishTimingState();
+                ResetSmoothedOutputs();
+                _pendingSmoothingReset = true;
 
                 SimHub.Logging.Current.Info($"[LalaLaunch] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
             }
@@ -2889,6 +2923,8 @@ namespace LaunchPlugin
                     // Store this combo's KEY so we don't trigger again for the same session.
                     _lastSeenCar = CurrentCarModel;
                     _lastSeenTrack = trackIdentity; // track key preferred, fall back to display name
+                    ResetSmoothedOutputs();
+                    _pendingSmoothingReset = true;
 
                     // Dispatch UI updates to the main thread.
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -3124,23 +3160,153 @@ namespace LaunchPlugin
                 : seconds.ToString("F1", CultureInfo.InvariantCulture);
         }
 
+        private void ResetSmoothedOutputs()
+        {
+            _smoothedLiveLapsRemainingState = double.NaN;
+            _smoothedPitDeltaState = double.NaN;
+            _smoothedPitPushDeltaState = double.NaN;
+            _smoothedPitFuelSaveDeltaState = double.NaN;
+            _smoothedPitTotalNeededState = double.NaN;
+            _smoothedProjectionValid = false;
+            _smoothedPitValid = false;
+            _pendingSmoothingReset = false;
+        }
+
+        private static double ApplyEma(double alpha, double raw, double previous)
+        {
+            if (double.IsNaN(previous))
+            {
+                return raw;
+            }
+
+            return (alpha * raw) + ((1.0 - alpha) * previous);
+        }
+
+        private void UpdateSmoothedFuelOutputs(double requestedAddLitres)
+        {
+            bool projectionValid = LiveFuelPerLap > 0.0 && LiveLapsRemainingInRace > 0.0;
+            bool pitValid = LiveFuelPerLap > 0.0;
+
+            bool refuelSelectionChanged = _lastRefuelSelectionForSmooth != _isRefuelSelected;
+            bool fuelRequestChanged = double.IsNaN(_lastRequestedAddLitresForSmooth)
+                ? false
+                : Math.Abs(requestedAddLitres - _lastRequestedAddLitresForSmooth) > 0.25;
+            bool validityReset = (projectionValid && !_smoothedProjectionValid) || (pitValid && !_smoothedPitValid);
+
+            if (_pendingSmoothingReset || refuelSelectionChanged || fuelRequestChanged || validityReset)
+            {
+                ResetSmoothedOutputs();
+            }
+
+            _lastRefuelSelectionForSmooth = _isRefuelSelected;
+            _lastRequestedAddLitresForSmooth = requestedAddLitres;
+
+            if (!projectionValid)
+            {
+                _smoothedProjectionValid = false;
+                _smoothedLiveLapsRemainingState = double.NaN;
+                LiveLapsRemainingInRace_S = LiveLapsRemainingInRace;
+            }
+            else
+            {
+                _smoothedLiveLapsRemainingState = ApplyEma(SmoothedAlpha, LiveLapsRemainingInRace, _smoothedLiveLapsRemainingState);
+                LiveLapsRemainingInRace_S = _smoothedLiveLapsRemainingState;
+                _smoothedProjectionValid = true;
+            }
+
+            if (!pitValid)
+            {
+                _smoothedPitValid = false;
+                _smoothedPitDeltaState = double.NaN;
+                _smoothedPitPushDeltaState = double.NaN;
+                _smoothedPitFuelSaveDeltaState = double.NaN;
+                _smoothedPitTotalNeededState = double.NaN;
+
+                Pit_DeltaAfterStop_S = Pit_DeltaAfterStop;
+                Pit_PushDeltaAfterStop_S = Pit_PushDeltaAfterStop;
+                Pit_FuelSaveDeltaAfterStop_S = Pit_FuelSaveDeltaAfterStop;
+                Pit_TotalNeededToEnd_S = Pit_TotalNeededToEnd;
+            }
+            else
+            {
+                _smoothedPitDeltaState = ApplyEma(SmoothedAlpha, Pit_DeltaAfterStop, _smoothedPitDeltaState);
+                _smoothedPitPushDeltaState = ApplyEma(SmoothedAlpha, Pit_PushDeltaAfterStop, _smoothedPitPushDeltaState);
+                _smoothedPitFuelSaveDeltaState = ApplyEma(SmoothedAlpha, Pit_FuelSaveDeltaAfterStop, _smoothedPitFuelSaveDeltaState);
+                _smoothedPitTotalNeededState = ApplyEma(SmoothedAlpha, Pit_TotalNeededToEnd, _smoothedPitTotalNeededState);
+
+                Pit_DeltaAfterStop_S = _smoothedPitDeltaState;
+                Pit_PushDeltaAfterStop_S = _smoothedPitPushDeltaState;
+                Pit_FuelSaveDeltaAfterStop_S = _smoothedPitFuelSaveDeltaState;
+                Pit_TotalNeededToEnd_S = _smoothedPitTotalNeededState;
+                _smoothedPitValid = true;
+            }
+        }
+
         private double GetProjectionLapSeconds(GameData data)
         {
+            double profileAvgSeconds = GetProfileAvgLapSeconds();
+
+            double lapSeconds;
+            string source;
+            string note;
+
             if (Pace_StintAvgLapTimeSec > 0.0)
-                return Pace_StintAvgLapTimeSec;
+            {
+                lapSeconds = Pace_StintAvgLapTimeSec;
+                source = "pace.stint";
+                note = "stint avg available";
+            }
+            else if (Pace_Last5LapAvgSec > 0.0)
+            {
+                lapSeconds = Pace_Last5LapAvgSec;
+                source = "pace.last5";
+                note = "fallback to last5";
+            }
+            else if (profileAvgSeconds > 0.0)
+            {
+                lapSeconds = profileAvgSeconds;
+                source = "profile.avg";
+                note = "profile baseline";
+            }
+            else
+            {
+                double estimator = 0.0;
+                string estimatorSource = string.Empty;
 
-            if (Pace_Last5LapAvgSec > 0.0)
-                return Pace_Last5LapAvgSec;
+                string estimatedLap = FuelCalculator?.EstimatedLapTime ?? string.Empty;
+                if (TimeSpan.TryParse(estimatedLap, out var ts) && ts.TotalSeconds > 0.0)
+                {
+                    estimator = ts.TotalSeconds;
+                    estimatorSource = "fuelcalc.estimated";
+                }
 
-            double lastLapSeconds = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
-            if (lastLapSeconds > 0.0)
-                return lastLapSeconds;
+                double lastLapSeconds = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
+                if (estimator <= 0.0 && lastLapSeconds > 0.0)
+                {
+                    estimator = lastLapSeconds;
+                    estimatorSource = "telemetry.lastlap";
+                }
 
-            string estimatedLap = FuelCalculator?.EstimatedLapTime ?? string.Empty;
-            if (TimeSpan.TryParse(estimatedLap, out var ts) && ts.TotalSeconds > 0.0)
-                return ts.TotalSeconds;
+                lapSeconds = estimator;
+                source = string.IsNullOrEmpty(estimatorSource) ? "fallback.none" : estimatorSource;
+                note = "no gated pace available";
+            }
 
-            return 0.0;
+            bool shouldLog = (!string.Equals(source, _lastProjectionLapSource, StringComparison.Ordinal)) ||
+                             Math.Abs(lapSeconds - _lastProjectionLapSeconds) > 0.05;
+
+            if (shouldLog && (DateTime.UtcNow - _lastProjectionLapLogUtc) > TimeSpan.FromSeconds(5))
+            {
+                _lastProjectionLapSource = source;
+                _lastProjectionLapSeconds = lapSeconds;
+                _lastProjectionLapLogUtc = DateTime.UtcNow;
+
+                SimHub.Logging.Current.Info(
+                    $"[ProjectionLap] source={source} lap={lapSeconds:F3}s note={note} " +
+                    $"stint={Pace_StintAvgLapTimeSec:F3}s last5={Pace_Last5LapAvgSec:F3}s profile={profileAvgSeconds:F3}s");
+            }
+
+            return lapSeconds;
         }
 
         private double ComputeProjectedLapsRemaining(double simLapsRemaining, double lapSeconds, double sessionTimeRemain, double driveTimeAfterZero)
@@ -3260,7 +3426,11 @@ namespace LaunchPlugin
             }
         }
 
-        private static double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
+        private static (double seconds, bool isFallback) ReadLeaderLapTimeSeconds(
+            PluginManager pluginManager,
+            GameData data,
+            double playerRecentAvg,
+            double leaderAvgFallback)
         {
             // Local helper to normalise any raw value to seconds
             double TryReadSeconds(object raw)
@@ -3308,14 +3478,30 @@ namespace LaunchPlugin
 
                 if (seconds > 0.0)
                 {
+                    double rejectionFloor = (playerRecentAvg > 0.0) ? playerRecentAvg * 0.5 : 0.0;
+                    if (seconds < 30.0 || (rejectionFloor > 0.0 && seconds < rejectionFloor))
+                    {
+                        double fallback = leaderAvgFallback > 0.0 ? leaderAvgFallback : 0.0;
+                        SimHub.Logging.Current.Info(
+                            $"[FuelLeader] rejected outlier {seconds:F3}s from {candidate.Name} " +
+                            $"(playerLast5={playerRecentAvg:F3}s floor={rejectionFloor:F3}s) fallback={fallback:F3}s");
+
+                        if (fallback > 0.0)
+                        {
+                            return (fallback, true);
+                        }
+
+                        continue;
+                    }
+
                     SimHub.Logging.Current.Info(
                         $"[FuelLeader] using leader lap from {candidate.Name} = {seconds:F3}s");
-                    return seconds;
+                    return (seconds, false);
                 }
             }
 
             SimHub.Logging.Current.Info("[FuelLeader] no valid leader lap time from any candidate – returning 0");
-            return 0.0;
+            return (0.0, false);
         }
 
 
