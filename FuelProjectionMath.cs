@@ -13,20 +13,7 @@ namespace LaunchPlugin
             bool timerZeroSeen,
             double timerZeroSessionTime)
         {
-            double observedAfterZero = (!double.IsNaN(sessionTimeRemain) && sessionTimeRemain < 0.0)
-                ? Math.Abs(sessionTimeRemain)
-                : 0.0;
-
-            if (timerZeroSeen && !double.IsNaN(timerZeroSessionTime) && sessionTime > timerZeroSessionTime)
-            {
-                observedAfterZero = Math.Max(observedAfterZero, sessionTime - timerZeroSessionTime);
-            }
-
-            double lapBasedProjection = (lapSeconds > 0.0) ? lapSeconds : 0.0;
-
-            double projected = Math.Max(observedAfterZero, strategyProjection);
-            projected = Math.Max(projected, lapBasedProjection);
-
+            double projected = Math.Max(0.0, strategyProjection);
             return projected;
         }
 
@@ -67,11 +54,10 @@ namespace LaunchPlugin
             double lapsFallback = ProjectLapsRemaining(0.0, double.NaN, 0.0, 5.0, out projectedSeconds);
             Debug.Assert(Math.Abs(lapsFallback - 5.0) < 0.001, "Projection should fall back to sim laps when pace missing");
 
-            double projectedAfterZero = EstimateDriveTimeAfterZero(1810.0, -12.0, 90.0, 0.0, true, 1800.0);
-            Debug.Assert(Math.Abs(projectedAfterZero - 12.0) < 0.001, "Observed post-zero time should be honoured");
-
+            double projectedAfterZero = EstimateDriveTimeAfterZero(1810.0, -12.0, 90.0, 15.0, true, 1800.0);
+            Debug.Assert(Math.Abs(projectedAfterZero - 15.0) < 0.001, "Strategy projection should drive after-zero");
             double lapBasedAfterZero = EstimateDriveTimeAfterZero(0.0, 50.0, 100.0, 0.0, false, double.NaN);
-            Debug.Assert(Math.Abs(lapBasedAfterZero - 100.0) < 0.001, "Lap-based projection should be used before timer zero");
+            Debug.Assert(Math.Abs(lapBasedAfterZero - 0.0) < 0.001, "Zero strategy projection should return zero");
         }
 #endif
     }
