@@ -3417,9 +3417,11 @@ namespace LaunchPlugin
                 "DataCorePlugin.GameData.LeaderHasFinished"
             );
 
-            bool leaderFinished = LeaderHasFinished || leaderFinishSignal;
+            bool leaderWasFinished = LeaderHasFinished;
+            LeaderHasFinished = leaderFinishSignal;
+            bool leaderFinishTransition = LeaderHasFinished && !leaderWasFinished;
 
-            if (leaderFinished && !_leaderFinishedSeen)
+            if (leaderFinishTransition && !_leaderFinishedSeen)
             {
                 _leaderFinishedSeen = true;
                 _leaderCheckeredSessionTime = sessionTime;
