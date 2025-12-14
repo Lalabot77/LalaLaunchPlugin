@@ -1391,8 +1391,6 @@ namespace LaunchPlugin
                         ? (_lapStartFuel - currentFuel)
                         : 0.0;
 
-                    bool isWetMode = FuelCalculator?.IsWet ?? false;
-
                     bool reject = false;
                     string reason = "";
 
