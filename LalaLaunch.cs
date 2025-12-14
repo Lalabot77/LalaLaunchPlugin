@@ -223,7 +223,12 @@ namespace LaunchPlugin
 
         // --- Live Fuel Calculation Outputs ---
         public double LiveFuelPerLap { get; private set; }
+        public double LiveFuelPerLap_Stable { get; private set; }
+        public string LiveFuelPerLap_StableSource { get; private set; } = "None";
+        public double LiveFuelPerLap_StableConfidence { get; private set; }
+        // LiveLapsRemainingInRace already uses stable fuel/lap time; _Stable exports mirror the same value for explicit dash use/debugging.
         public double LiveLapsRemainingInRace { get; private set; }
+        public double LiveLapsRemainingInRace_Stable { get; private set; }
         public double DeltaLaps { get; private set; }
         public double TargetFuelPerLap { get; private set; }
         public bool IsPitWindowOpen { get; private set; }
@@ -240,6 +245,7 @@ namespace LaunchPlugin
         public double Pit_PushDeltaAfterStop { get; private set; }
         public int Pit_StopsRequiredToEnd { get; private set; }
         public double LiveLapsRemainingInRace_S { get; private set; }
+        public double LiveLapsRemainingInRace_Stable_S { get; private set; }
         public double Pit_DeltaAfterStop_S { get; private set; }
         public double Pit_PushDeltaAfterStop_S { get; private set; }
         public double Pit_FuelSaveDeltaAfterStop_S { get; private set; }
@@ -280,10 +286,20 @@ namespace LaunchPlugin
         private double _lastProjectionLapSeconds = 0.0;
         private DateTime _lastProjectionLapLogUtc = DateTime.MinValue;
 
+        // Stable model inputs
+        private double _stableFuelPerLap = 0.0;
+        private string _stableFuelPerLapSource = "None";
+        private double _stableFuelPerLapConfidence = 0.0;
+        private double _stableProjectionLapTime = 0.0;
+        private string _stableProjectionLapTimeSource = "fallback.none";
+
         // --- Stint / Pace tracking ---
         public double Pace_StintAvgLapTimeSec { get; private set; }
         public double Pace_Last5LapAvgSec { get; private set; }
         public int PaceConfidence { get; private set; }
+
+        public double ProjectionLapTime_Stable { get; private set; }
+        public string ProjectionLapTime_StableSource { get; private set; } = "fallback.none";
 
         // Combined view of fuel & pace reliability (for dash use)
         public int OverallConfidence
@@ -335,9 +351,11 @@ namespace LaunchPlugin
         private bool _smoothedProjectionValid = false;
         private bool _smoothedPitValid = false;
         private bool _pendingSmoothingReset = true;
-        private bool _lastRefuelSelectionForSmooth = true;
-        private double _lastRequestedAddLitresForSmooth = double.NaN;
         private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
+        private const int FuelModelConfidenceSwitchOn = 60;
+        private const int LapTimeConfidenceSwitchOn = 60;
+        private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
+        private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
 
         public RelayCommand SaveActiveProfileCommand { get; private set; }
         public RelayCommand ReturnToDefaultsCommand { get; private set; }
@@ -624,6 +642,18 @@ namespace LaunchPlugin
             _hasActiveDrySeed = false;
             _hasActiveWetSeed = false;
             _usingFallbackFuelProfile = false;
+            _stableFuelPerLap = 0.0;
+            _stableFuelPerLapSource = "None";
+            _stableFuelPerLapConfidence = 0.0;
+            LiveFuelPerLap_Stable = 0.0;
+            LiveFuelPerLap_StableSource = "None";
+            LiveFuelPerLap_StableConfidence = 0.0;
+            _stableProjectionLapTime = 0.0;
+            _stableProjectionLapTimeSource = "fallback.none";
+            ProjectionLapTime_Stable = 0.0;
+            ProjectionLapTime_StableSource = "fallback.none";
+            LiveLapsRemainingInRace_Stable = 0.0;
+            LiveLapsRemainingInRace_Stable_S = 0.0;
 
             FuelCalculator?.ResetTrackConditionOverrideForSessionChange();
 
@@ -986,6 +1016,9 @@ namespace LaunchPlugin
             double currentFuel = data.NewData?.Fuel ?? 0.0;
             double rawLapPct = data.NewData?.TrackPositionPercent ?? 0.0;
             double maxFuel = data.NewData?.MaxFuel ?? 0.0;
+            double fallbackFuelPerLap = Convert.ToDouble(
+                PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
+            );
 
             double sessionTime = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
@@ -1582,9 +1615,7 @@ namespace LaunchPlugin
             // If we haven’t accumulated any accepted laps yet, fall back to SimHub’s estimator
             if ((_validDryLaps + _validWetLaps) == 0)
             {
-                LiveFuelPerLap = Convert.ToDouble(
-                    PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
-                );
+                LiveFuelPerLap = fallbackFuelPerLap;
                 _usingFallbackFuelProfile = true;
                 Confidence = 0;
                 FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
@@ -1593,12 +1624,16 @@ namespace LaunchPlugin
                     FuelCalculator?.OnLiveFuelPerLapUpdated();
             }
 
+            UpdateStableFuelPerLap(isWetMode, fallbackFuelPerLap);
+
             // --- 3) Core dashboard properties (guarded by a valid consumption rate) ---
             double requestedAddLitresForSmooth = 0.0;
+            double fuelPerLapForCalc = (_stableFuelPerLap > 0.0) ? _stableFuelPerLap : LiveFuelPerLap;
 
-            if (LiveFuelPerLap <= 0)
+            if (fuelPerLapForCalc <= 0)
             {
                 LiveLapsRemainingInRace = 0;
+                LiveLapsRemainingInRace_Stable = 0;
                 DeltaLaps = 0;
                 TargetFuelPerLap = 0;
                 IsPitWindowOpen = false;
@@ -1632,7 +1667,7 @@ namespace LaunchPlugin
             }
             else
             {
-                LapsRemainingInTank = currentFuel / LiveFuelPerLap;
+                LapsRemainingInTank = currentFuel / fuelPerLapForCalc;
 
                 double simLapsRemaining = Convert.ToDouble(
                     PluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LapsRemainingFloat") ?? 0.0
@@ -1654,6 +1689,7 @@ namespace LaunchPlugin
                 if (projectedLapsRemaining > 0.0)
                 {
                     LiveLapsRemainingInRace = projectedLapsRemaining;
+                    LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
 
                     if (ShouldLogProjection(simLapsRemaining, projectedLapsRemaining))
                     {
@@ -1663,9 +1699,10 @@ namespace LaunchPlugin
                 else
                 {
                     LiveLapsRemainingInRace = simLapsRemaining;
+                    LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
                 }
 
-                double fuelNeededToEnd = LiveLapsRemainingInRace * LiveFuelPerLap;
+                double fuelNeededToEnd = LiveLapsRemainingInRace * fuelPerLapForCalc;
                 DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace;
 
                 // Raw target fuel per lap if we're short on fuel
@@ -1674,9 +1711,9 @@ namespace LaunchPlugin
                     : 0.0;
 
                 // Apply 10% saving guard: don't assume better than 10% below live average
-                if (rawTargetFuelPerLap > 0.0 && LiveFuelPerLap > 0.0)
+                if (rawTargetFuelPerLap > 0.0 && fuelPerLapForCalc > 0.0)
                 {
-                    double minAllowed = LiveFuelPerLap * 0.90; // max 10% fuel saving
+                    double minAllowed = fuelPerLapForCalc * 0.90; // max 10% fuel saving
                     TargetFuelPerLap = (rawTargetFuelPerLap < minAllowed)
                         ? minAllowed
                         : rawTargetFuelPerLap;
@@ -1720,15 +1757,15 @@ namespace LaunchPlugin
                 Pit_FuelOnExit = currentFuel + Pit_WillAdd;
                 bool isWetModeNow = FuelCalculator?.IsWet ?? false;
                 double fuelSaveRate = isWetModeNow ? _minWetFuelPerLap : _minDryFuelPerLap;
-                if (fuelSaveRate <= 0.0 && LiveFuelPerLap > 0.0)
+                if (fuelSaveRate <= 0.0 && fuelPerLapForCalc > 0.0)
                 {
-                    fuelSaveRate = LiveFuelPerLap * 0.97; // light saving fallback
+                    fuelSaveRate = fuelPerLapForCalc * 0.97; // light saving fallback
                 }
 
                 FuelSaveFuelPerLap = fuelSaveRate;
 
-                Pit_DeltaAfterStop = (LiveFuelPerLap > 0)
-                    ? (Pit_FuelOnExit / LiveFuelPerLap) - LiveLapsRemainingInRace
+                Pit_DeltaAfterStop = (fuelPerLapForCalc > 0)
+                    ? (Pit_FuelOnExit / fuelPerLapForCalc) - LiveLapsRemainingInRace
                     : 0;
 
                 Pit_FuelSaveDeltaAfterStop = (fuelSaveRate > 0)
@@ -1747,7 +1784,7 @@ namespace LaunchPlugin
                 Pit_StopsRequiredToEnd = Math.Max(0, stopsRequired);
 
                 bool isSingleStopStrategy = strategyRequiredStops == 1;
-                bool hasValidFuelPerLap = LiveFuelPerLap > 0.0;
+                bool hasValidFuelPerLap = fuelPerLapForCalc > 0.0;
                 bool hasRequestedAdd = requestedAddLitres > 0.0;
                 bool hasTankCapacity = maxTankCapacity > 0.0;
 
@@ -1773,7 +1810,7 @@ namespace LaunchPlugin
                     else
                     {
                         double fuelToBurn = requestedAddLitres - tankSpace;
-                        int lapsToOpen = (int)Math.Ceiling(fuelToBurn / LiveFuelPerLap);
+                        int lapsToOpen = (int)Math.Ceiling(fuelToBurn / fuelPerLapForCalc);
                         if (lapsToOpen < 0) lapsToOpen = 0;
 
                         PitWindowOpeningLap = currentLapNumber + lapsToOpen;
@@ -1783,13 +1820,13 @@ namespace LaunchPlugin
 
                 // --- Push / max-burn guidance ---
                 double pushFuel = 0.0;
-                if (_maxFuelPerLapSession > 0.0 && _maxFuelPerLapSession >= LiveFuelPerLap)
+                if (_maxFuelPerLapSession > 0.0 && _maxFuelPerLapSession >= fuelPerLapForCalc)
                 {
                     pushFuel = _maxFuelPerLapSession;
                 }
                 else
                 {
-                    pushFuel = LiveFuelPerLap * 1.02; // fallback: +2% if we don't have a proper max yet
+                    pushFuel = fuelPerLapForCalc * 1.02; // fallback: +2% if we don't have a proper max yet
                 }
 
                 PushFuelPerLap = pushFuel;
@@ -1811,6 +1848,8 @@ namespace LaunchPlugin
                     Pit_PushDeltaAfterStop = 0.0;
                 }
             }
+
+            LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
 
             UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
 
@@ -2113,8 +2152,13 @@ namespace LaunchPlugin
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
             AttachCore("Fuel.LiveFuelPerLap", () => LiveFuelPerLap);
+            AttachCore("Fuel.LiveFuelPerLap_Stable", () => LiveFuelPerLap_Stable);
+            AttachCore("Fuel.LiveFuelPerLap_StableSource", () => LiveFuelPerLap_StableSource);
+            AttachCore("Fuel.LiveFuelPerLap_StableConfidence", () => LiveFuelPerLap_StableConfidence);
             AttachCore("Fuel.LiveLapsRemainingInRace", () => LiveLapsRemainingInRace);
             AttachCore("Fuel.LiveLapsRemainingInRace_S", () => LiveLapsRemainingInRace_S);
+            AttachCore("Fuel.LiveLapsRemainingInRace_Stable", () => LiveLapsRemainingInRace_Stable);
+            AttachCore("Fuel.LiveLapsRemainingInRace_Stable_S", () => LiveLapsRemainingInRace_Stable_S);
             AttachCore("Fuel.DeltaLaps", () => DeltaLaps);
             AttachCore("Fuel.TargetFuelPerLap", () => TargetFuelPerLap);
             AttachCore("Fuel.IsPitWindowOpen", () => IsPitWindowOpen);
@@ -2143,6 +2187,8 @@ namespace LaunchPlugin
             AttachCore("Fuel.Live.PitLaneLoss_S", () => FuelCalculator?.PitLaneTimeLoss ?? 0.0);
             AttachCore("Fuel.Live.TotalStopLoss", () => CalculateTotalStopLossSeconds());
             AttachCore("Fuel.Live.DriveTimeAfterZero", () => LiveProjectedDriveTimeAfterZero);
+            AttachCore("Fuel.ProjectionLapTime_Stable", () => ProjectionLapTime_Stable);
+            AttachCore("Fuel.ProjectionLapTime_StableSource", () => ProjectionLapTime_StableSource);
             AttachCore("Fuel.Live.ProjectedDriveSecondsRemaining", () => LiveProjectedDriveSecondsRemaining);
 
             // --- Pace metrics (CORE) ---
@@ -3198,35 +3244,91 @@ namespace LaunchPlugin
             return (alpha * raw) + ((1.0 - alpha) * previous);
         }
 
+        private void UpdateStableFuelPerLap(bool isWetMode, double fallbackFuelPerLap)
+        {
+            var (profileDry, profileWet) = GetProfileFuelBaselines();
+            double profileFuel = isWetMode ? profileWet : profileDry;
+
+            double candidate = fallbackFuelPerLap;
+            string source = "Fallback";
+
+            if (Confidence >= FuelModelConfidenceSwitchOn && LiveFuelPerLap > 0.0)
+            {
+                candidate = LiveFuelPerLap;
+                source = "Live";
+            }
+            else if (profileFuel > 0.0)
+            {
+                candidate = profileFuel;
+                source = "Profile";
+            }
+
+            double stable = _stableFuelPerLap;
+            string selectedSource = source;
+            double selectedConfidence = Confidence;
+
+            if (candidate <= 0.0)
+            {
+                if (stable > 0.0)
+                {
+                    candidate = stable;
+                    selectedSource = _stableFuelPerLapSource;
+                    selectedConfidence = _stableFuelPerLapConfidence;
+                }
+                else
+                {
+                    stable = 0.0;
+                }
+            }
+            else
+            {
+                if (stable <= 0.0 || Math.Abs(candidate - stable) >= StableFuelPerLapDeadband)
+                {
+                    stable = candidate;
+                    selectedSource = source;
+                    selectedConfidence = Confidence;
+                }
+                else
+                {
+                    selectedSource = _stableFuelPerLapSource;
+                    selectedConfidence = _stableFuelPerLapConfidence;
+                }
+            }
+
+            stable = Math.Max(0.1, stable); // Clamp to avoid pathological near-zero persistence
+            _stableFuelPerLap = stable;
+            _stableFuelPerLapSource = selectedSource;
+            _stableFuelPerLapConfidence = selectedConfidence;
+
+            LiveFuelPerLap_Stable = _stableFuelPerLap;
+            LiveFuelPerLap_StableSource = _stableFuelPerLapSource;
+            LiveFuelPerLap_StableConfidence = _stableFuelPerLapConfidence;
+        }
+
         private void UpdateSmoothedFuelOutputs(double requestedAddLitres)
         {
-            bool projectionValid = LiveFuelPerLap > 0.0 && LiveLapsRemainingInRace > 0.0;
-            bool pitValid = LiveFuelPerLap > 0.0;
+            bool projectionValid = LiveFuelPerLap_Stable > 0.0 && LiveLapsRemainingInRace_Stable > 0.0;
+            bool pitValid = LiveFuelPerLap_Stable > 0.0;
 
-            bool refuelSelectionChanged = _lastRefuelSelectionForSmooth != _isRefuelSelected;
-            bool fuelRequestChanged = double.IsNaN(_lastRequestedAddLitresForSmooth)
-                ? false
-                : Math.Abs(requestedAddLitres - _lastRequestedAddLitresForSmooth) > 0.25;
             bool validityReset = (projectionValid && !_smoothedProjectionValid) || (pitValid && !_smoothedPitValid);
 
-            if (_pendingSmoothingReset || refuelSelectionChanged || fuelRequestChanged || validityReset)
+            if (_pendingSmoothingReset || validityReset)
             {
                 ResetSmoothedOutputs();
             }
-
-            _lastRefuelSelectionForSmooth = _isRefuelSelected;
-            _lastRequestedAddLitresForSmooth = requestedAddLitres;
 
             if (!projectionValid)
             {
                 _smoothedProjectionValid = false;
                 _smoothedLiveLapsRemainingState = double.NaN;
                 LiveLapsRemainingInRace_S = LiveLapsRemainingInRace;
+                LiveLapsRemainingInRace_Stable_S = LiveLapsRemainingInRace_Stable;
             }
             else
             {
-                _smoothedLiveLapsRemainingState = ApplyEma(SmoothedAlpha, LiveLapsRemainingInRace, _smoothedLiveLapsRemainingState);
+                _smoothedLiveLapsRemainingState = ApplyEma(SmoothedAlpha, LiveLapsRemainingInRace_Stable, _smoothedLiveLapsRemainingState);
                 LiveLapsRemainingInRace_S = _smoothedLiveLapsRemainingState;
+                LiveLapsRemainingInRace_Stable_S = _smoothedLiveLapsRemainingState;
                 _smoothedProjectionValid = true;
             }
 
@@ -3262,27 +3364,19 @@ namespace LaunchPlugin
         {
             double profileAvgSeconds = GetProfileAvgLapSeconds();
 
-            double lapSeconds;
-            string source;
-            string note;
+            double lapSeconds = 0.0;
+            string source = "fallback.none";
 
-            if (Pace_StintAvgLapTimeSec > 0.0)
+            double liveAvg = Pace_StintAvgLapTimeSec > 0.0 ? Pace_StintAvgLapTimeSec : Pace_Last5LapAvgSec;
+            if (PaceConfidence >= LapTimeConfidenceSwitchOn && liveAvg > 0.0)
             {
-                lapSeconds = Pace_StintAvgLapTimeSec;
-                source = "pace.stint";
-                note = "stint avg available";
-            }
-            else if (Pace_Last5LapAvgSec > 0.0)
-            {
-                lapSeconds = Pace_Last5LapAvgSec;
-                source = "pace.last5";
-                note = "fallback to last5";
+                lapSeconds = liveAvg;
+                source = (Math.Abs(liveAvg - Pace_StintAvgLapTimeSec) < 1e-6) ? "pace.stint" : "pace.last5";
             }
             else if (profileAvgSeconds > 0.0)
             {
                 lapSeconds = profileAvgSeconds;
                 source = "profile.avg";
-                note = "profile baseline";
             }
             else
             {
@@ -3305,24 +3399,58 @@ namespace LaunchPlugin
 
                 lapSeconds = estimator;
                 source = string.IsNullOrEmpty(estimatorSource) ? "fallback.none" : estimatorSource;
-                note = "no gated pace available";
             }
 
-            bool shouldLog = (!string.Equals(source, _lastProjectionLapSource, StringComparison.Ordinal)) ||
-                             Math.Abs(lapSeconds - _lastProjectionLapSeconds) > 0.05;
+            double stable = _stableProjectionLapTime;
+            string selectedSource = source;
+
+            if (lapSeconds <= 0.0)
+            {
+                if (stable > 0.0)
+                {
+                    lapSeconds = stable;
+                    selectedSource = _stableProjectionLapTimeSource;
+                }
+            }
+            else
+            {
+                double roundedCandidate = Math.Round(lapSeconds, 1);
+                if (stable <= 0.0 || Math.Abs(roundedCandidate - stable) >= StableLapTimeDeadband)
+                {
+                    stable = roundedCandidate;
+                    selectedSource = source;
+                }
+                else
+                {
+                    selectedSource = _stableProjectionLapTimeSource;
+                }
+            }
+
+            if (lapSeconds <= 0.0)
+            {
+                stable = lapSeconds;
+            }
+
+            _stableProjectionLapTime = stable;
+            _stableProjectionLapTimeSource = selectedSource;
+            ProjectionLapTime_Stable = _stableProjectionLapTime;
+            ProjectionLapTime_StableSource = _stableProjectionLapTimeSource;
+
+            bool shouldLog = (!string.Equals(selectedSource, _lastProjectionLapSource, StringComparison.Ordinal)) ||
+                             Math.Abs(_stableProjectionLapTime - _lastProjectionLapSeconds) > 0.05;
 
             if (shouldLog && (DateTime.UtcNow - _lastProjectionLapLogUtc) > TimeSpan.FromSeconds(5))
             {
-                _lastProjectionLapSource = source;
-                _lastProjectionLapSeconds = lapSeconds;
+                _lastProjectionLapSource = selectedSource;
+                _lastProjectionLapSeconds = _stableProjectionLapTime;
                 _lastProjectionLapLogUtc = DateTime.UtcNow;
 
                 SimHub.Logging.Current.Info(
-                    $"[ProjectionLap] source={source} lap={lapSeconds:F3}s note={note} " +
+                    $"[ProjectionLap] source={selectedSource} lap={_stableProjectionLapTime:F3}s " +
                     $"stint={Pace_StintAvgLapTimeSec:F3}s last5={Pace_Last5LapAvgSec:F3}s profile={profileAvgSeconds:F3}s");
             }
 
-            return lapSeconds;
+            return _stableProjectionLapTime;
         }
 
         private double ComputeProjectedLapsRemaining(double simLapsRemaining, double lapSeconds, double sessionTimeRemain, double driveTimeAfterZero)
