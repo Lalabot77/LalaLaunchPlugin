@@ -149,12 +149,12 @@ namespace LaunchPlugin
 
         public bool LeaderHasFinished
         {
-            get => _leaderHasFinishedFlag;
+            get => _leaderHasFinished;
             private set
             {
-                if (_leaderHasFinishedFlag != value)
+                if (_leaderHasFinished != value)
                 {
-                    _leaderHasFinishedFlag = value;
+                    _leaderHasFinished = value;
                     OnPropertyChanged();
                 }
             }
@@ -177,10 +177,12 @@ namespace LaunchPlugin
         // --- Finish timing + flag detection ---
         private bool _timerZeroSeen;
         private double _timerZeroSessionTime = double.NaN;
+        private double _prevSessionTimeRemain = double.NaN;
         private double _whiteFlagSessionTime = double.NaN;
         private double _leaderCheckeredSessionTime = double.NaN;
         private double _driverCheckeredSessionTime = double.NaN;
-        private bool _leaderHasFinishedFlag;
+        private bool _leaderFinishedSeen;
+        private bool _leaderHasFinished;
         private int _lastCompletedLapForFinish = -1;
 
         // New per-mode rolling windows
@@ -2525,9 +2527,11 @@ namespace LaunchPlugin
         {
             _timerZeroSeen = false;
             _timerZeroSessionTime = double.NaN;
+            _prevSessionTimeRemain = double.NaN;
             _whiteFlagSessionTime = double.NaN;
             _leaderCheckeredSessionTime = double.NaN;
             _driverCheckeredSessionTime = double.NaN;
+            _leaderFinishedSeen = false;
             _lastCompletedLapForFinish = -1;
             LeaderHasFinished = false;
         }
@@ -3379,6 +3383,16 @@ namespace LaunchPlugin
                 return;
             }
 
+            bool hasRemain = !double.IsNaN(sessionTimeRemain);
+            bool crossedToZero = hasRemain && !double.IsNaN(_prevSessionTimeRemain) &&
+                                 _prevSessionTimeRemain > 0.5 && sessionTimeRemain <= 0.5;
+
+            if (!_timerZeroSeen && crossedToZero)
+            {
+                _timerZeroSeen = true;
+                _timerZeroSessionTime = sessionTime;
+            }
+
             bool whiteFlag = ReadFlagBool(
                 pluginManager,
                 "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhiteFlag",
@@ -3396,23 +3410,27 @@ namespace LaunchPlugin
                 "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
             );
 
-            if (checkeredFlag && !LeaderHasFinished)
+            bool leaderFinishSignal = ReadFlagBool(
+                pluginManager,
+                "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_IsCheckered",
+                "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_Checkered",
+                "DataCorePlugin.GameData.LeaderHasFinished"
+            );
+
+            bool leaderWasFinished = LeaderHasFinished;
+            LeaderHasFinished = leaderFinishSignal;
+            bool leaderFinishTransition = LeaderHasFinished && !leaderWasFinished;
+
+            if (leaderFinishTransition && !_leaderFinishedSeen)
             {
+                _leaderFinishedSeen = true;
                 _leaderCheckeredSessionTime = sessionTime;
-                LeaderHasFinished = true;
-            }
-
-            bool timerLikelyZero = (!double.IsNaN(sessionTimeRemain) && sessionTimeRemain <= 0.5);
-            bool finishIndicators = checkeredFlag || whiteFlag || !double.IsNaN(_whiteFlagSessionTime) || LeaderHasFinished;
-
-            if (!_timerZeroSeen && timerLikelyZero && finishIndicators)
-            {
-                _timerZeroSeen = true;
-                _timerZeroSessionTime = sessionTime;
             }
 
             bool lapCompleted = (_lastCompletedLapForFinish >= 0) && (completedLaps > _lastCompletedLapForFinish);
             _lastCompletedLapForFinish = completedLaps;
+
+            _prevSessionTimeRemain = hasRemain ? sessionTimeRemain : double.NaN;
 
             if (lapCompleted && checkeredFlag)
             {
