@@ -250,6 +250,15 @@ namespace LaunchPlugin
         public double Pit_PushDeltaAfterStop_S { get; private set; }
         public double Pit_FuelSaveDeltaAfterStop_S { get; private set; }
         public double Pit_TotalNeededToEnd_S { get; private set; }
+        public double Fuel_Delta_LitresCurrent { get; private set; }
+        public double Fuel_Delta_LitresPlan { get; private set; }
+        public double Fuel_Delta_LitresWillAdd { get; private set; }
+        public double Fuel_Delta_LitresCurrentPush { get; private set; }
+        public double Fuel_Delta_LitresPlanPush { get; private set; }
+        public double Fuel_Delta_LitresWillAddPush { get; private set; }
+        public double Fuel_Delta_LitresCurrentSave { get; private set; }
+        public double Fuel_Delta_LitresPlanSave { get; private set; }
+        public double Fuel_Delta_LitresWillAddSave { get; private set; }
         private bool _isRefuelSelected = true;
         private bool _isTireChangeSelected = true;
         public double LiveCarMaxFuel { get; private set; }
@@ -1628,7 +1637,9 @@ namespace LaunchPlugin
 
             // --- 3) Core dashboard properties (guarded by a valid consumption rate) ---
             double requestedAddLitresForSmooth = 0.0;
-            double fuelPerLapForCalc = (_stableFuelPerLap > 0.0) ? _stableFuelPerLap : LiveFuelPerLap;
+            double fuelPerLapForCalc = LiveFuelPerLap_Stable > 0.0
+                ? LiveFuelPerLap_Stable
+                : LiveFuelPerLap;
 
             if (fuelPerLapForCalc <= 0)
             {
@@ -1649,6 +1660,16 @@ namespace LaunchPlugin
                 Pit_FuelSaveDeltaAfterStop = 0;
                 Pit_PushDeltaAfterStop = 0;
                 Pit_StopsRequiredToEnd = 0;
+
+                Fuel_Delta_LitresCurrent = 0;
+                Fuel_Delta_LitresPlan = 0;
+                Fuel_Delta_LitresWillAdd = 0;
+                Fuel_Delta_LitresCurrentPush = 0;
+                Fuel_Delta_LitresPlanPush = 0;
+                Fuel_Delta_LitresWillAddPush = 0;
+                Fuel_Delta_LitresCurrentSave = 0;
+                Fuel_Delta_LitresPlanSave = 0;
+                Fuel_Delta_LitresWillAddSave = 0;
 
                 PushFuelPerLap = 0;
                 DeltaLapsIfPush = 0;
@@ -1702,12 +1723,12 @@ namespace LaunchPlugin
                     LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
                 }
 
-                double fuelNeededToEnd = LiveLapsRemainingInRace * fuelPerLapForCalc;
-                DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace;
+                double fuelNeededToEnd = LiveLapsRemainingInRace_Stable * fuelPerLapForCalc;
+                DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace_Stable;
 
                 // Raw target fuel per lap if we're short on fuel
-                double rawTargetFuelPerLap = (DeltaLaps < 0 && LiveLapsRemainingInRace > 0)
-                    ? currentFuel / LiveLapsRemainingInRace
+                double rawTargetFuelPerLap = (DeltaLaps < 0 && LiveLapsRemainingInRace_Stable > 0)
+                    ? currentFuel / LiveLapsRemainingInRace_Stable
                     : 0.0;
 
                 // Apply 10% saving guard: don't assume better than 10% below live average
@@ -1734,18 +1755,7 @@ namespace LaunchPlugin
                     fuelToRequest = 0.0;
                 }
 
-                // Use the MaxTankCapacity already surfaced by the Fuel Calculator so we respect
-                // iRacing's percentage-based tank limits. Fall back to the live/session max if
-                // the calculator has not established a value yet.
-                double maxTankCapacity = FuelCalculator?.MaxFuelOverride ?? 0.0;
-                if (maxTankCapacity <= 0)
-                {
-                    double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel;
-                    if (LiveCarMaxFuel > 0 && maxFuel > 0)
-                        sessionMaxFuel = Math.Min(LiveCarMaxFuel, maxFuel);
-
-                    maxTankCapacity = sessionMaxFuel;
-                }
+                double maxTankCapacity = ResolveMaxTankCapacity(maxFuel);
 
                 double requestedAddLitres = Math.Max(0, fuelToRequest);
                 requestedAddLitresForSmooth = requestedAddLitres;
@@ -1765,11 +1775,11 @@ namespace LaunchPlugin
                 FuelSaveFuelPerLap = fuelSaveRate;
 
                 Pit_DeltaAfterStop = (fuelPerLapForCalc > 0)
-                    ? (Pit_FuelOnExit / fuelPerLapForCalc) - LiveLapsRemainingInRace
+                    ? (Pit_FuelOnExit / fuelPerLapForCalc) - LiveLapsRemainingInRace_Stable
                     : 0;
 
                 Pit_FuelSaveDeltaAfterStop = (fuelSaveRate > 0)
-                    ? (Pit_FuelOnExit / fuelSaveRate) - LiveLapsRemainingInRace
+                    ? (Pit_FuelOnExit / fuelSaveRate) - LiveLapsRemainingInRace_Stable
                     : 0;
 
                 // Pit window logic – single-stop only, based on requested MFD refuel amount and
@@ -1834,11 +1844,11 @@ namespace LaunchPlugin
                 if (pushFuel > 0.0)
                 {
                     double lapsRemainingIfPush = currentFuel / pushFuel;
-                    DeltaLapsIfPush = lapsRemainingIfPush - LiveLapsRemainingInRace;
+                    DeltaLapsIfPush = lapsRemainingIfPush - LiveLapsRemainingInRace_Stable;
                     CanAffordToPush = DeltaLapsIfPush >= 0.0;
 
                     Pit_PushDeltaAfterStop = (Pit_FuelOnExit > 0.0)
-                        ? (Pit_FuelOnExit / pushFuel) - LiveLapsRemainingInRace
+                        ? (Pit_FuelOnExit / pushFuel) - LiveLapsRemainingInRace_Stable
                         : 0.0;
                 }
                 else
@@ -1847,6 +1857,34 @@ namespace LaunchPlugin
                     CanAffordToPush = false;
                     Pit_PushDeltaAfterStop = 0.0;
                 }
+
+                double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
+                double stableFuelPerLap = LiveFuelPerLap_Stable;
+                double fuelPlanExit = currentFuel + requestedAddLitres;
+                double fuelWillAddExit = currentFuel + Pit_WillAdd;
+
+                double ComputeDeltaLitres(double fuelAmount, double requiredLitres, bool hasRequirement)
+                {
+                    return hasRequirement ? fuelAmount - requiredLitres : 0.0;
+                }
+
+                bool hasNormalRequirement = stableFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
+                double requiredLitres = hasNormalRequirement ? stableLapsRemaining * stableFuelPerLap : 0.0;
+                Fuel_Delta_LitresCurrent = ComputeDeltaLitres(currentFuel, requiredLitres, hasNormalRequirement);
+                Fuel_Delta_LitresPlan = ComputeDeltaLitres(fuelPlanExit, requiredLitres, hasNormalRequirement);
+                Fuel_Delta_LitresWillAdd = ComputeDeltaLitres(fuelWillAddExit, requiredLitres, hasNormalRequirement);
+
+                bool hasPushRequirement = PushFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
+                double requiredLitresPush = hasPushRequirement ? stableLapsRemaining * PushFuelPerLap : 0.0;
+                Fuel_Delta_LitresCurrentPush = ComputeDeltaLitres(currentFuel, requiredLitresPush, hasPushRequirement);
+                Fuel_Delta_LitresPlanPush = ComputeDeltaLitres(fuelPlanExit, requiredLitresPush, hasPushRequirement);
+                Fuel_Delta_LitresWillAddPush = ComputeDeltaLitres(fuelWillAddExit, requiredLitresPush, hasPushRequirement);
+
+                bool hasSaveRequirement = FuelSaveFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
+                double requiredLitresSave = hasSaveRequirement ? stableLapsRemaining * FuelSaveFuelPerLap : 0.0;
+                Fuel_Delta_LitresCurrentSave = ComputeDeltaLitres(currentFuel, requiredLitresSave, hasSaveRequirement);
+                Fuel_Delta_LitresPlanSave = ComputeDeltaLitres(fuelPlanExit, requiredLitresSave, hasSaveRequirement);
+                Fuel_Delta_LitresWillAddSave = ComputeDeltaLitres(fuelWillAddExit, requiredLitresSave, hasSaveRequirement);
             }
 
             LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
@@ -2169,6 +2207,15 @@ namespace LaunchPlugin
             AttachCore("Fuel.FuelSavePerLap", () => FuelSaveFuelPerLap);
             AttachCore("Fuel.DeltaLapsIfPush", () => DeltaLapsIfPush);
             AttachCore("Fuel.CanAffordToPush", () => CanAffordToPush);
+            AttachCore("Fuel.Delta.LitresCurrent", () => Math.Round(Fuel_Delta_LitresCurrent, 1));
+            AttachCore("Fuel.Delta.LitresPlan", () => Math.Round(Fuel_Delta_LitresPlan, 1));
+            AttachCore("Fuel.Delta.LitresWillAdd", () => Math.Round(Fuel_Delta_LitresWillAdd, 1));
+            AttachCore("Fuel.Delta.LitresCurrentPush", () => Math.Round(Fuel_Delta_LitresCurrentPush, 1));
+            AttachCore("Fuel.Delta.LitresPlanPush", () => Math.Round(Fuel_Delta_LitresPlanPush, 1));
+            AttachCore("Fuel.Delta.LitresWillAddPush", () => Math.Round(Fuel_Delta_LitresWillAddPush, 1));
+            AttachCore("Fuel.Delta.LitresCurrentSave", () => Math.Round(Fuel_Delta_LitresCurrentSave, 1));
+            AttachCore("Fuel.Delta.LitresPlanSave", () => Math.Round(Fuel_Delta_LitresPlanSave, 1));
+            AttachCore("Fuel.Delta.LitresWillAddSave", () => Math.Round(Fuel_Delta_LitresWillAddSave, 1));
             AttachCore("Fuel.Pit.TotalNeededToEnd", () => Pit_TotalNeededToEnd);
             AttachCore("Fuel.Pit.TotalNeededToEnd_S", () => Pit_TotalNeededToEnd_S);
             AttachCore("Fuel.Pit.NeedToAdd", () => Pit_NeedToAdd);
@@ -3465,6 +3512,28 @@ namespace LaunchPlugin
 
             LiveProjectedDriveSecondsRemaining = projectedSeconds;
             return projectedLaps;
+        }
+
+        private double ResolveMaxTankCapacity(double telemetryMaxFuel)
+        {
+            double maxTankCapacity = FuelCalculator?.MaxFuelOverride ?? 0.0;
+
+            double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : telemetryMaxFuel;
+            if (LiveCarMaxFuel > 0 && telemetryMaxFuel > 0)
+            {
+                sessionMaxFuel = Math.Min(LiveCarMaxFuel, telemetryMaxFuel);
+            }
+
+            if (maxTankCapacity <= 0.0)
+            {
+                maxTankCapacity = sessionMaxFuel;
+            }
+            else if (sessionMaxFuel > 0.0)
+            {
+                maxTankCapacity = Math.Min(maxTankCapacity, sessionMaxFuel);
+            }
+
+            return maxTankCapacity;
         }
 
         private bool ShouldLogProjection(double simLapsRemaining, double projectedLapsRemaining)
