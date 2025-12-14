@@ -178,9 +178,9 @@ namespace LaunchPlugin
         private bool _timerZeroSeen;
         private double _timerZeroSessionTime = double.NaN;
         private double _prevSessionTimeRemain = double.NaN;
-        private double _whiteFlagSessionTime = double.NaN;
         private double _leaderCheckeredSessionTime = double.NaN;
         private double _driverCheckeredSessionTime = double.NaN;
+        private bool _finishTimingArmed;
         private bool _leaderFinishedSeen;
         private bool _leaderHasFinished;
         private int _lastCompletedLapForFinish = -1;
@@ -2528,9 +2528,9 @@ namespace LaunchPlugin
             _timerZeroSeen = false;
             _timerZeroSessionTime = double.NaN;
             _prevSessionTimeRemain = double.NaN;
-            _whiteFlagSessionTime = double.NaN;
             _leaderCheckeredSessionTime = double.NaN;
             _driverCheckeredSessionTime = double.NaN;
+            _finishTimingArmed = false;
             _leaderFinishedSeen = false;
             _lastCompletedLapForFinish = -1;
             LeaderHasFinished = false;
@@ -3379,11 +3379,31 @@ namespace LaunchPlugin
             string sessionType = data.NewData?.SessionTypeName ?? string.Empty;
             if (!string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase))
             {
+                // Guardrail: ignore timer / finish latching in non-race sessions so "time zero"
+                // events (e.g., practice/qual transitions) cannot pollute race finish timing.
                 ResetFinishTimingState();
                 return;
             }
 
             bool hasRemain = !double.IsNaN(sessionTimeRemain);
+
+            bool raceGreen = ReadFlagBool(
+                pluginManager,
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsGreenFlag",
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsGreen"
+            );
+
+            if (raceGreen || completedLaps > 0)
+            {
+                _finishTimingArmed = true;
+            }
+
+            if (!_finishTimingArmed)
+            {
+                _prevSessionTimeRemain = hasRemain ? sessionTimeRemain : double.NaN;
+                return;
+            }
+
             bool crossedToZero = hasRemain && !double.IsNaN(_prevSessionTimeRemain) &&
                                  _prevSessionTimeRemain > 0.5 && sessionTimeRemain <= 0.5;
 
@@ -3391,17 +3411,6 @@ namespace LaunchPlugin
             {
                 _timerZeroSeen = true;
                 _timerZeroSessionTime = sessionTime;
-            }
-
-            bool whiteFlag = ReadFlagBool(
-                pluginManager,
-                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhiteFlag",
-                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhite"
-            );
-
-            if (whiteFlag && double.IsNaN(_whiteFlagSessionTime))
-            {
-                _whiteFlagSessionTime = sessionTime;
             }
 
             bool checkeredFlag = ReadFlagBool(
@@ -3440,7 +3449,7 @@ namespace LaunchPlugin
                 double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime);
 
                 SimHub.Logging.Current.Info(
-                    $"[LalaLaunch] Finish timing: timer0={FormatSecondsOrNA(_timerZeroSessionTime)}s white={FormatSecondsOrNA(_whiteFlagSessionTime)}s " +
+                    $"[LalaLaunch] Finish timing: timer0={FormatSecondsOrNA(_timerZeroSessionTime)}s " +
                     $"leaderChk={FormatSecondsOrNA(_leaderCheckeredSessionTime)}s driverChk={FormatSecondsOrNA(_driverCheckeredSessionTime)}s " +
                     $"leader after 00:00={leaderExtra:F1}s driver after 00:00={driverExtra:F1}s remain={FormatSecondsOrNA(sessionTimeRemain)}s"
                 );
