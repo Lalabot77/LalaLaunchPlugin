@@ -3576,23 +3576,22 @@ namespace LaunchPlugin
             return 0.0;
         }
 
-        private long _finishTimingSessionId = -1;
-        private string _finishTimingSessionType = string.Empty;
+     private long _finishTimingSessionId = -1;
+     private string _finishTimingSessionType = string.Empty;
 
-        private void UpdateFinishTiming(
-            PluginManager pluginManager,
-            GameData data,
-            double sessionTime,
-            double sessionTimeRemain,
-            int completedLaps,
-            long sessionId,
-            string sessionType)
+     private void UpdateFinishTiming(
+     PluginManager pluginManager,
+     GameData data,
+     double sessionTime,
+     double sessionTimeRemain,
+     int completedLaps,
+     long sessionId,
+     string sessionType)
         {
             bool isRace = string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase);
-            bool sessionChanged = sessionId != _finishTimingSessionId ||
-                                  !string.Equals(sessionType, _finishTimingSessionType, StringComparison.OrdinalIgnoreCase);
 
-            if (sessionChanged)
+            // Reset cleanly on session change
+            if (sessionId != _finishTimingSessionId || sessionType != _finishTimingSessionType)
             {
                 _finishTimingSessionId = sessionId;
                 _finishTimingSessionType = sessionType;
@@ -3601,58 +3600,46 @@ namespace LaunchPlugin
 
             if (!isRace)
             {
-                // Guardrail: ignore timer / finish latching in non-race sessions so "time zero"
-                // events (e.g., practice/qual transitions) cannot pollute race finish timing.
-                ResetFinishTimingState();
                 _prevSessionTimeRemain = !double.IsNaN(sessionTimeRemain) ? sessionTimeRemain : double.NaN;
                 return;
             }
 
             bool hasRemain = !double.IsNaN(sessionTimeRemain);
 
-            bool checkeredFlag = ReadFlagBool(
-                pluginManager,
-                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckeredFlag",
-                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
-            );
+            // Detect first genuine crossing to zero
+            bool crossedToZero =
+                hasRemain &&
+                !double.IsNaN(_prevSessionTimeRemain) &&
+                _prevSessionTimeRemain > 0.5 &&
+                sessionTimeRemain <= 0.5 &&
+                completedLaps > 0;
 
-            bool whiteFlag = ReadFlagBool(
-                pluginManager,
-                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhiteFlag",
-                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhite"
-            );
-
-            bool leaderFinishSignal = ReadFlagBool(
-                pluginManager,
-                "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_IsCheckered",
-                "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_Checkered"
-            );
-
-            bool endOfRaceIndicator = whiteFlag || checkeredFlag || leaderFinishSignal;
-
-            bool crossedToZero = hasRemain && !double.IsNaN(_prevSessionTimeRemain) &&
-                                 _prevSessionTimeRemain > 0.5 && sessionTimeRemain <= 0.5;
-
-            if (!_timerZeroSeen && crossedToZero && completedLaps > 0 && endOfRaceIndicator)
+            if (!_timerZeroSeen && crossedToZero)
             {
                 _timerZeroSeen = true;
                 _timerZeroSessionTime = sessionTime;
             }
 
-            bool leaderWasFinished = LeaderHasFinished;
-            LeaderHasFinished = leaderFinishSignal;
-            bool leaderFinishTransition = LeaderHasFinished && !leaderWasFinished;
-
-            if (leaderFinishTransition && !_leaderFinishedSeen)
+            // ----- LEADER FINISH (USE EXISTING PROPERTY) -----
+            if (LeaderHasFinished && !_leaderFinishedSeen)
             {
                 _leaderFinishedSeen = true;
                 _leaderCheckeredSessionTime = sessionTime;
             }
 
-            bool lapCompleted = (_lastCompletedLapForFinish >= 0) && (completedLaps > _lastCompletedLapForFinish);
-            _lastCompletedLapForFinish = completedLaps;
+            // ----- DRIVER FINISH -----
+            bool lapCompleted =
+                (_lastCompletedLapForFinish >= 0) &&
+                (completedLaps > _lastCompletedLapForFinish);
 
+            _lastCompletedLapForFinish = completedLaps;
             _prevSessionTimeRemain = hasRemain ? sessionTimeRemain : double.NaN;
+
+            bool checkeredFlag = ReadFlagBool(
+                pluginManager,
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckeredFlag",
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
+            );
 
             if (lapCompleted && checkeredFlag)
             {
@@ -3662,14 +3649,19 @@ namespace LaunchPlugin
                 double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime);
 
                 SimHub.Logging.Current.Info(
-                    $"[LalaLaunch] Finish timing: timer0={FormatSecondsOrNA(_timerZeroSessionTime)}s " +
-                    $"leaderChk={FormatSecondsOrNA(_leaderCheckeredSessionTime)}s driverChk={FormatSecondsOrNA(_driverCheckeredSessionTime)}s " +
-                    $"leader after 00:00={leaderExtra:F1}s driver after 00:00={driverExtra:F1}s remain={FormatSecondsOrNA(sessionTimeRemain)}s"
+                    $"[LalaLaunch] Finish timing: " +
+                    $"timer0={FormatSecondsOrNA(_timerZeroSessionTime)}s " +
+                    $"leaderChk={FormatSecondsOrNA(_leaderCheckeredSessionTime)}s " +
+                    $"driverChk={FormatSecondsOrNA(_driverCheckeredSessionTime)}s " +
+                    $"leader after 00:00={leaderExtra:F1}s " +
+                    $"driver after 00:00={driverExtra:F1}s"
                 );
 
                 ResetFinishTimingState();
             }
         }
+
+
 
         private static (double seconds, bool isFallback) ReadLeaderLapTimeSeconds(
             PluginManager pluginManager,
