@@ -1870,10 +1870,10 @@ namespace LaunchPlugin
                 }
 
                 bool hasNormalRequirement = stableFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
-                double requiredLitres = hasNormalRequirement ? stableLapsRemaining * stableFuelPerLap : 0.0;
-                Fuel_Delta_LitresCurrent = ComputeDeltaLitres(currentFuel, requiredLitres, hasNormalRequirement);
-                Fuel_Delta_LitresPlan = ComputeDeltaLitres(fuelPlanExit, requiredLitres, hasNormalRequirement);
-                Fuel_Delta_LitresWillAdd = ComputeDeltaLitres(fuelWillAddExit, requiredLitres, hasNormalRequirement);
+                double requiredLitresNormal = hasNormalRequirement ? stableLapsRemaining * stableFuelPerLap : 0.0;
+                Fuel_Delta_LitresCurrent = ComputeDeltaLitres(currentFuel, requiredLitresNormal, hasNormalRequirement);
+                Fuel_Delta_LitresPlan = ComputeDeltaLitres(fuelPlanExit, requiredLitresNormal, hasNormalRequirement);
+                Fuel_Delta_LitresWillAdd = ComputeDeltaLitres(fuelWillAddExit, requiredLitresNormal, hasNormalRequirement);
 
                 bool hasPushRequirement = PushFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
                 double requiredLitresPush = hasPushRequirement ? stableLapsRemaining * PushFuelPerLap : 0.0;
