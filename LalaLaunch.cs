@@ -226,6 +226,7 @@ namespace LaunchPlugin
         public double LiveFuelPerLap_Stable { get; private set; }
         public string LiveFuelPerLap_StableSource { get; private set; } = "None";
         public double LiveFuelPerLap_StableConfidence { get; private set; }
+        // LiveLapsRemainingInRace already uses stable fuel/lap time; _Stable exports mirror the same value for explicit dash use/debugging.
         public double LiveLapsRemainingInRace { get; private set; }
         public double LiveLapsRemainingInRace_Stable { get; private set; }
         public double DeltaLaps { get; private set; }
@@ -353,8 +354,8 @@ namespace LaunchPlugin
         private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
         private const int FuelModelConfidenceSwitchOn = 60;
         private const int LapTimeConfidenceSwitchOn = 60;
-        private const double StableFuelPerLapDeadband = 0.03;
-        private const double StableLapTimeDeadband = 0.3;
+        private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
+        private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
 
         public RelayCommand SaveActiveProfileCommand { get; private set; }
         public RelayCommand ReturnToDefaultsCommand { get; private set; }
@@ -3294,6 +3295,7 @@ namespace LaunchPlugin
                 }
             }
 
+            stable = Math.Max(0.1, stable); // Clamp to avoid pathological near-zero persistence
             _stableFuelPerLap = stable;
             _stableFuelPerLapSource = selectedSource;
             _stableFuelPerLapConfidence = selectedConfidence;
