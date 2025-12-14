@@ -214,6 +214,7 @@ namespace LaunchPlugin
         private string _seedTrackKey = "";
         private bool _hasActiveDrySeed = false;
         private bool _hasActiveWetSeed = false;
+        private bool _isWetMode = false;
         private int _freshDrySamplesInWindow = 0;
         private int _freshWetSamplesInWindow = 0;
         private string _confidenceCarModel = string.Empty;
@@ -717,12 +718,12 @@ namespace LaunchPlugin
 
                 if (seededAny)
                 {
-                    bool isWetNow = FuelCalculator != null && FuelCalculator.IsWet;
-                    LiveFuelPerLap = isWetNow
+                    _isWetMode = FuelCalculator?.IsWet ?? false;
+                    LiveFuelPerLap = _isWetMode
                         ? (_avgWetFuelPerLap > 0 ? _avgWetFuelPerLap : _avgDryFuelPerLap)
                         : (_avgDryFuelPerLap > 0 ? _avgDryFuelPerLap : _avgWetFuelPerLap);
 
-                    Confidence = ComputeFuelModelConfidence(isWetNow);
+                    Confidence = ComputeFuelModelConfidence(_isWetMode);
 
                     try
                     {
@@ -1031,6 +1032,8 @@ namespace LaunchPlugin
 
             double sessionTime = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+
+            _isWetMode = FuelCalculator?.IsWet ?? false;
 
             // Pit detection: use both signals (some installs expose only one reliably)
             bool isInPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
@@ -1446,7 +1449,7 @@ namespace LaunchPlugin
                     if (!reject)
                     {
                         var (baselineDry, baselineWet) = GetProfileFuelBaselines();
-                        double baseline = isWetMode ? baselineWet : baselineDry;
+                        double baseline = _isWetMode ? baselineWet : baselineDry;
 
                         if (baseline > 0.0)
                         {
@@ -1461,9 +1464,9 @@ namespace LaunchPlugin
 
                     if (!reject)
                     {
-                        var window = isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
+                        var window = _isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
 
-                        if (isWetMode)
+                        if (_isWetMode)
                             _freshWetSamplesInWindow++;
                         else
                             _freshDrySamplesInWindow++;
@@ -1471,12 +1474,12 @@ namespace LaunchPlugin
                         window.Add(fuelUsed);
                         while (window.Count > FuelWindowSize)
                         {
-                            if (isWetMode && _hasActiveWetSeed)
+                            if (_isWetMode && _hasActiveWetSeed)
                             {
                                 window.RemoveAt(0);
                                 _hasActiveWetSeed = false;
                             }
-                            else if (!isWetMode && _hasActiveDrySeed)
+                            else if (!_isWetMode && _hasActiveDrySeed)
                             {
                                 window.RemoveAt(0);
                                 _hasActiveDrySeed = false;
@@ -1484,14 +1487,14 @@ namespace LaunchPlugin
                             else
                             {
                                 window.RemoveAt(0);
-                                if (isWetMode && _freshWetSamplesInWindow > 0)
+                                if (_isWetMode && _freshWetSamplesInWindow > 0)
                                     _freshWetSamplesInWindow--;
-                                else if (!isWetMode && _freshDrySamplesInWindow > 0)
+                                else if (!_isWetMode && _freshDrySamplesInWindow > 0)
                                     _freshDrySamplesInWindow--;
                             }
                         }
 
-                        if (isWetMode)
+                        if (_isWetMode)
                         {
                             _avgWetFuelPerLap = window.Average();
                             _validWetLaps = window.Count;
@@ -1526,12 +1529,12 @@ namespace LaunchPlugin
                         }
 
                         // Choose mode-aware LiveFuelPerLap, but allow cross-mode fallback if only one side has data
-                        LiveFuelPerLap = isWetMode
+                        LiveFuelPerLap = _isWetMode
                             ? (_avgWetFuelPerLap > 0 ? _avgWetFuelPerLap : _avgDryFuelPerLap)
                             : (_avgDryFuelPerLap > 0 ? _avgDryFuelPerLap : _avgWetFuelPerLap);
 
                         _usingFallbackFuelProfile = false;
-                        Confidence = ComputeFuelModelConfidence(isWetMode);
+                        Confidence = ComputeFuelModelConfidence(_isWetMode);
 
                         // Overall confidence is computed in its getter from Confidence + PaceConfidence
 
@@ -1539,7 +1542,7 @@ namespace LaunchPlugin
                         FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
 
                         // Update session max for current mode if available
-                        double maxForMode = isWetMode ? _maxWetFuelPerLap : _maxDryFuelPerLap;
+                        double maxForMode = _isWetMode ? _maxWetFuelPerLap : _maxDryFuelPerLap;
                         if (maxForMode > 0)
                         {
                             _maxFuelPerLapSession = maxForMode;
@@ -1551,7 +1554,7 @@ namespace LaunchPlugin
                             _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
 
                         // Keep profile’s dry fuel updated from stable dry data only
-                        if (!isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
+                        if (!_isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
                         {
                             var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
                             if (trackRecord != null)
@@ -1590,7 +1593,7 @@ namespace LaunchPlugin
                         fuelUsed,
                         !reject,
                         fuelReasonForLog,
-                        isWetMode,
+                        _isWetMode,
                         LiveFuelPerLap,
                         _validDryLaps,
                         _validWetLaps,
@@ -1631,7 +1634,7 @@ namespace LaunchPlugin
                     FuelCalculator?.OnLiveFuelPerLapUpdated();
             }
 
-            UpdateStableFuelPerLap(isWetMode, fallbackFuelPerLap);
+            UpdateStableFuelPerLap(_isWetMode, fallbackFuelPerLap);
 
             // --- 3) Core dashboard properties (guarded by a valid consumption rate) ---
             double requestedAddLitresForSmooth = 0.0;
