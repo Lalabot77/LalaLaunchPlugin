@@ -180,7 +180,6 @@ namespace LaunchPlugin
         private double _prevSessionTimeRemain = double.NaN;
         private double _leaderCheckeredSessionTime = double.NaN;
         private double _driverCheckeredSessionTime = double.NaN;
-        private bool _finishTimingArmed;
         private bool _leaderFinishedSeen;
         private bool _leaderHasFinished;
         private int _lastCompletedLapForFinish = -1;
@@ -2530,7 +2529,6 @@ namespace LaunchPlugin
             _prevSessionTimeRemain = double.NaN;
             _leaderCheckeredSessionTime = double.NaN;
             _driverCheckeredSessionTime = double.NaN;
-            _finishTimingArmed = false;
             _leaderFinishedSeen = false;
             _lastCompletedLapForFinish = -1;
             LeaderHasFinished = false;
@@ -2698,7 +2696,14 @@ namespace LaunchPlugin
             // --- PitLite tick: after PitEngine update and baseline selection ---
             bool inLane = _pit?.IsOnPitRoad ?? (data.NewData.IsInPitLane != 0);
             int completedLaps = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
-            UpdateFinishTiming(pluginManager, data, sessionTime, sessionTimeRemain, completedLaps);
+            UpdateFinishTiming(
+                pluginManager,
+                data,
+                sessionTime,
+                sessionTimeRemain,
+                completedLaps,
+                currentSessionId,
+                currentSessionTypeForConfidence);
             double lastLapSec = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
             // IMPORTANT: give PitLite a *real* baseline pace.
             // Order: stable avg (from your fuel/baseline logic) → pit debug avg → profile avg → 0
@@ -3374,44 +3379,39 @@ namespace LaunchPlugin
             return 0.0;
         }
 
-        private void UpdateFinishTiming(PluginManager pluginManager, GameData data, double sessionTime, double sessionTimeRemain, int completedLaps)
+        private long _finishTimingSessionId = -1;
+        private string _finishTimingSessionType = string.Empty;
+
+        private void UpdateFinishTiming(
+            PluginManager pluginManager,
+            GameData data,
+            double sessionTime,
+            double sessionTimeRemain,
+            int completedLaps,
+            long sessionId,
+            string sessionType)
         {
-            string sessionType = data.NewData?.SessionTypeName ?? string.Empty;
-            if (!string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase))
+            bool isRace = string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase);
+            bool sessionChanged = sessionId != _finishTimingSessionId ||
+                                  !string.Equals(sessionType, _finishTimingSessionType, StringComparison.OrdinalIgnoreCase);
+
+            if (sessionChanged)
+            {
+                _finishTimingSessionId = sessionId;
+                _finishTimingSessionType = sessionType;
+                ResetFinishTimingState();
+            }
+
+            if (!isRace)
             {
                 // Guardrail: ignore timer / finish latching in non-race sessions so "time zero"
                 // events (e.g., practice/qual transitions) cannot pollute race finish timing.
                 ResetFinishTimingState();
+                _prevSessionTimeRemain = !double.IsNaN(sessionTimeRemain) ? sessionTimeRemain : double.NaN;
                 return;
             }
 
             bool hasRemain = !double.IsNaN(sessionTimeRemain);
-
-            bool raceGreen = ReadFlagBool(
-                pluginManager,
-                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsGreenFlag",
-                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsGreen"
-            );
-
-            if (raceGreen || completedLaps > 0)
-            {
-                _finishTimingArmed = true;
-            }
-
-            if (!_finishTimingArmed)
-            {
-                _prevSessionTimeRemain = hasRemain ? sessionTimeRemain : double.NaN;
-                return;
-            }
-
-            bool crossedToZero = hasRemain && !double.IsNaN(_prevSessionTimeRemain) &&
-                                 _prevSessionTimeRemain > 0.5 && sessionTimeRemain <= 0.5;
-
-            if (!_timerZeroSeen && crossedToZero)
-            {
-                _timerZeroSeen = true;
-                _timerZeroSessionTime = sessionTime;
-            }
 
             bool checkeredFlag = ReadFlagBool(
                 pluginManager,
@@ -3419,12 +3419,28 @@ namespace LaunchPlugin
                 "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
             );
 
+            bool whiteFlag = ReadFlagBool(
+                pluginManager,
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhiteFlag",
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsWhite"
+            );
+
             bool leaderFinishSignal = ReadFlagBool(
                 pluginManager,
                 "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_IsCheckered",
-                "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_Checkered",
-                "DataCorePlugin.GameData.LeaderHasFinished"
+                "IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_Checkered"
             );
+
+            bool endOfRaceIndicator = whiteFlag || checkeredFlag || leaderFinishSignal;
+
+            bool crossedToZero = hasRemain && !double.IsNaN(_prevSessionTimeRemain) &&
+                                 _prevSessionTimeRemain > 0.5 && sessionTimeRemain <= 0.5;
+
+            if (!_timerZeroSeen && crossedToZero && completedLaps > 0 && endOfRaceIndicator)
+            {
+                _timerZeroSeen = true;
+                _timerZeroSessionTime = sessionTime;
+            }
 
             bool leaderWasFinished = LeaderHasFinished;
             LeaderHasFinished = leaderFinishSignal;
