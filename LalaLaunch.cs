@@ -244,6 +244,8 @@ namespace LaunchPlugin
         public double Pit_FuelOnExit { get; private set; }
         public double Pit_FuelSaveDeltaAfterStop { get; private set; }
         public double Pit_PushDeltaAfterStop { get; private set; }
+        public int PitStopsRequiredByFuel { get; private set; }
+        public int PitStopsRequiredByPlan { get; private set; }
         public int Pit_StopsRequiredToEnd { get; private set; }
         public double LiveLapsRemainingInRace_S { get; private set; }
         public double LiveLapsRemainingInRace_Stable_S { get; private set; }
@@ -263,6 +265,7 @@ namespace LaunchPlugin
         private bool _isRefuelSelected = true;
         private bool _isTireChangeSelected = true;
         public double LiveCarMaxFuel { get; private set; }
+        public double EffectiveLiveMaxTank { get; private set; }
 
         public double FuelSaveFuelPerLap { get; private set; }
 
@@ -616,9 +619,19 @@ namespace LaunchPlugin
             }
         }
 
+        private void ResetLiveMaxFuelTracking()
+        {
+            LiveCarMaxFuel = 0.0;
+            EffectiveLiveMaxTank = 0.0;
+            _latchedLiveMaxFuel = 0.0;
+            _lastAnnouncedMaxFuel = -1;
+            _liveMaxFuelRecheckTimer.Restart();
+        }
+
         private void ResetLiveFuelModelForNewSession(string newSessionType, bool applySeeds)
         {
             // Clear per-lap / model state
+            ResetLiveMaxFuelTracking();
             _recentDryFuelLaps.Clear();
             _recentWetFuelLaps.Clear();
             _validDryLaps = 0;
@@ -1025,10 +1038,11 @@ namespace LaunchPlugin
             // --- 1) Gather required data ---
             double currentFuel = data.NewData?.Fuel ?? 0.0;
             double rawLapPct = data.NewData?.TrackPositionPercent ?? 0.0;
-            double maxFuel = data.NewData?.MaxFuel ?? 0.0;
             double fallbackFuelPerLap = Convert.ToDouble(
                 PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
             );
+
+            double effectiveMaxTank = GetEffectiveLiveMaxTank(pluginManager);
 
             double sessionTime = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
@@ -1432,7 +1446,7 @@ namespace LaunchPlugin
                     if (!reject)
                     {
                         // coarse cap: 20% of tank or 10 L, whichever is larger
-                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(maxFuel, 50.0));
+                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(effectiveMaxTank, 50.0));
                         if (fuelUsed <= 0.05)
                         {
                             reject = true;
@@ -1660,6 +1674,8 @@ namespace LaunchPlugin
                 Pit_DeltaAfterStop = 0;
                 Pit_FuelSaveDeltaAfterStop = 0;
                 Pit_PushDeltaAfterStop = 0;
+                PitStopsRequiredByFuel = 0;
+                PitStopsRequiredByPlan = 0;
                 Pit_StopsRequiredToEnd = 0;
 
                 Fuel_Delta_LitresCurrent = 0;
@@ -1727,6 +1743,13 @@ namespace LaunchPlugin
                 double fuelNeededToEnd = LiveLapsRemainingInRace_Stable * fuelPerLapForCalc;
                 DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace_Stable;
 
+                double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
+                double stableFuelPerLap = LiveFuelPerLap_Stable;
+                double litresRequiredToFinish =
+                    (stableLapsRemaining > 0.0 && stableFuelPerLap > 0.0)
+                        ? stableLapsRemaining * stableFuelPerLap
+                        : fuelNeededToEnd;
+
                 // Raw target fuel per lap if we're short on fuel
                 double rawTargetFuelPerLap = (DeltaLaps < 0 && LiveLapsRemainingInRace_Stable > 0)
                     ? currentFuel / LiveLapsRemainingInRace_Stable
@@ -1746,8 +1769,8 @@ namespace LaunchPlugin
                 }
 
                 // Pit math
-                Pit_TotalNeededToEnd = fuelNeededToEnd;
-                Pit_NeedToAdd = Math.Max(0, fuelNeededToEnd - currentFuel);
+                Pit_TotalNeededToEnd = litresRequiredToFinish;
+                Pit_NeedToAdd = Math.Max(0, litresRequiredToFinish - currentFuel);
                 double fuelToRequest = Convert.ToDouble(
                     PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PitSvFuel") ?? 0.0);
 
@@ -1756,7 +1779,7 @@ namespace LaunchPlugin
                     fuelToRequest = 0.0;
                 }
 
-                double maxTankCapacity = ResolveMaxTankCapacity(maxFuel);
+                double maxTankCapacity = ResolveMaxTankCapacity(effectiveMaxTank);
 
                 double requestedAddLitres = Math.Max(0, fuelToRequest);
                 requestedAddLitresForSmooth = requestedAddLitres;
@@ -1786,13 +1809,15 @@ namespace LaunchPlugin
                 // Pit window logic – single-stop only, based on requested MFD refuel amount and
                 // the effective tank capacity shared with the Fuel tab's detected max.
                 int strategyRequiredStops = FuelCalculator?.RequiredPitStops ?? 0;
-                int stopsRequired = strategyRequiredStops;
-                if (stopsRequired <= 0 && maxTankCapacity > 0)
-                {
-                    stopsRequired = (int)Math.Ceiling((fuelNeededToEnd - currentFuel) / maxTankCapacity);
-                }
+                double litresShort = Math.Max(0, litresRequiredToFinish - currentFuel);
+                int stopsRequiredByFuel = (effectiveMaxTank > 0)
+                    ? (int)Math.Ceiling(litresShort / effectiveMaxTank)
+                    : 0;
+                int stopsRequiredByPlan = strategyRequiredStops > 0 ? strategyRequiredStops : stopsRequiredByFuel;
 
-                Pit_StopsRequiredToEnd = Math.Max(0, stopsRequired);
+                PitStopsRequiredByFuel = Math.Max(0, stopsRequiredByFuel);
+                PitStopsRequiredByPlan = Math.Max(0, stopsRequiredByPlan);
+                Pit_StopsRequiredToEnd = PitStopsRequiredByPlan;
 
                 bool isSingleStopStrategy = strategyRequiredStops == 1;
                 bool hasValidFuelPerLap = fuelPerLapForCalc > 0.0;
@@ -1859,8 +1884,6 @@ namespace LaunchPlugin
                     Pit_PushDeltaAfterStop = 0.0;
                 }
 
-                double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
-                double stableFuelPerLap = LiveFuelPerLap_Stable;
                 double fuelPlanExit = currentFuel + requestedAddLitres;
                 double fuelWillAddExit = currentFuel + Pit_WillAdd;
 
@@ -2092,6 +2115,10 @@ namespace LaunchPlugin
 
         // --- Already added earlier for MaxFuel throttling ---
         private double _lastAnnouncedMaxFuel = -1;
+        private readonly System.Diagnostics.Stopwatch _liveMaxFuelRecheckTimer = new System.Diagnostics.Stopwatch();
+        private double _latchedLiveMaxFuel = 0.0;
+        private const double LiveMaxFuelJitterThreshold = 0.1;
+        private const double LiveMaxFuelRecheckWindowSeconds = 10.0;
 
         // ==== Refuel learning state (hardened) ====
         private bool _isRefuelling = false;
@@ -2185,6 +2212,7 @@ namespace LaunchPlugin
             _poll250ms.Start();
             _poll500ms.Start();
 
+            ResetLiveMaxFuelTracking();
             ResetAllValues();
             ResetFinishTimingState();
             _pit?.ResetPitPhaseState();
@@ -2229,6 +2257,8 @@ namespace LaunchPlugin
             AttachCore("Fuel.Pit.PushDeltaAfterStop", () => Pit_PushDeltaAfterStop);
             AttachCore("Fuel.Pit.PushDeltaAfterStop_S", () => Pit_PushDeltaAfterStop_S);
             AttachCore("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
+            AttachCore("Fuel.PitStopsRequiredByFuel", () => PitStopsRequiredByFuel);
+            AttachCore("Fuel.PitStopsRequiredByPlan", () => PitStopsRequiredByPlan);
             AttachCore("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
             AttachCore("Fuel.Live.RefuelRate_Lps", () => FuelCalculator?.EffectiveRefuelRateLps ?? 0.0);
             AttachCore("Fuel.Live.TireChangeTime_S", () => GetEffectiveTireChangeTimeSeconds());
@@ -2964,16 +2994,8 @@ namespace LaunchPlugin
             if (_poll250ms.ElapsedMilliseconds >= 250)
             {
                 _poll250ms.Restart();
-                double baseMaxFuel = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
-                double bopPercent = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct") ?? 1.0);
-                if (bopPercent <= 0) { bopPercent = 1.0; }
-                double maxFuel = baseMaxFuel * bopPercent;
-                LiveCarMaxFuel = maxFuel;
-                if (Math.Abs(LiveCarMaxFuel - _lastAnnouncedMaxFuel) > 0.01)
-                {
-                    _lastAnnouncedMaxFuel = LiveCarMaxFuel;
-                    FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
-                }
+                UpdateLiveMaxFuel(pluginManager);
+                EffectiveLiveMaxTank = GetEffectiveLiveMaxTank(pluginManager);
                 _msgSystem.Enabled = Settings.MsgDashShowTraffic || Settings.LalaDashShowTraffic;
                 double warn = ActiveProfile.TrafficApproachWarnSeconds;
                 if (!(warn > 0)) warn = 5.0;
@@ -3515,15 +3537,82 @@ namespace LaunchPlugin
             return projectedLaps;
         }
 
-        private double ResolveMaxTankCapacity(double telemetryMaxFuel)
+        private double ComputeLiveMaxFuelFromSimhub(PluginManager pluginManager)
+        {
+            double baseMaxFuel = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
+            double bopPercent = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct") ?? 1.0);
+            if (bopPercent <= 0) bopPercent = 1.0;
+            return baseMaxFuel * bopPercent;
+        }
+
+        private bool IsWithinLiveMaxFuelRecheckWindow()
+        {
+            if (!_liveMaxFuelRecheckTimer.IsRunning)
+                return true;
+
+            return _liveMaxFuelRecheckTimer.Elapsed.TotalSeconds <= LiveMaxFuelRecheckWindowSeconds;
+        }
+
+        private void ApplyLiveMaxFuel(double computedMaxFuel)
+        {
+            if (computedMaxFuel <= 0.0)
+                return;
+
+            bool meaningfulChange = LiveCarMaxFuel <= 0.0 || Math.Abs(LiveCarMaxFuel - computedMaxFuel) > LiveMaxFuelJitterThreshold;
+            if (!meaningfulChange && LiveCarMaxFuel > 0.0)
+                return;
+
+            LiveCarMaxFuel = computedMaxFuel;
+            _latchedLiveMaxFuel = LiveCarMaxFuel;
+
+            if (Math.Abs(LiveCarMaxFuel - _lastAnnouncedMaxFuel) > 0.01)
+            {
+                _lastAnnouncedMaxFuel = LiveCarMaxFuel;
+                FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
+            }
+        }
+
+        private void UpdateLiveMaxFuel(PluginManager pluginManager)
+        {
+            double computedMaxFuel = ComputeLiveMaxFuelFromSimhub(pluginManager);
+            bool withinRecheckWindow = IsWithinLiveMaxFuelRecheckWindow();
+
+            if (computedMaxFuel > 0.0)
+            {
+                ApplyLiveMaxFuel(computedMaxFuel);
+            }
+            else if (withinRecheckWindow && _latchedLiveMaxFuel > 0.0 && LiveCarMaxFuel <= 0.0)
+            {
+                ApplyLiveMaxFuel(_latchedLiveMaxFuel);
+            }
+        }
+
+        private double GetEffectiveLiveMaxTank(PluginManager pluginManager)
+        {
+            double effective = LiveCarMaxFuel;
+            if (effective <= 0.0)
+            {
+                double computedMaxFuel = ComputeLiveMaxFuelFromSimhub(pluginManager);
+                if (computedMaxFuel > 0.0)
+                {
+                    ApplyLiveMaxFuel(computedMaxFuel);
+                    effective = computedMaxFuel;
+                }
+                else if (_latchedLiveMaxFuel > 0.0)
+                {
+                    effective = _latchedLiveMaxFuel;
+                }
+            }
+
+            EffectiveLiveMaxTank = effective;
+            return effective;
+        }
+
+        private double ResolveMaxTankCapacity(double effectiveLiveMaxTank)
         {
             double maxTankCapacity = FuelCalculator?.MaxFuelOverride ?? 0.0;
 
-            double sessionMaxFuel = LiveCarMaxFuel > 0 ? LiveCarMaxFuel : telemetryMaxFuel;
-            if (LiveCarMaxFuel > 0 && telemetryMaxFuel > 0)
-            {
-                sessionMaxFuel = Math.Min(LiveCarMaxFuel, telemetryMaxFuel);
-            }
+            double sessionMaxFuel = effectiveLiveMaxTank;
 
             if (maxTankCapacity <= 0.0)
             {
