@@ -1446,7 +1446,7 @@ namespace LaunchPlugin
                     if (!reject)
                     {
                         // coarse cap: 20% of tank or 10 L, whichever is larger
-                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(maxFuel, 50.0));
+                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(effectiveMaxTank, 50.0));
                         if (fuelUsed <= 0.05)
                         {
                             reject = true;
@@ -1884,8 +1884,6 @@ namespace LaunchPlugin
                     Pit_PushDeltaAfterStop = 0.0;
                 }
 
-                double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
-                double stableFuelPerLap = LiveFuelPerLap_Stable;
                 double fuelPlanExit = currentFuel + requestedAddLitres;
                 double fuelWillAddExit = currentFuel + Pit_WillAdd;
 
