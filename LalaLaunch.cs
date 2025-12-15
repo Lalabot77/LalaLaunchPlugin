@@ -3553,6 +3553,9 @@ namespace LaunchPlugin
             double computedMaxFuel = ComputeLiveMaxFuelFromSimhub(pluginManager);
             EffectiveLiveMaxTank = computedMaxFuel;
 
+            if (computedMaxFuel <= 0.0)
+                return; // do not overwrite a valid LiveCarMaxFuel with zero
+
             bool meaningfulChange = Math.Abs(LiveCarMaxFuel - computedMaxFuel) > LiveMaxFuelJitterThreshold;
             if (!meaningfulChange && !(LiveCarMaxFuel <= 0.0 && computedMaxFuel > 0.0))
                 return;
