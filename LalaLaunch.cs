@@ -147,6 +147,32 @@ namespace LaunchPlugin
         // --- Expose the direct travel time calculated by PitEngine ---
         public double LastDirectTravelTime => _pit?.LastDirectTravelTime ?? 0.0;
 
+        public bool OverallLeaderHasFinished
+        {
+            get => _overallLeaderHasFinished;
+            private set
+            {
+                if (_overallLeaderHasFinished != value)
+                {
+                    _overallLeaderHasFinished = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool ClassLeaderHasFinished
+        {
+            get => _classLeaderHasFinished;
+            private set
+            {
+                if (_classLeaderHasFinished != value)
+                {
+                    _classLeaderHasFinished = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public bool LeaderHasFinished
         {
             get => _leaderHasFinished;
@@ -155,6 +181,32 @@ namespace LaunchPlugin
                 if (_leaderHasFinished != value)
                 {
                     _leaderHasFinished = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool OverallLeaderHasFinishedValid
+        {
+            get => _overallLeaderHasFinishedValid;
+            private set
+            {
+                if (_overallLeaderHasFinishedValid != value)
+                {
+                    _overallLeaderHasFinishedValid = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool ClassLeaderHasFinishedValid
+        {
+            get => _classLeaderHasFinishedValid;
+            private set
+            {
+                if (_classLeaderHasFinishedValid != value)
+                {
+                    _classLeaderHasFinishedValid = value;
                     OnPropertyChanged();
                 }
             }
@@ -182,6 +234,16 @@ namespace LaunchPlugin
         private double _driverCheckeredSessionTime = double.NaN;
         private bool _leaderFinishedSeen;
         private bool _leaderHasFinished;
+        private bool _overallLeaderHasFinished;
+        private bool _classLeaderHasFinished;
+        private bool _overallLeaderHasFinishedValid;
+        private bool _classLeaderHasFinishedValid;
+        private bool _isMultiClassSession;
+        private double _lastClassLeaderLapPct = double.NaN;
+        private double _lastOverallLeaderLapPct = double.NaN;
+        private int _lastClassLeaderCarIdx = -1;
+        private int _lastOverallLeaderCarIdx = -1;
+        private readonly Dictionary<int, string> _carIdxToClassShortName = new Dictionary<int, string>();
         private int _lastCompletedLapForFinish = -1;
 
         // New per-mode rolling windows
@@ -2344,6 +2406,10 @@ namespace LaunchPlugin
             AttachCore("DashControlMode", () => Screens.Mode);
             AttachCore("FalseStartDetected", () => _falseStartDetected);
             AttachCore("LastSessionType", () => _lastSessionType);
+            AttachCore("Race.OverallLeaderHasFinished", () => OverallLeaderHasFinished);
+            AttachCore("Race.OverallLeaderHasFinishedValid", () => OverallLeaderHasFinishedValid);
+            AttachCore("Race.ClassLeaderHasFinished", () => ClassLeaderHasFinished);
+            AttachCore("Race.ClassLeaderHasFinishedValid", () => ClassLeaderHasFinishedValid);
             AttachCore("Race.LeaderHasFinished", () => LeaderHasFinished);
             AttachCore("MsgCxPressed", () => _msgCxPressed);
             AttachCore("PitScreenActive", () => _pitScreenActive);
@@ -2652,6 +2718,16 @@ namespace LaunchPlugin
             _leaderCheckeredSessionTime = double.NaN;
             _driverCheckeredSessionTime = double.NaN;
             _leaderFinishedSeen = false;
+            _overallLeaderHasFinished = false;
+            _classLeaderHasFinished = false;
+            _overallLeaderHasFinishedValid = false;
+            _classLeaderHasFinishedValid = false;
+            _isMultiClassSession = false;
+            _lastClassLeaderLapPct = double.NaN;
+            _lastOverallLeaderLapPct = double.NaN;
+            _lastClassLeaderCarIdx = -1;
+            _lastOverallLeaderCarIdx = -1;
+            _carIdxToClassShortName.Clear();
             _lastCompletedLapForFinish = -1;
             LeaderHasFinished = false;
         }
@@ -3202,6 +3278,237 @@ namespace LaunchPlugin
             return false;
         }
 
+        private void RefreshClassMetadata(PluginManager pluginManager)
+        {
+            _carIdxToClassShortName.Clear();
+            var classNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < 64; i++)
+            {
+                int carIdx = GetInt(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarIdx", int.MinValue);
+                if (carIdx == int.MinValue) break;
+
+                string cls = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarClassShortName");
+                if (string.IsNullOrWhiteSpace(cls))
+                {
+                    cls = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarClassName");
+                }
+
+                if (!string.IsNullOrWhiteSpace(cls))
+                {
+                    _carIdxToClassShortName[carIdx] = cls;
+                    classNames.Add(cls);
+                }
+            }
+
+            _isMultiClassSession = classNames.Count > 1;
+        }
+
+        private string GetCachedClassShortName(int carIdx)
+        {
+            if (carIdx < 0) return null;
+            return _carIdxToClassShortName.TryGetValue(carIdx, out var cls) ? cls : null;
+        }
+
+        private int FindClassLeaderCarIdx(string playerClassShort, int[] classPositions, int[] trackSurfaces)
+        {
+            if (string.IsNullOrWhiteSpace(playerClassShort) || classPositions == null) return -1;
+
+            for (int i = 0; i < classPositions.Length; i++)
+            {
+                if (classPositions[i] != 1) continue;
+                if (!IsCarInWorld(trackSurfaces, i)) continue;
+
+                var classShort = GetCachedClassShortName(i);
+                if (string.IsNullOrWhiteSpace(classShort)) continue;
+
+                if (string.Equals(classShort, playerClassShort, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static bool IsCarInWorld(int[] trackSurfaces, int index)
+        {
+            if (index < 0) return false;
+            if (trackSurfaces == null) return true;
+            if (index >= trackSurfaces.Length) return true;
+            return trackSurfaces[index] >= 0;
+        }
+
+        private void MaybeLatchLeaderFinished(bool isClassLeader, int leaderIdx, double[] lapPct, int[] trackSurfaces, double sessionTime, int sessionStateNumeric)
+        {
+            if (leaderIdx < 0 || lapPct == null || leaderIdx >= lapPct.Length) return;
+            if (!IsCarInWorld(trackSurfaces, leaderIdx)) return;
+
+            double lastPct = isClassLeader ? _lastClassLeaderLapPct : _lastOverallLeaderLapPct;
+            int lastIdx = isClassLeader ? _lastClassLeaderCarIdx : _lastOverallLeaderCarIdx;
+            double currentPct = lapPct[leaderIdx];
+
+            if (lastIdx != leaderIdx)
+            {
+                if (isClassLeader)
+                {
+                    _lastClassLeaderCarIdx = leaderIdx;
+                    _lastClassLeaderLapPct = currentPct;
+                }
+                else
+                {
+                    _lastOverallLeaderCarIdx = leaderIdx;
+                    _lastOverallLeaderLapPct = currentPct;
+                }
+
+                return;
+            }
+
+            if (!double.IsNaN(lastPct) && lastPct > 0.90 && currentPct < 0.10)
+            {
+                if (isClassLeader && !ClassLeaderHasFinished)
+                {
+                    ClassLeaderHasFinished = true;
+                    SimHub.Logging.Current.Info(
+                        $"[FinishTiming] ClassLeader finished (heuristic): carIdx={leaderIdx} sessionTime={sessionTime:F1}s sessionState={sessionStateNumeric} timerZero={_timerZeroSeen}");
+                }
+
+                if (!isClassLeader && !OverallLeaderHasFinished)
+                {
+                    OverallLeaderHasFinished = true;
+                    SimHub.Logging.Current.Info(
+                        $"[FinishTiming] OverallLeader finished (heuristic): carIdx={leaderIdx} sessionTime={sessionTime:F1}s sessionState={sessionStateNumeric} timerZero={_timerZeroSeen}");
+                }
+            }
+
+            if (isClassLeader)
+            {
+                _lastClassLeaderLapPct = currentPct;
+                _lastClassLeaderCarIdx = leaderIdx;
+            }
+            else
+            {
+                _lastOverallLeaderLapPct = currentPct;
+                _lastOverallLeaderCarIdx = leaderIdx;
+            }
+        }
+
+        private int ReadSessionStateInt(PluginManager pluginManager)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionState");
+                if (raw == null) return 0;
+
+                if (raw is int i) return i;
+                if (raw is long l) return (int)l;
+                if (raw is double d) return (int)d;
+                if (raw is float f) return (int)f;
+
+                var s = Convert.ToString(raw, CultureInfo.InvariantCulture);
+                return int.TryParse(s, out var parsed) ? parsed : 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static int GetInt(PluginManager pluginManager, string propertyName, int fallback)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                if (raw == null) return fallback;
+                return Convert.ToInt32(raw);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        private static string GetString(PluginManager pluginManager, string propertyName)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                return Convert.ToString(raw, CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static int[] GetIntArray(PluginManager pluginManager, string propertyName)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                if (raw == null) return null;
+
+                if (raw is int[] ints) return ints;
+                if (raw is long[] longs) return longs.Select(l => (int)l).ToArray();
+                if (raw is float[] floats) return floats.Select(f => (int)f).ToArray();
+                if (raw is double[] doubles) return doubles.Select(d => (int)d).ToArray();
+
+                if (raw is System.Collections.IEnumerable enumerable)
+                {
+                    var list = new List<int>(64);
+                    foreach (var item in enumerable)
+                    {
+                        try
+                        {
+                            list.Add(Convert.ToInt32(item));
+                        }
+                        catch
+                        {
+                            list.Add(0);
+                        }
+                    }
+                    return list.Count > 0 ? list.ToArray() : null;
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static double[] GetDoubleArray(PluginManager pluginManager, string propertyName)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                if (raw == null) return null;
+
+                if (raw is double[] doubles) return doubles;
+                if (raw is float[] floats) return floats.Select(f => (double)f).ToArray();
+                if (raw is int[] ints) return ints.Select(i => (double)i).ToArray();
+                if (raw is long[] longs) return longs.Select(l => (double)l).ToArray();
+
+                if (raw is System.Collections.IEnumerable enumerable)
+                {
+                    var list = new List<double>(64);
+                    foreach (var item in enumerable)
+                    {
+                        try
+                        {
+                            list.Add(Convert.ToDouble(item));
+                        }
+                        catch
+                        {
+                            list.Add(double.NaN);
+                        }
+                    }
+                    return list.Count > 0 ? list.ToArray() : null;
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
         private bool IsRefuelSelected(PluginManager pluginManager)
         {
             try
@@ -3659,6 +3966,7 @@ namespace LaunchPlugin
                 _finishTimingSessionId = sessionId;
                 _finishTimingSessionType = sessionType;
                 ResetFinishTimingState();
+                RefreshClassMetadata(pluginManager);
             }
 
             if (!isRace)
@@ -3683,11 +3991,104 @@ namespace LaunchPlugin
                 _timerZeroSessionTime = sessionTime;
             }
 
-            // ----- LEADER FINISH (USE EXISTING PROPERTY) -----
-            if (LeaderHasFinished && !_leaderFinishedSeen)
+            if (_carIdxToClassShortName.Count == 0 && isRace)
+            {
+                RefreshClassMetadata(pluginManager);
+            }
+
+            int sessionStateNumeric = ReadSessionStateInt(pluginManager);
+            bool isTimedRace = hasRemain;
+            bool sessionStateRaceOrLater = sessionStateNumeric >= 4;
+
+            int playerCarIdx = GetInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.PlayerCarIdx", -1);
+            string playerClassShort = GetCachedClassShortName(playerCarIdx);
+            if (string.IsNullOrWhiteSpace(playerClassShort) && pluginManager != null)
+            {
+                RefreshClassMetadata(pluginManager);
+                playerClassShort = GetCachedClassShortName(playerCarIdx);
+            }
+
+            var classPositions = GetIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxClassPosition");
+            var trackSurfaces = GetIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxTrackSurface");
+            var lapDistPct = GetDoubleArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLapDistPct");
+
+            int classLeaderIdx = FindClassLeaderCarIdx(playerClassShort, classPositions, trackSurfaces);
+            ClassLeaderHasFinishedValid = classLeaderIdx >= 0;
+
+            int overallLeaderIdx = -1;
+            if (!_isMultiClassSession && classLeaderIdx >= 0)
+            {
+                overallLeaderIdx = classLeaderIdx;
+                OverallLeaderHasFinishedValid = true;
+            }
+            else
+            {
+                OverallLeaderHasFinishedValid = false;
+            }
+
+            if (!isTimedRace)
+            {
+                // Lap-limited: no derivation path without per-car lap counts or finish flags.
+                if (classLeaderIdx >= 0 && lapDistPct != null && classLeaderIdx < lapDistPct.Length)
+                {
+                    _lastClassLeaderLapPct = lapDistPct[classLeaderIdx];
+                    _lastClassLeaderCarIdx = classLeaderIdx;
+                }
+
+                if (overallLeaderIdx >= 0 && lapDistPct != null && overallLeaderIdx < lapDistPct.Length)
+                {
+                    _lastOverallLeaderLapPct = lapDistPct[overallLeaderIdx];
+                    _lastOverallLeaderCarIdx = overallLeaderIdx;
+                }
+            }
+            else if (_timerZeroSeen && sessionStateRaceOrLater)
+            {
+                MaybeLatchLeaderFinished(
+                    isClassLeader: true,
+                    leaderIdx: classLeaderIdx,
+                    lapDistPct,
+                    trackSurfaces,
+                    sessionTime,
+                    sessionStateNumeric);
+
+                if (overallLeaderIdx >= 0)
+                {
+                    MaybeLatchLeaderFinished(
+                        isClassLeader: false,
+                        leaderIdx: overallLeaderIdx,
+                        lapDistPct,
+                        trackSurfaces,
+                        sessionTime,
+                        sessionStateNumeric);
+                }
+            }
+            else
+            {
+                if (classLeaderIdx >= 0 && lapDistPct != null && classLeaderIdx < lapDistPct.Length)
+                {
+                    _lastClassLeaderLapPct = lapDistPct[classLeaderIdx];
+                    _lastClassLeaderCarIdx = classLeaderIdx;
+                }
+
+                if (overallLeaderIdx >= 0 && lapDistPct != null && overallLeaderIdx < lapDistPct.Length)
+                {
+                    _lastOverallLeaderLapPct = lapDistPct[overallLeaderIdx];
+                    _lastOverallLeaderCarIdx = overallLeaderIdx;
+                }
+            }
+
+            bool derivedLeaderBefore = LeaderHasFinished;
+            bool derivedLeaderAfter = _isMultiClassSession
+                ? (ClassLeaderHasFinishedValid && ClassLeaderHasFinished)
+                : (OverallLeaderHasFinishedValid && OverallLeaderHasFinished);
+            LeaderHasFinished = derivedLeaderAfter;
+
+            if (!derivedLeaderBefore && derivedLeaderAfter)
             {
                 _leaderFinishedSeen = true;
                 _leaderCheckeredSessionTime = sessionTime;
+                SimHub.Logging.Current.Info(
+                    $"[FinishTiming] Derived leader finished = true (source={(_isMultiClassSession ? "class" : "overall")}, sessionState={sessionStateNumeric}, timerZero={_timerZeroSeen})");
             }
 
             // ----- DRIVER FINISH -----
