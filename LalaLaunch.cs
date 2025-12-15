@@ -4016,15 +4016,16 @@ namespace LaunchPlugin
             ClassLeaderHasFinishedValid = classLeaderIdx >= 0;
 
             int overallLeaderIdx = -1;
+
+            // Single-class: overall leader == class leader
             if (!_isMultiClassSession && classLeaderIdx >= 0)
             {
                 overallLeaderIdx = classLeaderIdx;
-                OverallLeaderHasFinishedValid = true;
             }
-            else
-            {
-                OverallLeaderHasFinishedValid = false;
-            }
+
+            // Validity means “we know who the leader is”, not “we are using it”
+            OverallLeaderHasFinishedValid = overallLeaderIdx >= 0;
+
 
             if (!isTimedRace)
             {
