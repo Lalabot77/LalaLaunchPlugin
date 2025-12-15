@@ -623,9 +623,7 @@ namespace LaunchPlugin
         {
             LiveCarMaxFuel = 0.0;
             EffectiveLiveMaxTank = 0.0;
-            _latchedLiveMaxFuel = 0.0;
             _lastAnnouncedMaxFuel = -1;
-            _liveMaxFuelRecheckTimer.Restart();
         }
 
         private void ResetLiveFuelModelForNewSession(string newSessionType, bool applySeeds)
@@ -1036,13 +1034,14 @@ namespace LaunchPlugin
         private void UpdateLiveFuelCalcs(GameData data, PluginManager pluginManager)
         {
             // --- 1) Gather required data ---
+            UpdateLiveMaxFuel(pluginManager);
             double currentFuel = data.NewData?.Fuel ?? 0.0;
             double rawLapPct = data.NewData?.TrackPositionPercent ?? 0.0;
             double fallbackFuelPerLap = Convert.ToDouble(
                 PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
             );
 
-            double effectiveMaxTank = GetEffectiveLiveMaxTank(pluginManager);
+            double effectiveMaxTank = LiveCarMaxFuel;
 
             double sessionTime = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
@@ -1779,7 +1778,7 @@ namespace LaunchPlugin
                     fuelToRequest = 0.0;
                 }
 
-                double maxTankCapacity = ResolveMaxTankCapacity(effectiveMaxTank);
+                double maxTankCapacity = ResolveMaxTankCapacity();
 
                 double requestedAddLitres = Math.Max(0, fuelToRequest);
                 requestedAddLitresForSmooth = requestedAddLitres;
@@ -2115,10 +2114,7 @@ namespace LaunchPlugin
 
         // --- Already added earlier for MaxFuel throttling ---
         private double _lastAnnouncedMaxFuel = -1;
-        private readonly System.Diagnostics.Stopwatch _liveMaxFuelRecheckTimer = new System.Diagnostics.Stopwatch();
-        private double _latchedLiveMaxFuel = 0.0;
         private const double LiveMaxFuelJitterThreshold = 0.1;
-        private const double LiveMaxFuelRecheckWindowSeconds = 10.0;
 
         // ==== Refuel learning state (hardened) ====
         private bool _isRefuelling = false;
@@ -2995,7 +2991,6 @@ namespace LaunchPlugin
             {
                 _poll250ms.Restart();
                 UpdateLiveMaxFuel(pluginManager);
-                EffectiveLiveMaxTank = GetEffectiveLiveMaxTank(pluginManager);
                 _msgSystem.Enabled = Settings.MsgDashShowTraffic || Settings.LalaDashShowTraffic;
                 double warn = ActiveProfile.TrafficApproachWarnSeconds;
                 if (!(warn > 0)) warn = 5.0;
@@ -3539,80 +3534,43 @@ namespace LaunchPlugin
 
         private double ComputeLiveMaxFuelFromSimhub(PluginManager pluginManager)
         {
-            double baseMaxFuel = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
-            double bopPercent = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct") ?? 1.0);
-            if (bopPercent <= 0) bopPercent = 1.0;
-            return baseMaxFuel * bopPercent;
+            double baseMaxFuel = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.MaxFuel", 0.0);
+            if (double.IsNaN(baseMaxFuel) || baseMaxFuel <= 0.0)
+                return 0.0;
+
+            double bopPercent = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct", 1.0);
+            if (double.IsNaN(bopPercent) || bopPercent <= 0.0)
+                bopPercent = 1.0;
+
+            bopPercent = Math.Min(1.0, Math.Max(0.01, bopPercent));
+
+            double detected = baseMaxFuel * bopPercent;
+            return detected < 0.0 ? 0.0 : detected;
         }
 
-        private bool IsWithinLiveMaxFuelRecheckWindow()
+        private void UpdateLiveMaxFuel(PluginManager pluginManager)
         {
-            if (!_liveMaxFuelRecheckTimer.IsRunning)
-                return true;
+            double computedMaxFuel = ComputeLiveMaxFuelFromSimhub(pluginManager);
+            EffectiveLiveMaxTank = computedMaxFuel;
 
-            return _liveMaxFuelRecheckTimer.Elapsed.TotalSeconds <= LiveMaxFuelRecheckWindowSeconds;
-        }
-
-        private void ApplyLiveMaxFuel(double computedMaxFuel)
-        {
-            if (computedMaxFuel <= 0.0)
-                return;
-
-            bool meaningfulChange = LiveCarMaxFuel <= 0.0 || Math.Abs(LiveCarMaxFuel - computedMaxFuel) > LiveMaxFuelJitterThreshold;
-            if (!meaningfulChange && LiveCarMaxFuel > 0.0)
+            bool meaningfulChange = Math.Abs(LiveCarMaxFuel - computedMaxFuel) > LiveMaxFuelJitterThreshold;
+            if (!meaningfulChange && !(LiveCarMaxFuel <= 0.0 && computedMaxFuel > 0.0))
                 return;
 
             LiveCarMaxFuel = computedMaxFuel;
-            _latchedLiveMaxFuel = LiveCarMaxFuel;
 
-            if (Math.Abs(LiveCarMaxFuel - _lastAnnouncedMaxFuel) > 0.01)
+            if (Math.Abs(LiveCarMaxFuel - _lastAnnouncedMaxFuel) > 0.01 && FuelCalculator != null)
             {
                 _lastAnnouncedMaxFuel = LiveCarMaxFuel;
                 FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
             }
         }
 
-        private void UpdateLiveMaxFuel(PluginManager pluginManager)
-        {
-            double computedMaxFuel = ComputeLiveMaxFuelFromSimhub(pluginManager);
-            bool withinRecheckWindow = IsWithinLiveMaxFuelRecheckWindow();
-
-            if (computedMaxFuel > 0.0)
-            {
-                ApplyLiveMaxFuel(computedMaxFuel);
-            }
-            else if (withinRecheckWindow && _latchedLiveMaxFuel > 0.0 && LiveCarMaxFuel <= 0.0)
-            {
-                ApplyLiveMaxFuel(_latchedLiveMaxFuel);
-            }
-        }
-
-        private double GetEffectiveLiveMaxTank(PluginManager pluginManager)
-        {
-            double effective = LiveCarMaxFuel;
-            if (effective <= 0.0)
-            {
-                double computedMaxFuel = ComputeLiveMaxFuelFromSimhub(pluginManager);
-                if (computedMaxFuel > 0.0)
-                {
-                    ApplyLiveMaxFuel(computedMaxFuel);
-                    effective = computedMaxFuel;
-                }
-                else if (_latchedLiveMaxFuel > 0.0)
-                {
-                    effective = _latchedLiveMaxFuel;
-                }
-            }
-
-            EffectiveLiveMaxTank = effective;
-            return effective;
-        }
-
-        private double ResolveMaxTankCapacity(double effectiveLiveMaxTank)
+        private double ResolveMaxTankCapacity()
         {
             double maxTankCapacity = FuelCalculator?.MaxFuelOverride ?? 0.0;
 
-            double sessionMaxFuel = effectiveLiveMaxTank;
+            double sessionMaxFuel = LiveCarMaxFuel;
 
             if (maxTankCapacity <= 0.0)
             {
