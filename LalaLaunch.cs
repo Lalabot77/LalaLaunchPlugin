@@ -245,6 +245,15 @@ namespace LaunchPlugin
         private int _lastOverallLeaderCarIdx = -1;
         private readonly Dictionary<int, string> _carIdxToClassShortName = new Dictionary<int, string>();
         private int _lastCompletedLapForFinish = -1;
+        private bool _leaderFinishLatchedByFlag;
+        private double _afterZeroPlannerSeconds;
+        private double _afterZeroLiveEstimateSeconds;
+        private double _afterZeroUsedSeconds;
+        private string _afterZeroSourceUsed = string.Empty;
+        private double _lastProjectedLapsRemaining;
+        private double _lastSimLapsRemaining;
+        private double _lastProjectionLapSecondsUsed;
+        private bool _afterZeroResultLogged;
 
         // New per-mode rolling windows
         private readonly List<double> _recentDryFuelLaps = new List<double>();
@@ -334,6 +343,9 @@ namespace LaunchPlugin
 
         public double LiveProjectedDriveTimeAfterZero { get; private set; }
         public double LiveProjectedDriveSecondsRemaining { get; private set; }
+        public double AfterZeroPlannerSeconds => _afterZeroPlannerSeconds;
+        public double AfterZeroLiveEstimateSeconds => _afterZeroLiveEstimateSeconds;
+        public string AfterZeroSource => string.IsNullOrEmpty(_afterZeroSourceUsed) ? "planner" : _afterZeroSourceUsed;
 
         // Push / max-burn guidance
         public double PushFuelPerLap { get; private set; }
@@ -1759,6 +1771,14 @@ namespace LaunchPlugin
                 LiveProjectedDriveTimeAfterZero = 0;
                 LiveProjectedDriveSecondsRemaining = 0;
 
+                _afterZeroPlannerSeconds = 0.0;
+                _afterZeroLiveEstimateSeconds = 0.0;
+                _afterZeroUsedSeconds = 0.0;
+                _afterZeroSourceUsed = string.Empty;
+                _lastProjectedLapsRemaining = 0.0;
+                _lastSimLapsRemaining = 0.0;
+                _lastProjectionLapSecondsUsed = 0.0;
+
                 Pace_StintAvgLapTimeSec = 0.0;
                 Pace_Last5LapAvgSec = 0.0;
                 Pace_LeaderDeltaToPlayerSec = 0.0;
@@ -1776,16 +1796,41 @@ namespace LaunchPlugin
 
                 bool isTimedRace = !double.IsNaN(sessionTimeRemain);
                 double projectionLapSeconds = GetProjectionLapSeconds(data);
-                double projectedDriveAfterZero = FuelProjectionMath.EstimateDriveTimeAfterZero(
+
+                _afterZeroPlannerSeconds = FuelCalculator?.StrategyDriverExtraSecondsAfterZero ?? 0.0;
+                _afterZeroLiveEstimateSeconds = FuelProjectionMath.EstimateDriveTimeAfterZero(
                     sessionTime,
                     sessionTimeRemain,
                     projectionLapSeconds,
-                    FuelCalculator?.StrategyDriverExtraSecondsAfterZero ?? 0.0,
+                    _afterZeroPlannerSeconds,
                     _timerZeroSeen,
                     _timerZeroSessionTime);
 
-                LiveProjectedDriveTimeAfterZero = projectedDriveAfterZero;
-                double projectedLapsRemaining = ComputeProjectedLapsRemaining(simLapsRemaining, projectionLapSeconds, sessionTimeRemain, projectedDriveAfterZero);
+                if (!_timerZeroSeen)
+                {
+                    _afterZeroLiveEstimateSeconds = 0.0;
+                }
+
+                bool liveAfterZeroValid =
+                    _timerZeroSeen &&
+                    !double.IsNaN(_timerZeroSessionTime) &&
+                    sessionTime > _timerZeroSessionTime &&
+                    _afterZeroLiveEstimateSeconds > 0.0;
+                string afterZeroSourceNow = liveAfterZeroValid ? "live" : "planner";
+
+                if (!string.Equals(afterZeroSourceNow, _afterZeroSourceUsed, StringComparison.Ordinal))
+                {
+                    string log = liveAfterZeroValid
+                        ? "[After0] Using LIVE estimate (fallback was planner)"
+                        : "[After0] Using PLANNER value (no live estimate yet)";
+                    SimHub.Logging.Current.Info(log);
+                    _afterZeroSourceUsed = afterZeroSourceNow;
+                }
+
+                _afterZeroUsedSeconds = liveAfterZeroValid ? _afterZeroLiveEstimateSeconds : _afterZeroPlannerSeconds;
+
+                LiveProjectedDriveTimeAfterZero = _afterZeroUsedSeconds;
+                double projectedLapsRemaining = ComputeProjectedLapsRemaining(simLapsRemaining, projectionLapSeconds, sessionTimeRemain, _afterZeroUsedSeconds);
 
                 if (projectedLapsRemaining > 0.0)
                 {
@@ -1802,6 +1847,10 @@ namespace LaunchPlugin
                     LiveLapsRemainingInRace = simLapsRemaining;
                     LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
                 }
+
+                _lastProjectedLapsRemaining = LiveLapsRemainingInRace_Stable;
+                _lastSimLapsRemaining = simLapsRemaining;
+                _lastProjectionLapSecondsUsed = projectionLapSeconds;
 
                 double fuelNeededToEnd = LiveLapsRemainingInRace_Stable * fuelPerLapForCalc;
                 DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace_Stable;
@@ -1977,6 +2026,20 @@ namespace LaunchPlugin
             LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
 
             UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
+
+            if (lapCrossed && string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
+            {
+                double observedAfterZero = (_timerZeroSeen && sessionTime > _timerZeroSessionTime)
+                    ? Math.Max(0.0, sessionTime - _timerZeroSessionTime)
+                    : 0.0;
+
+                SimHub.Logging.Current.Info(
+                    $"[After0Audit] tRemain={FormatSecondsOrNA(sessionTimeRemain)} " +
+                    $"after0={_afterZeroUsedSeconds:F1}s src={AfterZeroSource} " +
+                    $"lapsProj={_lastProjectedLapsRemaining:F2} simLaps={_lastSimLapsRemaining:F2} " +
+                    $"lap={_lastProjectionLapSecondsUsed:F3}s ({ProjectionLapTime_StableSource}) " +
+                    $"after0Obs={observedAfterZero:F1}s");
+            }
 
             // --- 4) Update "last" values for next tick ---
             _lastFuelLevel = currentFuel;
@@ -2325,6 +2388,9 @@ namespace LaunchPlugin
             AttachCore("Fuel.Live.PitLaneLoss_S", () => FuelCalculator?.PitLaneTimeLoss ?? 0.0);
             AttachCore("Fuel.Live.TotalStopLoss", () => CalculateTotalStopLossSeconds());
             AttachCore("Fuel.Live.DriveTimeAfterZero", () => LiveProjectedDriveTimeAfterZero);
+            AttachCore("Fuel.After0.PlannerSeconds", () => AfterZeroPlannerSeconds);
+            AttachCore("Fuel.After0.LiveEstimateSeconds", () => AfterZeroLiveEstimateSeconds);
+            AttachCore("Fuel.After0.Source", () => AfterZeroSource);
             AttachCore("Fuel.ProjectionLapTime_Stable", () => ProjectionLapTime_Stable);
             AttachCore("Fuel.ProjectionLapTime_StableSource", () => ProjectionLapTime_StableSource);
             AttachCore("Fuel.Live.ProjectedDriveSecondsRemaining", () => LiveProjectedDriveSecondsRemaining);
@@ -2730,6 +2796,7 @@ namespace LaunchPlugin
             _carIdxToClassShortName.Clear();
             _lastCompletedLapForFinish = -1;
             LeaderHasFinished = false;
+            _leaderFinishLatchedByFlag = false;
         }
 
 
@@ -3946,6 +4013,35 @@ namespace LaunchPlugin
             return 0.0;
         }
 
+        private void MaybeLogAfterZeroResult(double sessionTime, bool sessionEnded)
+        {
+            if (_afterZeroResultLogged || !sessionEnded)
+            {
+                return;
+            }
+
+            double leaderExtra = double.IsNaN(_leaderCheckeredSessionTime)
+                ? double.NaN
+                : ComputeObservedExtraSeconds(_leaderCheckeredSessionTime);
+            double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime);
+
+            if (driverExtra <= 0.0 && sessionTime > 0.0)
+            {
+                driverExtra = ComputeObservedExtraSeconds(sessionTime);
+            }
+
+            string leaderText = double.IsNaN(leaderExtra)
+                ? "n/a"
+                : $"{leaderExtra:F1}s";
+            string driverText = $"{driverExtra:F1}s";
+
+            SimHub.Logging.Current.Info(
+                $"[After0Result] driver={driverText} leader={leaderText} " +
+                $"pred={_afterZeroUsedSeconds:F1}s lapsPred={_lastProjectedLapsRemaining:F2}");
+
+            _afterZeroResultLogged = true;
+        }
+
      private long _finishTimingSessionId = -1;
      private string _finishTimingSessionType = string.Empty;
 
@@ -3965,6 +4061,7 @@ namespace LaunchPlugin
             {
                 _finishTimingSessionId = sessionId;
                 _finishTimingSessionType = sessionType;
+                _afterZeroResultLogged = false;
                 ResetFinishTimingState();
                 RefreshClassMetadata(pluginManager);
             }
@@ -4025,6 +4122,28 @@ namespace LaunchPlugin
 
             // Validity means “we know who the leader is”, not “we are using it”
             OverallLeaderHasFinishedValid = overallLeaderIdx >= 0;
+
+            bool checkeredFlagData = isRace && data.Flag_Checkered;
+            if (checkeredFlagData && !_leaderFinishLatchedByFlag)
+            {
+                _leaderFinishLatchedByFlag = true;
+                OverallLeaderHasFinished = true;
+                OverallLeaderHasFinishedValid = true;
+
+                if (_isMultiClassSession)
+                {
+                    ClassLeaderHasFinished = true;
+                    ClassLeaderHasFinishedValid = classLeaderIdx >= 0;
+                }
+
+                _leaderFinishedSeen = true;
+                if (double.IsNaN(_leaderCheckeredSessionTime))
+                {
+                    _leaderCheckeredSessionTime = sessionTime;
+                }
+
+                SimHub.Logging.Current.Info("[LeaderFinish] Checkered flag detected – leader finished latched");
+            }
 
 
             if (!isTimedRace)
@@ -4106,23 +4225,37 @@ namespace LaunchPlugin
                 "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
             );
 
+            bool sessionEnded = checkeredFlag || checkeredFlagData;
+
             if (lapCompleted && checkeredFlag)
             {
                 _driverCheckeredSessionTime = sessionTime;
 
-                double leaderExtra = ComputeObservedExtraSeconds(_leaderCheckeredSessionTime);
+                bool leaderCheckeredKnown = !double.IsNaN(_leaderCheckeredSessionTime);
+                double leaderExtra = leaderCheckeredKnown
+                    ? ComputeObservedExtraSeconds(_leaderCheckeredSessionTime)
+                    : double.NaN;
                 double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime);
+
+                string leaderAfterZeroText = leaderCheckeredKnown
+                    ? $"{leaderExtra:F1}s"
+                    : "n/a";
 
                 SimHub.Logging.Current.Info(
                     $"[LalaLaunch] Finish timing: " +
                     $"timer0={FormatSecondsOrNA(_timerZeroSessionTime)}s " +
                     $"leaderChk={FormatSecondsOrNA(_leaderCheckeredSessionTime)}s " +
                     $"driverChk={FormatSecondsOrNA(_driverCheckeredSessionTime)}s " +
-                    $"leader after 00:00={leaderExtra:F1}s " +
+                    $"leader after 00:00={leaderAfterZeroText} " +
                     $"driver after 00:00={driverExtra:F1}s"
                 );
 
+                MaybeLogAfterZeroResult(sessionTime, sessionEnded);
                 ResetFinishTimingState();
+            }
+            else if (sessionEnded)
+            {
+                MaybeLogAfterZeroResult(sessionTime, sessionEnded);
             }
         }
 
