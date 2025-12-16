@@ -1794,10 +1794,7 @@ namespace LaunchPlugin
 
                 if (!string.Equals(afterZeroSourceNow, _afterZeroSourceUsed, StringComparison.Ordinal))
                 {
-                    string log = liveAfterZeroValid
-                        ? "[After0] Using LIVE estimate (fallback was planner)"
-                        : "[After0] Using PLANNER value (no live estimate yet)";
-                    SimHub.Logging.Current.Info(log);
+                    SimHub.Logging.Current.Info($"[LalaLaunch:FUEL] after0_source_change src={afterZeroSourceNow}");
                     _afterZeroSourceUsed = afterZeroSourceNow;
                 }
 
@@ -1818,7 +1815,7 @@ namespace LaunchPlugin
                               projectedLapsRemaining,
                               projectionLapSeconds,
                               LiveProjectedDriveSecondsRemaining,
-                              AfterZeroSource,
+                              _afterZeroSourceUsed,
                               sessionTimeRemain);
                       }
                   }
