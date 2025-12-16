@@ -373,6 +373,7 @@ namespace LaunchPlugin
         private string _lastProjectionLapSource = string.Empty;
         private double _lastProjectionLapSeconds = 0.0;
         private DateTime _lastProjectionLapLogUtc = DateTime.MinValue;
+        private double _lastLoggedProjectionAfterZero = double.NaN;
 
         // Stable model inputs
         private double _stableFuelPerLap = 0.0;
@@ -1089,22 +1090,34 @@ namespace LaunchPlugin
             double maxFuelPerLapSession,
             int fuelConfidence,
             int overallConfidence,
-            bool pitTripActive)
+            bool pitTripActive,
+            double deltaLitres,
+            double requiredLitres,
+            double stableFuelPerLap,
+            double stableLapsRemaining,
+            double currentFuel,
+            double afterZeroUsedSeconds,
+            string afterZeroSource,
+            double timerZeroSessionTime,
+            double sessionTimeRemain,
+            double projectedLapsRemaining,
+            double projectionLapSeconds,
+            double projectedDriveSecondsRemaining)
         {
-            string prefix = "[SimHubLogInfo][LapCrossing]";
-            string pacePart =
-                $"pace lap={lapNumber} time={lastLapSeconds:F3}s accepted={paceAccepted} reason={paceReason} " +
-                $"baseline={paceBaseline} delta={paceDelta} stintAvg={stintAvg:F3}s last5={last5Avg:F3}s " +
-                $"conf={paceConfidence}% leaderLap={leaderLapSeconds:F3}s leaderAvg={leaderAvgSeconds:F3}s " +
-                $"leaderCount={leaderSampleCount}";
-
-            string fuelPart =
-                $"fuel used={fuelUsed:F3}L accepted={fuelAccepted} reason={fuelReason} " +
-                $"mode={(isWetMode ? "wet" : "dry")} live={liveFuelPerLap:F3}L/lap windowDry={validDryLaps} " +
-                $"windowWet={validWetLaps} maxSession={maxFuelPerLapSession:F3}L conf={fuelConfidence}% " +
-                $"overall={overallConfidence}% pitTrip={pitTripActive}";
-
-            SimHub.Logging.Current.Info($"{prefix} | {pacePart} | {fuelPart}");
+            SimHub.Logging.Current.Info(
+                $"[LalaLaunch:LAP] lap_crossed " +
+                $"lap={lapNumber} time_s={lastLapSeconds:F3} " +
+                $"pace.accepted={paceAccepted} pace.reason={paceReason} pace.baseline={paceBaseline} pace.delta={paceDelta} " +
+                $"pace.stint_avg_s={stintAvg:F3} pace.last5_s={last5Avg:F3} pace.conf_pct={paceConfidence} " +
+                $"leader.lap_s={leaderLapSeconds:F3} leader.avg_s={leaderAvgSeconds:F3} leader.samples={leaderSampleCount} " +
+                $"fuel.accepted={fuelAccepted} fuel.reason={fuelReason} fuel.mode={(isWetMode ? "wet" : "dry")} " +
+                $"fuel.live_fpl={liveFuelPerLap:F3} fuel.window_dry={validDryLaps} fuel.window_wet={validWetLaps} " +
+                $"fuel.max_session_fpl={maxFuelPerLapSession:F3} fuel.conf_pct={fuelConfidence} overall.conf_pct={overallConfidence} " +
+                $"pit.trip_active={pitTripActive} fuel.delta_l={deltaLitres:F1} fuel.req_l={requiredLitres:F1} " +
+                $"fuel.cur_l={currentFuel:F1} fuel.stable_fpl={stableFuelPerLap:F3} fuel.stable_laps={stableLapsRemaining:F2} " +
+                $"after0.used_s={afterZeroUsedSeconds:F1} after0.src={afterZeroSource} after0.timer0_s={FormatSecondsOrNA(timerZeroSessionTime)} " +
+                $"after0.session_remain_s={FormatSecondsOrNA(sessionTimeRemain)} after0.projected_laps={projectedLapsRemaining:F2} " +
+                $"after0.projection_lap_s={projectionLapSeconds:F3} after0.remain_s={projectedDriveSecondsRemaining:F1}");
         }
 
         private void UpdateLiveFuelCalcs(GameData data, PluginManager pluginManager)
@@ -1666,45 +1679,6 @@ namespace LaunchPlugin
                         ? reason
                         : (string.IsNullOrEmpty(reason) ? "accepted" : reason);
 
-                    LogLapCrossingSummary(
-                        completedLapsNow,
-                        lastLapSec,
-                        !paceReject,
-                        paceReason,
-                        paceBaselineLog,
-                        paceDeltaLog,
-                        Pace_StintAvgLapTimeSec,
-                        Pace_Last5LapAvgSec,
-                        PaceConfidence,
-                        leaderLastLapSec,
-                        currentAvgLeader,
-                        currentLeaderCount,
-                        fuelUsed,
-                        !reject,
-                        fuelReasonForLog,
-                        _isWetMode,
-                        LiveFuelPerLap,
-                        _validDryLaps,
-                        _validWetLaps,
-                        _maxFuelPerLapSession,
-                        Confidence,
-                        OverallConfidence,
-                        pitTripActive);
-
-                    // Per-lap resets for next lap
-                    if (pitTripActive)
-                    {
-                        _lapsSincePitExit = 0;
-                    }
-                    else if (_lapsSincePitExit < int.MaxValue)
-                    {
-                        _lapsSincePitExit++;
-                    }
-
-                    _wasInPitThisLap = false;
-                    _hadOffTrackThisLap = false;
-                    _latchedIncidentReason = null;
-                    _lastCompletedFuelLap = completedLapsNow;
                 }
 
                 // Start the next lap’s measurement window
@@ -1820,10 +1794,7 @@ namespace LaunchPlugin
 
                 if (!string.Equals(afterZeroSourceNow, _afterZeroSourceUsed, StringComparison.Ordinal))
                 {
-                    string log = liveAfterZeroValid
-                        ? "[After0] Using LIVE estimate (fallback was planner)"
-                        : "[After0] Using PLANNER value (no live estimate yet)";
-                    SimHub.Logging.Current.Info(log);
+                    SimHub.Logging.Current.Info($"[LalaLaunch:FUEL] after0_source_change src={afterZeroSourceNow}");
                     _afterZeroSourceUsed = afterZeroSourceNow;
                 }
 
@@ -1839,9 +1810,15 @@ namespace LaunchPlugin
 
                     if (ShouldLogProjection(simLapsRemaining, projectedLapsRemaining))
                     {
-                        LogProjectionDifference(simLapsRemaining, projectedLapsRemaining, projectionLapSeconds);
-                    }
-                }
+                          LogProjectionDifference(
+                              simLapsRemaining,
+                              projectedLapsRemaining,
+                              projectionLapSeconds,
+                              LiveProjectedDriveSecondsRemaining,
+                              _afterZeroSourceUsed,
+                              sessionTimeRemain);
+                      }
+                  }
                 else
                 {
                     LiveLapsRemainingInRace = simLapsRemaining;
@@ -2016,36 +1993,87 @@ namespace LaunchPlugin
                 Fuel_Delta_LitresPlanPush = ComputeDeltaLitres(fuelPlanExit, requiredLitresPush, hasPushRequirement);
                 Fuel_Delta_LitresWillAddPush = ComputeDeltaLitres(fuelWillAddExit, requiredLitresPush, hasPushRequirement);
 
-                bool hasSaveRequirement = FuelSaveFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
-                double requiredLitresSave = hasSaveRequirement ? stableLapsRemaining * FuelSaveFuelPerLap : 0.0;
-                Fuel_Delta_LitresCurrentSave = ComputeDeltaLitres(currentFuel, requiredLitresSave, hasSaveRequirement);
-                Fuel_Delta_LitresPlanSave = ComputeDeltaLitres(fuelPlanExit, requiredLitresSave, hasSaveRequirement);
-                Fuel_Delta_LitresWillAddSave = ComputeDeltaLitres(fuelWillAddExit, requiredLitresSave, hasSaveRequirement);
+                  bool hasSaveRequirement = FuelSaveFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
+                  double requiredLitresSave = hasSaveRequirement ? stableLapsRemaining * FuelSaveFuelPerLap : 0.0;
+                  Fuel_Delta_LitresCurrentSave = ComputeDeltaLitres(currentFuel, requiredLitresSave, hasSaveRequirement);
+                  Fuel_Delta_LitresPlanSave = ComputeDeltaLitres(fuelPlanExit, requiredLitresSave, hasSaveRequirement);
+                  Fuel_Delta_LitresWillAddSave = ComputeDeltaLitres(fuelWillAddExit, requiredLitresSave, hasSaveRequirement);
+
+                  LogLapCrossingSummary(
+                      completedLapsNow,
+                      lastLapSec,
+                        !paceReject,
+                        paceReason,
+                        paceBaselineLog,
+                        paceDeltaLog,
+                        Pace_StintAvgLapTimeSec,
+                        Pace_Last5LapAvgSec,
+                        PaceConfidence,
+                        leaderLastLapSec,
+                        currentAvgLeader,
+                        currentLeaderCount,
+                        fuelUsed,
+                        !reject,
+                        fuelReasonForLog,
+                        _isWetMode,
+                        LiveFuelPerLap,
+                        _validDryLaps,
+                        _validWetLaps,
+                        _maxFuelPerLapSession,
+                        Confidence,
+                        OverallConfidence,
+                        pitTripActive,
+                        Fuel_Delta_LitresCurrent,
+                        litresRequiredToFinish,
+                        stableFuelPerLap,
+                        stableLapsRemaining,
+                        currentFuel,
+                        _afterZeroUsedSeconds,
+                        AfterZeroSource,
+                        _timerZeroSessionTime,
+                        sessionTimeRemain,
+                        _lastProjectedLapsRemaining,
+                        _lastProjectionLapSecondsUsed,
+                        LiveProjectedDriveSecondsRemaining);
+
+                    if (pitTripActive)
+                    {
+                        _lapsSincePitExit = 0;
+                    }
+                    else if (_lapsSincePitExit < int.MaxValue)
+                    {
+                        _lapsSincePitExit++;
+                    }
+
+                    _wasInPitThisLap = false;
+                    _hadOffTrackThisLap = false;
+                    _latchedIncidentReason = null;
+                    _lastCompletedFuelLap = completedLapsNow;
+                }
+
+                LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
+
+                UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
+
+                if (lapCrossed && string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
+                {
+                    double observedAfterZero = (_timerZeroSeen && sessionTime > _timerZeroSessionTime)
+                        ? Math.Max(0.0, sessionTime - _timerZeroSessionTime)
+                        : 0.0;
+
+                    SimHub.Logging.Current.Info(
+                        $"[LalaLaunch:FUEL] after0_audit t_remain_s={FormatSecondsOrNA(sessionTimeRemain)} " +
+                        $"after0_used_s={_afterZeroUsedSeconds:F1} after0_src={AfterZeroSource} " +
+                        $"laps_proj={_lastProjectedLapsRemaining:F2} sim_laps={_lastSimLapsRemaining:F2} " +
+                        $"lap_s={_lastProjectionLapSecondsUsed:F3} lap_src={ProjectionLapTime_StableSource} " +
+                        $"after0_observed_s={observedAfterZero:F1}");
+                }
+
+                // --- 4) Update "last" values for next tick ---
+                _lastFuelLevel = currentFuel;
+                _lastLapDistPct = rawLapPct; // keep original scale; we normalize on read
+                if (_lapStartFuel < 0) _lapStartFuel = currentFuel;
             }
-
-            LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
-
-            UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
-
-            if (lapCrossed && string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
-            {
-                double observedAfterZero = (_timerZeroSeen && sessionTime > _timerZeroSessionTime)
-                    ? Math.Max(0.0, sessionTime - _timerZeroSessionTime)
-                    : 0.0;
-
-                SimHub.Logging.Current.Info(
-                    $"[After0Audit] tRemain={FormatSecondsOrNA(sessionTimeRemain)} " +
-                    $"after0={_afterZeroUsedSeconds:F1}s src={AfterZeroSource} " +
-                    $"lapsProj={_lastProjectedLapsRemaining:F2} simLaps={_lastSimLapsRemaining:F2} " +
-                    $"lap={_lastProjectionLapSecondsUsed:F3}s ({ProjectionLapTime_StableSource}) " +
-                    $"after0Obs={observedAfterZero:F1}s");
-            }
-
-            // --- 4) Update "last" values for next tick ---
-            _lastFuelLevel = currentFuel;
-            _lastLapDistPct = rawLapPct; // keep original scale; we normalize on read
-            if (_lapStartFuel < 0) _lapStartFuel = currentFuel;
-        }
 
         // --- Settings / Car Profiles ---
 
@@ -3170,7 +3198,11 @@ namespace LaunchPlugin
 
                     int lapMs = (int)currentBestLap.TotalMilliseconds;
                     bool accepted = ProfilesViewModel.TryUpdatePB(CurrentCarModel, CurrentTrackKey, lapMs);
-                    SimHub.Logging.Current.Info($"[PB] candidate={lapMs}ms car='{CurrentCarModel}' trackKey='{CurrentTrackKey}' -> {(accepted ? "accepted" : "rejected")}");
+                    string pbLog = $"[PB] candidate={lapMs}ms car='{CurrentCarModel}' trackKey='{CurrentTrackKey}' -> {(accepted ? "accepted" : "rejected")}";
+                    if (accepted)
+                        SimHub.Logging.Current.Info(pbLog);
+                    else
+                        SimHub.Logging.Current.Debug(pbLog);
                 }
 
                 // =========================================================================
@@ -3207,12 +3239,12 @@ namespace LaunchPlugin
                         // Ensure the track exists via the Profiles VM (this triggers UI refresh + selection)
                         if (!string.IsNullOrWhiteSpace(CurrentTrackKey))
                         {
-                            SimHub.Logging.Current.Info($"[LalaLaunch] EnsureCarTrack hook -> car='{CurrentCarModel}', trackKey='{CurrentTrackKey}'");
+                            SimHub.Logging.Current.Debug($"[LalaLaunch] EnsureCarTrack hook -> car='{CurrentCarModel}', trackKey='{CurrentTrackKey}'");
                             ProfilesViewModel.EnsureCarTrack(CurrentCarModel, CurrentTrackKey);
                         }
                         else
                         {
-                            SimHub.Logging.Current.Info($"[LalaLaunch] EnsureCarTrack fallback -> car='{CurrentCarModel}', trackName='{trackIdentity}'");
+                            SimHub.Logging.Current.Debug($"[LalaLaunch] EnsureCarTrack fallback -> car='{CurrentCarModel}', trackName='{trackIdentity}'");
                             ProfilesViewModel.EnsureCarTrack(CurrentCarModel, trackIdentity);
                         }
 
@@ -3985,16 +4017,32 @@ namespace LaunchPlugin
             if (!double.IsNaN(_lastLoggedProjectedLaps) && Math.Abs(projectedLapsRemaining - _lastLoggedProjectedLaps) < 0.25)
                 return false;
 
+            double afterZeroChange = double.IsNaN(_lastLoggedProjectionAfterZero)
+                ? double.PositiveInfinity
+                : Math.Abs(LiveProjectedDriveTimeAfterZero - _lastLoggedProjectionAfterZero);
+            if (afterZeroChange < 1.0)
+                return false;
+
             return true;
         }
 
-        private void LogProjectionDifference(double simLapsRemaining, double projectedLapsRemaining, double lapSeconds)
+        private void LogProjectionDifference(
+            double simLapsRemaining,
+            double projectedLapsRemaining,
+            double lapSeconds,
+            double projectedSeconds,
+            string afterZeroSource,
+            double sessionTimeRemain)
         {
             _lastProjectionLogUtc = DateTime.UtcNow;
             _lastLoggedProjectedLaps = projectedLapsRemaining;
+            _lastLoggedProjectionAfterZero = LiveProjectedDriveTimeAfterZero;
 
             SimHub.Logging.Current.Info(
-                $"[FuelProjection] using drive-time projection laps={projectedLapsRemaining:F2} (sim={simLapsRemaining:F2}, lap={lapSeconds:F2}s, after0={LiveProjectedDriveTimeAfterZero:F1}s)"
+                $"[LalaLaunch:FUEL] projection source=drive_time laps={projectedLapsRemaining:F2} " +
+                $"sim_laps={simLapsRemaining:F2} lap_s={lapSeconds:F2} after0_s={LiveProjectedDriveTimeAfterZero:F1} " +
+                $"after0_src={afterZeroSource} t_remain_s={FormatSecondsOrNA(sessionTimeRemain)} " +
+                $"remain_s={projectedSeconds:F1} delta_laps={projectedLapsRemaining - simLapsRemaining:+0.00;-0.00;0.00}"
             );
         }
 
@@ -4142,7 +4190,12 @@ namespace LaunchPlugin
                     _leaderCheckeredSessionTime = sessionTime;
                 }
 
-                SimHub.Logging.Current.Info("[LeaderFinish] Checkered flag detected – leader finished latched");
+                SimHub.Logging.Current.Info(
+                    $"[LalaLaunch:FINISH] checkered_flag trigger=flag leader_finished={LeaderHasFinished} " +
+                    $"class_finished={ClassLeaderHasFinished} class_valid={ClassLeaderHasFinishedValid} " +
+                    $"overall_finished={OverallLeaderHasFinished} overall_valid={OverallLeaderHasFinishedValid} " +
+                    $"multiclass={_isMultiClassSession}"
+                );
             }
 
 
@@ -4208,7 +4261,8 @@ namespace LaunchPlugin
                 _leaderFinishedSeen = true;
                 _leaderCheckeredSessionTime = sessionTime;
                 SimHub.Logging.Current.Info(
-                    $"[FinishTiming] Derived leader finished = true (source={(_isMultiClassSession ? "class" : "overall")}, sessionState={sessionStateNumeric}, timerZero={_timerZeroSeen})");
+                    $"[LalaLaunch:FINISH] leader_finish trigger=derived source={(_isMultiClassSession ? "class" : "overall")} " +
+                    $"session_state={sessionStateNumeric} timer0_seen={_timerZeroSeen}");
             }
 
             // ----- DRIVER FINISH -----
@@ -4242,12 +4296,11 @@ namespace LaunchPlugin
                     : "n/a";
 
                 SimHub.Logging.Current.Info(
-                    $"[LalaLaunch] Finish timing: " +
-                    $"timer0={FormatSecondsOrNA(_timerZeroSessionTime)}s " +
-                    $"leaderChk={FormatSecondsOrNA(_leaderCheckeredSessionTime)}s " +
-                    $"driverChk={FormatSecondsOrNA(_driverCheckeredSessionTime)}s " +
-                    $"leader after 00:00={leaderAfterZeroText} " +
-                    $"driver after 00:00={driverExtra:F1}s"
+                    $"[LalaLaunch:FINISH] finish_latch trigger=driver_checkered timer0_s={FormatSecondsOrNA(_timerZeroSessionTime)} " +
+                    $"leader_chk_s={FormatSecondsOrNA(_leaderCheckeredSessionTime)} driver_chk_s={FormatSecondsOrNA(_driverCheckeredSessionTime)} " +
+                    $"leader_after0_s={leaderAfterZeroText} driver_after0_s={driverExtra:F1} " +
+                    $"leader_finished={LeaderHasFinished} class_finished={ClassLeaderHasFinished} overall_finished={OverallLeaderHasFinished} " +
+                    $"remain_s={FormatSecondsOrNA(sessionTimeRemain)}"
                 );
 
                 MaybeLogAfterZeroResult(sessionTime, sessionEnded);

@@ -38,12 +38,12 @@ namespace LaunchPlugin
         {
             if (string.IsNullOrWhiteSpace(carName) || string.IsNullOrWhiteSpace(trackKey))
             {
-                SimHub.Logging.Current.Info("[PB] Reject: missing car/track.");
+                SimHub.Logging.Current.Debug("[PB] Reject: missing car/track.");
                 return false;
             }
             if (lapMs < PB_MIN_MS || lapMs > PB_MAX_MS)
             {
-                SimHub.Logging.Current.Info($"[PB] Reject: out of range ({lapMs} ms).");
+                SimHub.Logging.Current.Debug($"[PB] Reject: out of range ({lapMs} ms).");
                 return false;
             }
 
@@ -60,7 +60,7 @@ namespace LaunchPlugin
             bool improved = !ts.BestLapMs.HasValue || lapMs <= ts.BestLapMs.Value - PB_IMPROVE_MS;
             if (!improved)
             {
-                SimHub.Logging.Current.Info($"[PB] Reject: not improved enough. old={ts.BestLapMs} new={lapMs} (≥{PB_IMPROVE_MS} ms required).");
+                SimHub.Logging.Current.Debug($"[PB] Reject: not improved enough. old={ts.BestLapMs} new={lapMs} (≥{PB_IMPROVE_MS} ms required).");
                 return false;
             }
 
@@ -109,7 +109,7 @@ namespace LaunchPlugin
             var car = GetProfileForCar(carProfileName);
             if (car != null)
             {
-                SimHub.Logging.Current.Info($"[Profiles] EnsureCar('{carProfileName}') -> FOUND existing profile.");
+                SimHub.Logging.Current.Debug($"[Profiles] EnsureCar('{carProfileName}') -> FOUND existing profile.");
                 return car;
             }
             if (car == null)
@@ -146,7 +146,7 @@ namespace LaunchPlugin
 
                 // Ensure the newly created car profile has a default track record
                 car.EnsureTrack("Default", "Default");
-                SimHub.Logging.Current.Info($"[Profiles] EnsureCar('{carProfileName}') -> CREATED new profile.");
+                SimHub.Logging.Current.Debug($"[Profiles] EnsureCar('{carProfileName}') -> CREATED new profile.");
                 var disp = System.Windows.Application.Current?.Dispatcher;
                 if (disp == null || disp.CheckAccess())
                 {
@@ -165,7 +165,7 @@ namespace LaunchPlugin
 
         public TrackStats EnsureCarTrack(string carProfileName, string trackName, string trackDisplay = null)
         {
-            SimHub.Logging.Current.Info($"[Profiles] EnsureCarTrack('{carProfileName}', '{trackName}')");
+            SimHub.Logging.Current.Debug($"[Profiles] EnsureCarTrack('{carProfileName}', '{trackName}')");
 
             var car = EnsureCar(carProfileName);
             var display = string.IsNullOrWhiteSpace(trackDisplay) ? trackName : trackDisplay;
@@ -200,7 +200,7 @@ namespace LaunchPlugin
                     SelectedProfile = carInList; // this may call RefreshTracksForSelectedProfile() internally
 
                 // --- LOG A: state just before we mutate the tracks list
-                SimHub.Logging.Current.Info(
+                SimHub.Logging.Current.Debug(
                     $"[Profiles][UI] Before refresh: SelectedProfile='{SelectedProfile?.ProfileName}', " +
                     $"targetCar='{car.ProfileName}'");
 
@@ -211,12 +211,12 @@ namespace LaunchPlugin
                 var keysAfter = TracksForSelectedProfile?
                     .Select(t => t?.Key)
                     .Where(k => !string.IsNullOrWhiteSpace(k)) ?? Enumerable.Empty<string>();
-                SimHub.Logging.Current.Info(
+                SimHub.Logging.Current.Debug(
                     $"[Profiles][UI] After refresh: TracksForSelectedProfile.Count={TracksForSelectedProfile?.Count ?? 0}, " +
                     $"keys=[{string.Join(",", keysAfter)}]");
 
                 // --- LOG C: what are we trying to select?
-                SimHub.Logging.Current.Info(
+                SimHub.Logging.Current.Debug(
                     $"[Profiles][UI] Looking for track: key='{ts?.Key}', name='{ts?.DisplayName}'");
 
                 // 3) select the track instance (no fallback add — track should already exist after EnsureCarTrack)
@@ -234,7 +234,7 @@ namespace LaunchPlugin
                 else
                 {
                     // Optional: keep a breadcrumb if something ever goes wrong again
-                    SimHub.Logging.Current.Info("[Profiles][UI] Track instance not found in TracksForSelectedProfile after refresh.");
+                    SimHub.Logging.Current.Debug("[Profiles][UI] Track instance not found in TracksForSelectedProfile after refresh.");
                 }
 
             }
