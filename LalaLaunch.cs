@@ -1679,6 +1679,50 @@ namespace LaunchPlugin
                         ? reason
                         : (string.IsNullOrEmpty(reason) ? "accepted" : reason);
 
+                    double stableFuelPerLap = LiveFuelPerLap_Stable;
+                    double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
+                    double litresRequiredToFinish =
+                        (stableLapsRemaining > 0.0 && stableFuelPerLap > 0.0)
+                            ? stableLapsRemaining * stableFuelPerLap
+                            : 0.0;
+
+                    LogLapCrossingSummary(
+                        completedLapsNow,
+                        lastLapSec,
+                        !paceReject,
+                        paceReason,
+                        paceBaselineLog,
+                        paceDeltaLog,
+                        Pace_StintAvgLapTimeSec,
+                        Pace_Last5LapAvgSec,
+                        PaceConfidence,
+                        leaderLastLapSec,
+                        currentAvgLeader,
+                        currentLeaderCount,
+                        fuelUsed,
+                        !reject,
+                        fuelReasonForLog,
+                        _isWetMode,
+                        LiveFuelPerLap,
+                        _validDryLaps,
+                        _validWetLaps,
+                        _maxFuelPerLapSession,
+                        Confidence,
+                        OverallConfidence,
+                        pitTripActive,
+                        Fuel_Delta_LitresCurrent,
+                        litresRequiredToFinish,
+                        stableFuelPerLap,
+                        stableLapsRemaining,
+                        currentFuel,
+                        _afterZeroUsedSeconds,
+                        AfterZeroSource,
+                        _timerZeroSessionTime,
+                        sessionTimeRemain,
+                        _lastProjectedLapsRemaining,
+                        _lastProjectionLapSecondsUsed,
+                        LiveProjectedDriveSecondsRemaining);
+
                 }
 
                 // Start the next lap’s measurement window
@@ -1998,43 +2042,6 @@ namespace LaunchPlugin
                   Fuel_Delta_LitresCurrentSave = ComputeDeltaLitres(currentFuel, requiredLitresSave, hasSaveRequirement);
                   Fuel_Delta_LitresPlanSave = ComputeDeltaLitres(fuelPlanExit, requiredLitresSave, hasSaveRequirement);
                   Fuel_Delta_LitresWillAddSave = ComputeDeltaLitres(fuelWillAddExit, requiredLitresSave, hasSaveRequirement);
-
-                  LogLapCrossingSummary(
-                      completedLapsNow,
-                      lastLapSec,
-                        !paceReject,
-                        paceReason,
-                        paceBaselineLog,
-                        paceDeltaLog,
-                        Pace_StintAvgLapTimeSec,
-                        Pace_Last5LapAvgSec,
-                        PaceConfidence,
-                        leaderLastLapSec,
-                        currentAvgLeader,
-                        currentLeaderCount,
-                        fuelUsed,
-                        !reject,
-                        fuelReasonForLog,
-                        _isWetMode,
-                        LiveFuelPerLap,
-                        _validDryLaps,
-                        _validWetLaps,
-                        _maxFuelPerLapSession,
-                        Confidence,
-                        OverallConfidence,
-                        pitTripActive,
-                        Fuel_Delta_LitresCurrent,
-                        litresRequiredToFinish,
-                        stableFuelPerLap,
-                        stableLapsRemaining,
-                        currentFuel,
-                        _afterZeroUsedSeconds,
-                        AfterZeroSource,
-                        _timerZeroSessionTime,
-                        sessionTimeRemain,
-                        _lastProjectedLapsRemaining,
-                        _lastProjectionLapSecondsUsed,
-                        LiveProjectedDriveSecondsRemaining);
 
                     if (pitTripActive)
                     {
@@ -4171,7 +4178,11 @@ namespace LaunchPlugin
             // Validity means “we know who the leader is”, not “we are using it”
             OverallLeaderHasFinishedValid = overallLeaderIdx >= 0;
 
-            bool checkeredFlagData = isRace && data.Flag_Checkered;
+            bool checkeredFlagData = isRace && ReadFlagBool(
+                pluginManager,
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckeredFlag",
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
+            );
             if (checkeredFlagData && !_leaderFinishLatchedByFlag)
             {
                 _leaderFinishLatchedByFlag = true;
