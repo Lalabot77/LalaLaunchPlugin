@@ -1723,6 +1723,21 @@ namespace LaunchPlugin
                         _lastProjectionLapSecondsUsed,
                         LiveProjectedDriveSecondsRemaining);
 
+                    // Per-lap resets for next lap (must be inside completedLapsNow scope)
+                    if (pitTripActive)
+                    {
+                        _lapsSincePitExit = 0;
+                    }
+                    else if (_lapsSincePitExit < int.MaxValue)
+                    {
+                        _lapsSincePitExit++;
+                    }
+
+                    _wasInPitThisLap = false;
+                    _hadOffTrackThisLap = false;
+                    _latchedIncidentReason = null;
+                    _lastCompletedFuelLap = completedLapsNow;
+
                 }
 
                 // Start the next lap’s measurement window
@@ -2042,20 +2057,6 @@ namespace LaunchPlugin
                   Fuel_Delta_LitresCurrentSave = ComputeDeltaLitres(currentFuel, requiredLitresSave, hasSaveRequirement);
                   Fuel_Delta_LitresPlanSave = ComputeDeltaLitres(fuelPlanExit, requiredLitresSave, hasSaveRequirement);
                   Fuel_Delta_LitresWillAddSave = ComputeDeltaLitres(fuelWillAddExit, requiredLitresSave, hasSaveRequirement);
-
-                    if (pitTripActive)
-                    {
-                        _lapsSincePitExit = 0;
-                    }
-                    else if (_lapsSincePitExit < int.MaxValue)
-                    {
-                        _lapsSincePitExit++;
-                    }
-
-                    _wasInPitThisLap = false;
-                    _hadOffTrackThisLap = false;
-                    _latchedIncidentReason = null;
-                    _lastCompletedFuelLap = completedLapsNow;
                 }
 
                 LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
