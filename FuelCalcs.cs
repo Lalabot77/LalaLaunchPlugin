@@ -2052,7 +2052,7 @@ namespace LaunchPlugin
         var nowUtc = DateTime.UtcNow;
         if ((nowUtc - _lastStrategyResetLogUtc) > TimeSpan.FromSeconds(1))
         {
-            SimHub.Logging.Current.Info("[FuelCalcs] Strategy reset – defaults applied.");
+            SimHub.Logging.Current.Info("[LalaPlugin:Fuel Burn] Strategy reset – defaults applied.");
             _lastStrategyResetLogUtc = nowUtc;
         }
     }
@@ -2292,7 +2292,7 @@ namespace LaunchPlugin
         }
         catch (Exception ex)
         {
-            SimHub.Logging.Current.Error("FuelCalcs.InitPresets: " + ex.Message);
+            SimHub.Logging.Current.Error("[LalaPlugin:Fuel Burn] InitPresets: " + ex.Message);
             ReplacePresetCollection(Array.Empty<RacePreset>());
             _selectedPreset = null;
             _appliedPreset = null;
@@ -3008,7 +3008,7 @@ namespace LaunchPlugin
         var nowUtc = DateTime.UtcNow;
         if ((nowUtc - _lastSnapshotResetLogUtc) > TimeSpan.FromSeconds(1))
         {
-            SimHub.Logging.Current.Info("[Leader] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
+            SimHub.Logging.Current.Info("[LalaPlugin:Leader Lap] ResetSnapshotDisplays: cleared live snapshot including leader delta.");
             _lastSnapshotResetLogUtc = nowUtc;
         }
         AvgDeltaToPbValue = "-";
@@ -3859,7 +3859,7 @@ namespace LaunchPlugin
                 if (shouldLog)
                 {
                     SimHub.Logging.Current.Info(string.Format(
-                        "[FuelLeader] CalculateStrategy: estLap={0:F3}, leaderDelta={1:F3}, leaderLap={2:F3}",
+                        "[LalaPlugin:Leader Lap] CalculateStrategy: estLap={0:F3}, leaderDelta={1:F3}, leaderLap={2:F3}",
                         num3,
                         LeaderDeltaSeconds,
                         leaderLap));

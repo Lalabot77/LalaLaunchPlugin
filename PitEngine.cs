@@ -102,13 +102,13 @@ namespace LaunchPlugin
                     // Discard impossible values (e.g., sitting in pits, resets, telemetry oddities)
                     if (direct < 0 || direct > 300)
                     {
-                        SimHub.Logging.Current.Warn($"PitEngine: Ignoring invalid Direct Travel Time ({direct:F2}s)");
+                        SimHub.Logging.Current.Warn($"[LalaPlugin:Pit Cycle] Ignoring invalid Direct Travel Time ({direct:F2}s)");
                     }
                     else
                     {
                         LastDirectTravelTime = direct;
                         SimHub.Logging.Current.Info(
-                            $"[PitEngine] Direct lane travel computed -> lane={_lastTimeOnPitRoad.TotalSeconds:F2}s, stop={_lastPitStopDuration.TotalSeconds:F2}s, direct={LastDirectTravelTime:F2}s");
+                            $"[LalaPlugin:Pit Cycle] Direct lane travel computed -> lane={_lastTimeOnPitRoad.TotalSeconds:F2}s, stop={_lastPitStopDuration.TotalSeconds:F2}s, direct={LastDirectTravelTime:F2}s");
                     }
                 }
             }
@@ -152,7 +152,7 @@ namespace LaunchPlugin
                 TimeSpan simhubStopTime = (stopTimeProp is TimeSpan span)
                     ? span
                     : TimeSpan.FromSeconds(Convert.ToDouble(stopTimeProp ?? 0.0));
-                SimHub.Logging.Current.Debug($"PitEngine: Stop Time Validation -> Internal: {_lastPitStopDuration.TotalSeconds:F2}s, SimHub: {simhubStopTime.TotalSeconds:F2}s");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Cycle] Stop Time Validation -> Internal: {_lastPitStopDuration.TotalSeconds:F2}s, SimHub: {simhubStopTime.TotalSeconds:F2}s");
 
                 _pitStopTimer.Reset();
             }
@@ -169,7 +169,7 @@ namespace LaunchPlugin
                 if (lapsCompleted >= 1)
                 {
                     SimHub.Logging.Current.Info(
-                        $"[PitEngine] Pit exit detected – lane={_lastTimeOnPitRoad.TotalSeconds:F2}s, stop={_lastPitStopDuration.TotalSeconds:F2}s, direct={LastDirectTravelTime:F2}s. Awaiting pit-lap completion.");
+                        $"[LalaPlugin:Pit Cycle] Pit exit detected – lane={_lastTimeOnPitRoad.TotalSeconds:F2}s, stop={_lastPitStopDuration.TotalSeconds:F2}s, direct={LastDirectTravelTime:F2}s. Awaiting pit-lap completion.");
                     _paceDeltaState = PaceDeltaState.AwaitingPitLap;
                     _pitLapSeconds = 0.0;
                 }
@@ -194,7 +194,7 @@ namespace LaunchPlugin
                 // First lap after pit exit = PIT LAP (includes the stop)
                 if (!isLapValid)
                 {
-                    SimHub.Logging.Current.Info("[PitEngine] Pit-lap invalid – aborting pit-cycle evaluation.");
+                    SimHub.Logging.Current.Debug("[LalaPlugin:Pit Cycle] Pit-lap invalid – aborting pit-cycle evaluation.");
                     ResetPaceDelta();
                     return;
                 }
@@ -202,7 +202,7 @@ namespace LaunchPlugin
                 _avgPaceAtPit = averagePace;
                 _pitLapSeconds = outLapTime;   // this first finalize call is the PIT LAP
 
-                SimHub.Logging.Current.Info($"[PitEngine] Pit-lap captured = {_pitLapSeconds:F2}s – awaiting out-lap completion.");
+                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] Pit-lap captured = {_pitLapSeconds:F2}s – awaiting out-lap completion.");
                 _paceDeltaState = PaceDeltaState.AwaitingOutLap;
                 return; // wait for next S/F
             }
@@ -213,7 +213,7 @@ namespace LaunchPlugin
             // This lap is the OUT-LAP
             if (!isLapValid)
             {
-                SimHub.Logging.Current.Info("[PitEngine] Out-lap invalid – aborting pit-cycle evaluation.");
+                SimHub.Logging.Current.Debug("[LalaPlugin:Pit Cycle] Out-lap invalid – aborting pit-cycle evaluation.");
                 ResetPaceDelta();
                 return;
             }
@@ -231,7 +231,7 @@ namespace LaunchPlugin
             LastPaceDeltaNetLoss = Math.Max(0.0, LastTotalPitCycleTimeLoss - stopSeconds);
 
             SimHub.Logging.Current.Info(
-                $"[PitEngine] DTL computed (formula): Total={LastTotalPitCycleTimeLoss:F2}s, NetMinusStop={LastPaceDeltaNetLoss:F2}s " +
+                $"[LalaPlugin:Pit Cycle] DTL computed (formula): Total={LastTotalPitCycleTimeLoss:F2}s, NetMinusStop={LastPaceDeltaNetLoss:F2}s " +
                 $"(avg={avg:F2}s, pitLap={_pitLapSeconds:F2}s, outLap={outLapSec:F2}s, stop={stopSeconds:F2}s)");
 
             // Fire a single, typed callback to avoid double notifications

@@ -38,12 +38,12 @@ namespace LaunchPlugin
         {
             if (string.IsNullOrWhiteSpace(carName) || string.IsNullOrWhiteSpace(trackKey))
             {
-                SimHub.Logging.Current.Debug("[PB] Reject: missing car/track.");
+                SimHub.Logging.Current.Debug("[LalaPlugin:Pace] Reject PB: missing car/track.");
                 return false;
             }
             if (lapMs < PB_MIN_MS || lapMs > PB_MAX_MS)
             {
-                SimHub.Logging.Current.Debug($"[PB] Reject: out of range ({lapMs} ms).");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Reject PB: out of range ({lapMs} ms).");
                 return false;
             }
 
@@ -60,7 +60,7 @@ namespace LaunchPlugin
             bool improved = !ts.BestLapMs.HasValue || lapMs <= ts.BestLapMs.Value - PB_IMPROVE_MS;
             if (!improved)
             {
-                SimHub.Logging.Current.Debug($"[PB] Reject: not improved enough. old={ts.BestLapMs} new={lapMs} (≥{PB_IMPROVE_MS} ms required).");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Reject PB: not improved enough. old={ts.BestLapMs} new={lapMs} (≥{PB_IMPROVE_MS} ms required).");
                 return false;
             }
 
@@ -73,7 +73,7 @@ namespace LaunchPlugin
             void DoUi() { if (SelectedProfile == car) RefreshTracksForSelectedProfile(); }
             if (disp == null || disp.CheckAccess()) DoUi(); else disp.BeginInvoke((Action)DoUi);
 
-            SimHub.Logging.Current.Info($"[PB] Updated: {carName} @ '{ts.DisplayName}' -> {ts.BestLapMsText}");
+            SimHub.Logging.Current.Info($"[LalaPlugin:Pace] PB Updated: {carName} @ '{ts.DisplayName}' -> {ts.BestLapMsText}");
             return true;
         }
 
@@ -109,7 +109,7 @@ namespace LaunchPlugin
             var car = GetProfileForCar(carProfileName);
             if (car != null)
             {
-                SimHub.Logging.Current.Debug($"[Profiles] EnsureCar('{carProfileName}') -> FOUND existing profile.");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] EnsureCar('{carProfileName}') -> FOUND existing profile.");
                 return car;
             }
             if (car == null)
@@ -146,7 +146,7 @@ namespace LaunchPlugin
 
                 // Ensure the newly created car profile has a default track record
                 car.EnsureTrack("Default", "Default");
-                SimHub.Logging.Current.Debug($"[Profiles] EnsureCar('{carProfileName}') -> CREATED new profile.");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] EnsureCar('{carProfileName}') -> CREATED new profile.");
                 var disp = System.Windows.Application.Current?.Dispatcher;
                 if (disp == null || disp.CheckAccess())
                 {
@@ -165,12 +165,12 @@ namespace LaunchPlugin
 
         public TrackStats EnsureCarTrack(string carProfileName, string trackName, string trackDisplay = null)
         {
-            SimHub.Logging.Current.Debug($"[Profiles] EnsureCarTrack('{carProfileName}', '{trackName}')");
+            SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] EnsureCarTrack('{carProfileName}', '{trackName}')");
 
             var car = EnsureCar(carProfileName);
             var display = string.IsNullOrWhiteSpace(trackDisplay) ? trackName : trackDisplay;
             var ts = car.EnsureTrack(trackName, display);
-            SimHub.Logging.Current.Info($"[Profiles] Track resolved -> Key='{ts?.Key}', Disp='{ts?.DisplayName}'");
+            SimHub.Logging.Current.Info($"[LalaPlugin:Profiles] Track resolved: key='{ts?.Key}', display='{ts?.DisplayName}'");
 
             // --- FIX: Manually initialize the text properties after creation ---
             // This is crucial because the UI now relies on them.
@@ -201,8 +201,7 @@ namespace LaunchPlugin
 
                 // --- LOG A: state just before we mutate the tracks list
                 SimHub.Logging.Current.Debug(
-                    $"[Profiles][UI] Before refresh: SelectedProfile='{SelectedProfile?.ProfileName}', " +
-                    $"targetCar='{car.ProfileName}'");
+                    $"[LalaPlugin:Profile] UI Before refresh: SelectedProfile='{SelectedProfile?.ProfileName}', targetCar='{car.ProfileName}'");
 
                 // 2) force refresh (mutating the existing collection)
                 RefreshTracksForSelectedProfile();
@@ -211,13 +210,11 @@ namespace LaunchPlugin
                 var keysAfter = TracksForSelectedProfile?
                     .Select(t => t?.Key)
                     .Where(k => !string.IsNullOrWhiteSpace(k)) ?? Enumerable.Empty<string>();
-                SimHub.Logging.Current.Debug(
-                    $"[Profiles][UI] After refresh: TracksForSelectedProfile.Count={TracksForSelectedProfile?.Count ?? 0}, " +
-                    $"keys=[{string.Join(",", keysAfter)}]");
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] UI After refresh: Track count={TracksForSelectedProfile?.Count ?? 0}, keys=[{string.Join(",", keysAfter)}]");
 
                 // --- LOG C: what are we trying to select?
                 SimHub.Logging.Current.Debug(
-                    $"[Profiles][UI] Looking for track: key='{ts?.Key}', name='{ts?.DisplayName}'");
+                    $"[LalaPlugin:Profile] UI Looking for track: key='{ts?.Key}', name='{ts?.DisplayName}'");
 
                 // 3) select the track instance (no fallback add — track should already exist after EnsureCarTrack)
                 TrackStats match = null;
@@ -234,7 +231,7 @@ namespace LaunchPlugin
                 else
                 {
                     // Optional: keep a breadcrumb if something ever goes wrong again
-                    SimHub.Logging.Current.Debug("[Profiles][UI] Track instance not found in TracksForSelectedProfile after refresh.");
+                    SimHub.Logging.Current.Debug("[LalaPlugin:Profile] Track instance not found in TracksForSelectedProfile after refresh.");
                 }
 
             }
@@ -558,14 +555,14 @@ namespace LaunchPlugin
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"LalaLaunch: Failed to load car profiles: {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Profile] Failed to load car profiles: {ex.Message}");
             }
             
             // After attempting to load, check if a "Default Settings" profile exists.
             // If not, create one from scratch. This makes the plugin self-healing.
             if (!CarProfiles.Any(p => p.ProfileName.Equals("Default Settings", StringComparison.OrdinalIgnoreCase)))
             {
-                SimHub.Logging.Current.Info("[Profiles] 'Default Settings' profile not found – creating baseline profile.");
+                SimHub.Logging.Current.Info("[LalaPlugin:Profiles] Default Settings profile not found, creating baseline profile.");
 
                 // Create the foundational default profile with all properties explicitly set.
                 var defaultProfile = new CarProfile
@@ -630,11 +627,11 @@ namespace LaunchPlugin
                 // First, save all profiles to the file as before.
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(CarProfiles, Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(_profilesFilePath, json);
-                SimHub.Logging.Current.Info("[Profiles] All car profiles saved to JSON file.");
+                SimHub.Logging.Current.Debug("[LalaPlugin:Profiles] Profiles saved to JSON.");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"LalaLaunch: Failed to save car profiles: {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Profiles] Save failed: {ex.Message}");
             }
         }
     }
