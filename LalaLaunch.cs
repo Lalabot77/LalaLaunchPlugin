@@ -1117,14 +1117,14 @@ namespace LaunchPlugin
             double projectedDriveSecondsRemaining)
         {
             SimHub.Logging.Current.Info(
-                $"[LalaPlugin: PACE] Lap {lapNumber}: " +
+                $"[LalaPlugin:PACE] Lap {lapNumber}: " +
                 $"ok={paceAccepted} reason={paceReason} " +
                 $"lap_s={lastLapSeconds:F3} baseline_s={paceBaseline} delta_s={paceDelta} " +
                 $"stint_avg_s={stintAvg:F3} last5_avg_s={last5Avg:F3} conf_pct={paceConfidence} " +
                 $"leader_lap_s={leaderLapSeconds:F3} leader_avg_s={leaderAvgSeconds:F3} leader_samples={leaderSampleCount}"
             );
             SimHub.Logging.Current.Info(
-                $"[LalaPlugin: FUEL PER LAP] Lap {lapNumber}: " +
+                $"[LalaPlugin:FUEL PER LAP] Lap {lapNumber}: " +
                 $"ok={fuelAccepted} reason={fuelReason} mode={(isWetMode ? "wet" : "dry")} " +
                 $"live_fpl={liveFuelPerLap:F3} " +
                 $"window_dry={validDryLaps} window_wet={validWetLaps} " +
@@ -1133,12 +1133,12 @@ namespace LaunchPlugin
                 $"pit_trip_active={pitTripActive}"
             );
             SimHub.Logging.Current.Info(
-                $"[LalaPlugin: FUEL DELTA] Lap {lapNumber}: " +
+                $"[LalaPlugin:FUEL DELTA] Lap {lapNumber}: " +
                 $"current_l={currentFuel:F1} required_l={requiredLitres:F1} delta_l={deltaLitres:F1} " +
                 $"stable_fpl={stableFuelPerLap:F3} stable_laps={stableLapsRemaining:F2}"
             );
             SimHub.Logging.Current.Info(
-                $"[LalaPlugin: RACE PROJECTION] Lap {lapNumber}: " +
+                $"[LalaPlugin:RACE PROJECTION] Lap {lapNumber}: " +
                 $"after_zero_used_s={afterZeroUsedSeconds:F1} source={afterZeroSource} " +
                 $"timer0_s={FormatSecondsOrNA(timerZeroSessionTime)} " +
                 $"session_remain_s={FormatSecondsOrNA(sessionTimeRemain)} " +
@@ -1869,10 +1869,12 @@ namespace LaunchPlugin
                 if (!string.Equals(afterZeroSourceNow, _afterZeroSourceUsed, StringComparison.Ordinal))
                 {
                     SimHub.Logging.Current.Info(
-                        $"[LalaPlugin:Drive Time Projection] After 0 source change " +
-                        $"from={_afterZeroSourceUsed} to={afterZeroSourceNow} " +
-                        $"live_valid={liveAfterZeroValid} timer0_seen={_timerZeroSeen}");
+                        $"[LalaPlugin:Drive Time Projection] After 0 Source Change from={_afterZeroSourceUsed} to={afterZeroSourceNow} " +
+                        $"live valid={liveAfterZeroValid} timer0 seen={_timerZeroSeen}");
+
+                    _afterZeroSourceUsed = afterZeroSourceNow; // <-- stops the spam
                 }
+
 
                 _afterZeroUsedSeconds = liveAfterZeroValid ? _afterZeroLiveEstimateSeconds : _afterZeroPlannerSeconds;
 
