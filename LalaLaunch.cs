@@ -444,8 +444,8 @@ namespace LaunchPlugin
         private bool _smoothedPitValid = false;
         private bool _pendingSmoothingReset = true;
         private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
-        private const int FuelModelConfidenceSwitchOn = 60;
-        private const int LapTimeConfidenceSwitchOn = 60;
+        private const int FuelModelConfidenceSwitchOn = 40;
+        private const int LapTimeConfidenceSwitchOn = 50;
         private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
         private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
         private int _lastPitWindowState = -1;
@@ -2066,21 +2066,32 @@ namespace LaunchPlugin
                 string sessionStateToken = ReadLapDetectorSessionState();
                 bool sessionRunning = IsSessionRunningForLapDetector(sessionStateToken);
                 bool isRaceSession = string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase);
-                double fuelPerLapForPitWindow = fuelPerLapForCalc;
+                double fuelPerLapForPitWindow = LiveFuelPerLap_Stable > 0.0 ? LiveFuelPerLap_Stable : fuelPerLapForCalc;
                 int pitWindowClosingLap = 0;
 
-                if (LiveFuelPerLap_StableConfidence <= FuelModelConfidenceSwitchOn)
+                // Step 1 — Race-only gate FIRST (so Qualifying always shows N/A)
+                if (!isRaceSession || !sessionRunning)
                 {
-                    pitWindowState = 5;
-                    pitWindowLabel = "NO DATA YET";
+                    pitWindowState = 6;
+                    pitWindowLabel = "N/A";
                     IsPitWindowOpen = false;
                     pitWindowOpeningLap = 0;
                     pitWindowClosingLap = 0;
                 }
-                else if (!isRaceSession || !sessionRunning)
+                // Step 1b — Inhibit when no more fuel stops required
+                else if (PitStopsRequiredByFuel <= 0)
                 {
                     pitWindowState = 6;
                     pitWindowLabel = "N/A";
+                    IsPitWindowOpen = false;
+                    pitWindowOpeningLap = 0;
+                    pitWindowClosingLap = 0;
+                }
+                // Step 0/2 — Confidence gate (now only applies in-race)
+                else if (OverallConfidence <= FuelModelConfidenceSwitchOn)
+                {
+                    pitWindowState = 5;
+                    pitWindowLabel = "NO DATA YET";
                     IsPitWindowOpen = false;
                     pitWindowOpeningLap = 0;
                     pitWindowClosingLap = 0;
@@ -2103,6 +2114,10 @@ namespace LaunchPlugin
                 }
                 else
                 {
+
+                    double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
+                    double stableFuelPerLap = LiveFuelPerLap_Stable;
+
                     bool pushValid = stableLapsRemaining > 0.0 && PushFuelPerLap > 0.0;
                     bool stdValid = stableLapsRemaining > 0.0 && stableFuelPerLap > 0.0;
                     bool ecoValid = stableLapsRemaining > 0.0 && FuelSaveFuelPerLap > 0.0;
@@ -2123,17 +2138,17 @@ namespace LaunchPlugin
                         if (openPush)
                         {
                             pitWindowState = 3;
-                            pitWindowLabel = "OPEN PUSH";
+                            pitWindowLabel = "CLEAR PUSH";
                         }
                         else if (openStd)
                         {
                             pitWindowState = 2;
-                            pitWindowLabel = "OPEN STD";
+                            pitWindowLabel = "RACE PACE";
                         }
                         else
                         {
                             pitWindowState = 1;
-                            pitWindowLabel = "OPEN ECO";
+                            pitWindowLabel = "FUEL SAVE";
                         }
                     }
                     else
@@ -2181,7 +2196,7 @@ namespace LaunchPlugin
                 {
                     SimHub.Logging.Current.Info(
                         $"[LalaPlugin:Pit Window] state={pitWindowState} label={pitWindowLabel} reqAdd={pitWindowRequestedAdd:F1} " +
-                        $"tankSpace={tankSpace:F1} lap={currentLapNumber} fuelConf={LiveFuelPerLap_StableConfidence:F0}% reqStops={strategyRequiredStops} closeLap={pitWindowClosingLap}");
+                        $"tankSpace={tankSpace:F1} lap={currentLapNumber} conf={OverallConfidence:F0}% reqStops={strategyRequiredStops} closeLap={pitWindowClosingLap}");
 
                     _lastPitWindowState = pitWindowState;
                     _lastPitWindowLabel = pitWindowLabel;
