@@ -3983,9 +3983,9 @@ namespace LaunchPlugin
                 }
                 else
                 {
-                    // Deadband hold: keep previous stable source + confidence.
-                    selectedSource = _stableFuelPerLapSource;
-                    selectedConfidence = _stableFuelPerLapConfidence;
+                    // Deadband hold: keep value, but allow source/confidence to advance
+                    selectedSource = source;
+                    selectedConfidence = GetConfidenceForStableSource(selectedSource);
                 }
             }
 
