@@ -465,7 +465,7 @@ namespace LaunchPlugin
         private bool _smoothedPitValid = false;
         private bool _pendingSmoothingReset = true;
         private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
-        private const int FuelModelConfidenceSwitchOn = 40;
+        internal const double FuelReadyConfidenceDefault = 60.0;
         private const int LapTimeConfidenceSwitchOn = 50;
         private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
         private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
@@ -485,6 +485,21 @@ namespace LaunchPlugin
             ProfilesViewModel.SaveProfiles();
             IsActiveProfileDirty = false; // Reset the dirty flag after saving
             SimHub.Logging.Current.Info($"[LalaPlugin:Profiles] Changes to '{ActiveProfile?.ProfileName}' saved.");
+        }
+
+        private static double ClampToRange(double value, double min, double max, double defaultValue)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return defaultValue;
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        private double GetFuelReadyConfidenceThreshold()
+        {
+            double value = Settings?.FuelReadyConfidence ?? FuelReadyConfidenceDefault;
+            value = ClampToRange(value, 0.0, 100.0, FuelReadyConfidenceDefault);
+            return value;
         }
 
         private static double ComputeStableMedian(List<double> samples)
@@ -2089,6 +2104,7 @@ namespace LaunchPlugin
                 bool isRaceSession = string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase);
                 double fuelPerLapForPitWindow = LiveFuelPerLap_Stable > 0.0 ? LiveFuelPerLap_Stable : fuelPerLapForCalc;
                 int pitWindowClosingLap = 0;
+                double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
 
                 // Step 1 — Race-only gate FIRST (so Qualifying always shows N/A)
                 if (!isRaceSession || !sessionRunning)
@@ -2108,10 +2124,10 @@ namespace LaunchPlugin
                     pitWindowOpeningLap = 0;
                     pitWindowClosingLap = 0;
                 }
-            // Step 0/2 — Confidence gate (now only applies in-race)
-            else if (LiveFuelPerLap_StableConfidence < FuelModelConfidenceSwitchOn)
-            {
-                pitWindowState = 5;
+                // Step 0/2 — Confidence gate (now only applies in-race)
+                else if (OverallConfidence <= fuelReadyConfidence)
+                {
+                    pitWindowState = 5;
                     pitWindowLabel = "NO DATA YET";
                     IsPitWindowOpen = false;
                     pitWindowOpeningLap = 0;
@@ -2507,6 +2523,7 @@ namespace LaunchPlugin
             // --- INITIALIZATION ---
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
+            Settings.FuelReadyConfidence = GetFuelReadyConfidenceThreshold();
 #if DEBUG
             FuelProjectionMath.RunSelfTests();
 #endif
@@ -2555,6 +2572,7 @@ namespace LaunchPlugin
             AttachCore("Fuel.LiveFuelPerLap_Stable", () => LiveFuelPerLap_Stable);
             AttachCore("Fuel.LiveFuelPerLap_StableSource", () => LiveFuelPerLap_StableSource);
             AttachCore("Fuel.LiveFuelPerLap_StableConfidence", () => LiveFuelPerLap_StableConfidence);
+            AttachCore("Fuel.FuelReadyConfidenceThreshold", () => GetFuelReadyConfidenceThreshold());
             AttachCore("Fuel.LiveLapsRemainingInRace", () => LiveLapsRemainingInRace);
             AttachCore("Fuel.LiveLapsRemainingInRace_S", () => LiveLapsRemainingInRace_S);
             AttachCore("Fuel.LiveLapsRemainingInRace_Stable", () => LiveLapsRemainingInRace_Stable);
@@ -3920,11 +3938,12 @@ namespace LaunchPlugin
         {
             var (profileDry, profileWet) = GetProfileFuelBaselines();
             double profileFuel = isWetMode ? profileWet : profileDry;
+            double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
 
             double candidate = fallbackFuelPerLap;
             string source = "Fallback";
 
-            if (Confidence >= FuelModelConfidenceSwitchOn && LiveFuelPerLap > 0.0)
+            if (Confidence >= fuelReadyConfidence && LiveFuelPerLap > 0.0)
             {
                 candidate = LiveFuelPerLap;
                 source = "Live";
@@ -3937,12 +3956,7 @@ namespace LaunchPlugin
 
             // --- Stable confidence reflects the chosen stable source, not always live Confidence ---
             // Align Profile stable confidence with the same threshold you use for switching Live on.
-            double ProfileStableConfidenceFloor = FuelModelConfidenceSwitchOn;
-            if (double.IsNaN(ProfileStableConfidenceFloor) || double.IsInfinity(ProfileStableConfidenceFloor))
-                ProfileStableConfidenceFloor = 60.0;
-
-            // Keep it sensible and within 0..100
-            ProfileStableConfidenceFloor = Math.Max(0.0, Math.Min(100.0, ProfileStableConfidenceFloor));
+            double ProfileStableConfidenceFloor = ClampToRange(fuelReadyConfidence, 0.0, 100.0, fuelReadyConfidence);
 
             double GetConfidenceForStableSource(string src)
             {
@@ -3992,13 +4006,9 @@ namespace LaunchPlugin
             // Clamp values defensively
             stable = Math.Max(0.1, stable); // avoid pathological near-zero persistence
 
-            if (double.IsNaN(selectedConfidence) || double.IsInfinity(selectedConfidence))
-                selectedConfidence = 0.0;
-            selectedConfidence = Math.Max(0.0, Math.Min(100.0, selectedConfidence));
-
             _stableFuelPerLap = stable;
             _stableFuelPerLapSource = selectedSource;
-            _stableFuelPerLapConfidence = selectedConfidence;
+            _stableFuelPerLapConfidence = ClampToRange(selectedConfidence, 0.0, 100.0, fuelReadyConfidence);
 
             LiveFuelPerLap_Stable = _stableFuelPerLap;
             LiveFuelPerLap_StableSource = _stableFuelPerLapSource;
@@ -5157,6 +5167,7 @@ namespace LaunchPlugin
         // --- Global Settings with Corrected Defaults ---
         public bool EnableDebugLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
+        public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
         public bool EnableAutoDashSwitch { get; set; } = true;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
