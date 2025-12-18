@@ -2108,10 +2108,10 @@ namespace LaunchPlugin
                     pitWindowOpeningLap = 0;
                     pitWindowClosingLap = 0;
                 }
-                // Step 0/2 — Confidence gate (now only applies in-race)
-                else if (OverallConfidence <= FuelModelConfidenceSwitchOn)
-                {
-                    pitWindowState = 5;
+            // Step 0/2 — Confidence gate (now only applies in-race)
+            else if (LiveFuelPerLap_StableConfidence < FuelModelConfidenceSwitchOn)
+            {
+                pitWindowState = 5;
                     pitWindowLabel = "NO DATA YET";
                     IsPitWindowOpen = false;
                     pitWindowOpeningLap = 0;
@@ -2217,9 +2217,9 @@ namespace LaunchPlugin
                 {
                     SimHub.Logging.Current.Info(
                         $"[LalaPlugin:Pit Window] state={pitWindowState} label={pitWindowLabel} reqAdd={pitWindowRequestedAdd:F1} " +
-                        $"tankSpace={tankSpace:F1} lap={currentLapNumber} conf={OverallConfidence:F0}% reqStops={strategyRequiredStops} closeLap={pitWindowClosingLap}");
+                        $"tankSpace={tankSpace:F1} lap={currentLapNumber} confStable={LiveFuelPerLap_StableConfidence:F0}% confOverall={OverallConfidence:F0}% reqStops={strategyRequiredStops} closeLap={pitWindowClosingLap}");
 
-                    _lastPitWindowState = pitWindowState;
+                _lastPitWindowState = pitWindowState;
                     _lastPitWindowLabel = pitWindowLabel;
                     _lastPitWindowLogUtc = DateTime.UtcNow;
                 }
@@ -3935,8 +3935,14 @@ namespace LaunchPlugin
                 source = "Profile";
             }
 
-            // --- FIX: stable confidence must reflect the chosen stable source, not always live Confidence ---
-            const double ProfileStableConfidenceFloor = FuelModelConfidenceSwitchOn; // must be > 0; can be FuelModelConfidenceSwitchOn if you prefer
+            // --- Stable confidence reflects the chosen stable source, not always live Confidence ---
+            // Align Profile stable confidence with the same threshold you use for switching Live on.
+            double ProfileStableConfidenceFloor = FuelModelConfidenceSwitchOn;
+            if (double.IsNaN(ProfileStableConfidenceFloor) || double.IsInfinity(ProfileStableConfidenceFloor))
+                ProfileStableConfidenceFloor = 60.0;
+
+            // Keep it sensible and within 0..100
+            ProfileStableConfidenceFloor = Math.Max(0.0, Math.Min(100.0, ProfileStableConfidenceFloor));
 
             double GetConfidenceForStableSource(string src)
             {
@@ -3944,7 +3950,7 @@ namespace LaunchPlugin
                 if (string.Equals(src, "Profile", StringComparison.OrdinalIgnoreCase)) return ProfileStableConfidenceFloor;
                 return 0.0; // Fallback / unknown
             }
-            // ---------------------------------------------------------------------------------------------
+            // -------------------------------------------------------------------------------
 
             double stable = _stableFuelPerLap;
             string selectedSource = source;
@@ -3983,7 +3989,13 @@ namespace LaunchPlugin
                 }
             }
 
-            stable = Math.Max(0.1, stable); // Clamp to avoid pathological near-zero persistence
+            // Clamp values defensively
+            stable = Math.Max(0.1, stable); // avoid pathological near-zero persistence
+
+            if (double.IsNaN(selectedConfidence) || double.IsInfinity(selectedConfidence))
+                selectedConfidence = 0.0;
+            selectedConfidence = Math.Max(0.0, Math.Min(100.0, selectedConfidence));
+
             _stableFuelPerLap = stable;
             _stableFuelPerLapSource = selectedSource;
             _stableFuelPerLapConfidence = selectedConfidence;
