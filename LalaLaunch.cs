@@ -2124,8 +2124,8 @@ namespace LaunchPlugin
                     pitWindowOpeningLap = 0;
                     pitWindowClosingLap = 0;
                 }
-                // Step 0/2 — Confidence gate (now only applies in-race)
-                else if (OverallConfidence <= fuelReadyConfidence)
+            // Step 0/2 — Confidence gate (now only applies in-race)
+                else if (LiveFuelPerLap_StableConfidence < fuelReadyConfidence)
                 {
                     pitWindowState = 5;
                     pitWindowLabel = "NO DATA YET";
@@ -2523,7 +2523,7 @@ namespace LaunchPlugin
             // --- INITIALIZATION ---
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
-            Settings.FuelReadyConfidence = GetFuelReadyConfidenceThreshold();
+            
 #if DEBUG
             FuelProjectionMath.RunSelfTests();
 #endif
@@ -3956,7 +3956,7 @@ namespace LaunchPlugin
 
             // --- Stable confidence reflects the chosen stable source, not always live Confidence ---
             // Align Profile stable confidence with the same threshold you use for switching Live on.
-            double ProfileStableConfidenceFloor = ClampToRange(fuelReadyConfidence, 0.0, 100.0, fuelReadyConfidence);
+            double ProfileStableConfidenceFloor = ClampToRange(fuelReadyConfidence, 0.0, 100.0, FuelReadyConfidenceDefault);
 
             double GetConfidenceForStableSource(string src)
             {
@@ -4008,7 +4008,7 @@ namespace LaunchPlugin
 
             _stableFuelPerLap = stable;
             _stableFuelPerLapSource = selectedSource;
-            _stableFuelPerLapConfidence = ClampToRange(selectedConfidence, 0.0, 100.0, fuelReadyConfidence);
+            _stableFuelPerLapConfidence = ClampToRange(selectedConfidence, 0.0, 100.0, 0.0);
 
             LiveFuelPerLap_Stable = _stableFuelPerLap;
             LiveFuelPerLap_StableSource = _stableFuelPerLapSource;
