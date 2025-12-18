@@ -50,6 +50,27 @@ namespace LaunchPlugin
         public ScreenManager Screens = new ScreenManager();
 
         // --- MsgCx dash helpers ---
+        public void TogglePitScreen()
+        {
+            bool isOnPitRoadFlag = Convert.ToBoolean(
+                PluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false
+            );
+
+            if (isOnPitRoadFlag)
+            {
+                // In pits: toggle the existing dismiss latch (hide/show the auto pit popup)
+                _pitScreenDismissed = !_pitScreenDismissed;
+
+                // Optional: if you dismiss it in pits, also clear any manual force-on
+                if (_pitScreenDismissed) _pitScreenManualEnabled = false;
+            }
+            else
+            {
+                // On track: toggle the new manual force-on
+                _pitScreenManualEnabled = !_pitScreenManualEnabled;
+            }
+        }
+
         public void MsgCx()
         {
             RegisterMsgCxPress();
@@ -444,7 +465,7 @@ namespace LaunchPlugin
         private bool _smoothedPitValid = false;
         private bool _pendingSmoothingReset = true;
         private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
-        internal const double FuelReadyConfidenceDefault = 60.0;
+        private const int FuelModelConfidenceSwitchOn = 40;
         private const int LapTimeConfidenceSwitchOn = 50;
         private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
         private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
@@ -464,21 +485,6 @@ namespace LaunchPlugin
             ProfilesViewModel.SaveProfiles();
             IsActiveProfileDirty = false; // Reset the dirty flag after saving
             SimHub.Logging.Current.Info($"[LalaPlugin:Profiles] Changes to '{ActiveProfile?.ProfileName}' saved.");
-        }
-
-        private static double ClampToRange(double value, double min, double max, double defaultValue)
-        {
-            if (double.IsNaN(value) || double.IsInfinity(value)) return defaultValue;
-            if (value < min) return min;
-            if (value > max) return max;
-            return value;
-        }
-
-        private double GetFuelReadyConfidenceThreshold()
-        {
-            double value = Settings?.FuelReadyConfidence ?? FuelReadyConfidenceDefault;
-            value = ClampToRange(value, 0.0, 100.0, FuelReadyConfidenceDefault);
-            return value;
         }
 
         private static double ComputeStableMedian(List<double> samples)
@@ -2083,7 +2089,6 @@ namespace LaunchPlugin
                 bool isRaceSession = string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase);
                 double fuelPerLapForPitWindow = LiveFuelPerLap_Stable > 0.0 ? LiveFuelPerLap_Stable : fuelPerLapForCalc;
                 int pitWindowClosingLap = 0;
-                double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
 
                 // Step 1 — Race-only gate FIRST (so Qualifying always shows N/A)
                 if (!isRaceSession || !sessionRunning)
@@ -2104,7 +2109,7 @@ namespace LaunchPlugin
                     pitWindowClosingLap = 0;
                 }
                 // Step 0/2 — Confidence gate (now only applies in-race)
-                else if (OverallConfidence <= fuelReadyConfidence)
+                else if (OverallConfidence <= FuelModelConfidenceSwitchOn)
                 {
                     pitWindowState = 5;
                     pitWindowLabel = "NO DATA YET";
@@ -2327,6 +2332,7 @@ namespace LaunchPlugin
         private bool _msgCxPressed = false;
         private bool _pitScreenActive = false;
         private bool _pitScreenDismissed = false;
+        private bool _pitScreenManualEnabled = false;
         private bool _rpmInTargetRange = false;
         private bool _throttleInTargetRange = false;
         private bool _waitingForClutchRelease = false;
@@ -2501,7 +2507,6 @@ namespace LaunchPlugin
             // --- INITIALIZATION ---
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
-            Settings.FuelReadyConfidence = GetFuelReadyConfidenceThreshold();
 #if DEBUG
             FuelProjectionMath.RunSelfTests();
 #endif
@@ -2550,7 +2555,6 @@ namespace LaunchPlugin
             AttachCore("Fuel.LiveFuelPerLap_Stable", () => LiveFuelPerLap_Stable);
             AttachCore("Fuel.LiveFuelPerLap_StableSource", () => LiveFuelPerLap_StableSource);
             AttachCore("Fuel.LiveFuelPerLap_StableConfidence", () => LiveFuelPerLap_StableConfidence);
-            AttachCore("Fuel.FuelReadyConfidenceThreshold", () => GetFuelReadyConfidenceThreshold());
             AttachCore("Fuel.LiveLapsRemainingInRace", () => LiveLapsRemainingInRace);
             AttachCore("Fuel.LiveLapsRemainingInRace_S", () => LiveLapsRemainingInRace_S);
             AttachCore("Fuel.LiveLapsRemainingInRace_Stable", () => LiveLapsRemainingInRace_Stable);
@@ -3508,27 +3512,32 @@ namespace LaunchPlugin
                 _hasProcessedOnTrack = false;
             }
             bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false);
+
             if (isOnPitRoad)
             {
                 if (!_pittingTimer.IsRunning)
-                {
                     _pittingTimer.Restart();
-                }
+
                 if (_pittingTimer.Elapsed.TotalMilliseconds > 200)
-                {
-                    _pitScreenActive = !_pitScreenDismissed;
-                }
+                    _pitScreenActive = !_pitScreenDismissed;   // auto popup (unless dismissed)
+                else
+                    _pitScreenActive = false; // don’t show instantly on pit entry
             }
             else
             {
-                _pitScreenActive = false;
+                // Off pit road: manual popup governs
+                _pitScreenActive = _pitScreenManualEnabled;
+
+                // Reset pit-entry debounce + dismiss latch so next pit visit behaves normally
                 _pitScreenDismissed = false;
+
                 if (_pittingTimer.IsRunning)
                 {
                     _pittingTimer.Stop();
                     _pittingTimer.Reset();
                 }
             }
+
         }
         #endregion
 
@@ -3911,12 +3920,11 @@ namespace LaunchPlugin
         {
             var (profileDry, profileWet) = GetProfileFuelBaselines();
             double profileFuel = isWetMode ? profileWet : profileDry;
-            double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
 
             double candidate = fallbackFuelPerLap;
             string source = "Fallback";
 
-            if (Confidence >= fuelReadyConfidence && LiveFuelPerLap > 0.0)
+            if (Confidence >= FuelModelConfidenceSwitchOn && LiveFuelPerLap > 0.0)
             {
                 candidate = LiveFuelPerLap;
                 source = "Live";
@@ -3927,14 +3935,26 @@ namespace LaunchPlugin
                 source = "Profile";
             }
 
+            // --- FIX: stable confidence must reflect the chosen stable source, not always live Confidence ---
+            const double ProfileStableConfidenceFloor = FuelModelConfidenceSwitchOn; // must be > 0; can be FuelModelConfidenceSwitchOn if you prefer
+
+            double GetConfidenceForStableSource(string src)
+            {
+                if (string.Equals(src, "Live", StringComparison.OrdinalIgnoreCase)) return Confidence;
+                if (string.Equals(src, "Profile", StringComparison.OrdinalIgnoreCase)) return ProfileStableConfidenceFloor;
+                return 0.0; // Fallback / unknown
+            }
+            // ---------------------------------------------------------------------------------------------
+
             double stable = _stableFuelPerLap;
             string selectedSource = source;
-            double selectedConfidence = source == "Profile" ? fuelReadyConfidence : Confidence;
+            double selectedConfidence = GetConfidenceForStableSource(selectedSource);
 
             if (candidate <= 0.0)
             {
                 if (stable > 0.0)
                 {
+                    // Hold previous stable triple if candidate is invalid.
                     candidate = stable;
                     selectedSource = _stableFuelPerLapSource;
                     selectedConfidence = _stableFuelPerLapConfidence;
@@ -3942,6 +3962,7 @@ namespace LaunchPlugin
                 else
                 {
                     stable = 0.0;
+                    selectedSource = "Fallback";
                     selectedConfidence = 0.0;
                 }
             }
@@ -3949,12 +3970,14 @@ namespace LaunchPlugin
             {
                 if (stable <= 0.0 || Math.Abs(candidate - stable) >= StableFuelPerLapDeadband)
                 {
+                    // Accept new stable candidate: update source + confidence together.
                     stable = candidate;
                     selectedSource = source;
-                    selectedConfidence = source == "Profile" ? fuelReadyConfidence : Confidence;
+                    selectedConfidence = GetConfidenceForStableSource(selectedSource);
                 }
                 else
                 {
+                    // Deadband hold: keep previous stable source + confidence.
                     selectedSource = _stableFuelPerLapSource;
                     selectedConfidence = _stableFuelPerLapConfidence;
                 }
@@ -3963,7 +3986,7 @@ namespace LaunchPlugin
             stable = Math.Max(0.1, stable); // Clamp to avoid pathological near-zero persistence
             _stableFuelPerLap = stable;
             _stableFuelPerLapSource = selectedSource;
-            _stableFuelPerLapConfidence = ClampToRange(selectedConfidence, 0.0, 100.0, fuelReadyConfidence);
+            _stableFuelPerLapConfidence = selectedConfidence;
 
             LiveFuelPerLap_Stable = _stableFuelPerLap;
             LiveFuelPerLap_StableSource = _stableFuelPerLapSource;
@@ -5122,7 +5145,6 @@ namespace LaunchPlugin
         // --- Global Settings with Corrected Defaults ---
         public bool EnableDebugLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
-        public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
         public bool EnableAutoDashSwitch { get; set; } = true;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
