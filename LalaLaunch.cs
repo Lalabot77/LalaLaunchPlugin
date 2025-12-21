@@ -472,6 +472,7 @@ namespace LaunchPlugin
         private int _lastPitWindowState = -1;
         private string _lastPitWindowLabel = string.Empty;
         private DateTime _lastPitWindowLogUtc = DateTime.MinValue;
+        private const double ProfileAllowedConfidenceCeiling = 20.0;
 
         public RelayCommand SaveActiveProfileCommand { get; private set; }
         public RelayCommand ReturnToDefaultsCommand { get; private set; }
@@ -3948,7 +3949,7 @@ namespace LaunchPlugin
                 candidate = LiveFuelPerLap;
                 source = "Live";
             }
-            else if (profileFuel > 0.0)
+            else if (profileFuel > 0.0 && fuelReadyConfidence <= ProfileAllowedConfidenceCeiling)
             {
                 candidate = profileFuel;
                 source = "Profile";
