@@ -1,0 +1,23 @@
+SignalId,Type,Units,SourceType,Source,Notes
+FuelDeltaL_Current,double,L,PluginCalc,Fuel.Delta_LitresCurrent,Fuel deficit
+PitWindowOpen,bool,-,PluginCalc,Fuel.IsPitWindowOpen,Pit window open
+RejoinThreatLevel,int,level,PluginCalc,RejoinAssistEngine,Threat scoring
+FuelLapsRemaining,double,Laps,PluginCalc,Fuel.LiveLapsRemainingInRace,Used by: fuel.pit_required_* messages
+RejoinReasonCode,int,code,PluginCalc,RejoinAlertReasonCode,Token for rejoin reason; used by rejoin.threat_*
+FlagSessionFlags,int,bitmask,SimHubProperty,DataCorePlugin.GameRawData.Telemetry.SessionFlags,iRacing session flags bitmask; decode green/blue/yellow/white/checkered/black/meatball
+PaceMode,int,mode,SimHubProperty,DataCorePlugin.GameRawData.Telemetry.PaceMode,Detects safety car/pace car phases
+CompletedLaps,int,laps,SimHubProperty,DataCorePlugin.GameData.CompletedLaps,Gate green start announcements to lap 0/1
+PitServiceFuelDone,bool,-,SimHubProperty,DataCorePlugin.GameRawData.Telemetry.PlayerCarPitSvFlags (FuelDone bit),True once refuel service is complete this stop
+FuelDeltaLaps,double,laps,PluginCalc,Fuel.DeltaLaps,Negative when short on fuel; used by fuel.save_required
+FuelCanPush,bool,-,PluginCalc,Fuel.CanAffordToPush,True when push burn still finishes; used by fuel.push_ok
+TrafficBehindGapSeconds,double,s,iRacingExtraProperties,IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer,Seconds to closest car behind; use to detect close/approaching traffic
+TrafficBehindDistanceM,double,m,iRacingExtraProperties,IRacingExtraProperties.iRacing_DriverBehind_00_DistanceToPlayer,Distance to car behind; use for attack (<10 m) alerts
+TrafficBehindClass,string,-,iRacingExtraProperties,IRacingExtraProperties.iRacing_DriverBehind_00_ClassName,Class of trailing car; combine with player class to find faster-class approaches
+PlayerClassName,string,-,iRacingExtraProperties,IRacingExtraProperties.iRacing_Player_ClassName,Player class label; compare to TrafficBehindClass
+DriverAheadGapSeconds,double,s,iRacingExtraProperties,IRacingExtraProperties.iRacing_DriverAhead_00_RelativeGapToPlayer,Gap to car ahead for strategy overtake timing
+PlayerPaceLast5LapAvg,double,s,PluginCalc,Pace.Last5LapAvgSec,Player recent average pace; needed to project catch laps
+PlayerClassPosition,int,pos,SimHubProperty,DataCorePlugin.GameData.PositionInClass,Use with previous tick to detect position changes
+IncidentCount,int,pts,SimHubProperty,DataCorePlugin.GameRawData.Telemetry.PlayerCarDriverIncidentCount,Total incident points; for racecontrol.inc_points
+SlowDownTimeRemaining,double,s,iRacingExtraProperties,IRacingExtraProperties.iRacing_SlowDownTime,Active slowdown penalty countdown
+IncidentAheadWarning,bool,-,PluginCalc,TBD plugin calc: detect slow/incident car ahead on track,GAP: needs new detection using opponent pace/track distance
+RejoinTimeToThreat,double,s,PluginCalc,RejoinTimeToThreat,Seconds to nearest threat; supplemental to threat level
