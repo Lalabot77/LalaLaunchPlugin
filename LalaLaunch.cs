@@ -12,6 +12,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Media;
+using LaunchPlugin.Messaging;
 
 
 namespace LaunchPlugin
@@ -77,6 +78,7 @@ namespace LaunchPlugin
             // Single-button binding entry point: follows timed → state → action priority
             _msgSystem?.TriggerMsgCx();
             _rejoinEngine?.TriggerMsgCxOverride();
+            _msgV1Engine?.OnMsgCxPressed();
         }
 
         public void MsgCxTimeOnly()
@@ -167,6 +169,10 @@ namespace LaunchPlugin
 
         // --- Expose the direct travel time calculated by PitEngine ---
         public double LastDirectTravelTime => _pit?.LastDirectTravelTime ?? 0.0;
+        public string CurrentFasterClassApproachLine => _msgSystem?.OvertakeApproachLine ?? string.Empty;
+        public ThreatLevel CurrentRejoinThreat => _rejoinEngine?.CurrentThreatLevel ?? ThreatLevel.CLEAR;
+        public RejoinReason CurrentRejoinReason => _rejoinEngine?.CurrentLogicCode ?? RejoinReason.None;
+        public double CurrentRejoinTimeToThreat => _rejoinEngine?.TimeToThreatSeconds ?? double.NaN;
 
         public bool OverallLeaderHasFinished
         {
@@ -2407,6 +2413,7 @@ namespace LaunchPlugin
         // Code Engines
         private RejoinAssistEngine _rejoinEngine;
         private MessagingSystem _msgSystem;
+        private MessageEngine _msgV1Engine;
         private PitEngine _pit;
 
         private enum LaunchState
@@ -2812,6 +2819,27 @@ namespace LaunchPlugin
             AttachCore("MSG.MsgCxStateToken", () => _msgSystem.MsgCxStateToken);
             AttachCore("MSG.MsgCxActionMessage", () => _msgSystem.MsgCxActionMessage);
             AttachCore("MSG.MsgCxActionPulse", () => _msgSystem.MsgCxActionPulse);
+
+            _msgV1Engine = new MessageEngine(pluginManager, this);
+            AttachCore("MSGV1.ActiveText_Lala", () => _msgV1Engine?.Outputs.ActiveTextLala ?? string.Empty);
+            AttachCore("MSGV1.ActivePriority_Lala", () => _msgV1Engine?.Outputs.ActivePriorityLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveMsgId_Lala", () => _msgV1Engine?.Outputs.ActiveMsgIdLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveText_Msg", () => _msgV1Engine?.Outputs.ActiveTextMsg ?? string.Empty);
+            AttachCore("MSGV1.ActivePriority_Msg", () => _msgV1Engine?.Outputs.ActivePriorityMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveMsgId_Msg", () => _msgV1Engine?.Outputs.ActiveMsgIdMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveCount", () => _msgV1Engine?.Outputs.ActiveCount ?? 0);
+            AttachCore("MSGV1.LastCancelMsgId", () => _msgV1Engine?.Outputs.LastCancelMsgId ?? string.Empty);
+            AttachCore("MSGV1.ClearAllPulse", () => _msgV1Engine?.Outputs.ClearAllPulse ?? false);
+            AttachCore("MSGV1.StackCsv", () => _msgV1Engine?.Outputs.StackCsv ?? string.Empty);
+            AttachCore("MSGV1.ActiveTextColor_Lala", () => _msgV1Engine?.Outputs.ActiveTextColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveBgColor_Lala", () => _msgV1Engine?.Outputs.ActiveBgColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveOutlineColor_Lala", () => _msgV1Engine?.Outputs.ActiveOutlineColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveFontSize_Lala", () => _msgV1Engine?.Outputs.ActiveFontSizeLala ?? 24);
+            AttachCore("MSGV1.ActiveTextColor_Msg", () => _msgV1Engine?.Outputs.ActiveTextColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveBgColor_Msg", () => _msgV1Engine?.Outputs.ActiveBgColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveOutlineColor_Msg", () => _msgV1Engine?.Outputs.ActiveOutlineColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveFontSize_Msg", () => _msgV1Engine?.Outputs.ActiveFontSizeMsg ?? 24);
+            AttachCore("MSGV1.MissingEvaluatorsCsv", () => _msgV1Engine?.Outputs.MissingEvaluatorsCsv ?? string.Empty);
 
             _pit = new PitEngine(() =>
             {
@@ -3384,6 +3412,8 @@ namespace LaunchPlugin
                     _msgSystem.Update(data, pluginManager);
                 else
                     _msgSystem.MaintainMsgCxTimers();
+
+                _msgV1Engine?.Tick(data);
             }
 
             // --- Launch State helpers (need tick-level responsiveness) ---
@@ -3496,6 +3526,7 @@ namespace LaunchPlugin
             if (!string.IsNullOrEmpty(_lastFuelSessionType) && currentSession != _lastFuelSessionType)
             {
                 HandleSessionChangeForFuelModel(_lastFuelSessionType, currentSession);
+                _msgV1Engine?.ResetSession();
             }
             _lastFuelSessionType = currentSession;
 

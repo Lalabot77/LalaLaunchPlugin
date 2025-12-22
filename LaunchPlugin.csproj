@@ -111,6 +111,12 @@
     <Compile Include="LaunchAnalysisControl.xaml.cs">
       <DependentUpon>LaunchAnalysisControl.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Messaging\MessageDefinition.cs" />
+    <Compile Include="Messaging\MessageDefinitionStore.cs" />
+    <Compile Include="Messaging\MessageEvaluators.cs" />
+    <Compile Include="Messaging\MessageEngine.cs" />
+    <Compile Include="Messaging\MessageInstance.cs" />
+    <Compile Include="Messaging\SignalProvider.cs" />
     <Compile Include="LaunchPluginCombinedSettingsControl.xaml.cs">
       <DependentUpon>LaunchPluginCombinedSettingsControl.xaml</DependentUpon>
     </Compile>
