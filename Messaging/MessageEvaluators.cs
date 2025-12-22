@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using SimHub.Logging;
 
 namespace LaunchPlugin.Messaging
 {
