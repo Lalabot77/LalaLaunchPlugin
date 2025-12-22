@@ -84,6 +84,8 @@ namespace LaunchPlugin.Messaging
             if (_latchedThisSession) return false;
 
             if (!TryGet(signals, "PitStopsRequiredByFuel", out int stopsRequired)) return false;
+            if (!TryGet(signals, "FuelIsReady", out bool fuelReady)) return false;
+            if (!fuelReady) return false;
             if (stopsRequired != 0) return false;
 
             _latchedThisSession = true;

@@ -434,6 +434,14 @@ namespace LaunchPlugin
             }
         }
 
+        public bool IsFuelReady
+        {
+            get
+            {
+                return LiveFuelPerLap_StableConfidence >= GetFuelReadyConfidenceThreshold();
+            }
+        }
+
         private PitCycleLite _pitLite; // simple, deterministic pit-cycle surface for the test dash
 
         // Freeze latched pit debug values after we finalize at the end of OUT LAP.
