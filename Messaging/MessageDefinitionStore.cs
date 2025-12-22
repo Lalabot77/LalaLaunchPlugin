@@ -90,15 +90,15 @@ namespace LaunchPlugin.Messaging
                     Priority = MessagePriority.Med,
                     EnableOnLalaDash = false,
                     EnableOnMsgDash = true,
-                    ActiveUntil = MessageActiveUntil.DelayThenClear,
-                    ActiveUntilDelayMs = 3000,
+                    ActiveUntil = MessageActiveUntil.UntilStateChange,
+                    ActiveUntilDelayMs = 0,
                     MsgCxAction = MessageCancelAction.UntilStateChange,
                     MsgCxDelayMs = 0,
                     MinOnTimeMS = 1000,
                     MinCoolDownMS = 5000,
-                    EvaluatorId = "Eval_FuelPitRequired",
+                    EvaluatorId = "Eval_PitRequiredCaution",
                     RequiredSignals = new List<string> { "FuelLapsRemaining" },
-                    TokenSpec = "deficit-band",
+                    TokenSpec = "PIT_SOON",
                     TextTemplate = "BOX WITHIN 2 LAPS",
                     Notes = "Caution Yellow message active when only 2 laps fuel left"
                 },
@@ -116,9 +116,9 @@ namespace LaunchPlugin.Messaging
                     MsgCxDelayMs = 0,
                     MinOnTimeMS = 1000,
                     MinCoolDownMS = 5000,
-                    EvaluatorId = "Eval_FuelPitRequired",
+                    EvaluatorId = "Eval_PitRequiredWarning",
                     RequiredSignals = new List<string> { "FuelLapsRemaining" },
-                    TokenSpec = "deficit-band",
+                    TokenSpec = "PIT_NOW",
                     TextTemplate = "BOX BOX BOX NOW",
                     Notes = "Warning Red message active when only 1 lap of fuel left"
                 },
@@ -177,8 +177,8 @@ namespace LaunchPlugin.Messaging
                     MinCoolDownMS = 0,
                     EvaluatorId = "Eval_FlagBlue",
                     RequiredSignals = new List<string> { "FlagSessionFlags" },
-                    TokenSpec = null,
-                    TextTemplate = "Blue Flag {Time behind}"
+                    TokenSpec = "BLUE",
+                    TextTemplate = "Blue Flag"
                 },
                 new MessageDefinition
                 {
@@ -399,13 +399,13 @@ namespace LaunchPlugin.Messaging
                     EnableOnMsgDash = true,
                     ActiveUntil = MessageActiveUntil.DelayThenClear,
                     ActiveUntilDelayMs = 5000,
-                    MsgCxAction = MessageCancelAction.UntilStateChange,
+                    MsgCxAction = MessageCancelAction.UntilSessionEnd,
                     MsgCxDelayMs = 0,
                     MinOnTimeMS = 1000,
                     MinCoolDownMS = 5000,
                     EvaluatorId = "Eval_FuelCanPush",
-                    RequiredSignals = new List<string> { "FuelCanPush" },
-                    TokenSpec = null,
+                    RequiredSignals = new List<string> { "FuelCanPush", "PitStopsRequiredByFuel" },
+                    TokenSpec = "PUSH_OK",
                     TextTemplate = "Fuel OK to push"
                 },
                 new MessageDefinition
@@ -462,8 +462,8 @@ namespace LaunchPlugin.Messaging
                     MinCoolDownMS = 2000,
                     EvaluatorId = "Eval_TrafficBehindClose",
                     RequiredSignals = new List<string> { "TrafficBehindGapSeconds" },
-                    TokenSpec = "carId",
-                    TextTemplate = "Car behind close {XXs}"
+                    TokenSpec = "BEHIND_CLOSE",
+                    TextTemplate = "Car behind close"
                 },
                 new MessageDefinition
                 {
@@ -481,15 +481,15 @@ namespace LaunchPlugin.Messaging
                     MinCoolDownMS = 2000,
                     EvaluatorId = "Eval_TrafficBehindFast",
                     RequiredSignals = new List<string> { "TrafficBehindDistanceM" },
-                    TokenSpec = "carId",
-                    TextTemplate = "Under attack {XXm}"
+                    TokenSpec = "BEHIND_ATTACK",
+                    TextTemplate = "Under attack"
                 },
                 new MessageDefinition
                 {
                     MsgId = "traffic.fasterclass_behind",
                     Name = "Faster Class Approachng",
                     Category = "Traffic",
-                    Priority = MessagePriority.Med,
+                    Priority = MessagePriority.High,
                     EnableOnLalaDash = true,
                     EnableOnMsgDash = true,
                     ActiveUntil = MessageActiveUntil.UntilStateChange,
@@ -499,9 +499,9 @@ namespace LaunchPlugin.Messaging
                     MinOnTimeMS = 1000,
                     MinCoolDownMS = 1000,
                     EvaluatorId = "Eval_FasterClassBehind",
-                    RequiredSignals = new List<string> { "TrafficBehindGapSeconds", "TrafficBehindClass", "PlayerClassName" },
-                    TokenSpec = "carId",
-                    TextTemplate = "Faster Class {Class PXX} Approching {XXs}"
+                    RequiredSignals = new List<string> { "FasterClassApproachLine" },
+                    TokenSpec = "FASTER_CLASS",
+                    TextTemplate = "Faster class approaching"
                 },
                 new MessageDefinition
                 {
@@ -521,44 +521,6 @@ namespace LaunchPlugin.Messaging
                     RequiredSignals = new List<string> { "IncidentAheadWarning" },
                     TokenSpec = null,
                     TextTemplate = "Incident ahead in {XXm}"
-                },
-                new MessageDefinition
-                {
-                    MsgId = "rejoin.threat_high",
-                    Name = "Rejoin risk HIGH",
-                    Category = "Rejoin",
-                    Priority = MessagePriority.High,
-                    EnableOnLalaDash = true,
-                    EnableOnMsgDash = true,
-                    ActiveUntil = MessageActiveUntil.UntilStateChange,
-                    ActiveUntilDelayMs = 0,
-                    MsgCxAction = MessageCancelAction.UntilStateChange,
-                    MsgCxDelayMs = 0,
-                    MinOnTimeMS = 1000,
-                    MinCoolDownMS = 3000,
-                    EvaluatorId = "Eval_RejoinThreatHigh",
-                    RequiredSignals = new List<string> { "RejoinThreatLevel" },
-                    TokenSpec = "reason-code",
-                    TextTemplate = "Rejoin risk HIGH"
-                },
-                new MessageDefinition
-                {
-                    MsgId = "rejoin.threat_med",
-                    Name = "Rejoin risk MED",
-                    Category = "Rejoin",
-                    Priority = MessagePriority.Med,
-                    EnableOnLalaDash = true,
-                    EnableOnMsgDash = true,
-                    ActiveUntil = MessageActiveUntil.UntilStateChange,
-                    ActiveUntilDelayMs = 0,
-                    MsgCxAction = MessageCancelAction.UntilStateChange,
-                    MsgCxDelayMs = 0,
-                    MinOnTimeMS = 1000,
-                    MinCoolDownMS = 3000,
-                    EvaluatorId = "Eval_RejoinThreatMed",
-                    RequiredSignals = new List<string> { "RejoinThreatLevel" },
-                    TokenSpec = "reason-code",
-                    TextTemplate = "Rejoin risk MED"
                 },
                 new MessageDefinition
                 {

@@ -42,6 +42,14 @@ namespace LaunchPlugin.Messaging
             _suppression.Clear();
             _lastShownStack.Clear();
             _outputs.Clear();
+
+            foreach (var evaluator in _evaluators.Values)
+            {
+                if (evaluator is IResettableEvaluator resettable)
+                {
+                    resettable.Reset();
+                }
+            }
         }
 
         public void Tick(GameReaderCommon.GameData data)
@@ -326,15 +334,14 @@ namespace LaunchPlugin.Messaging
         {
             return new Dictionary<string, IMessageEvaluator>(StringComparer.OrdinalIgnoreCase)
             {
-                { "Eval_FuelPitRequired", new FuelPitRequiredEvaluator() },
+                { "Eval_PitRequiredCaution", new PitRequiredEvaluator(isWarning: false) },
+                { "Eval_PitRequiredWarning", new PitRequiredEvaluator(isWarning: true) },
                 { "Eval_FuelSaveRequired", new FuelSaveEvaluator() },
                 { "Eval_FuelCanPush", new FuelCanPushEvaluator() },
                 { "Eval_PitWindowOpen", new PitWindowOpenEvaluator() },
                 { "Eval_RefuelComplete", new RefuelCompleteEvaluator() },
                 { "Eval_SlowDown", new SlowDownEvaluator() },
                 { "Eval_IncPoints", new IncidentPointsEvaluator() },
-                { "Eval_RejoinThreatHigh", new RejoinThreatEvaluator((int)ThreatLevel.WARNING) },
-                { "Eval_RejoinThreatMed", new RejoinThreatEvaluator((int)ThreatLevel.CAUTION) },
                 { "Eval_TrafficBehindClose", new TrafficBehindCloseEvaluator() },
                 { "Eval_TrafficBehindFast", new TrafficBehindFastEvaluator() },
                 { "Eval_FasterClassBehind", new FasterClassBehindEvaluator() },

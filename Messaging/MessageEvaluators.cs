@@ -16,6 +16,11 @@ namespace LaunchPlugin.Messaging
         bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result);
     }
 
+    internal interface IResettableEvaluator
+    {
+        void Reset();
+    }
+
     internal abstract class BaseEvaluator : IMessageEvaluator
     {
         public abstract bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result);
@@ -33,35 +38,6 @@ namespace LaunchPlugin.Messaging
         protected bool TryGet<T>(ISignalProvider signals, string id, out T value)
         {
             return signals.TryGet(id, out value);
-        }
-    }
-
-    internal class FuelPitRequiredEvaluator : BaseEvaluator
-    {
-        public override bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
-        {
-            result = null;
-            if (!TryGet(signals, "FuelLapsRemaining", out double lapsRemaining)) return false;
-            if (double.IsNaN(lapsRemaining)) return false;
-
-            if (string.Equals(definition.MsgId, "fuel.pit_required_Warning", StringComparison.OrdinalIgnoreCase))
-            {
-                if (lapsRemaining <= 1.05)
-                {
-                    result = Build(definition.TextTemplate, "crit");
-                    return true;
-                }
-            }
-            else
-            {
-                if (lapsRemaining <= 2.05 && lapsRemaining > 1.05)
-                {
-                    result = Build(definition.TextTemplate, "soon");
-                    return true;
-                }
-            }
-
-            return false;
         }
     }
 
@@ -85,15 +61,33 @@ namespace LaunchPlugin.Messaging
         }
     }
 
-    internal class FuelCanPushEvaluator : BaseEvaluator
+    internal class FuelCanPushEvaluator : BaseEvaluator, IResettableEvaluator
     {
+        private bool _latchedThisSession;
+
+        public void Reset()
+        {
+            _latchedThisSession = false;
+        }
+
         public override bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
         {
             result = null;
-            if (!TryGet(signals, "FuelCanPush", out bool canPush)) return false;
-            if (!canPush) return false;
 
-            result = Build(definition.TextTemplate);
+            if (!TryGet(signals, "SessionTypeName", out string sessionType) ||
+                !string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase))
+            {
+                _latchedThisSession = false;
+                return false;
+            }
+
+            if (_latchedThisSession) return false;
+
+            if (!TryGet(signals, "PitStopsRequiredByFuel", out int stopsRequired)) return false;
+            if (stopsRequired != 0) return false;
+
+            _latchedThisSession = true;
+            result = Build(definition.TextTemplate, "PUSH_OK");
             return true;
         }
     }
@@ -131,7 +125,7 @@ namespace LaunchPlugin.Messaging
             if (!TryGet(signals, "SlowDownTimeRemaining", out double remaining)) return false;
             if (!(remaining > 0)) return false;
 
-            result = Build(definition.TextTemplate, remaining.ToString("0.0"));
+            result = Build(definition.TextTemplate, "SLOWDOWN");
             return true;
         }
     }
@@ -150,36 +144,55 @@ namespace LaunchPlugin.Messaging
             if (!TryGet(signals, "IncidentCount", out int incidents)) return false;
             if (incidents >= _threshold)
             {
-                result = Build(definition.TextTemplate, incidents.ToString());
+                result = Build(definition.TextTemplate, "INCIDENT_WARN");
                 return true;
             }
             return false;
         }
     }
 
-    internal class RejoinThreatEvaluator : BaseEvaluator
+    internal class PitRequiredEvaluator : BaseEvaluator
     {
-        private readonly int _minLevel;
-        private readonly string _reasonSignal;
+        private readonly bool _isWarning;
 
-        public RejoinThreatEvaluator(int minLevel, string reasonSignal = "RejoinReasonCode")
+        public PitRequiredEvaluator(bool isWarning)
         {
-            _minLevel = minLevel;
-            _reasonSignal = reasonSignal;
+            _isWarning = isWarning;
         }
 
         public override bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
         {
             result = null;
-            if (!TryGet(signals, "RejoinThreatLevel", out int level)) return false;
-            if (level < _minLevel) return false;
 
-            string token = null;
-            if (TryGet(signals, _reasonSignal, out int reason))
-                token = reason.ToString();
+            if (!TryGet(signals, "SessionTypeName", out string sessionType) ||
+                !string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
 
-            result = Build(definition.TextTemplate, token);
-            return true;
+            if (!TryGet(signals, "FuelLapsRemaining", out double lapsRemaining)) return false;
+            if (double.IsNaN(lapsRemaining)) return false;
+
+            if (_isWarning)
+            {
+                if (lapsRemaining <= 0.0)
+                {
+                    result = Build(definition.TextTemplate, "PIT_NOW");
+                    return true;
+                }
+            }
+            else
+            {
+                if (lapsRemaining > 0.0 && lapsRemaining < 2.0)
+                {
+                    // Do not show if warning condition is already true
+                    if (lapsRemaining <= 0.0) return false;
+                    result = Build(definition.TextTemplate, "PIT_SOON");
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 
@@ -198,7 +211,7 @@ namespace LaunchPlugin.Messaging
             if (!TryGet(signals, "TrafficBehindGapSeconds", out double gap)) return false;
             if (!(gap > 0) || gap > _threshold) return false;
 
-            result = Build(definition.TextTemplate, gap.ToString("0.0"));
+            result = Build(definition.TextTemplate, "BEHIND_CLOSE");
             return true;
         }
     }
@@ -217,39 +230,27 @@ namespace LaunchPlugin.Messaging
             result = null;
             if (!TryGet(signals, "TrafficBehindDistanceM", out double dist)) return false;
             if (!(dist > 0) || dist > _distanceThreshold) return false;
-            result = Build(definition.TextTemplate, dist.ToString("0"));
+            result = Build(definition.TextTemplate, "BEHIND_ATTACK");
             return true;
         }
     }
 
     internal class FasterClassBehindEvaluator : BaseEvaluator
     {
-        private readonly double _gapThreshold;
-
-        public FasterClassBehindEvaluator(double gapSeconds = 2.5)
-        {
-            _gapThreshold = gapSeconds;
-        }
-
         public override bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
         {
             result = null;
-            if (!TryGet(signals, "TrafficBehindGapSeconds", out double gap)) return false;
-            if (!(gap > 0) || gap > _gapThreshold) return false;
 
-            string behindClass = null;
-            string myClass = null;
-            TryGet(signals, "TrafficBehindClass", out behindClass);
-            TryGet(signals, "PlayerClassName", out myClass);
-
-            if (string.IsNullOrWhiteSpace(behindClass) || string.IsNullOrWhiteSpace(myClass))
+            if (!TryGet(signals, "SessionTypeName", out string sessionType) ||
+                !string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase))
+            {
                 return false;
+            }
 
-            if (string.Equals(behindClass, myClass, StringComparison.OrdinalIgnoreCase))
-                return false;
+            if (!TryGet(signals, "FasterClassApproachLine", out string line)) return false;
+            if (string.IsNullOrWhiteSpace(line)) return false;
 
-            var token = $"{behindClass} {gap:0.0}s";
-            result = Build(definition.TextTemplate, token);
+            result = Build(definition.TextTemplate, "FASTER_CLASS");
             return true;
         }
     }
@@ -269,7 +270,7 @@ namespace LaunchPlugin.Messaging
             {
                 _lastPosition = pos;
                 _lastUpdateUtc = utcNow;
-                result = Build(definition.TextTemplate.Replace("{PXX}", $"P{pos}"), $"P{pos}");
+                result = Build(definition.TextTemplate.Replace("{PXX}", $"P{pos}"), "POS_CHANGE");
                 return true;
             }
 
@@ -305,7 +306,7 @@ namespace LaunchPlugin.Messaging
             if (!TryGet(signals, "FlagSessionFlags", out int flags)) return false;
             if ((flags & SessionFlagBits.Green) != 0)
             {
-                result = Build(definition.TextTemplate);
+                result = Build(definition.TextTemplate, "GREEN");
                 return true;
             }
             return false;
@@ -326,7 +327,12 @@ namespace LaunchPlugin.Messaging
             if (!TryGet(signals, "FlagSessionFlags", out int flags)) return false;
             if ((flags & _flagMask) != 0)
             {
-                result = Build(definition.TextTemplate);
+                var token = _flagMask == SessionFlagBits.Blue ? "BLUE" :
+                    _flagMask == SessionFlagBits.White ? "WHITE" :
+                    _flagMask == SessionFlagBits.Checkered ? "CHECKERED" :
+                    _flagMask == SessionFlagBits.Black ? "BLACK" :
+                    _flagMask == SessionFlagBits.Meatball ? "MEATBALL" : "FLAG";
+                result = Build(definition.TextTemplate, token);
                 return true;
             }
             return false;

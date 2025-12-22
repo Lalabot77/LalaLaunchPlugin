@@ -26,3 +26,5 @@ Migration tips
 - Point existing dashboard “active message” labels at `MSGV1.ActiveText_Lala` (Lala dash) or `MSGV1.ActiveText_Msg` (Msg dash) to pick up the new stack-based selection.
 - Bind any cancel/clear button to the existing `MsgCxPressed` trigger; no new inputs are required.
 - Keep legacy `MSG.*` lanes intact for now; they remain exported but are no longer required for the new engine.
+- Fuel “push OK” now fires once per session (race only) when no further fuel stops are required.
+- Pit messages are mutually exclusive: `PIT_NOW` (<=0 laps) overrides `PIT_SOON` (<2 laps) in races and neither loops while their state holds.

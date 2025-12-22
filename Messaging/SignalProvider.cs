@@ -66,16 +66,13 @@ namespace LaunchPlugin.Messaging
                 { "FuelLapsRemaining", () => _plugin?.LiveLapsRemainingInRace },
                 { "FuelDeltaLaps", () => _plugin?.DeltaLaps },
                 { "FuelCanPush", () => _plugin?.CanAffordToPush },
+                { "PitStopsRequiredByFuel", () => _plugin?.PitStopsRequiredByFuel },
                 { "PitWindowOpen", () => _plugin?.IsPitWindowOpen },
-
-                // Rejoin
-                { "RejoinThreatLevel", () => (int)(_plugin?.CurrentRejoinThreat ?? ThreatLevel.CLEAR) },
-                { "RejoinReasonCode", () => (int)(_plugin?.CurrentRejoinReason ?? RejoinReason.None) },
-                { "RejoinTimeToThreat", () => _plugin?.CurrentRejoinTimeToThreat ?? double.NaN },
 
                 // Flags and sessions (SimHub properties)
                 { "FlagSessionFlags", () => _pluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionFlags") },
                 { "PaceMode", () => _pluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PaceMode") },
+                { "SessionTypeName", () => _pluginManager?.GetPropertyValue("DataCorePlugin.GameData.SessionTypeName") },
                 { "CompletedLaps", () => _pluginManager?.GetPropertyValue("DataCorePlugin.GameData.CompletedLaps") },
                 { "PitServiceFuelDone", () => ReadPitServiceFuelDone() },
 
@@ -85,6 +82,7 @@ namespace LaunchPlugin.Messaging
                 { "TrafficBehindClass", () => _pluginManager?.GetPropertyValue("IRacingExtraProperties.iRacing_DriverBehind_00_ClassName") },
                 { "PlayerClassName", () => _pluginManager?.GetPropertyValue("IRacingExtraProperties.iRacing_Player_ClassName") },
                 { "DriverAheadGapSeconds", () => _pluginManager?.GetPropertyValue("IRacingExtraProperties.iRacing_DriverAhead_00_RelativeGapToPlayer") },
+                { "FasterClassApproachLine", () => _plugin?.CurrentFasterClassApproachLine },
 
                 // Pace / incident
                 { "PlayerPaceLast5LapAvg", () => _plugin?.Pace_Last5LapAvgSec },

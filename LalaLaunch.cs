@@ -169,6 +169,7 @@ namespace LaunchPlugin
 
         // --- Expose the direct travel time calculated by PitEngine ---
         public double LastDirectTravelTime => _pit?.LastDirectTravelTime ?? 0.0;
+        public string CurrentFasterClassApproachLine => _msgSystem?.OvertakeApproachLine ?? string.Empty;
         public ThreatLevel CurrentRejoinThreat => _rejoinEngine?.CurrentThreatLevel ?? ThreatLevel.CLEAR;
         public RejoinReason CurrentRejoinReason => _rejoinEngine?.CurrentLogicCode ?? RejoinReason.None;
         public double CurrentRejoinTimeToThreat => _rejoinEngine?.TimeToThreatSeconds ?? double.NaN;
