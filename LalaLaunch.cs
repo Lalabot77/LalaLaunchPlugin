@@ -2346,7 +2346,6 @@ namespace LaunchPlugin
         private bool _hasCapturedLaunchRPMForRun = false;
         private bool _hasCapturedReactionTime = false;
         private bool _hasLoggedCurrentRun = false;
-        private bool _hasProcessedOnTrack = false;
         private bool _hasValidClutchReleaseData = false;
         private bool _hasValidLaunchData = false;
         private bool _isAntiStallActive = false;
@@ -2375,6 +2374,12 @@ namespace LaunchPlugin
         private DateTime _launchEndTime = DateTime.MinValue;
         private bool _launchModeUserDisabled = false;
         private DateTime _manualPrimedStartedAt = DateTime.MinValue;
+        private string _dashDesiredPage = "practice";
+        private bool _dashPendingSwitch = false;
+        private bool _dashExecutedForCurrentArm = false;
+        private int _dashSwitchToken = 0;
+        private string _dashLastSessionType = string.Empty;
+        private bool _dashLastIgnitionOn = false;
 
         // --- FSM Helper Flags ---
         private bool IsIdle => _currentLaunchState == LaunchState.Idle;
@@ -3530,36 +3535,60 @@ namespace LaunchPlugin
             }
             _lastFuelSessionType = currentSession;
 
-            // --- AUTO DASH SWITCHING BASED ON ON-TRACK STATUS ---
-            if (Settings.EnableAutoDashSwitch && isOnTrack && !_hasProcessedOnTrack)
+            // --- AUTO DASH SWITCHING (READINESS-GATED, NO GLOBAL RESET) ---
+            bool isInCar = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsInCar") ?? false);
+            bool ignitionOn = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IgnitionOn") ?? false);
+            bool engineRunning = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.EngineRunning") ?? false);
+
+            if (Settings.EnableAutoDashSwitch && !string.IsNullOrWhiteSpace(currentSession) && !string.Equals(currentSession, _dashLastSessionType, StringComparison.Ordinal))
             {
-                _hasProcessedOnTrack = true;
+                _dashLastSessionType = currentSession;
+                _dashPendingSwitch = true;
+                _dashExecutedForCurrentArm = false;
+                _dashSwitchToken++;
                 _lastSessionType = currentSession;
-                SimHub.Logging.Current.Info("[LalaPlugin:Dash] New session on-track activity detected. Resetting all values.");
-                ResetAllValues();
+
+                switch (currentSession)
+                {
+                    case "Offline Testing": _dashDesiredPage = "practice"; break;
+                    case "Open Qualify":
+                    case "Lone Qualify":
+                    case "Qualifying":
+                    case "Warmup": _dashDesiredPage = "timing"; break;
+                    case "Race": _dashDesiredPage = "racing"; break;
+                    default: _dashDesiredPage = "practice"; break;
+                }
+            }
+
+            if (!ignitionOn && _dashLastIgnitionOn)
+            {
+                _dashPendingSwitch = true;
+                _dashExecutedForCurrentArm = false;
+                _dashSwitchToken++;
+                SimHub.Logging.Current.Info("[LalaPlugin:Dash] Ignition off detected – auto dash re-armed.");
+            }
+            _dashLastIgnitionOn = ignitionOn;
+
+            if (Settings.EnableAutoDashSwitch && _dashPendingSwitch && !_dashExecutedForCurrentArm && isInCar && (ignitionOn || engineRunning))
+            {
+                _dashExecutedForCurrentArm = true;
+                int token = _dashSwitchToken;
+                string pageToShow = _dashDesiredPage;
+                string sessionForLog = _dashLastSessionType;
+
                 Task.Run(async () =>
                 {
-                    string pageToShow = "practice";
-                    switch (_lastSessionType)
-                    {
-                        case "Offline Testing": pageToShow = "practice"; break;
-                        case "Open Qualify":
-                        case "Lone Qualify":
-                        case "Qualifying":
-                        case "Warmup": pageToShow = "timing"; break;
-                        case "Race": pageToShow = "racing"; break;
-                    }
                     Screens.Mode = "auto";
                     Screens.CurrentPage = pageToShow;
-                    SimHub.Logging.Current.Info($"[LalaPlugin:Dash] OnTrack detected – mode=auto, page='{Screens.CurrentPage}'.");
-                    await Task.Delay(2000);
-                    Screens.Mode = "manual";
-                    SimHub.Logging.Current.Info("[LalaPlugin:Dash] Auto mode timer expired – mode set to 'manual'.");
+                    _dashPendingSwitch = false;
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Dash] Auto dash executed for session '{sessionForLog}' – mode=auto, page='{Screens.CurrentPage}'.");
+                    await Task.Delay(750);
+                    if (token == _dashSwitchToken && Settings.EnableAutoDashSwitch)
+                    {
+                        Screens.Mode = "manual";
+                        SimHub.Logging.Current.Info("[LalaPlugin:Dash] Auto dash timer expired – mode set to 'manual'.");
+                    }
                 });
-            }
-            else if (!isOnTrack && _hasProcessedOnTrack)
-            {
-                _hasProcessedOnTrack = false;
             }
             bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false);
 
