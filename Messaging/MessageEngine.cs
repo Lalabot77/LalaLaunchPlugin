@@ -24,6 +24,7 @@ namespace LaunchPlugin.Messaging
 
         private readonly LaunchPlugin.LalaLaunch _plugin;
         private readonly PluginManager _pluginManager;
+        private string _missingEvaluatorsCsv = string.Empty;
 
         public MessageEngine(PluginManager pluginManager, LaunchPlugin.LalaLaunch plugin)
         {
@@ -31,6 +32,8 @@ namespace LaunchPlugin.Messaging
             _plugin = plugin;
             _definitions = MessageDefinitionStore.LoadOrCreateDefault().ToDictionary(d => d.MsgId, d => d, StringComparer.OrdinalIgnoreCase);
             _evaluators = BuildEvaluators();
+            RegisterMissingEvaluators();
+            _outputs.MissingEvaluatorsCsv = _missingEvaluatorsCsv;
         }
 
         public MessageEngineOutputs Outputs => _outputs;
@@ -373,12 +376,6 @@ namespace LaunchPlugin.Messaging
             if (def == null) return false;
             if (!string.IsNullOrEmpty(def.MsgId) && def.MsgId.StartsWith("flag.", StringComparison.OrdinalIgnoreCase))
                 return true;
-
-            if (string.Equals(def.Category, "Race Control", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrEmpty(def.EvaluatorId) &&
-                def.EvaluatorId.StartsWith("Eval_Flag", StringComparison.OrdinalIgnoreCase))
-                return true;
-
             return false;
         }
 
@@ -432,7 +429,7 @@ namespace LaunchPlugin.Messaging
 
             public const string TextLow = "#FFFFFFFF";      // white
             public const string BgLow = "#00000000";        // neutral transparent
-            public const string OutlineLow = "#FF000000";   // black
+            public const string OutlineLow = "#FFFFFFFF";   // white
         }
 
         private static class Colors
@@ -481,6 +478,33 @@ namespace LaunchPlugin.Messaging
         {
             SimHub.Logging.Current.Info($"[LalaPlugin:MSGV1] {message}");
         }
+
+        private void RegisterMissingEvaluators()
+        {
+            var referenced = _definitions.Values
+                .Where(d => !string.IsNullOrWhiteSpace(d.EvaluatorId))
+                .GroupBy(d => d.EvaluatorId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.Select(d => d.MsgId).ToList(), StringComparer.OrdinalIgnoreCase);
+
+            var missing = referenced.Keys.Where(k => !_evaluators.ContainsKey(k)).ToList();
+            if (missing.Count == 0)
+            {
+                _missingEvaluatorsCsv = string.Empty;
+                return;
+            }
+
+            foreach (var evalId in missing)
+            {
+                if (!referenced.TryGetValue(evalId, out var msgIds)) msgIds = new List<string>();
+                _evaluators[evalId] = new MissingEvaluator(evalId, msgIds);
+            }
+
+            _missingEvaluatorsCsv = string.Join(";", missing.Select(id =>
+            {
+                var msgs = referenced.TryGetValue(id, out var list) ? string.Join(",", list) : "";
+                return $"{id}|{msgs}";
+            }));
+        }
     }
 
     public class MessageEngineOutputs
@@ -488,44 +512,70 @@ namespace LaunchPlugin.Messaging
         public string ActiveTextLala { get; set; } = string.Empty;
         public string ActivePriorityLala { get; set; } = string.Empty;
         public string ActiveMsgIdLala { get; set; } = string.Empty;
-        public string ActiveTextColorLala { get; set; } = "#FFFFFFFF";
-        public string ActiveBgColorLala { get; set; } = "#00000000";
-        public string ActiveOutlineColorLala { get; set; } = "#FF000000";
+        public string ActiveTextColorLala { get; set; } = Defaults.TextLow;
+        public string ActiveBgColorLala { get; set; } = Defaults.BgLow;
+        public string ActiveOutlineColorLala { get; set; } = Defaults.OutlineLow;
         public int ActiveFontSizeLala { get; set; } = 24;
 
         public string ActiveTextMsg { get; set; } = string.Empty;
         public string ActivePriorityMsg { get; set; } = string.Empty;
         public string ActiveMsgIdMsg { get; set; } = string.Empty;
-        public string ActiveTextColorMsg { get; set; } = "#FFFFFFFF";
-        public string ActiveBgColorMsg { get; set; } = "#00000000";
-        public string ActiveOutlineColorMsg { get; set; } = "#FF000000";
+        public string ActiveTextColorMsg { get; set; } = Defaults.TextLow;
+        public string ActiveBgColorMsg { get; set; } = Defaults.BgLow;
+        public string ActiveOutlineColorMsg { get; set; } = Defaults.OutlineLow;
         public int ActiveFontSizeMsg { get; set; } = 24;
 
         public int ActiveCount { get; set; }
         public string LastCancelMsgId { get; set; } = string.Empty;
         public bool ClearAllPulse { get; set; }
         public string StackCsv { get; set; } = string.Empty;
+        public string MissingEvaluatorsCsv { get; set; } = string.Empty;
 
         public void Clear()
         {
             ActiveTextLala = string.Empty;
             ActivePriorityLala = string.Empty;
             ActiveMsgIdLala = string.Empty;
-            ActiveTextColorLala = "#FFFFFFFF";
-            ActiveBgColorLala = "#00000000";
-            ActiveOutlineColorLala = "#FF000000";
+            ActiveTextColorLala = Defaults.TextLow;
+            ActiveBgColorLala = Defaults.BgLow;
+            ActiveOutlineColorLala = Defaults.OutlineLow;
             ActiveFontSizeLala = 24;
             ActiveTextMsg = string.Empty;
             ActivePriorityMsg = string.Empty;
             ActiveMsgIdMsg = string.Empty;
-            ActiveTextColorMsg = "#FFFFFFFF";
-            ActiveBgColorMsg = "#00000000";
-            ActiveOutlineColorMsg = "#FF000000";
+            ActiveTextColorMsg = Defaults.TextLow;
+            ActiveBgColorMsg = Defaults.BgLow;
+            ActiveOutlineColorMsg = Defaults.OutlineLow;
             ActiveFontSizeMsg = 24;
             ActiveCount = 0;
             LastCancelMsgId = string.Empty;
             ClearAllPulse = false;
             StackCsv = string.Empty;
+            MissingEvaluatorsCsv = string.Empty;
+        }
+    }
+
+    internal class MissingEvaluator : IMessageEvaluator
+    {
+        private readonly string _id;
+        private readonly List<string> _msgIds;
+        private bool _logged;
+
+        public MissingEvaluator(string id, List<string> msgIds)
+        {
+            _id = id ?? "unknown";
+            _msgIds = msgIds ?? new List<string>();
+        }
+
+        public bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
+        {
+            result = null;
+            if (!_logged)
+            {
+                _logged = true;
+                SimHub.Logging.Current.Warn($"[LalaPlugin:MSGV1] Missing evaluator '{_id}' used by: {string.Join(",", _msgIds)}");
+            }
+            return false;
         }
     }
 }

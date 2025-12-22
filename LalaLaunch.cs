@@ -2839,6 +2839,7 @@ namespace LaunchPlugin
             AttachCore("MSGV1.ActiveBgColor_Msg", () => _msgV1Engine?.Outputs.ActiveBgColorMsg ?? string.Empty);
             AttachCore("MSGV1.ActiveOutlineColor_Msg", () => _msgV1Engine?.Outputs.ActiveOutlineColorMsg ?? string.Empty);
             AttachCore("MSGV1.ActiveFontSize_Msg", () => _msgV1Engine?.Outputs.ActiveFontSizeMsg ?? 24);
+            AttachCore("MSGV1.MissingEvaluatorsCsv", () => _msgV1Engine?.Outputs.MissingEvaluatorsCsv ?? string.Empty);
 
             _pit = new PitEngine(() =>
             {

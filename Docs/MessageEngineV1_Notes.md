@@ -37,5 +37,6 @@ Migration tips
 - Fuel “push OK” now fires once per session (race only) when no further fuel stops are required.
 - Pit messages are mutually exclusive: `PIT_NOW` (<=0 laps) overrides `PIT_SOON` (<2 laps) in races and neither loops while their state holds.
 - Style fields in JSON (MessageDefinition): `TextColor`, `BgColor`, `OutlineColor` (format `#AARRGGBB`, empty = use defaults) and `FontSize` (absolute, default 24).
-- Priority defaults (used when a color field is blank): High = red bg / yellow text+outline; Med = yellow bg / blue text+outline; Low = neutral transparent bg / white text / black outline.
+- Priority defaults (used when a color field is blank): High = red bg / yellow text+outline; Med = yellow bg / blue text+outline; Low = transparent bg / white text+outline.
 - Flag messages override background to match the flag color (e.g., yellow/blue/green/red/white/black/meatball/checkered) while keeping readable text/outline.
+- Missing evaluators are surfaced via a stub, logged once, and exported as `MSGV1.MissingEvaluatorsCsv` (e.g., `Eval_X|msg1,msg2`); this prevents silent skips when a catalog entry references an unimplemented evaluator.

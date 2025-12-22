@@ -79,7 +79,11 @@ namespace LaunchPlugin.Messaging
                 RequiredSignals = RequiredSignals == null ? new List<string>() : new List<string>(RequiredSignals),
                 TokenSpec = TokenSpec,
                 TextTemplate = TextTemplate,
-                Notes = Notes
+                Notes = Notes,
+                TextColor = TextColor,
+                BgColor = BgColor,
+                OutlineColor = OutlineColor,
+                FontSize = FontSize
             };
         }
 
