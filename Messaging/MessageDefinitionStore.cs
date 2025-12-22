@@ -37,6 +37,10 @@ namespace LaunchPlugin.Messaging
 
                 var json = File.ReadAllText(path);
                 var list = JsonConvert.DeserializeObject<List<MessageDefinition>>(json) ?? new List<MessageDefinition>();
+                foreach (var def in list)
+                {
+                    ApplyDefaults(def);
+                }
                 if (list.Count == 0)
                 {
                     list = BuildDefaultDefinitions();
@@ -77,10 +81,19 @@ namespace LaunchPlugin.Messaging
             try { action(); } catch { /* ignore */ }
         }
 
+        private static void ApplyDefaults(MessageDefinition def)
+        {
+            if (def == null) return;
+            if (def.FontSize <= 0) def.FontSize = 24;
+            def.TextColor = def.TextColor ?? string.Empty;
+            def.BgColor = def.BgColor ?? string.Empty;
+            def.OutlineColor = def.OutlineColor ?? string.Empty;
+        }
+
         // Hardcoded defaults derived from Message Catalog v5 (CSV contract)
         private static List<MessageDefinition> BuildDefaultDefinitions()
         {
-            return new List<MessageDefinition>
+            var list = new List<MessageDefinition>
             {
                 new MessageDefinition
                 {
@@ -561,6 +574,13 @@ namespace LaunchPlugin.Messaging
                     TextTemplate = "Incident points warning"
                 }
             };
+
+            foreach (var def in list)
+            {
+                ApplyDefaults(def);
+            }
+
+            return list;
         }
     }
 }

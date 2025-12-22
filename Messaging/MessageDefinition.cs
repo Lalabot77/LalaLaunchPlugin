@@ -51,6 +51,10 @@ namespace LaunchPlugin.Messaging
         public string TokenSpec { get; set; }
         public string TextTemplate { get; set; }
         public string Notes { get; set; }
+        public string TextColor { get; set; } = string.Empty;   // "#AARRGGBB" or empty for defaults
+        public string BgColor { get; set; } = string.Empty;     // "#AARRGGBB" or empty for defaults
+        public string OutlineColor { get; set; } = string.Empty; // "#AARRGGBB" or empty for defaults
+        public int FontSize { get; set; } = 24;                 // absolute size
 
         [JsonIgnore]
         public int PriorityValue => (int)Priority;

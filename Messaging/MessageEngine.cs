@@ -226,10 +226,20 @@ namespace LaunchPlugin.Messaging
             _outputs.ActiveMsgIdLala = lala?.MsgId ?? string.Empty;
             _outputs.ActiveTextLala = lala?.Text ?? string.Empty;
             _outputs.ActivePriorityLala = lala?.Definition.Priority.ToString() ?? string.Empty;
+            var lalaStyle = ResolveStyle(lala);
+            _outputs.ActiveTextColorLala = lalaStyle.TextColor;
+            _outputs.ActiveBgColorLala = lalaStyle.BgColor;
+            _outputs.ActiveOutlineColorLala = lalaStyle.OutlineColor;
+            _outputs.ActiveFontSizeLala = lalaStyle.FontSize;
 
             _outputs.ActiveMsgIdMsg = msg?.MsgId ?? string.Empty;
             _outputs.ActiveTextMsg = msg?.Text ?? string.Empty;
             _outputs.ActivePriorityMsg = msg?.Definition.Priority.ToString() ?? string.Empty;
+            var msgStyle = ResolveStyle(msg);
+            _outputs.ActiveTextColorMsg = msgStyle.TextColor;
+            _outputs.ActiveBgColorMsg = msgStyle.BgColor;
+            _outputs.ActiveOutlineColorMsg = msgStyle.OutlineColor;
+            _outputs.ActiveFontSizeMsg = msgStyle.FontSize;
 
             _outputs.ActiveCount = _active.Count;
             _outputs.StackCsv = string.Join(";", ordered.Select(m => $"{m.MsgId}|{m.Definition.Priority}"));
@@ -330,6 +340,113 @@ namespace LaunchPlugin.Messaging
                 _outputs.ClearAllPulse = false;
         }
 
+        private (string TextColor, string BgColor, string OutlineColor, int FontSize) ResolveStyle(MessageInstance inst)
+        {
+            if (inst == null || inst.Definition == null)
+                return (Defaults.TextLow, Defaults.BgLow, Defaults.OutlineLow, 24);
+
+            var def = inst.Definition;
+            bool isFlag = IsFlagMessage(def);
+            var priorityDefaults = GetPriorityDefaults(def.Priority);
+
+            string text = string.IsNullOrWhiteSpace(def.TextColor) ? priorityDefaults.Text : def.TextColor;
+            string outline = string.IsNullOrWhiteSpace(def.OutlineColor) ? priorityDefaults.Outline : def.OutlineColor;
+
+            string bg;
+            if (isFlag && string.IsNullOrWhiteSpace(def.BgColor))
+            {
+                bg = GetFlagBgColor(def.MsgId);
+                if (string.IsNullOrWhiteSpace(bg)) bg = priorityDefaults.Bg;
+            }
+            else
+            {
+                bg = string.IsNullOrWhiteSpace(def.BgColor) ? priorityDefaults.Bg : def.BgColor;
+            }
+
+            int fontSize = def.FontSize > 0 ? def.FontSize : 24;
+
+            return (text, bg, outline, fontSize);
+        }
+
+        private static bool IsFlagMessage(MessageDefinition def)
+        {
+            if (def == null) return false;
+            if (!string.IsNullOrEmpty(def.MsgId) && def.MsgId.StartsWith("flag.", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (string.Equals(def.Category, "Race Control", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(def.EvaluatorId) &&
+                def.EvaluatorId.StartsWith("Eval_Flag", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return false;
+        }
+
+        private static (string Text, string Bg, string Outline) GetPriorityDefaults(MessagePriority priority)
+        {
+            switch (priority)
+            {
+                case MessagePriority.High:
+                    return (Defaults.TextHigh, Defaults.BgHigh, Defaults.OutlineHigh);
+                case MessagePriority.Med:
+                    return (Defaults.TextMed, Defaults.BgMed, Defaults.OutlineMed);
+                default:
+                    return (Defaults.TextLow, Defaults.BgLow, Defaults.OutlineLow);
+            }
+        }
+
+        private static string GetFlagBgColor(string msgId)
+        {
+            if (string.IsNullOrWhiteSpace(msgId)) return Defaults.BgLow;
+            var id = msgId.ToLowerInvariant();
+
+            if (id.Contains("yellow"))
+                return Colors.Yellow;
+            if (id.Contains("blue"))
+                return Colors.Blue;
+            if (id.Contains("green"))
+                return Colors.Green;
+            if (id.Contains("white"))
+                return Colors.White;
+            if (id.Contains("red"))
+                return Colors.Red;
+            if (id.Contains("checkered") || id.Contains("chequered"))
+                return Colors.Checkered;
+            if (id.Contains("black"))
+                return Colors.Black;
+            if (id.Contains("meatball"))
+                return Colors.Meatball;
+
+            return Defaults.BgLow;
+        }
+
+        private static class Defaults
+        {
+            public const string TextHigh = "#FFFFFF00";     // yellow
+            public const string BgHigh = "#FFFF0000";       // red
+            public const string OutlineHigh = "#FFFFFF00";  // yellow
+
+            public const string TextMed = "#FF0000FF";      // blue
+            public const string BgMed = "#FFFFFF00";        // yellow
+            public const string OutlineMed = "#FF0000FF";   // blue
+
+            public const string TextLow = "#FFFFFFFF";      // white
+            public const string BgLow = "#00000000";        // neutral transparent
+            public const string OutlineLow = "#FF000000";   // black
+        }
+
+        private static class Colors
+        {
+            public const string Yellow = "#FFFFFF00";
+            public const string Blue = "#FF0000FF";
+            public const string Green = "#FF00FF00";
+            public const string Red = "#FFFF0000";
+            public const string White = "#FFFFFFFF";
+            public const string Black = "#FF000000";
+            public const string Meatball = "#FFFF8000";
+            public const string Checkered = "#FF000000"; // rely on light text
+        }
+
         private Dictionary<string, IMessageEvaluator> BuildEvaluators()
         {
             return new Dictionary<string, IMessageEvaluator>(StringComparer.OrdinalIgnoreCase)
@@ -371,10 +488,18 @@ namespace LaunchPlugin.Messaging
         public string ActiveTextLala { get; set; } = string.Empty;
         public string ActivePriorityLala { get; set; } = string.Empty;
         public string ActiveMsgIdLala { get; set; } = string.Empty;
+        public string ActiveTextColorLala { get; set; } = "#FFFFFFFF";
+        public string ActiveBgColorLala { get; set; } = "#00000000";
+        public string ActiveOutlineColorLala { get; set; } = "#FF000000";
+        public int ActiveFontSizeLala { get; set; } = 24;
 
         public string ActiveTextMsg { get; set; } = string.Empty;
         public string ActivePriorityMsg { get; set; } = string.Empty;
         public string ActiveMsgIdMsg { get; set; } = string.Empty;
+        public string ActiveTextColorMsg { get; set; } = "#FFFFFFFF";
+        public string ActiveBgColorMsg { get; set; } = "#00000000";
+        public string ActiveOutlineColorMsg { get; set; } = "#FF000000";
+        public int ActiveFontSizeMsg { get; set; } = 24;
 
         public int ActiveCount { get; set; }
         public string LastCancelMsgId { get; set; } = string.Empty;
@@ -386,9 +511,17 @@ namespace LaunchPlugin.Messaging
             ActiveTextLala = string.Empty;
             ActivePriorityLala = string.Empty;
             ActiveMsgIdLala = string.Empty;
+            ActiveTextColorLala = "#FFFFFFFF";
+            ActiveBgColorLala = "#00000000";
+            ActiveOutlineColorLala = "#FF000000";
+            ActiveFontSizeLala = 24;
             ActiveTextMsg = string.Empty;
             ActivePriorityMsg = string.Empty;
             ActiveMsgIdMsg = string.Empty;
+            ActiveTextColorMsg = "#FFFFFFFF";
+            ActiveBgColorMsg = "#00000000";
+            ActiveOutlineColorMsg = "#FF000000";
+            ActiveFontSizeMsg = 24;
             ActiveCount = 0;
             LastCancelMsgId = string.Empty;
             ClearAllPulse = false;

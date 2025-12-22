@@ -2831,6 +2831,14 @@ namespace LaunchPlugin
             AttachCore("MSGV1.LastCancelMsgId", () => _msgV1Engine?.Outputs.LastCancelMsgId ?? string.Empty);
             AttachCore("MSGV1.ClearAllPulse", () => _msgV1Engine?.Outputs.ClearAllPulse ?? false);
             AttachCore("MSGV1.StackCsv", () => _msgV1Engine?.Outputs.StackCsv ?? string.Empty);
+            AttachCore("MSGV1.ActiveTextColor_Lala", () => _msgV1Engine?.Outputs.ActiveTextColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveBgColor_Lala", () => _msgV1Engine?.Outputs.ActiveBgColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveOutlineColor_Lala", () => _msgV1Engine?.Outputs.ActiveOutlineColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveFontSize_Lala", () => _msgV1Engine?.Outputs.ActiveFontSizeLala ?? 24);
+            AttachCore("MSGV1.ActiveTextColor_Msg", () => _msgV1Engine?.Outputs.ActiveTextColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveBgColor_Msg", () => _msgV1Engine?.Outputs.ActiveBgColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveOutlineColor_Msg", () => _msgV1Engine?.Outputs.ActiveOutlineColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveFontSize_Msg", () => _msgV1Engine?.Outputs.ActiveFontSizeMsg ?? 24);
 
             _pit = new PitEngine(() =>
             {

@@ -10,6 +10,14 @@ This plugin now exposes a v1 message engine driven by the v5 message catalog and
 | `MSGV1.ActiveText_Msg` | Current message text for the Msg dash. |
 | `MSGV1.ActivePriority_Msg` | Priority label for the Msg dash message. |
 | `MSGV1.ActiveMsgId_Msg` | MsgId for the Msg dash message. |
+| `MSGV1.ActiveTextColor_Lala` | Text color for the Lala dash message (resolved from explicit or priority defaults). |
+| `MSGV1.ActiveBgColor_Lala` | Background color for the Lala dash message. |
+| `MSGV1.ActiveOutlineColor_Lala` | Outline color for the Lala dash message. |
+| `MSGV1.ActiveFontSize_Lala` | Absolute font size for the Lala dash message. |
+| `MSGV1.ActiveTextColor_Msg` | Text color for the Msg dash message. |
+| `MSGV1.ActiveBgColor_Msg` | Background color for the Msg dash message. |
+| `MSGV1.ActiveOutlineColor_Msg` | Outline color for the Msg dash message. |
+| `MSGV1.ActiveFontSize_Msg` | Absolute font size for the Msg dash message. |
 | `MSGV1.ActiveCount` | Number of active messages in the engine. |
 | `MSGV1.LastCancelMsgId` | MsgId of the last message canceled via MsgCx. |
 | `MSGV1.ClearAllPulse` | True for a short pulse when a double‑tap clear occurs. |
@@ -28,3 +36,6 @@ Migration tips
 - Keep legacy `MSG.*` lanes intact for now; they remain exported but are no longer required for the new engine.
 - Fuel “push OK” now fires once per session (race only) when no further fuel stops are required.
 - Pit messages are mutually exclusive: `PIT_NOW` (<=0 laps) overrides `PIT_SOON` (<2 laps) in races and neither loops while their state holds.
+- Style fields in JSON (MessageDefinition): `TextColor`, `BgColor`, `OutlineColor` (format `#AARRGGBB`, empty = use defaults) and `FontSize` (absolute, default 24).
+- Priority defaults (used when a color field is blank): High = red bg / yellow text+outline; Med = yellow bg / blue text+outline; Low = neutral transparent bg / white text / black outline.
+- Flag messages override background to match the flag color (e.g., yellow/blue/green/red/white/black/meatball/checkered) while keeping readable text/outline.
