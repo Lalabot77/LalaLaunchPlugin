@@ -1249,7 +1249,8 @@ namespace LaunchPlugin
 
         if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
             && !IsFuelPerLapManual
-            && value > 0)
+            && value > 0
+            && (_plugin?.IsFuelReady ?? false))
         {
             ApplyPlanningSourceToAutoFields(applyLapTime: false, applyFuel: true);
         }
@@ -2642,6 +2643,8 @@ namespace LaunchPlugin
 
         try
         {
+            bool fuelReady = _plugin?.IsFuelReady ?? false;
+
             if (applyLapTime && !IsEstimatedLapTimeManual)
             {
                 TimeSpan? lap = null;
@@ -2654,8 +2657,11 @@ namespace LaunchPlugin
                 }
                 else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
                 {
-                    lap = GetLiveAverageLapTimeSnapshot();
-                    lapSource = "Live avg";
+                    if (fuelReady)
+                    {
+                        lap = GetLiveAverageLapTimeSnapshot();
+                        lapSource = "Live avg";
+                    }
                 }
 
                 if (lap.HasValue)
@@ -2683,7 +2689,10 @@ namespace LaunchPlugin
                 }
                 else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
                 {
-                    fuel = GetLiveAverageFuelPerLapForCurrentCondition();
+                    if (fuelReady)
+                    {
+                        fuel = GetLiveAverageFuelPerLapForCurrentCondition();
+                    }
                 }
 
                 if (fuel.HasValue)
