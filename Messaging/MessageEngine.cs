@@ -503,6 +503,14 @@ namespace LaunchPlugin.Messaging
                 var msgs = referenced.TryGetValue(id, out var list) ? string.Join(",", list) : "";
                 return $"{id}|{msgs}";
             }));
+
+            var summary = string.Join("; ", missing.Select(id =>
+            {
+                var msgs = referenced.TryGetValue(id, out var list) ? string.Join(",", list) : "";
+                return $"{id} -> {msgs}";
+            }));
+
+            LogInfo($"Registered placeholder evaluators for missing IDs: {summary}");
         }
     }
 
@@ -556,24 +564,15 @@ namespace LaunchPlugin.Messaging
 
     internal class MissingEvaluator : IMessageEvaluator
     {
-        private readonly string _id;
-        private readonly List<string> _msgIds;
-        private bool _logged;
-
         public MissingEvaluator(string id, List<string> msgIds)
         {
-            _id = id ?? "unknown";
-            _msgIds = msgIds ?? new List<string>();
+            _ = id;
+            _ = msgIds;
         }
 
         public bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
         {
             result = null;
-            if (!_logged)
-            {
-                _logged = true;
-                SimHub.Logging.Current.Warn($"[LalaPlugin:MSGV1] Missing evaluator '{_id}' used by: {string.Join(",", _msgIds)}");
-            }
             return false;
         }
     }

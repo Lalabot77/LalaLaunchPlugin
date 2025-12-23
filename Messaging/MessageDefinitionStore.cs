@@ -8,6 +8,11 @@ namespace LaunchPlugin.Messaging
     public static class MessageDefinitionStore
     {
         private const string FileName = "LalaLaunch.Messages.json";
+        private static readonly HashSet<string> ExcludedMsgIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "rejoin.threat_high",
+            "rejoin.threat_med"
+        };
 
         public static string GetFolderPath()
         {
@@ -40,6 +45,7 @@ namespace LaunchPlugin.Messaging
                 {
                     ApplyDefaults(def);
                 }
+                RemoveExcludedMessages(list);
                 if (list.Count == 0)
                 {
                     list = BuildDefaultDefinitions();
@@ -579,7 +585,14 @@ namespace LaunchPlugin.Messaging
                 ApplyDefaults(def);
             }
 
+            RemoveExcludedMessages(list);
             return list;
+        }
+
+        private static void RemoveExcludedMessages(List<MessageDefinition> list)
+        {
+            if (list == null || list.Count == 0) return;
+            list.RemoveAll(def => def != null && ExcludedMsgIds.Contains(def.MsgId ?? string.Empty));
         }
     }
 }
