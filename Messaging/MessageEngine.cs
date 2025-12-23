@@ -510,7 +510,7 @@ namespace LaunchPlugin.Messaging
                 return $"{id} -> {msgs}";
             }));
 
-            LogInfo($"Registered placeholder evaluators for missing IDs: {summary}");
+            SimHub.Logging.Current.Info($"[LalaPlugin:MSGV1] Registered placeholder evaluators: {summary}");
         }
     }
 
