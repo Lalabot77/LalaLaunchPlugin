@@ -470,6 +470,8 @@ namespace LaunchPlugin
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
         private long _lastSessionId = -1;
+        private long _lastSubSessionId = -1;
+        private string _lastSessionToken = string.Empty;
         private double _smoothedLiveLapsRemainingState = double.NaN;
         private double _smoothedPitDeltaState = double.NaN;
         private double _smoothedPitPushDeltaState = double.NaN;
@@ -3201,8 +3203,14 @@ namespace LaunchPlugin
             }
 
             long currentSessionId = Convert.ToInt64(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.SessionID") ?? -1);
-            if (currentSessionId != _lastSessionId)
+            long currentSubSessionId = Convert.ToInt64(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.SubSessionID") ?? -1);
+            string currentSessionToken = $"{currentSessionId}:{currentSubSessionId}";
+            if (!string.Equals(currentSessionToken, _lastSessionToken, StringComparison.Ordinal))
             {
+                string oldToken = string.IsNullOrWhiteSpace(_lastSessionToken) ? "none" : _lastSessionToken;
+                string sessionTypeForLog = string.IsNullOrWhiteSpace(currentSessionTypeForConfidence) ? "unknown" : currentSessionTypeForConfidence;
+                SimHub.Logging.Current.Info($"[LalaPlugin:Session] token change old={oldToken} new={currentSessionToken} type={sessionTypeForLog}");
+
                 // If we exited lane and the session ended before S/F, finalize once with PitLite’s one-shot.
                 if (_pitLite != null && _pitLite.ConsumeCandidate(out var scLoss, out var scSrc))
                 {
@@ -3228,10 +3236,15 @@ namespace LaunchPlugin
                 _lastSnapshotTrack = string.Empty;
                 _lastAnnouncedMaxFuel = -1;
                 _lastSessionId = currentSessionId;
+                _lastSubSessionId = currentSubSessionId;
+                _lastSessionToken = currentSessionToken;
                 FuelCalculator.ForceProfileDataReload();
+                ResetLiveFuelModelForNewSession(currentSessionTypeForConfidence, false);
+                ClearFuelInstructionOutputs();
                 ResetFinishTimingState();
                 ResetSmoothedOutputs();
                 _pendingSmoothingReset = true;
+                _msgV1Engine?.ResetSession();
 
                 SimHub.Logging.Current.Info($"[LalaPlugin:Profile] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
             }
@@ -3993,6 +4006,31 @@ namespace LaunchPlugin
             _smoothedProjectionValid = false;
             _smoothedPitValid = false;
             _pendingSmoothingReset = false;
+        }
+
+        private void ClearFuelInstructionOutputs()
+        {
+            Pit_TotalNeededToEnd = 0;
+            Pit_NeedToAdd = 0;
+            Pit_TankSpaceAvailable = 0;
+            Pit_WillAdd = 0;
+            Pit_FuelOnExit = 0;
+            Pit_DeltaAfterStop = 0;
+            Pit_FuelSaveDeltaAfterStop = 0;
+            Pit_PushDeltaAfterStop = 0;
+            PitStopsRequiredByFuel = 0;
+            PitStopsRequiredByPlan = 0;
+            Pit_StopsRequiredToEnd = 0;
+
+            Fuel_Delta_LitresCurrent = 0;
+            Fuel_Delta_LitresPlan = 0;
+            Fuel_Delta_LitresWillAdd = 0;
+            Fuel_Delta_LitresCurrentPush = 0;
+            Fuel_Delta_LitresPlanPush = 0;
+            Fuel_Delta_LitresWillAddPush = 0;
+            Fuel_Delta_LitresCurrentSave = 0;
+            Fuel_Delta_LitresPlanSave = 0;
+            Fuel_Delta_LitresWillAddSave = 0;
         }
 
         private static double ApplyEma(double alpha, double raw, double previous)
