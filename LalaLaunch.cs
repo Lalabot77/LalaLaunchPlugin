@@ -1453,7 +1453,7 @@ namespace LaunchPlugin
                     }
 
                     // 1) Global race warm-up: ignore very early race laps (same as fuel)
-                    if (completedLapsNow <= 2)
+                    if (completedLapsNow <= 1)
                     {
                         paceReject = true;
                         paceReason = "race-warmup";
