@@ -50,7 +50,25 @@ namespace LaunchPlugin
         // --- Dashboard Manager ---
         public ScreenManager Screens = new ScreenManager();
 
-        // --- MsgCx dash helpers ---
+        // --- button dash helpers ---
+        // NOTE: This region is intended to expose SimHub Actions and keep cancel semantics stable.
+        // MsgCx() is the ONE canonical cancel entry point.
+        // Legacy MsgCx variants remain as compatibility stubs (route to MsgCx) so old mappings don't break.
+
+        public void PrimaryDashMode()
+        {
+            // Placeholder: wired for Controls & Events + UI mapping.
+            // TODO: implement real behaviour (switch main dash mode/page).
+            SimHub.Logging.Current.Info("[LalaPlugin:Dash] PrimaryDashMode action fired (placeholder).");
+        }
+
+        public void SecondaryDashMode()
+        {
+            // Placeholder: wired for Controls & Events + UI mapping.
+            // TODO: implement real behaviour (switch message/sub dash mode/page).
+            SimHub.Logging.Current.Info("[LalaPlugin:Dash] SecondaryDashMode action fired (placeholder).");
+        }
+
         public void TogglePitScreen()
         {
             bool isOnPitRoadFlag = Convert.ToBoolean(
@@ -64,49 +82,79 @@ namespace LaunchPlugin
 
                 // Optional: if you dismiss it in pits, also clear any manual force-on
                 if (_pitScreenDismissed) _pitScreenManualEnabled = false;
+
+                SimHub.Logging.Current.Info($"[LalaPlugin:Dash] TogglePitScreen fired IN PITS -> dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled}");
             }
             else
             {
                 // On track: toggle the new manual force-on
                 _pitScreenManualEnabled = !_pitScreenManualEnabled;
+
+                SimHub.Logging.Current.Info($"[LalaPlugin:Dash] TogglePitScreen fired ON TRACK -> manual={_pitScreenManualEnabled}");
             }
+
+            // Optional debug pulse (only if you want a dash-visible press indicator):
+            // _pitTogglePressed = true;
+            // _pitTogglePressedAtUtc = DateTime.UtcNow;
         }
 
         public void MsgCx()
         {
+            // Canonical cancel entry point
             RegisterMsgCxPress();
-            // Single-button binding entry point: follows timed → state → action priority
+
+            SimHub.Logging.Current.Info("[LalaPlugin:MsgCx] MsgCx action fired -> routing to engines (msgSystem/rejoin/msgV1)");
+
+            // Keep all these for now (they are lightweight, and each engine can ignore if inactive)
             _msgSystem?.TriggerMsgCx();
             _rejoinEngine?.TriggerMsgCxOverride();
             _msgV1Engine?.OnMsgCxPressed();
         }
 
+        // --- Legacy MsgCx variants (compat stubs) ---
+        // These were used by an older message system idea. Keep the methods to prevent broken mappings,
+        // but route everything through MsgCx() so there's ONE cancel meaning.
+
         public void MsgCxTimeOnly()
         {
-            RegisterMsgCxPress();
-            _msgSystem?.TriggerTimedSilence();
+            SimHub.Logging.Current.Info("[LalaPlugin:MsgCx][LEGACY->CORE] MsgCxTimeOnly fired -> routed to MsgCx()");
+            MsgCx();
         }
 
         public void MsgCxStateOnly()
         {
-            RegisterMsgCxPress();
-            _msgSystem?.TriggerStateClear();
+            SimHub.Logging.Current.Info("[LalaPlugin:MsgCx][LEGACY->CORE] MsgCxStateOnly fired -> routed to MsgCx()");
+            MsgCx();
         }
 
         public void MsgCxActionOnly()
         {
-            RegisterMsgCxPress();
-            _msgSystem?.TriggerAction();
+            SimHub.Logging.Current.Info("[LalaPlugin:MsgCx][LEGACY->CORE] MsgCxActionOnly fired -> routed to MsgCx()");
+            MsgCx();
         }
 
+        // --- Legacy message publishers ---
+        // Keep for now, but consider moving these behind MSGV1 or deleting once nothing calls them.
+        // Leaving them as passthrough avoids compile errors and makes it obvious in logs if they're still used.
+
         public void SetMsgCxTimeMessage(string message, TimeSpan? silence = null)
-            => _msgSystem?.PublishTimedMessage(message, silence);
+        {
+            SimHub.Logging.Current.Info("[LalaPlugin:MsgCx][LEGACY] SetMsgCxTimeMessage called");
+            _msgSystem?.PublishTimedMessage(message, silence);
+        }
 
         public void SetMsgCxStateMessage(string message, string stateToken)
-            => _msgSystem?.PublishStateMessage(message, stateToken);
+        {
+            SimHub.Logging.Current.Info("[LalaPlugin:MsgCx][LEGACY] SetMsgCxStateMessage called");
+            _msgSystem?.PublishStateMessage(message, stateToken);
+        }
 
         public void SetMsgCxActionMessage(string message)
-            => _msgSystem?.PublishActionMessage(message);
+        {
+            SimHub.Logging.Current.Info("[LalaPlugin:MsgCx][LEGACY] SetMsgCxActionMessage called");
+            _msgSystem?.PublishActionMessage(message);
+        }
+
 
         // --- Fuel Calculator Engine ---
         public FuelCalcs FuelCalculator { get; private set; }
@@ -2590,6 +2638,14 @@ namespace LaunchPlugin
             ResetAllValues();
             ResetFinishTimingState();
             _pit?.ResetPitPhaseState();
+
+            // --- ACTIONS (exposed to Controls & Events) ---
+            PluginManager.AddAction("MsgCx", (a, b) => MsgCx());
+            PluginManager.AddAction("TogglePitScreen", (a, b) => TogglePitScreen());
+            PluginManager.AddAction("PrimaryDashMode", (a, b) => PrimaryDashMode());
+            PluginManager.AddAction("SecondaryDashMode", (a, b) => SecondaryDashMode());
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode");
+
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
             AttachCore("Fuel.LiveFuelPerLap", () => LiveFuelPerLap);
