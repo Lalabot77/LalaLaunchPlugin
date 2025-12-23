@@ -345,7 +345,7 @@ namespace LaunchPlugin.Messaging
         private (string TextColor, string BgColor, string OutlineColor, int FontSize) ResolveStyle(MessageInstance inst)
         {
             if (inst == null || inst.Definition == null)
-                return (Defaults.TextLow, Defaults.BgLow, Defaults.OutlineLow, 24);
+                return (MessageEngine.Defaults.TextLow, MessageEngine.Defaults.BgLow, MessageEngine.Defaults.OutlineLow, 24);
 
             var def = inst.Definition;
             bool isFlag = IsFlagMessage(def);
@@ -383,17 +383,17 @@ namespace LaunchPlugin.Messaging
             switch (priority)
             {
                 case MessagePriority.High:
-                    return (Defaults.TextHigh, Defaults.BgHigh, Defaults.OutlineHigh);
+                    return (MessageEngine.Defaults.TextHigh, MessageEngine.Defaults.BgHigh, MessageEngine.Defaults.OutlineHigh);
                 case MessagePriority.Med:
-                    return (Defaults.TextMed, Defaults.BgMed, Defaults.OutlineMed);
+                    return (MessageEngine.Defaults.TextMed, MessageEngine.Defaults.BgMed, MessageEngine.Defaults.OutlineMed);
                 default:
-                    return (Defaults.TextLow, Defaults.BgLow, Defaults.OutlineLow);
+                    return (MessageEngine.Defaults.TextLow, MessageEngine.Defaults.BgLow, MessageEngine.Defaults.OutlineLow);
             }
         }
 
         private static string GetFlagBgColor(string msgId)
         {
-            if (string.IsNullOrWhiteSpace(msgId)) return Defaults.BgLow;
+            if (string.IsNullOrWhiteSpace(msgId)) return MessageEngine.Defaults.BgLow;
             var id = msgId.ToLowerInvariant();
 
             if (id.Contains("yellow"))
@@ -413,10 +413,10 @@ namespace LaunchPlugin.Messaging
             if (id.Contains("meatball"))
                 return Colors.Meatball;
 
-            return Defaults.BgLow;
+            return MessageEngine.Defaults.BgLow;
         }
 
-        private static class Defaults
+        internal static class Defaults
         {
             public const string TextHigh = "#FFFFFF00";     // yellow
             public const string BgHigh = "#FFFF0000";       // red
@@ -511,17 +511,17 @@ namespace LaunchPlugin.Messaging
         public string ActiveTextLala { get; set; } = string.Empty;
         public string ActivePriorityLala { get; set; } = string.Empty;
         public string ActiveMsgIdLala { get; set; } = string.Empty;
-        public string ActiveTextColorLala { get; set; } = Defaults.TextLow;
-        public string ActiveBgColorLala { get; set; } = Defaults.BgLow;
-        public string ActiveOutlineColorLala { get; set; } = Defaults.OutlineLow;
+        public string ActiveTextColorLala { get; set; } = MessageEngine.Defaults.TextLow;
+        public string ActiveBgColorLala { get; set; } = MessageEngine.Defaults.BgLow;
+        public string ActiveOutlineColorLala { get; set; } = MessageEngine.Defaults.OutlineLow;
         public int ActiveFontSizeLala { get; set; } = 24;
 
         public string ActiveTextMsg { get; set; } = string.Empty;
         public string ActivePriorityMsg { get; set; } = string.Empty;
         public string ActiveMsgIdMsg { get; set; } = string.Empty;
-        public string ActiveTextColorMsg { get; set; } = Defaults.TextLow;
-        public string ActiveBgColorMsg { get; set; } = Defaults.BgLow;
-        public string ActiveOutlineColorMsg { get; set; } = Defaults.OutlineLow;
+        public string ActiveTextColorMsg { get; set; } = MessageEngine.Defaults.TextLow;
+        public string ActiveBgColorMsg { get; set; } = MessageEngine.Defaults.BgLow;
+        public string ActiveOutlineColorMsg { get; set; } = MessageEngine.Defaults.OutlineLow;
         public int ActiveFontSizeMsg { get; set; } = 24;
 
         public int ActiveCount { get; set; }
@@ -535,16 +535,16 @@ namespace LaunchPlugin.Messaging
             ActiveTextLala = string.Empty;
             ActivePriorityLala = string.Empty;
             ActiveMsgIdLala = string.Empty;
-            ActiveTextColorLala = Defaults.TextLow;
-            ActiveBgColorLala = Defaults.BgLow;
-            ActiveOutlineColorLala = Defaults.OutlineLow;
+            ActiveTextColorLala = MessageEngine.Defaults.TextLow;
+            ActiveBgColorLala = MessageEngine.Defaults.BgLow;
+            ActiveOutlineColorLala = MessageEngine.Defaults.OutlineLow;
             ActiveFontSizeLala = 24;
             ActiveTextMsg = string.Empty;
             ActivePriorityMsg = string.Empty;
             ActiveMsgIdMsg = string.Empty;
-            ActiveTextColorMsg = Defaults.TextLow;
-            ActiveBgColorMsg = Defaults.BgLow;
-            ActiveOutlineColorMsg = Defaults.OutlineLow;
+            ActiveTextColorMsg = MessageEngine.Defaults.TextLow;
+            ActiveBgColorMsg = MessageEngine.Defaults.BgLow;
+            ActiveOutlineColorMsg = MessageEngine.Defaults.OutlineLow;
             ActiveFontSizeMsg = 24;
             ActiveCount = 0;
             LastCancelMsgId = string.Empty;

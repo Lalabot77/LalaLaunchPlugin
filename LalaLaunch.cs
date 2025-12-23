@@ -2568,6 +2568,7 @@ namespace LaunchPlugin
 
 
             ProfilesViewModel.LoadProfiles();
+            Screens.Mode = "manual";
 
             // --- Set the initial ActiveProfile on startup ---
             // It will be "Default Settings" or the first profile if that doesn't exist.
@@ -3534,7 +3535,9 @@ namespace LaunchPlugin
                 ExecuteLaunchTimers(pluginManager, ref data);
             }
 
-            string currentSession = data.NewData?.SessionTypeName ?? "";
+            string currentSession = Convert.ToString(
+            pluginManager.GetPropertyValue("DataCorePlugin.GameData.SessionTypeName") ?? "");
+
             // Fuel model session-change handling (independent of auto-dash setting)
             if (!string.IsNullOrEmpty(_lastFuelSessionType) && currentSession != _lastFuelSessionType)
             {
@@ -3544,10 +3547,9 @@ namespace LaunchPlugin
             _lastFuelSessionType = currentSession;
 
             // --- AUTO DASH SWITCHING (READINESS-GATED, NO GLOBAL RESET) ---
-            bool isInCar = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsInCar") ?? false);
-            bool ignitionOn = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IgnitionOn") ?? false);
-            bool engineRunning = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.EngineRunning") ?? false);
-
+            bool ignitionOn = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.EngineIgnitionOn") ?? false);
+            bool engineStarted = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.EngineStarted") ?? false);
+            
             if (Settings.EnableAutoDashSwitch && !string.IsNullOrWhiteSpace(currentSession) && !string.Equals(currentSession, _dashLastSessionType, StringComparison.Ordinal))
             {
                 _dashLastSessionType = currentSession;
@@ -3577,7 +3579,7 @@ namespace LaunchPlugin
             }
             _dashLastIgnitionOn = ignitionOn;
 
-            if (Settings.EnableAutoDashSwitch && _dashPendingSwitch && !_dashExecutedForCurrentArm && isInCar && (ignitionOn || engineRunning))
+            if (Settings.EnableAutoDashSwitch && _dashPendingSwitch && !_dashExecutedForCurrentArm && (ignitionOn || engineStarted))
             {
                 _dashExecutedForCurrentArm = true;
                 int token = _dashSwitchToken;

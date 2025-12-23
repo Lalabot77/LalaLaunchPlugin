@@ -66,7 +66,7 @@ namespace LaunchPlugin.Messaging
                 { "FuelLapsRemaining", () => _plugin?.LiveLapsRemainingInRace },
                 { "FuelDeltaLaps", () => _plugin?.DeltaLaps },
                 { "FuelCanPush", () => _plugin?.CanAffordToPush },
-                { "FuelIsReady", () => _plugin?.IsFuelReady },
+                { "FuelIsReady", () => _plugin?.IsFuelReady ?? false },
                 { "PitStopsRequiredByFuel", () => _plugin?.PitStopsRequiredByFuel },
                 { "PitWindowOpen", () => _plugin?.IsPitWindowOpen },
 
