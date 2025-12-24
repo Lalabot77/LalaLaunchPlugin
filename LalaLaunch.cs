@@ -69,6 +69,33 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info("[LalaPlugin:Dash] SecondaryDashMode action fired (placeholder).");
         }
 
+        // --- Launch button helper ---
+        // Manual prime/cancel for testing and for non-standing-start sessions.
+        public void LaunchMode()
+        {
+            // If user has hard-disabled launch mode, let the button re-enable it.
+            if (_launchModeUserDisabled)
+            {
+                _launchModeUserDisabled = false;
+                SimHub.Logging.Current.Info("[LalaPlugin:Launch] LaunchMode pressed -> re-enabled launch mode.");
+            }
+
+            // Toggle behaviour:
+            // - If idle: enter ManualPrimed
+            // - If already active/visible: abort (drops trace + returns to idle via AbortLaunch())
+            if (IsIdle)
+            {
+                SetLaunchState(LaunchState.ManualPrimed);
+                SimHub.Logging.Current.Info("[LalaPlugin:Launch] LaunchMode pressed -> ManualPrimed.");
+            }
+            else
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:Launch] LaunchMode pressed -> aborting (state={_currentLaunchState}).");
+                AbortLaunch();
+            }
+        }
+
+
         public void TogglePitScreen()
         {
             bool isOnPitRoadFlag = Convert.ToBoolean(
@@ -2444,6 +2471,7 @@ namespace LaunchPlugin
         private void SetLaunchState(LaunchState newState)
         {
             if (_currentLaunchState == newState) return;
+            SimHub.Logging.Current.Info($"[LalaPlugin:Launch] State change: {_currentLaunchState} -> {newState}");
 
             _currentLaunchState = newState;
 
@@ -2625,7 +2653,8 @@ namespace LaunchPlugin
             this.AddAction("TogglePitScreen", (a, b) => TogglePitScreen());
             this.AddAction("PrimaryDashMode", (a, b) => PrimaryDashMode());
             this.AddAction("SecondaryDashMode", (a, b) => SecondaryDashMode());
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode");
+            this.AddAction("LaunchMode", (a, b) => LaunchMode());
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, LaunchMode");
 
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---

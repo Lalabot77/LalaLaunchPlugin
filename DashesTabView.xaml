@@ -25,6 +25,9 @@
                 <StackPanel Grid.Column="0" Margin="0,0,10,0">
                     <ui:ControlsEditor ActionName="LalaLaunch.MsgCx" FriendlyName="Cancel Msg Button" />
                     <ui:ControlsEditor ActionName="LalaLaunch.TogglePitScreen" FriendlyName="Toggle Pit Screen Popup" />
+                    <ui:ControlsEditor ActionName="LalaLaunch.LaunchMode"
+                   FriendlyName="Launch Mode" ToolTip="Manual prime/abort launch mode (useful for testing and non-standing-start sessions)." />
+
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="0,0,0,0">
                     <ui:ControlsEditor ActionName="LalaLaunch.PrimaryDashMode" FriendlyName="Change Primary Dash Mode" ToolTip="Used for Main Dash Functions like switching mode displays."/>
