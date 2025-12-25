@@ -4979,18 +4979,24 @@ namespace LaunchPlugin
                 SetLaunchState(LaunchState.Idle);
             }
 
-            // --- Manual Launch Timeout Logic ---
-            // Check if a manual launch was started AND we are still in the pre-launch waiting phase.
-            if (_manualPrimedStartedAt != DateTime.MinValue && IsManualPrimed)
-            {
-                if ((DateTime.Now - _manualPrimedStartedAt).TotalSeconds > 30)
-                    CancelLaunchToIdle("Manual launch timed out after 30 seconds");
-            }
-
             // --- START PHASE FLAGS ---
             bool isStartReady = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsStartReady") ?? false);
             bool isStartGo = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsStartGo") ?? false);
             double speed = data.NewData?.SpeedKmh ?? 0;
+
+            // --- Manual Launch Timeout Logic ---
+            // ManualPrimed only: once launch starts (state changes), timeout no longer applies.
+            if (_manualPrimedStartedAt != DateTime.MinValue && IsManualPrimed)
+            {
+                if ((DateTime.Now - _manualPrimedStartedAt).TotalSeconds > 30)
+                {
+                    _launchModeUserDisabled = true; // behave like user cancel; prevents immediate auto re-prime
+                    CancelLaunchToIdle("Manual launch timed out after 30 seconds");
+
+                    // Optional debug (only if speed/start flags are already in scope here)
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Launch] ManualPrimed timeout fired at speed={speed:0.0} startReady={isStartReady} startGo={isStartGo} userDisabled={_launchModeUserDisabled}");
+                }
+            }
 
             // --- FALSE START DETECTION ---
             // Lights are on (ready), but not "Go" yet — and the car moves with clutch released
