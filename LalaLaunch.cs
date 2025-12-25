@@ -3085,6 +3085,7 @@ namespace LaunchPlugin
             _lastLaunchRPM = 0.0;
             _lastMinRPMDuringLaunch = 0.0;
             _lastAvgSessionLaunchRPM = 0.0;
+            _launchAbortLatched = false;
 
             // Session Data
             _sessionLaunchRPMs.Clear();
@@ -3146,7 +3147,7 @@ namespace LaunchPlugin
             _wheelSpinDetected = false;
             _minThrottlePostLaunch = 101.0;
             _maxThrottlePostLaunch = -1.0;
-            _launchAbortLatched = false;
+            //_launchAbortLatched = false;
         }
 
         private bool IsLaunchBlocked(PluginManager pluginManager, GameData data, out bool inPits, out bool seriousRejoin)
@@ -4980,15 +4981,11 @@ namespace LaunchPlugin
 
             // --- Manual Launch Timeout Logic ---
             // Check if a manual launch was started AND we are still in the pre-launch waiting phase.
-            if (_manualPrimedStartedAt != DateTime.MinValue && (IsManualPrimed || IsInProgress))
+            if (_manualPrimedStartedAt != DateTime.MinValue && IsManualPrimed)
             {
-                // Check if more than 30 seconds have passed.
                 if ((DateTime.Now - _manualPrimedStartedAt).TotalSeconds > 30)
-                {
                     CancelLaunchToIdle("Manual launch timed out after 30 seconds");
-                }
             }
-
 
             // --- START PHASE FLAGS ---
             bool isStartReady = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsStartReady") ?? false);
