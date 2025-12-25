@@ -80,18 +80,27 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info("[LalaPlugin:Launch] LaunchMode pressed -> re-enabled launch mode.");
             }
 
+            bool blocked = IsLaunchBlocked(PluginManager, null, out var inPits, out var seriousRejoin);
+
             // Toggle behaviour:
             // - If idle: enter ManualPrimed
             // - If already active/visible: abort (drops trace + returns to idle via AbortLaunch())
             if (IsIdle)
             {
+                if (blocked)
+                {
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Launch] LaunchMode blocked (inPits={inPits}, seriousRejoin={seriousRejoin}).");
+                    return;
+                }
+
                 SetLaunchState(LaunchState.ManualPrimed);
                 SimHub.Logging.Current.Info("[LalaPlugin:Launch] LaunchMode pressed -> ManualPrimed.");
             }
             else
             {
                 SimHub.Logging.Current.Info($"[LalaPlugin:Launch] LaunchMode pressed -> aborting (state={_currentLaunchState}).");
-                AbortLaunch();
+                _launchModeUserDisabled = true;
+                CancelLaunchToIdle("User toggle");
             }
         }
 
@@ -2446,6 +2455,7 @@ namespace LaunchPlugin
         private int _dashSwitchToken = 0;
         private string _dashLastSessionType = string.Empty;
         private bool _dashLastIgnitionOn = false;
+        private bool _launchAbortLatched = false;
 
         // --- FSM Helper Flags ---
         private bool IsIdle => _currentLaunchState == LaunchState.Idle;
@@ -3046,6 +3056,18 @@ namespace LaunchPlugin
             _telemetryTraceLogger?.DiscardCurrentTrace();
         }
 
+        private void CancelLaunchToIdle(string reason)
+        {
+            AbortLaunch();
+            SetLaunchState(LaunchState.Idle);
+
+            if (!_launchAbortLatched)
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:Launch Trace] {reason} – cancelling to Idle.");
+                _launchAbortLatched = true;
+            }
+        }
+
         private void ResetAllValues()
         {
             _telemetryTraceLogger?.StopLaunchTrace();
@@ -3124,6 +3146,24 @@ namespace LaunchPlugin
             _wheelSpinDetected = false;
             _minThrottlePostLaunch = 101.0;
             _maxThrottlePostLaunch = -1.0;
+            _launchAbortLatched = false;
+        }
+
+        private bool IsLaunchBlocked(PluginManager pluginManager, GameData data, out bool inPits, out bool seriousRejoin)
+        {
+            inPits = false;
+            seriousRejoin = false;
+
+            if (pluginManager != null)
+            {
+                var pitRoad = TryReadNullableBool(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad"));
+                var inPitLane = data?.NewData != null ? (data.NewData.IsInPitLane != 0) : (bool?)null;
+                inPits = pitRoad ?? inPitLane ?? false;
+            }
+
+            seriousRejoin = _rejoinEngine?.IsSeriousIncidentActive ?? false;
+
+            return inPits || seriousRejoin;
         }
 
         private void ResetFinishTimingState()
@@ -3510,11 +3550,14 @@ namespace LaunchPlugin
             }
 
             // --- Launch State helpers (need tick-level responsiveness) ---
-            bool isOnTrack = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnTrack") ?? false);
-            if (!isOnTrack && !IsIdle)
+            bool launchBlocked = IsLaunchBlocked(pluginManager, data, out var inPitsBlocked, out var seriousRejoinBlocked);
+            if (launchBlocked && !IsIdle && !_launchAbortLatched)
             {
-                SimHub.Logging.Current.Info("[LalaPlugin:Launch Trace] Off track or in pits – aborting launch state to Idle.");
-                AbortLaunch();
+                CancelLaunchToIdle("Blocked (pits/serious)");
+            }
+            else if (!launchBlocked)
+            {
+                _launchAbortLatched = false;
             }
             double clutchRaw = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.ClutchRaw") ?? 0.0);
             _paddleClutch = 100.0 - (clutchRaw * 100.0); // Convert to the same scale as the settings
@@ -4942,8 +4985,7 @@ namespace LaunchPlugin
                 // Check if more than 30 seconds have passed.
                 if ((DateTime.Now - _manualPrimedStartedAt).TotalSeconds > 30)
                 {
-                    SimHub.Logging.Current.Info("[LalaPlugin:Launch Trace] Manual launch timed out after 30 seconds.");
-                    AbortLaunch();
+                    CancelLaunchToIdle("Manual launch timed out after 30 seconds");
                 }
             }
 
