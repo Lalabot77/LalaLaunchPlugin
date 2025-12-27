@@ -537,6 +537,7 @@ namespace LaunchPlugin
         private long _lastSessionId = -1;
         private long _lastSubSessionId = -1;
         private string _lastSessionToken = string.Empty;
+        private string _currentSessionToken = string.Empty;
         private double _smoothedLiveLapsRemainingState = double.NaN;
         private double _smoothedPitDeltaState = double.NaN;
         private double _smoothedPitPushDeltaState = double.NaN;
@@ -2725,6 +2726,7 @@ namespace LaunchPlugin
             AttachCore("Fuel.ProjectionLapTime_Stable", () => ProjectionLapTime_Stable);
             AttachCore("Fuel.ProjectionLapTime_StableSource", () => ProjectionLapTime_StableSource);
             AttachCore("Fuel.Live.ProjectedDriveSecondsRemaining", () => LiveProjectedDriveSecondsRemaining);
+            AttachCore("Fuel.Live.IsFuelReady", () => IsFuelReady);
 
             // --- Pace metrics (CORE) ---
             AttachCore("Pace.StintAvgLapTimeSec", () => Pace_StintAvgLapTimeSec);
@@ -2733,6 +2735,9 @@ namespace LaunchPlugin
             AttachCore("Pace.LeaderDeltaToPlayerSec", () => Pace_LeaderDeltaToPlayerSec);
             AttachCore("Pace.PaceConfidence", () => PaceConfidence);
             AttachCore("Pace.OverallConfidence", () => OverallConfidence);
+            AttachCore("Reset.LastSession", () => _lastSessionToken);
+            AttachCore("Reset.ThisSession", () => _currentSessionToken);
+            AttachCore("Reset.ThisSessionType", () => _finishTimingSessionType);
 
             // --- Pit time-loss (finals kept CORE; raw & debug VERBOSE) ---
             AttachCore("Pit.LastDirectTravelTime", () => _pit.LastDirectTravelTime);
@@ -3316,6 +3321,7 @@ namespace LaunchPlugin
             {
                 string oldToken = string.IsNullOrWhiteSpace(_lastSessionToken) ? "none" : _lastSessionToken;
                 string sessionTypeForLog = string.IsNullOrWhiteSpace(currentSessionTypeForConfidence) ? "unknown" : currentSessionTypeForConfidence;
+                _currentSessionToken = currentSessionToken;
                 SimHub.Logging.Current.Info($"[LalaPlugin:Session] token change old={oldToken} new={currentSessionToken} type={sessionTypeForLog}");
 
                 // If we exited lane and the session ended before S/F, finalize once with PitLite’s one-shot.
