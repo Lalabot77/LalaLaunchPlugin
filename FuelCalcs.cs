@@ -108,8 +108,6 @@ namespace LaunchPlugin
     private bool? _liveWeatherIsWet;
     private string _liveSurfaceSummary;
     private bool _isLiveSessionActive;
-    private bool _maxTankLockedByOverride;
-    private bool _suppressMaxTankLock;
     private bool _isLiveSessionSnapshotExpanded;
     private string _liveCarName = "—";
     private string _liveTrackName = "—";
@@ -129,7 +127,6 @@ namespace LaunchPlugin
     private string _liveLeaderPaceInfo = "-";
     private string _racePaceVsLeaderSummary = "-";
     private double _liveFuelTankLiters;
-    private double _suggestedMaxTankLiters;
     private double _liveDryFuelAvg;
     private double _liveDryFuelMin;
     private double _liveDryFuelMax;
@@ -444,18 +441,6 @@ namespace LaunchPlugin
     {
         get => _liveFuelTankSizeDisplay;
         private set { _liveFuelTankSizeDisplay = value; OnPropertyChanged(); }
-    }
-
-    public double SuggestedMaxTankLiters
-    {
-        get => _suggestedMaxTankLiters;
-        private set
-        {
-            if (Math.Abs(_suggestedMaxTankLiters - value) < 0.0001) return;
-            _suggestedMaxTankLiters = value;
-            OnPropertyChanged(nameof(SuggestedMaxTankLiters));
-            UpdateDetectedMaxFuelDisplay();
-        }
     }
     public string LiveBestLapDisplay
     {
@@ -1651,11 +1636,6 @@ namespace LaunchPlugin
                 _maxFuelOverride = value;
                 OnPropertyChanged("MaxFuelOverride");
                 OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh)); // Notify UI to re-check the highlight
-                if (!_suppressMaxTankLock)
-                {
-                    _maxTankLockedByOverride = true;
-                }
-                SuggestedMaxTankLiters = value;
                 CalculateStrategy();
                 RaisePresetStateChanged();
             }
@@ -2068,12 +2048,7 @@ namespace LaunchPlugin
 
         // Smartly default Max Fuel: use the live detected value if available, otherwise use 120L
         if (!preserveMaxFuel)
-        {
-            _suppressMaxTankLock = true;
             this.MaxFuelOverride = _liveMaxFuel > 0 ? Math.Round(_liveMaxFuel) : 120.0;
-            _suppressMaxTankLock = false;
-            _maxTankLockedByOverride = false;
-        }
 
         var nowUtc = DateTime.UtcNow;
         if ((nowUtc - _lastStrategyResetLogUtc) > TimeSpan.FromSeconds(1))
@@ -3033,8 +3008,6 @@ namespace LaunchPlugin
         _activeLiveCarKey = null;
         _activeLiveTrackKey = null;
         RefreshLiveMaxFuelDisplays(0);
-        LiveFuelTankSizeDisplay = "-";
-        SuggestedMaxTankLiters = 0;
         LiveBestLapDisplay = "-";
         LiveLeaderPaceInfo = "-";
         LiveLapPaceInfo = "-";
@@ -3075,18 +3048,11 @@ namespace LaunchPlugin
         SeenTrackName = LiveTrackName;
         SeenSessionSummary = "No Live Data";
         LiveSessionHeader = "LIVE SESSION (no live data)";
-        _maxTankLockedByOverride = false;
-        OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
-        OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh));
     }
 
     private void ClearLiveFuelSnapshot()
     {
         RefreshLiveMaxFuelDisplays(0);
-        _liveMaxFuel = 0;
-        _liveFuelTankLiters = 0;
-        SuggestedMaxTankLiters = 0;
-        _maxTankLockedByOverride = false;
         _liveDryFuelAvg = 0;
         _liveDryFuelMin = 0;
         _liveDryFuelMax = 0;
@@ -3860,26 +3826,12 @@ namespace LaunchPlugin
         DetectedMaxFuelDisplay = liveMaxFuel > 0 ? $"(Detected Max: {liveMaxFuel:F1} L)" : "(Detected Max: N/A)";
 
         OnPropertyChanged(nameof(DetectedMaxFuelDisplay));
-        if (!_maxTankLockedByOverride || SuggestedMaxTankLiters <= 0)
-        {
-            SuggestedMaxTankLiters = liveMaxFuel;
-        }
-        LiveFuelTankSizeDisplay = liveMaxFuel > 0 ? $"{liveMaxFuel:F1} L" : "-";
-        OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh)); // Notify UI to re-check the highlight
         OnPropertyChanged(nameof(HasLiveMaxFuelSuggestion));
         OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh));
         CommandManager.InvalidateRequerySuggested();
     }
 
     public void UpdateLiveDisplay(double liveMaxFuel)
-    private void UpdateDetectedMaxFuelDisplay()
-    {
-        if (SuggestedMaxTankLiters > 0) { DetectedMaxFuelDisplay = $"(Detected Max: {SuggestedMaxTankLiters:F1} L)"; }
-        else { DetectedMaxFuelDisplay = "(Detected Max: N/A)"; }
-        OnPropertyChanged(nameof(DetectedMaxFuelDisplay));
-    }
-
-    private static double ComputeExtraSecondsAfterTimerZero(double leaderLapSec, double yourLapSec, double raceSeconds)
     {
         RefreshLiveMaxFuelDisplays(liveMaxFuel);
     }
