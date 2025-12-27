@@ -1297,6 +1297,9 @@ namespace LaunchPlugin
             double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
 
             _isWetMode = FuelCalculator?.IsWet ?? false;
+            double maxFuel = (LiveCarMaxFuel > 0)
+                ? LiveCarMaxFuel
+                : (data.NewData?.MaxFuel ?? 0.0);
 
             // Pit detection: use both signals (some installs expose only one reliably)
             bool isInPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
@@ -2079,11 +2082,15 @@ namespace LaunchPlugin
                 }
 
                 // Pit math
-                Pit_TotalNeededToEnd = litresRequiredToFinish;
-                Pit_NeedToAdd = Math.Max(0, litresRequiredToFinish - currentFuel);
-                double requestedAddLitres = pitWindowRequestedAdd;
-                requestedAddLitresForSmooth = requestedAddLitres;
-                Pit_TankSpaceAvailable = Math.Max(0, maxTankCapacity - currentFuel);
+                Pit_TotalNeededToEnd = fuelNeededToEnd;
+                Pit_NeedToAdd = Math.Max(0, fuelNeededToEnd - currentFuel);
+                double fuelToRequest = Convert.ToDouble(
+                    PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PitSvFuel") ?? 0.0);
+
+                double suggestedMaxTank = FuelCalculator?.SuggestedMaxTankLiters ?? 0.0;
+                double sessionMaxFuel = suggestedMaxTank > 0
+                    ? suggestedMaxTank
+                    : (LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel);
 
                 double safeFuelRequest = requestedAddLitres;
                 Pit_WillAdd = Math.Min(safeFuelRequest, Pit_TankSpaceAvailable);
@@ -2092,6 +2099,18 @@ namespace LaunchPlugin
                 bool isWetModeNow = FuelCalculator?.IsWet ?? false;
                 double fuelSaveRate = isWetModeNow ? _minWetFuelPerLap : _minDryFuelPerLap;
                 if (fuelSaveRate <= 0.0 && fuelPerLapForCalc > 0.0)
+                Pit_DeltaAfterStop = (LiveFuelPerLap > 0)
+                    ? (Pit_FuelOnExit / LiveFuelPerLap) - LiveLapsRemainingInRace
+                    : 0;
+
+                // Pit window logic
+                double lapsPerTank = (LiveFuelPerLap > 0) ? (sessionMaxFuel / LiveFuelPerLap) : 0;
+                int stopsRequired = (sessionMaxFuel > 0)
+                    ? (int)Math.Ceiling((fuelNeededToEnd - currentFuel) / sessionMaxFuel)
+                    : 0;
+                Pit_StopsRequiredToEnd = Math.Max(0, stopsRequired);
+
+                if (stopsRequired <= 0)
                 {
                     fuelSaveRate = fuelPerLapForCalc * 0.97; // light saving fallback
                 }
@@ -3544,6 +3563,19 @@ namespace LaunchPlugin
             {
                 _poll250ms.Restart();
                 UpdateLiveMaxFuel(pluginManager);
+                double telemetryMaxFuel = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.FuelLevelMax") ?? 0.0);
+                double baseMaxFuel = (telemetryMaxFuel > 0)
+                    ? telemetryMaxFuel
+                    : Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
+                double bopPercent = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct") ?? 1.0);
+                if (bopPercent <= 0) { bopPercent = 1.0; }
+                double maxFuel = baseMaxFuel * bopPercent;
+                LiveCarMaxFuel = maxFuel;
+                if (Math.Abs(LiveCarMaxFuel - _lastAnnouncedMaxFuel) > 0.01)
+                {
+                    _lastAnnouncedMaxFuel = LiveCarMaxFuel;
+                    FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
+                }
                 _msgSystem.Enabled = Settings.MsgDashShowTraffic || Settings.LalaDashShowTraffic;
                 double warn = ActiveProfile.TrafficApproachWarnSeconds;
                 if (!(warn > 0)) warn = 5.0;
