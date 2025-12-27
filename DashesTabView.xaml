@@ -25,6 +25,9 @@
                 <StackPanel Grid.Column="0" Margin="0,0,10,0">
                     <ui:ControlsEditor ActionName="LalaLaunch.MsgCx" FriendlyName="Cancel Msg Button" />
                     <ui:ControlsEditor ActionName="LalaLaunch.TogglePitScreen" FriendlyName="Toggle Pit Screen Popup" />
+                    <ui:ControlsEditor ActionName="LalaLaunch.LaunchMode"
+                   FriendlyName="Launch Mode" ToolTip="Manual prime/abort launch mode (useful for testing and non-standing-start sessions)." />
+
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="0,0,0,0">
                     <ui:ControlsEditor ActionName="LalaLaunch.PrimaryDashMode" FriendlyName="Change Primary Dash Mode" ToolTip="Used for Main Dash Functions like switching mode displays."/>
@@ -43,6 +46,13 @@
                     <TextBlock Text="GLOBAL DASH FUNCTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
                     <styles:SHToggleCheckbox Content="Auto screen selection at session start" IsChecked="{Binding Settings.EnableAutoDashSwitch, Mode=TwoWay}" />
                     <ui:TitledSlider Title="Post-Launch Results Display Time: " Minimum="0" Maximum="30" Value="{Binding Settings.ResultsDisplayTime, Mode=TwoWay}"/>
+                    <ui:TitledSlider Title="Fuel Ready Confidence: " Minimum="0" Maximum="100" Value="{Binding Settings.FuelReadyConfidence, Mode=TwoWay}"/>
+                    <TextBlock
+                        Text="Below 20%, profile fuel may be used for early estimates. Above 20%, pit strategy waits for live fuel data."
+                        FontSize="11"
+                        Opacity="0.7"
+                        TextWrapping="Wrap"
+                        Margin="0,2,0,0"/>
                 </StackPanel>
 
                 <Grid Grid.Column="1" HorizontalAlignment="Right">

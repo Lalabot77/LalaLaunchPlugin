@@ -12,6 +12,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Media;
+using LaunchPlugin.Messaging;
 
 
 namespace LaunchPlugin
@@ -49,15 +50,101 @@ namespace LaunchPlugin
         // --- Dashboard Manager ---
         public ScreenManager Screens = new ScreenManager();
 
-        // --- MsgCx dash helpers ---
+        // --- button dash helpers ---
+        // NOTE: This region is intended to expose SimHub Actions and keep cancel semantics stable.
+        // MsgCx() is the ONE canonical cancel entry point.
+        // Legacy MsgCx variants remain as compatibility stubs (route to MsgCx) so old mappings don't break.
+
+        public void PrimaryDashMode()
+        {
+            // Placeholder: wired for Controls & Events + UI mapping.
+            // TODO: implement real behaviour (switch main dash mode/page).
+            SimHub.Logging.Current.Info("[LalaPlugin:Dash] PrimaryDashMode action fired (placeholder).");
+        }
+
+        public void SecondaryDashMode()
+        {
+            // Placeholder: wired for Controls & Events + UI mapping.
+            // TODO: implement real behaviour (switch message/sub dash mode/page).
+            SimHub.Logging.Current.Info("[LalaPlugin:Dash] SecondaryDashMode action fired (placeholder).");
+        }
+
+        // --- Launch button helper ---
+        // Manual prime/cancel for testing and for non-standing-start sessions.
+        public void LaunchMode()
+        {
+            // If user has hard-disabled launch mode, let the button re-enable it.
+            if (_launchModeUserDisabled)
+            {
+                _launchModeUserDisabled = false;
+                SimHub.Logging.Current.Info("[LalaPlugin:Launch] LaunchMode pressed -> re-enabled launch mode.");
+            }
+
+            bool blocked = IsLaunchBlocked(PluginManager, null, out var inPits, out var seriousRejoin);
+
+            // Toggle behaviour:
+            // - If idle: enter ManualPrimed
+            // - If already active/visible: abort (drops trace + returns to idle via AbortLaunch())
+            if (IsIdle)
+            {
+                if (blocked)
+                {
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Launch] LaunchMode blocked (inPits={inPits}, seriousRejoin={seriousRejoin}).");
+                    return;
+                }
+
+                SetLaunchState(LaunchState.ManualPrimed);
+                SimHub.Logging.Current.Info("[LalaPlugin:Launch] LaunchMode pressed -> ManualPrimed.");
+            }
+            else
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:Launch] LaunchMode pressed -> aborting (state={_currentLaunchState}).");
+                _launchModeUserDisabled = true;
+                CancelLaunchToIdle("User toggle");
+            }
+        }
+
+
+        public void TogglePitScreen()
+        {
+            bool isOnPitRoadFlag = Convert.ToBoolean(
+                PluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false
+            );
+
+            if (isOnPitRoadFlag)
+            {
+                // In pits: toggle the existing dismiss latch (hide/show the auto pit popup)
+                _pitScreenDismissed = !_pitScreenDismissed;
+
+                // Optional: if you dismiss it in pits, also clear any manual force-on
+                if (_pitScreenDismissed) _pitScreenManualEnabled = false;
+
+                SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Toggle pressed IN PITS -> dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled}");
+            }
+            else
+            {
+                // On track: toggle the manual force-on
+                _pitScreenManualEnabled = !_pitScreenManualEnabled;
+
+                SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Toggle pressed ON TRACK -> manual={_pitScreenManualEnabled}");
+            }
+        }
+
         public void MsgCx()
         {
             RegisterMsgCxPress();
-            // Single-button binding entry point: follows timed → state → action priority
+
+            // Keep: new system(s) entry point
             _msgSystem?.TriggerMsgCx();
             _rejoinEngine?.TriggerMsgCxOverride();
+            _msgV1Engine?.OnMsgCxPressed();
+
+            SimHub.Logging.Current.Info("[LalaPlugin:MsgCx] MsgCx action fired (pressed latched + engines notified).");
         }
 
+        /*
+        // --- Legacy/experimental MsgCx helpers (parked) ---
+        // Only keep if you still actively bind to these from somewhere.
         public void MsgCxTimeOnly()
         {
             RegisterMsgCxPress();
@@ -84,6 +171,7 @@ namespace LaunchPlugin
 
         public void SetMsgCxActionMessage(string message)
             => _msgSystem?.PublishActionMessage(message);
+        */
 
         // --- Fuel Calculator Engine ---
         public FuelCalcs FuelCalculator { get; private set; }
@@ -146,6 +234,75 @@ namespace LaunchPlugin
 
         // --- Expose the direct travel time calculated by PitEngine ---
         public double LastDirectTravelTime => _pit?.LastDirectTravelTime ?? 0.0;
+        public string CurrentFasterClassApproachLine => _msgSystem?.OvertakeApproachLine ?? string.Empty;
+        public ThreatLevel CurrentRejoinThreat => _rejoinEngine?.CurrentThreatLevel ?? ThreatLevel.CLEAR;
+        public RejoinReason CurrentRejoinReason => _rejoinEngine?.CurrentLogicCode ?? RejoinReason.None;
+        public double CurrentRejoinTimeToThreat => _rejoinEngine?.TimeToThreatSeconds ?? double.NaN;
+
+        public bool OverallLeaderHasFinished
+        {
+            get => _overallLeaderHasFinished;
+            private set
+            {
+                if (_overallLeaderHasFinished != value)
+                {
+                    _overallLeaderHasFinished = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool ClassLeaderHasFinished
+        {
+            get => _classLeaderHasFinished;
+            private set
+            {
+                if (_classLeaderHasFinished != value)
+                {
+                    _classLeaderHasFinished = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool LeaderHasFinished
+        {
+            get => _leaderHasFinished;
+            private set
+            {
+                if (_leaderHasFinished != value)
+                {
+                    _leaderHasFinished = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool OverallLeaderHasFinishedValid
+        {
+            get => _overallLeaderHasFinishedValid;
+            private set
+            {
+                if (_overallLeaderHasFinishedValid != value)
+                {
+                    _overallLeaderHasFinishedValid = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool ClassLeaderHasFinishedValid
+        {
+            get => _classLeaderHasFinishedValid;
+            private set
+            {
+                if (_classLeaderHasFinishedValid != value)
+                {
+                    _classLeaderHasFinishedValid = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         // --- Live Fuel Calculation State ---
         private double _lastFuelLevel = -1;
@@ -160,6 +317,35 @@ namespace LaunchPlugin
         private double _lapDetectorPendingLastPct = -1.0;
         private DateTime _lapDetectorLastLogUtc = DateTime.MinValue;
         private string _lapDetectorLastLogKey = string.Empty;
+
+        // --- Finish timing + flag detection ---
+        private bool _timerZeroSeen;
+        private double _timerZeroSessionTime = double.NaN;
+        private double _prevSessionTimeRemain = double.NaN;
+        private double _leaderCheckeredSessionTime = double.NaN;
+        private double _driverCheckeredSessionTime = double.NaN;
+        private bool _leaderFinishedSeen;
+        private bool _leaderHasFinished;
+        private bool _overallLeaderHasFinished;
+        private bool _classLeaderHasFinished;
+        private bool _overallLeaderHasFinishedValid;
+        private bool _classLeaderHasFinishedValid;
+        private bool _isMultiClassSession;
+        private double _lastClassLeaderLapPct = double.NaN;
+        private double _lastOverallLeaderLapPct = double.NaN;
+        private int _lastClassLeaderCarIdx = -1;
+        private int _lastOverallLeaderCarIdx = -1;
+        private readonly Dictionary<int, string> _carIdxToClassShortName = new Dictionary<int, string>();
+        private int _lastCompletedLapForFinish = -1;
+        private bool _leaderFinishLatchedByFlag;
+        private double _afterZeroPlannerSeconds;
+        private double _afterZeroLiveEstimateSeconds;
+        private double _afterZeroUsedSeconds;
+        private string _afterZeroSourceUsed = string.Empty;
+        private double _lastProjectedLapsRemaining;
+        private double _lastSimLapsRemaining;
+        private double _lastProjectionLapSecondsUsed;
+        private bool _afterZeroResultLogged;
 
         // New per-mode rolling windows
         private readonly List<double> _recentDryFuelLaps = new List<double>();
@@ -189,14 +375,31 @@ namespace LaunchPlugin
         private int _seedWetSampleCount = 0;
         private string _seedCarModel = "";
         private string _seedTrackKey = "";
+        private bool _hasActiveDrySeed = false;
+        private bool _hasActiveWetSeed = false;
+        private bool _isWetMode = false;
+        private int _freshDrySamplesInWindow = 0;
+        private int _freshWetSamplesInWindow = 0;
+        private string _confidenceCarModel = string.Empty;
+        private string _confidenceTrackIdentity = string.Empty;
+        private bool _usingFallbackFuelProfile = false;
+        private bool _usingFallbackPaceProfile = false;
 
         // --- Live Fuel Calculation Outputs ---
         public double LiveFuelPerLap { get; private set; }
+        public double LiveFuelPerLap_Stable { get; private set; }
+        public string LiveFuelPerLap_StableSource { get; private set; } = "None";
+        public double LiveFuelPerLap_StableConfidence { get; private set; }
+        // LiveLapsRemainingInRace already uses stable fuel/lap time; _Stable exports mirror the same value for explicit dash use/debugging.
         public double LiveLapsRemainingInRace { get; private set; }
+        public double LiveLapsRemainingInRace_Stable { get; private set; }
         public double DeltaLaps { get; private set; }
         public double TargetFuelPerLap { get; private set; }
         public bool IsPitWindowOpen { get; private set; }
         public int PitWindowOpeningLap { get; private set; }
+        public int PitWindowClosingLap { get; private set; }
+        public int PitWindowState { get; private set; }
+        public string PitWindowLabel { get; private set; } = "N/A";
         public double LapsRemainingInTank { get; private set; }
         public int Confidence { get; private set; }
         public double Pit_TotalNeededToEnd { get; private set; }
@@ -205,8 +408,39 @@ namespace LaunchPlugin
         public double Pit_WillAdd { get; private set; }
         public double Pit_DeltaAfterStop { get; private set; }
         public double Pit_FuelOnExit { get; private set; }
+        public double Pit_FuelSaveDeltaAfterStop { get; private set; }
+        public double Pit_PushDeltaAfterStop { get; private set; }
+        public int PitStopsRequiredByFuel { get; private set; }
+        public int PitStopsRequiredByPlan { get; private set; }
         public int Pit_StopsRequiredToEnd { get; private set; }
+        public double LiveLapsRemainingInRace_S { get; private set; }
+        public double LiveLapsRemainingInRace_Stable_S { get; private set; }
+        public double Pit_DeltaAfterStop_S { get; private set; }
+        public double Pit_PushDeltaAfterStop_S { get; private set; }
+        public double Pit_FuelSaveDeltaAfterStop_S { get; private set; }
+        public double Pit_TotalNeededToEnd_S { get; private set; }
+        public double Fuel_Delta_LitresCurrent { get; private set; }
+        public double Fuel_Delta_LitresPlan { get; private set; }
+        public double Fuel_Delta_LitresWillAdd { get; private set; }
+        public double Fuel_Delta_LitresCurrentPush { get; private set; }
+        public double Fuel_Delta_LitresPlanPush { get; private set; }
+        public double Fuel_Delta_LitresWillAddPush { get; private set; }
+        public double Fuel_Delta_LitresCurrentSave { get; private set; }
+        public double Fuel_Delta_LitresPlanSave { get; private set; }
+        public double Fuel_Delta_LitresWillAddSave { get; private set; }
+        private bool _isRefuelSelected = true;
+        private bool _isTireChangeSelected = true;
         public double LiveCarMaxFuel { get; private set; }
+        public double EffectiveLiveMaxTank { get; private set; }
+        private double _lastValidLiveMaxFuel = 0.0;
+
+        public double FuelSaveFuelPerLap { get; private set; }
+
+        public double LiveProjectedDriveTimeAfterZero { get; private set; }
+        public double LiveProjectedDriveSecondsRemaining { get; private set; }
+        public double AfterZeroPlannerSeconds => _afterZeroPlannerSeconds;
+        public double AfterZeroLiveEstimateSeconds => _afterZeroLiveEstimateSeconds;
+        public string AfterZeroSource => string.IsNullOrEmpty(_afterZeroSourceUsed) ? "planner" : _afterZeroSourceUsed;
 
         // Push / max-burn guidance
         public double PushFuelPerLap { get; private set; }
@@ -224,15 +458,32 @@ namespace LaunchPlugin
         private double _lastLeaderLapTimeSec = 0.0;
         private bool _leaderPaceClearedLogged = false;
         public double LiveLeaderAvgPaceSeconds { get; private set; }
+        public double Pace_LeaderDeltaToPlayerSec { get; private set; }
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
         private DateTime _lastPitLaneSeenUtc = DateTime.MinValue;
+        private double _lastLoggedProjectedLaps = double.NaN;
+        private DateTime _lastProjectionLogUtc = DateTime.MinValue;
+        private string _lastProjectionLapSource = string.Empty;
+        private double _lastProjectionLapSeconds = 0.0;
+        private DateTime _lastProjectionLapLogUtc = DateTime.MinValue;
+        private double _lastLoggedProjectionAfterZero = double.NaN;
+
+        // Stable model inputs
+        private double _stableFuelPerLap = 0.0;
+        private string _stableFuelPerLapSource = "None";
+        private double _stableFuelPerLapConfidence = 0.0;
+        private double _stableProjectionLapTime = 0.0;
+        private string _stableProjectionLapTimeSource = "fallback.none";
 
         // --- Stint / Pace tracking ---
         public double Pace_StintAvgLapTimeSec { get; private set; }
         public double Pace_Last5LapAvgSec { get; private set; }
         public int PaceConfidence { get; private set; }
+
+        public double ProjectionLapTime_Stable { get; private set; }
+        public string ProjectionLapTime_StableSource { get; private set; } = "fallback.none";
 
         // Combined view of fuel & pace reliability (for dash use)
         public int OverallConfidence
@@ -245,6 +496,14 @@ namespace LaunchPlugin
 
                 // Combine as fractional probabilities, then rescale to 0–100
                 return (int)Math.Round((Confidence / 100.0) * (PaceConfidence / 100.0) * 100.0);
+            }
+        }
+
+        public bool IsFuelReady
+        {
+            get
+            {
+                return LiveFuelPerLap_StableConfidence >= GetFuelReadyConfidenceThreshold();
             }
         }
 
@@ -276,6 +535,26 @@ namespace LaunchPlugin
             => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
         private long _lastSessionId = -1;
+        private long _lastSubSessionId = -1;
+        private string _lastSessionToken = string.Empty;
+        private string _currentSessionToken = string.Empty;
+        private double _smoothedLiveLapsRemainingState = double.NaN;
+        private double _smoothedPitDeltaState = double.NaN;
+        private double _smoothedPitPushDeltaState = double.NaN;
+        private double _smoothedPitFuelSaveDeltaState = double.NaN;
+        private double _smoothedPitTotalNeededState = double.NaN;
+        private bool _smoothedProjectionValid = false;
+        private bool _smoothedPitValid = false;
+        private bool _pendingSmoothingReset = true;
+        private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
+        internal const double FuelReadyConfidenceDefault = 60.0;
+        private const int LapTimeConfidenceSwitchOn = 50;
+        private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
+        private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
+        private int _lastPitWindowState = -1;
+        private string _lastPitWindowLabel = string.Empty;
+        private DateTime _lastPitWindowLogUtc = DateTime.MinValue;
+        private const double ProfileAllowedConfidenceCeiling = 20.0;
 
         public RelayCommand SaveActiveProfileCommand { get; private set; }
         public RelayCommand ReturnToDefaultsCommand { get; private set; }
@@ -288,7 +567,22 @@ namespace LaunchPlugin
         {
             ProfilesViewModel.SaveProfiles();
             IsActiveProfileDirty = false; // Reset the dirty flag after saving
-            SimHub.Logging.Current.Info($"[Profiles] Changes to '{ActiveProfile?.ProfileName}' saved.");
+            SimHub.Logging.Current.Info($"[LalaPlugin:Profiles] Changes to '{ActiveProfile?.ProfileName}' saved.");
+        }
+
+        private static double ClampToRange(double value, double min, double max, double defaultValue)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return defaultValue;
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        private double GetFuelReadyConfidenceThreshold()
+        {
+            double value = Settings?.FuelReadyConfidence ?? FuelReadyConfidenceDefault;
+            value = ClampToRange(value, 0.0, 100.0, FuelReadyConfidenceDefault);
+            return value;
         }
 
         private static double ComputeStableMedian(List<double> samples)
@@ -298,6 +592,22 @@ namespace LaunchPlugin
             Array.Sort(arr);
             int mid = arr.Length / 2;
             return (arr.Length % 2 == 1) ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2.0;
+        }
+
+        private static double ComputeCoefficientOfVariation(List<double> samples, double average)
+        {
+            if (samples == null || samples.Count == 0 || average <= 0.0) return 0.0;
+            if (samples.Count == 1) return 0.0;
+
+            double sumSquared = 0.0;
+            foreach (var s in samples)
+            {
+                double delta = s - average;
+                sumSquared += delta * delta;
+            }
+
+            double variance = sumSquared / samples.Count;
+            return Math.Sqrt(variance) / average;
         }
 
         // Returns profile average lap in *seconds* for the current car+track, 0 if none.
@@ -351,102 +661,115 @@ namespace LaunchPlugin
             }
         }
 
-        // 0–100 confidence for the current mode, based on lap count, baseline deviation, and variance
-        // 0–100 confidence for the current mode, based on lap count, baseline deviation, and variance
+        // 0–100 confidence for the current mode using weighted samples, variance, wet/dry match, and fallback usage
         private int ComputeFuelModelConfidence(bool isWetMode)
         {
-            var count = isWetMode ? _validWetLaps : _validDryLaps;
             var window = isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
             var avg = isWetMode ? _avgWetFuelPerLap : _avgDryFuelPerLap;
+            var min = isWetMode ? _minWetFuelPerLap : _minDryFuelPerLap;
+            var max = isWetMode ? _maxWetFuelPerLap : _maxDryFuelPerLap;
 
-            // Base confidence from sample count (C# 7.3-friendly)
-            int baseConf;
-            if (count <= 0)
-                baseConf = 0;
-            else if (count == 1)
-                baseConf = 40;
-            else if (count == 2)
-                baseConf = 65;
-            else if (count == 3 || count == 4)
-                baseConf = 80;
+            int freshSamples = isWetMode ? _freshWetSamplesInWindow : _freshDrySamplesInWindow;
+            bool hasSeed = isWetMode ? _hasActiveWetSeed : _hasActiveDrySeed;
+
+            if (window.Count <= 0 || avg <= 0.0)
+                return 0;
+
+            double inheritedFloor = hasSeed ? 0.30 : 0.0; // seeded laps should give a small/moderate start
+            double weightedSampleCount = freshSamples + (hasSeed ? 0.35 : 0.0);
+            double sampleFactor = Math.Min(1.0, inheritedFloor + (weightedSampleCount / 5.0));
+
+            // Variance factor (uses both coefficient of variation and spread)
+            double varianceFactor;
+            double cv = ComputeCoefficientOfVariation(window, avg);
+            if (window.Count == 1)
+                varianceFactor = 0.85; // single sample: allow moderate confidence only
+            else if (cv <= 0.03)
+                varianceFactor = 1.0;
+            else if (cv <= 0.08)
+                varianceFactor = 0.9;
+            else if (cv <= 0.15)
+                varianceFactor = 0.7;
             else
-                baseConf = 100;
+                varianceFactor = 0.5;
 
-            // Penalty for deviation from profile baseline
-            var baselines = GetProfileFuelBaselines();
-            double baseline = isWetMode ? baselines.wet : baselines.dry; // or Item2/Item1 if you prefer
-            double penaltyBaseline = 0.0;
-
-            if (baseline > 0 && avg > 0)
+            double spreadFactor = 1.0;
+            if (avg > 0.0 && max > 0.0 && min > 0.0)
             {
-                var ratio = avg / baseline;
-                var absDev = Math.Abs(ratio - 1.0);
-
-                // No penalty in [0.9, 1.1]; then scale up to -50%
-                if (absDev > 0.1)
-                {
-                    penaltyBaseline = Math.Min(50.0, (absDev - 0.1) * 200.0);
-                }
+                double spreadRatio = (max - min) / avg;
+                if (spreadRatio > 0.25)
+                    spreadFactor = 0.75;
+                if (spreadRatio > 0.40)
+                    spreadFactor = 0.55;
             }
 
-            // Penalty for high internal variance in the sliding window
-            double penaltyVar = 0.0;
-            if (window.Count >= 3 && avg > 0)
-            {
-                double min = window.Min();
-                double max = window.Max();
-                double spread = max - min;
+            // Wet/dry match penalty when we are borrowing opposite-condition data
+            bool hasModeData = isWetMode ? _validWetLaps > 0 : _validDryLaps > 0;
+            bool usingCrossModeData = !hasModeData && ((isWetMode && _validDryLaps > 0) || (!isWetMode && _validWetLaps > 0));
+            double wetMatchFactor = usingCrossModeData ? 0.6 : 1.0;
 
-                if (spread / avg > 0.15) // >15% spread
-                {
-                    penaltyVar = 20.0;
-                }
-            }
+            double fallbackFactor = _usingFallbackFuelProfile ? 0.65 : 1.0;
 
-            double finalConf = baseConf - penaltyBaseline - penaltyVar;
-            if (finalConf < 0.0) finalConf = 0.0;
-            if (finalConf > 100.0) finalConf = 100.0;
+            double final = sampleFactor * varianceFactor * spreadFactor * wetMatchFactor * fallbackFactor;
+            if (final < 0.0) final = 0.0;
+            if (final > 1.0) final = 1.0;
 
-            return (int)Math.Round(finalConf);
+            return (int)Math.Round(final * 100.0);
         }
 
-        // 0–100 confidence for the lap-time model, based on clean sample count and variance
+        // 0–100 confidence for the lap-time model using sample strength, pace variance, and fallback weighting
         private int ComputePaceConfidence()
         {
             int count = _recentLapTimes.Count;
             if (count <= 0) return 0;
 
-            int baseConf;
-            if (count == 1)
-                baseConf = 40;
-            else if (count == 2)
-                baseConf = 65;
-            else if (count == 3 || count == 4)
-                baseConf = 80;
-            else
-                baseConf = 100;
-
             double avg = _recentLapTimes.Average();
-            double penaltyVar = 0.0;
+            if (avg <= 0.0) return 0;
 
-            if (count >= 3 && avg > 0.0)
+            double sampleFactor = Math.Min(1.0, 0.2 + (count / 6.0));
+
+            double varianceFactor;
+            double cv = ComputeCoefficientOfVariation(_recentLapTimes, avg);
+            if (count == 1)
+                varianceFactor = 0.8;
+            else if (cv <= 0.015)
+                varianceFactor = 1.0;
+            else if (cv <= 0.04)
+                varianceFactor = 0.9;
+            else if (cv <= 0.08)
+                varianceFactor = 0.7;
+            else
+                varianceFactor = 0.5;
+
+            double spreadFactor = 1.0;
+            double min = _recentLapTimes.Min();
+            double max = _recentLapTimes.Max();
+            double spreadRatio = avg > 0 ? (max - min) / avg : 0.0;
+            if (spreadRatio > 0.06)
+                spreadFactor = 0.8;
+            if (spreadRatio > 0.12)
+                spreadFactor = 0.6;
+
+            bool fallbackUsed = _usingFallbackPaceProfile || count < 2;
+            double fallbackFactor = fallbackUsed ? 0.7 : 1.0;
+
+            double final = sampleFactor * varianceFactor * spreadFactor * fallbackFactor;
+            if (final < 0.0) final = 0.0;
+            if (final > 1.0) final = 1.0;
+
+            return (int)Math.Round(final * 100.0);
+        }
+
+        private void UpdateLeaderDelta()
+        {
+            if (Pace_Last5LapAvgSec > 0.0 && LiveLeaderAvgPaceSeconds > 0.0)
             {
-                double min = _recentLapTimes.Min();
-                double max = _recentLapTimes.Max();
-                double spread = max - min;
-
-                // If lap times vary more than 3% across the window, knock confidence down
-                if (spread / avg > 0.03)
-                {
-                    penaltyVar = 20.0;
-                }
+                Pace_LeaderDeltaToPlayerSec = Pace_Last5LapAvgSec - LiveLeaderAvgPaceSeconds;
             }
-
-            double finalConf = baseConf - penaltyVar;
-            if (finalConf < 0.0) finalConf = 0.0;
-            if (finalConf > 100.0) finalConf = 100.0;
-
-            return (int)Math.Round(finalConf);
+            else
+            {
+                Pace_LeaderDeltaToPlayerSec = 0.0;
+            }
         }
 
         private void CaptureFuelSeedForNextSession(string fromSessionType)
@@ -488,18 +811,27 @@ namespace LaunchPlugin
                 }
 
                         SimHub.Logging.Current.Info(
-                            $"[LiveFuel] Captured seed from session '{fromSessionType}' for car='{_seedCarModel}', track='{_seedTrackKey}': " +
+                            $"[LalaPlugin:Fuel Burn] Captured seed from session '{fromSessionType}' for car='{_seedCarModel}', track='{_seedTrackKey}': " +
                             $"dry={_seedDryFuelPerLap:F3} (n={_seedDrySampleCount}), wet={_seedWetFuelPerLap:F3} (n={_seedWetSampleCount}).");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Info($"[LiveFuel] CaptureFuelSeedForNextSession error: {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Fuel Burn] CaptureFuelSeedForNextSession error: {ex.Message}");
             }
+        }
+
+        private void ResetLiveMaxFuelTracking()
+        {
+            LiveCarMaxFuel = 0.0;
+            EffectiveLiveMaxTank = 0.0;
+            _lastValidLiveMaxFuel = 0.0;
+            _lastAnnouncedMaxFuel = -1;
         }
 
         private void ResetLiveFuelModelForNewSession(string newSessionType, bool applySeeds)
         {
             // Clear per-lap / model state
+            ResetLiveMaxFuelTracking();
             _recentDryFuelLaps.Clear();
             _recentWetFuelLaps.Clear();
             _validDryLaps = 0;
@@ -528,6 +860,33 @@ namespace LaunchPlugin
             _hadOffTrackThisLap = false;
             _latchedIncidentReason = null;
             _lastPitLaneSeenUtc = DateTime.MinValue;
+            _freshDrySamplesInWindow = 0;
+            _freshWetSamplesInWindow = 0;
+            _hasActiveDrySeed = false;
+            _hasActiveWetSeed = false;
+            _usingFallbackFuelProfile = false;
+            _stableFuelPerLap = 0.0;
+            _stableFuelPerLapSource = "None";
+            _stableFuelPerLapConfidence = 0.0;
+            LiveFuelPerLap_Stable = 0.0;
+            LiveFuelPerLap_StableSource = "None";
+            LiveFuelPerLap_StableConfidence = 0.0;
+            _stableProjectionLapTime = 0.0;
+            _stableProjectionLapTimeSource = "fallback.none";
+            ProjectionLapTime_Stable = 0.0;
+            ProjectionLapTime_StableSource = "fallback.none";
+            LiveLapsRemainingInRace_Stable = 0.0;
+            LiveLapsRemainingInRace_Stable_S = 0.0;
+            PitWindowState = 6;
+            PitWindowLabel = "N/A";
+            IsPitWindowOpen = false;
+            PitWindowOpeningLap = 0;
+            PitWindowClosingLap = 0;
+            _lastPitWindowState = -1;
+            _lastPitWindowLabel = string.Empty;
+            _lastPitWindowLogUtc = DateTime.MinValue;
+
+            FuelCalculator?.ResetTrackConditionOverrideForSessionChange();
 
             // Clear pace tracking alongside fuel model resets so session transitions don't carry stale data
             _recentLapTimes.Clear();
@@ -537,7 +896,9 @@ namespace LaunchPlugin
             _leaderPaceClearedLogged = false;
             Pace_StintAvgLapTimeSec = 0.0;
             Pace_Last5LapAvgSec = 0.0;
+            Pace_LeaderDeltaToPlayerSec = 0.0;
             PaceConfidence = 0;
+            _usingFallbackPaceProfile = false;
 
             LiveFuelPerLap = 0.0;
             Confidence = 0;
@@ -561,6 +922,7 @@ namespace LaunchPlugin
                     _avgDryFuelPerLap = _seedDryFuelPerLap;
                     _maxDryFuelPerLap = _seedDryFuelPerLap;
                     _minDryFuelPerLap = _seedDryFuelPerLap;
+                    _hasActiveDrySeed = true;
                     seededAny = true;
                 }
 
@@ -571,22 +933,23 @@ namespace LaunchPlugin
                     _avgWetFuelPerLap = _seedWetFuelPerLap;
                     _maxWetFuelPerLap = _seedWetFuelPerLap;
                     _minWetFuelPerLap = _seedWetFuelPerLap;
+                    _hasActiveWetSeed = true;
                     seededAny = true;
                 }
 
                 if (seededAny)
                 {
-                    bool isWetNow = FuelCalculator != null && FuelCalculator.IsWet;
-                    LiveFuelPerLap = isWetNow
+                    _isWetMode = FuelCalculator?.IsWet ?? false;
+                    LiveFuelPerLap = _isWetMode
                         ? (_avgWetFuelPerLap > 0 ? _avgWetFuelPerLap : _avgDryFuelPerLap)
                         : (_avgDryFuelPerLap > 0 ? _avgDryFuelPerLap : _avgWetFuelPerLap);
 
-                    Confidence = ComputeFuelModelConfidence(isWetNow);
+                    Confidence = ComputeFuelModelConfidence(_isWetMode);
 
                     try
                     {
                         SimHub.Logging.Current.Info(
-                            $"[LiveFuel] Seeded race model from previous session (car='{_seedCarModel}', track='{_seedTrackKey}'): " +
+                            $"[LalaPlugin:Fuel Burn] Seeded race model from previous session (car='{_seedCarModel}', track='{_seedTrackKey}'): " +
                             $"dry={_seedDryFuelPerLap:F3}, wet={_seedWetFuelPerLap:F3}, conf={Confidence}%.");
                     }
                     catch { /* logging must not throw */ }
@@ -594,6 +957,29 @@ namespace LaunchPlugin
                 FuelCalculator?.SetLiveFuelWindowStats(_avgDryFuelPerLap, _minDryFuelPerLap, _maxDryFuelPerLap, _validDryLaps,
                     _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
             }
+
+            _confidenceCarModel = CurrentCarModel ?? string.Empty;
+            _confidenceTrackIdentity =
+                !string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase)
+                    ? CurrentTrackKey
+                    : (CurrentTrackName ?? string.Empty);
+        }
+
+        private void ResetConfidenceForNewCombo(string sessionType)
+        {
+            _seedDryFuelPerLap = 0.0;
+            _seedDrySampleCount = 0;
+            _seedWetFuelPerLap = 0.0;
+            _seedWetSampleCount = 0;
+            _seedCarModel = string.Empty;
+            _seedTrackKey = string.Empty;
+            ResetLiveFuelModelForNewSession(sessionType, false);
+
+            try
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:Fuel Burn] Car/track change detected – clearing seeds and confidence");
+            }
+            catch { /* logging must not throw */ }
         }
 
         private void HandleSessionChangeForFuelModel(string fromSession, string toSession)
@@ -633,7 +1019,7 @@ namespace LaunchPlugin
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Info($"[LiveFuel] HandleSessionChangeForFuelModel error: {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Fuel Burn] HandleSessionChangeForFuelModel error: {ex.Message}");
             }
         }
 
@@ -674,7 +1060,8 @@ namespace LaunchPlugin
                 if (ShouldLogLapDetector("pending-expired"))
                 {
                     SimHub.Logging.Current.Info(
-                        $"[LapDetector] Pending lap confirmation expired (lap={_lapDetectorPendingLapTarget}, pct={_lapDetectorPendingLastPct:F3}).");
+                        $"[LalaPlugin:Lap Detector] Pending expired lap target={_lapDetectorPendingLapTarget} pct={_lapDetectorPendingLastPct:F3} session state={_lapDetectorPendingSessionState}");
+
                 }
                 _lapDetectorPending = false;
                 _lapDetectorPendingLapTarget = -1;
@@ -743,7 +1130,9 @@ namespace LaunchPlugin
                         if (ShouldLogLapDetector("pending-rejected"))
                         {
                             SimHub.Logging.Current.Info(
-                                $"[LapDetector] Pending lap increment rejected after debounce (lap={lapCount}, lastPct={lastPctNormalized:F3}, curPct={curPctNormalized:F3}, speed={speedKmh:F1}).");
+                                $"[LalaPlugin:Lap Detector] Pending rejected lap={lapCount} prev lap={_lapDetectorLastCompleted} " +
+                                $"last track point={lastPctNormalized:F3} current track point={curPctNormalized:F3} speed kmh={speedKmh:F1} session state={sessionStateToken}"
+                                );
                         }
                         _lapDetectorLastSessionState = sessionStateToken;
                         _lapDetectorLastCompleted = lapCount;
@@ -759,7 +1148,8 @@ namespace LaunchPlugin
                 {
                     if (ShouldLogLapDetector("low-speed"))
                     {
-                        SimHub.Logging.Current.Info($"[LapDetector] Ignoring lap increment at low speed ({speedKmh:F1} km/h).");
+                        SimHub.Logging.Current.Info($"[LalaPlugin:Lap Detector] Ignored reason=low speed lap={lapCount} speed kmh={speedKmh:F1} session state={sessionStateToken}"
+);
                     }
                     _lapDetectorLastSessionState = sessionStateToken;
                     _lapDetectorLastCompleted = lapCount;
@@ -777,7 +1167,10 @@ namespace LaunchPlugin
                     if (ShouldLogLapDetector("pending-armed"))
                     {
                         SimHub.Logging.Current.Info(
-                            $"[LapDetector] Lap increment queued for confirmation (lap={lapCount}, lastPct={lastPctNormalized:F3}, curPct={curPctNormalized:F3}, speed={speedKmh:F1}).");
+                            $"[LalaPlugin:Lap Detector] Pending armed lap={lapCount} prev lap={_lapDetectorLastCompleted} " +
+                            $"last track point={lastPctNormalized:F3} current track point={curPctNormalized:F3} speed kmh={speedKmh:F1} session state={sessionStateToken} " +
+                            $"near S/F={nearStartFinish} far from S/F={pctFarFromSf} pct impossible={pctImpossible}"
+                            );
                     }
 
                     return false;
@@ -785,7 +1178,12 @@ namespace LaunchPlugin
 
                 if (!nearStartFinish && lastPctNormalized >= 0 && curPctNormalized >= 0 && ShouldLogLapDetector("atypical"))
                 {
-                    SimHub.Logging.Current.Info($"[LapDetector] Lap increment detected via CompletedLaps with atypical track% values (last={lastPctNormalized:F3}, cur={curPctNormalized:F3}).");
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:Lap Detector] lap_crossed source=CompletedLaps " +
+                        $"lap={lapCount} prev_lap={_lapDetectorLastCompleted} " +
+                        $"trackpct.last={lastPctNormalized:F3} trackpct.cur={curPctNormalized:F3} " +
+                        $"near_sf={nearStartFinish} far_from_sf={pctFarFromSf} pct_impossible={pctImpossible} " +
+                        $"speed_kmh={speedKmh:F1} session_state={sessionStateToken}");
                 }
 
                 _lapDetectorLastSessionState = sessionStateToken;
@@ -837,29 +1235,68 @@ namespace LaunchPlugin
             double maxFuelPerLapSession,
             int fuelConfidence,
             int overallConfidence,
-            bool pitTripActive)
+            bool pitTripActive,
+            double deltaLitres,
+            double requiredLitres,
+            double stableFuelPerLap,
+            double stableLapsRemaining,
+            double currentFuel,
+            double afterZeroUsedSeconds,
+            string afterZeroSource,
+            double timerZeroSessionTime,
+            double sessionTimeRemain,
+            double projectedLapsRemaining,
+            double projectionLapSeconds,
+            double projectedDriveSecondsRemaining)
         {
-            string prefix = "[SimHubLogInfo][LapCrossing]";
-            string pacePart =
-                $"pace lap={lapNumber} time={lastLapSeconds:F3}s accepted={paceAccepted} reason={paceReason} " +
-                $"baseline={paceBaseline} delta={paceDelta} stintAvg={stintAvg:F3}s last5={last5Avg:F3}s " +
-                $"conf={paceConfidence}% leaderLap={leaderLapSeconds:F3}s leaderAvg={leaderAvgSeconds:F3}s " +
-                $"leaderCount={leaderSampleCount}";
-
-            string fuelPart =
-                $"fuel used={fuelUsed:F3}L accepted={fuelAccepted} reason={fuelReason} " +
-                $"mode={(isWetMode ? "wet" : "dry")} live={liveFuelPerLap:F3}L/lap windowDry={validDryLaps} " +
-                $"windowWet={validWetLaps} maxSession={maxFuelPerLapSession:F3}L conf={fuelConfidence}% " +
-                $"overall={overallConfidence}% pitTrip={pitTripActive}";
-
-            SimHub.Logging.Current.Info($"{prefix} | {pacePart} | {fuelPart}");
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:PACE] Lap {lapNumber}: " +
+                $"ok={paceAccepted} reason={paceReason} " +
+                $"lap_s={lastLapSeconds:F3} baseline_s={paceBaseline} delta_s={paceDelta} " +
+                $"stint_avg_s={stintAvg:F3} last5_avg_s={last5Avg:F3} conf_pct={paceConfidence} " +
+                $"leader_lap_s={leaderLapSeconds:F3} leader_avg_s={leaderAvgSeconds:F3} leader_samples={leaderSampleCount}"
+            );
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:FUEL PER LAP] Lap {lapNumber}: " +
+                $"ok={fuelAccepted} reason={fuelReason} mode={(isWetMode ? "wet" : "dry")} " +
+                $"live_fpl={liveFuelPerLap:F3} " +
+                $"window_dry={validDryLaps} window_wet={validWetLaps} " +
+                $"max_session_fpl={maxFuelPerLapSession:F3} " +
+                $"fuel_conf_pct={fuelConfidence} overall_conf_pct={overallConfidence} " +
+                $"pit_trip_active={pitTripActive}"
+            );
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:FUEL DELTA] Lap {lapNumber}: " +
+                $"current_l={currentFuel:F1} required_l={requiredLitres:F1} delta_l={deltaLitres:F1} " +
+                $"stable_fpl={stableFuelPerLap:F3} stable_laps={stableLapsRemaining:F2}"
+            );
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:RACE PROJECTION] Lap {lapNumber}: " +
+                $"after_zero_used_s={afterZeroUsedSeconds:F1} source={afterZeroSource} " +
+                $"timer0_s={FormatSecondsOrNA(timerZeroSessionTime)} " +
+                $"session_remain_s={FormatSecondsOrNA(sessionTimeRemain)} " +
+                $"projected_laps={projectedLapsRemaining:F2} " +
+                $"projection_lap_s={projectionLapSeconds:F3} " +
+                $"projected_remain_s={projectedDriveSecondsRemaining:F1}"
+            );
         }
 
-        private void UpdateLiveFuelCalcs(GameData data)
+        private void UpdateLiveFuelCalcs(GameData data, PluginManager pluginManager)
         {
             // --- 1) Gather required data ---
+            UpdateLiveMaxFuel(pluginManager);
             double currentFuel = data.NewData?.Fuel ?? 0.0;
             double rawLapPct = data.NewData?.TrackPositionPercent ?? 0.0;
+            double fallbackFuelPerLap = Convert.ToDouble(
+                PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
+            );
+
+            double effectiveMaxTank = EffectiveLiveMaxTank;
+
+            double sessionTime = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
+            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+
+            _isWetMode = FuelCalculator?.IsWet ?? false;
             double maxFuel = (LiveCarMaxFuel > 0)
                 ? LiveCarMaxFuel
                 : (data.NewData?.MaxFuel ?? 0.0);
@@ -897,10 +1334,13 @@ namespace LaunchPlugin
             }
 
             double leaderLastLapSec = 0.0;
+            bool leaderLapWasFallback = false;
 
             if (lapCrossed)
             {
-                leaderLastLapSec = ReadLeaderLapTimeSeconds(PluginManager, data);
+                var leaderLap = ReadLeaderLapTimeSeconds(PluginManager, data, Pace_Last5LapAvgSec, LiveLeaderAvgPaceSeconds);
+                leaderLastLapSec = leaderLap.seconds;
+                leaderLapWasFallback = leaderLap.isFallback;
 
                 if (leaderLastLapSec <= 0.0 && _recentLeaderLapTimes.Count > 0)
                 {
@@ -908,13 +1348,14 @@ namespace LaunchPlugin
                     if (!_leaderPaceClearedLogged)
                     {
                         SimHub.Logging.Current.Info(string.Format(
-                            "[Leader] clearing leader pace (feed dropped), lastAvg={0:F3}",
+                            "[LalaPlugin:Leader Lap] clearing leader pace (feed dropped), lastAvg={0:F3}",
                             LiveLeaderAvgPaceSeconds));
                         _leaderPaceClearedLogged = true;
                     }
                     _recentLeaderLapTimes.Clear();
                     _lastLeaderLapTimeSec = 0.0;
                     LiveLeaderAvgPaceSeconds = 0.0;
+                    Pace_LeaderDeltaToPlayerSec = 0.0;
                 }
 
                 // This logic checks if the PitEngine is waiting for an out-lap and, if so,
@@ -927,30 +1368,12 @@ namespace LaunchPlugin
                     // Basic validity check for the lap itself
                     bool lastLapLooksClean = !pitTripActive && lastLapSecPit > 20 && lastLapSecPit < 900;
 
-                    // Get a stable average pace to compare against
-                    double stableAvgPace = ComputeStableMedian(_recentLapTimes);
+                    // Decide baseline once (priority: live_median -> profile_avg -> session_pb)
+                    double liveMedianPace = ComputeStableMedian(_recentLapTimes);
+                    double stableAvgPace = liveMedianPace;
+                    string paceSource = "live_median";
 
-                    // --- Add fallback logic if live pace is unavailable ---
-                    if (stableAvgPace <= 0 && ActiveProfile != null)
-                    {
-                        var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
-                        if (trackRecord?.AvgLapTimeDry > 0)
-                        {
-                            stableAvgPace = trackRecord.AvgLapTimeDry.Value / 1000.0;
-                            SimHub.Logging.Current.Info($"[Pace] No live pace available. Using profile avg lap time as fallback: {stableAvgPace:F2}s");
-                        }
-                    }
-                    // --- PB tertiary fallback (for replays / no live median and no profile avg) ---
-                    if (stableAvgPace <= 0 && _lastSeenBestLap > TimeSpan.Zero)
-                    {
-                        stableAvgPace = _lastSeenBestLap.TotalSeconds;
-                    }
-                    SimHub.Logging.Current.Info($"[Pit/Pace] Baseline used = {stableAvgPace:F3}s (live median → profile avg → PB).");
-
-                    // Decide and publish baseline (profile-avg → live-median → session-pb)
-                    string paceSource = "live-median"; // default to whatever stableAvgPace currently holds
-
-                    // 1) Prefer profile average (Dry). Fall back to name if key resolve fails.
+                    double profileAvgPace = 0.0;
                     try
                     {
                         if (ActiveProfile != null)
@@ -960,21 +1383,29 @@ namespace LaunchPlugin
                                 ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackName);
 
                             if (tr?.AvgLapTimeDry > 0)
-                            {
-                                stableAvgPace = tr.AvgLapTimeDry.Value / 1000.0; // ms -> sec
-                                paceSource = "profile-avg";
-                            }
+                                profileAvgPace = tr.AvgLapTimeDry.Value / 1000.0; // ms -> sec
                         }
                     }
-                    catch { /* keep fallback behavior */ }
+                    catch { /* ignore */ }
 
-                    // 2) If still not set (>0), leave live-median as-is (stableAvgPace already holds it).
-                    //    3) If live-median is also missing, fall back to the session PB.
-                    if (stableAvgPace <= 0 && _lastSeenBestLap > TimeSpan.Zero)
+                    double sessionPbPace = (_lastSeenBestLap > TimeSpan.Zero) ? _lastSeenBestLap.TotalSeconds : 0.0;
+
+                    if (stableAvgPace <= 0.0 && profileAvgPace > 0.0)
                     {
-                        stableAvgPace = _lastSeenBestLap.TotalSeconds;
-                        paceSource = "session-pb";
+                        stableAvgPace = profileAvgPace;
+                        paceSource = "profile_avg";
                     }
+                    if (stableAvgPace <= 0.0 && sessionPbPace > 0.0)
+                    {
+                        stableAvgPace = sessionPbPace;
+                        paceSource = "session_pb";
+                    }
+
+                    _usingFallbackPaceProfile = (paceSource == "profile_avg");
+
+                    SimHub.Logging.Current.Debug(
+                        $"[LalaPlugin:Pace] baseline_used chosen={paceSource} baseline_s={stableAvgPace:F3} " +
+                        $"live_median_s={liveMedianPace:F3} profile_avg_s={profileAvgPace:F3} session_pb_s={sessionPbPace:F3}");
 
                     // Publish to dash
                     _pitDbg_AvgPaceUsedSec = stableAvgPace;
@@ -1052,7 +1483,7 @@ namespace LaunchPlugin
                     double lastLapSec = lastLapTs.TotalSeconds;
 
                     // Refresh the leader rolling average whenever we see a new lap time
-                    if (leaderLastLapSec > 20.0 && leaderLastLapSec < 900.0 &&
+                    if (!leaderLapWasFallback && leaderLastLapSec > 20.0 && leaderLastLapSec < 900.0 &&
                         Math.Abs(leaderLastLapSec - _lastLeaderLapTimeSec) > 1e-6)
                     {
                         _leaderPaceClearedLogged = false;
@@ -1064,10 +1495,12 @@ namespace LaunchPlugin
 
                         _lastLeaderLapTimeSec = leaderLastLapSec;
                         LiveLeaderAvgPaceSeconds = _recentLeaderLapTimes.Average();
+                        UpdateLeaderDelta();
                     }
                     else if (_recentLeaderLapTimes.Count == 0)
                     {
                         LiveLeaderAvgPaceSeconds = 0.0;
+                        Pace_LeaderDeltaToPlayerSec = 0.0;
                     }
 
                     double currentAvgLeader = LiveLeaderAvgPaceSeconds;
@@ -1091,7 +1524,7 @@ namespace LaunchPlugin
                     }
 
                     // 1) Global race warm-up: ignore very early race laps (same as fuel)
-                    if (completedLapsNow <= 2)
+                    if (completedLapsNow <= 1)
                     {
                         paceReject = true;
                         paceReason = "race-warmup";
@@ -1133,7 +1566,7 @@ namespace LaunchPlugin
                         if (Math.Abs(delta) > 20.0)
                         {
                             // You can log this if you like:
-                            SimHub.Logging.Current.Info($"[Pace] Gross outlier lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
+                            SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Gross outlier lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
                             paceReject = true;
                             paceReason = "gross-outlier";
                         }
@@ -1141,7 +1574,7 @@ namespace LaunchPlugin
                         //     Keeps spins / heavy traffic / yellows out of the model, but allows faster laps.
                         else if (delta > 6.0)
                         {
-                            SimHub.Logging.Current.Info($"[Pace] Rejected too-slow lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
+                            SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Rejected too-slow lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
                             paceReject = true;
                             paceReason = "slow-outlier";
                         }
@@ -1177,6 +1610,8 @@ namespace LaunchPlugin
                             Pace_Last5LapAvgSec = 0.0;
                         }
 
+                        UpdateLeaderDelta();
+
                         // Update pace confidence
                         PaceConfidence = ComputePaceConfidence();
 
@@ -1211,8 +1646,6 @@ namespace LaunchPlugin
                     double fuelUsed = (_lapStartFuel > 0 && currentFuel >= 0)
                         ? (_lapStartFuel - currentFuel)
                         : 0.0;
-
-                    bool isWetMode = FuelCalculator?.IsWet ?? false;
 
                     bool reject = false;
                     string reason = "";
@@ -1252,7 +1685,7 @@ namespace LaunchPlugin
                     if (!reject)
                     {
                         // coarse cap: 20% of tank or 10 L, whichever is larger
-                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(maxFuel, 50.0));
+                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(effectiveMaxTank, 50.0));
                         if (fuelUsed <= 0.05)
                         {
                             reject = true;
@@ -1269,7 +1702,7 @@ namespace LaunchPlugin
                     if (!reject)
                     {
                         var (baselineDry, baselineWet) = GetProfileFuelBaselines();
-                        double baseline = isWetMode ? baselineWet : baselineDry;
+                        double baseline = _isWetMode ? baselineWet : baselineDry;
 
                         if (baseline > 0.0)
                         {
@@ -1284,13 +1717,37 @@ namespace LaunchPlugin
 
                     if (!reject)
                     {
-                        var window = isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
+                        var window = _isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
+
+                        if (_isWetMode)
+                            _freshWetSamplesInWindow++;
+                        else
+                            _freshDrySamplesInWindow++;
 
                         window.Add(fuelUsed);
                         while (window.Count > FuelWindowSize)
-                            window.RemoveAt(0);
+                        {
+                            if (_isWetMode && _hasActiveWetSeed)
+                            {
+                                window.RemoveAt(0);
+                                _hasActiveWetSeed = false;
+                            }
+                            else if (!_isWetMode && _hasActiveDrySeed)
+                            {
+                                window.RemoveAt(0);
+                                _hasActiveDrySeed = false;
+                            }
+                            else
+                            {
+                                window.RemoveAt(0);
+                                if (_isWetMode && _freshWetSamplesInWindow > 0)
+                                    _freshWetSamplesInWindow--;
+                                else if (!_isWetMode && _freshDrySamplesInWindow > 0)
+                                    _freshDrySamplesInWindow--;
+                            }
+                        }
 
-                        if (isWetMode)
+                        if (_isWetMode)
                         {
                             _avgWetFuelPerLap = window.Average();
                             _validWetLaps = window.Count;
@@ -1325,11 +1782,12 @@ namespace LaunchPlugin
                         }
 
                         // Choose mode-aware LiveFuelPerLap, but allow cross-mode fallback if only one side has data
-                        LiveFuelPerLap = isWetMode
+                        LiveFuelPerLap = _isWetMode
                             ? (_avgWetFuelPerLap > 0 ? _avgWetFuelPerLap : _avgDryFuelPerLap)
                             : (_avgDryFuelPerLap > 0 ? _avgDryFuelPerLap : _avgWetFuelPerLap);
 
-                        Confidence = ComputeFuelModelConfidence(isWetMode);
+                        _usingFallbackFuelProfile = false;
+                        Confidence = ComputeFuelModelConfidence(_isWetMode);
 
                         // Overall confidence is computed in its getter from Confidence + PaceConfidence
 
@@ -1337,7 +1795,7 @@ namespace LaunchPlugin
                         FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
 
                         // Update session max for current mode if available
-                        double maxForMode = isWetMode ? _maxWetFuelPerLap : _maxDryFuelPerLap;
+                        double maxForMode = _isWetMode ? _maxWetFuelPerLap : _maxDryFuelPerLap;
                         if (maxForMode > 0)
                         {
                             _maxFuelPerLapSession = maxForMode;
@@ -1349,7 +1807,7 @@ namespace LaunchPlugin
                             _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
 
                         // Keep profile’s dry fuel updated from stable dry data only
-                        if (!isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
+                        if (!_isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
                         {
                             var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
                             if (trackRecord != null)
@@ -1372,6 +1830,13 @@ namespace LaunchPlugin
                         ? reason
                         : (string.IsNullOrEmpty(reason) ? "accepted" : reason);
 
+                    double stableFuelPerLap = LiveFuelPerLap_Stable;
+                    double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
+                    double litresRequiredToFinish =
+                        (stableLapsRemaining > 0.0 && stableFuelPerLap > 0.0)
+                            ? stableLapsRemaining * stableFuelPerLap
+                            : 0.0;
+
                     LogLapCrossingSummary(
                         completedLapsNow,
                         lastLapSec,
@@ -1388,16 +1853,28 @@ namespace LaunchPlugin
                         fuelUsed,
                         !reject,
                         fuelReasonForLog,
-                        isWetMode,
+                        _isWetMode,
                         LiveFuelPerLap,
                         _validDryLaps,
                         _validWetLaps,
                         _maxFuelPerLapSession,
                         Confidence,
                         OverallConfidence,
-                        pitTripActive);
+                        pitTripActive,
+                        Fuel_Delta_LitresCurrent,
+                        litresRequiredToFinish,
+                        stableFuelPerLap,
+                        stableLapsRemaining,
+                        currentFuel,
+                        _afterZeroUsedSeconds,
+                        AfterZeroSource,
+                        _timerZeroSessionTime,
+                        sessionTimeRemain,
+                        _lastProjectedLapsRemaining,
+                        _lastProjectionLapSecondsUsed,
+                        LiveProjectedDriveSecondsRemaining);
 
-                    // Per-lap resets for next lap
+                    // Per-lap resets for next lap (must be inside completedLapsNow scope)
                     if (pitTripActive)
                     {
                         _lapsSincePitExit = 0;
@@ -1411,6 +1888,7 @@ namespace LaunchPlugin
                     _hadOffTrackThisLap = false;
                     _latchedIncidentReason = null;
                     _lastCompletedFuelLap = completedLapsNow;
+
                 }
 
                 // Start the next lap’s measurement window
@@ -1420,9 +1898,8 @@ namespace LaunchPlugin
             // If we haven’t accumulated any accepted laps yet, fall back to SimHub’s estimator
             if ((_validDryLaps + _validWetLaps) == 0)
             {
-                LiveFuelPerLap = Convert.ToDouble(
-                    PluginManager.GetPropertyValue("DataCorePlugin.Computed.Fuel_LitersPerLap") ?? 0.0
-                );
+                LiveFuelPerLap = fallbackFuelPerLap;
+                _usingFallbackFuelProfile = true;
                 Confidence = 0;
                 FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
 
@@ -1430,14 +1907,32 @@ namespace LaunchPlugin
                     FuelCalculator?.OnLiveFuelPerLapUpdated();
             }
 
+            UpdateStableFuelPerLap(_isWetMode, fallbackFuelPerLap);
+
             // --- 3) Core dashboard properties (guarded by a valid consumption rate) ---
-            if (LiveFuelPerLap <= 0)
+            double requestedAddLitresForSmooth = 0.0;
+            double fuelPerLapForCalc = LiveFuelPerLap_Stable > 0.0
+                ? LiveFuelPerLap_Stable
+                : LiveFuelPerLap;
+            double fuelToRequest = Convert.ToDouble(
+                PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PitSvFuel") ?? 0.0);
+            if (!_isRefuelSelected)
+            {
+                fuelToRequest = 0.0;
+            }
+            double pitWindowRequestedAdd = Math.Max(0, fuelToRequest);
+            double maxTankCapacity = ResolveMaxTankCapacity();
+            int strategyRequiredStops = FuelCalculator?.RequiredPitStops ?? 0;
+
+            if (fuelPerLapForCalc <= 0)
             {
                 LiveLapsRemainingInRace = 0;
+                LiveLapsRemainingInRace_Stable = 0;
                 DeltaLaps = 0;
                 TargetFuelPerLap = 0;
                 IsPitWindowOpen = false;
                 PitWindowOpeningLap = 0;
+                PitWindowClosingLap = 0;
                 LapsRemainingInTank = 0;
 
                 Pit_TotalNeededToEnd = 0;
@@ -1446,38 +1941,137 @@ namespace LaunchPlugin
                 Pit_WillAdd = 0;
                 Pit_FuelOnExit = 0;
                 Pit_DeltaAfterStop = 0;
+                Pit_FuelSaveDeltaAfterStop = 0;
+                Pit_PushDeltaAfterStop = 0;
+                PitStopsRequiredByFuel = 0;
+                PitStopsRequiredByPlan = 0;
                 Pit_StopsRequiredToEnd = 0;
+
+                Fuel_Delta_LitresCurrent = 0;
+                Fuel_Delta_LitresPlan = 0;
+                Fuel_Delta_LitresWillAdd = 0;
+                Fuel_Delta_LitresCurrentPush = 0;
+                Fuel_Delta_LitresPlanPush = 0;
+                Fuel_Delta_LitresWillAddPush = 0;
+                Fuel_Delta_LitresCurrentSave = 0;
+                Fuel_Delta_LitresPlanSave = 0;
+                Fuel_Delta_LitresWillAddSave = 0;
 
                 PushFuelPerLap = 0;
                 DeltaLapsIfPush = 0;
                 CanAffordToPush = false;
 
+                FuelSaveFuelPerLap = 0;
+                LiveProjectedDriveTimeAfterZero = 0;
+                LiveProjectedDriveSecondsRemaining = 0;
+
+                _afterZeroPlannerSeconds = 0.0;
+                _afterZeroLiveEstimateSeconds = 0.0;
+                _afterZeroUsedSeconds = 0.0;
+                _afterZeroSourceUsed = string.Empty;
+                _lastProjectedLapsRemaining = 0.0;
+                _lastSimLapsRemaining = 0.0;
+                _lastProjectionLapSecondsUsed = 0.0;
+
                 Pace_StintAvgLapTimeSec = 0.0;
                 Pace_Last5LapAvgSec = 0.0;
+                Pace_LeaderDeltaToPlayerSec = 0.0;
                 PaceConfidence = 0;
                 FuelCalculator?.SetLiveLapPaceEstimate(0, 0);
                 FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
             }
             else
             {
-                LapsRemainingInTank = currentFuel / LiveFuelPerLap;
+                LapsRemainingInTank = currentFuel / fuelPerLapForCalc;
 
-                LiveLapsRemainingInRace = Convert.ToDouble(
+                double simLapsRemaining = Convert.ToDouble(
                     PluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LapsRemainingFloat") ?? 0.0
                 );
 
-                double fuelNeededToEnd = LiveLapsRemainingInRace * LiveFuelPerLap;
-                DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace;
+                bool isTimedRace = !double.IsNaN(sessionTimeRemain);
+                double projectionLapSeconds = GetProjectionLapSeconds(data);
+
+                _afterZeroPlannerSeconds = FuelCalculator?.StrategyDriverExtraSecondsAfterZero ?? 0.0;
+                _afterZeroLiveEstimateSeconds = FuelProjectionMath.EstimateDriveTimeAfterZero(
+                    sessionTime,
+                    sessionTimeRemain,
+                    projectionLapSeconds,
+                    _afterZeroPlannerSeconds,
+                    _timerZeroSeen,
+                    _timerZeroSessionTime);
+
+                if (!_timerZeroSeen)
+                {
+                    _afterZeroLiveEstimateSeconds = 0.0;
+                }
+
+                bool liveAfterZeroValid =
+                    _timerZeroSeen &&
+                    !double.IsNaN(_timerZeroSessionTime) &&
+                    sessionTime > _timerZeroSessionTime &&
+                    _afterZeroLiveEstimateSeconds > 0.0;
+                string afterZeroSourceNow = liveAfterZeroValid ? "live" : "planner";
+
+                if (!string.Equals(afterZeroSourceNow, _afterZeroSourceUsed, StringComparison.Ordinal))
+                {
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:Drive Time Projection] After 0 Source Change from={_afterZeroSourceUsed} to={afterZeroSourceNow} " +
+                        $"live valid={liveAfterZeroValid} timer0 seen={_timerZeroSeen}");
+
+                    _afterZeroSourceUsed = afterZeroSourceNow; // <-- stops the spam
+                }
+
+
+                _afterZeroUsedSeconds = liveAfterZeroValid ? _afterZeroLiveEstimateSeconds : _afterZeroPlannerSeconds;
+
+                LiveProjectedDriveTimeAfterZero = _afterZeroUsedSeconds;
+                double projectedLapsRemaining = ComputeProjectedLapsRemaining(simLapsRemaining, projectionLapSeconds, sessionTimeRemain, _afterZeroUsedSeconds);
+
+                if (projectedLapsRemaining > 0.0)
+                {
+                    LiveLapsRemainingInRace = projectedLapsRemaining;
+                    LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
+
+                    if (ShouldLogProjection(simLapsRemaining, projectedLapsRemaining))
+                    {
+                          LogProjectionDifference(
+                              simLapsRemaining,
+                              projectedLapsRemaining,
+                              projectionLapSeconds,
+                              LiveProjectedDriveSecondsRemaining,
+                              _afterZeroSourceUsed,
+                              sessionTimeRemain);
+                      }
+                  }
+                else
+                {
+                    LiveLapsRemainingInRace = simLapsRemaining;
+                    LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
+                }
+
+                _lastProjectedLapsRemaining = LiveLapsRemainingInRace_Stable;
+                _lastSimLapsRemaining = simLapsRemaining;
+                _lastProjectionLapSecondsUsed = projectionLapSeconds;
+
+                double fuelNeededToEnd = LiveLapsRemainingInRace_Stable * fuelPerLapForCalc;
+                DeltaLaps = LapsRemainingInTank - LiveLapsRemainingInRace_Stable;
+
+                double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
+                double stableFuelPerLap = LiveFuelPerLap_Stable;
+                double litresRequiredToFinish =
+                    (stableLapsRemaining > 0.0 && stableFuelPerLap > 0.0)
+                        ? stableLapsRemaining * stableFuelPerLap
+                        : fuelNeededToEnd;
 
                 // Raw target fuel per lap if we're short on fuel
-                double rawTargetFuelPerLap = (DeltaLaps < 0 && LiveLapsRemainingInRace > 0)
-                    ? currentFuel / LiveLapsRemainingInRace
+                double rawTargetFuelPerLap = (DeltaLaps < 0 && LiveLapsRemainingInRace_Stable > 0)
+                    ? currentFuel / LiveLapsRemainingInRace_Stable
                     : 0.0;
 
                 // Apply 10% saving guard: don't assume better than 10% below live average
-                if (rawTargetFuelPerLap > 0.0 && LiveFuelPerLap > 0.0)
+                if (rawTargetFuelPerLap > 0.0 && fuelPerLapForCalc > 0.0)
                 {
-                    double minAllowed = LiveFuelPerLap * 0.90; // max 10% fuel saving
+                    double minAllowed = fuelPerLapForCalc * 0.90; // max 10% fuel saving
                     TargetFuelPerLap = (rawTargetFuelPerLap < minAllowed)
                         ? minAllowed
                         : rawTargetFuelPerLap;
@@ -1498,10 +2092,13 @@ namespace LaunchPlugin
                     ? suggestedMaxTank
                     : (LiveCarMaxFuel > 0 ? LiveCarMaxFuel : maxFuel);
 
-                Pit_TankSpaceAvailable = Math.Max(0, sessionMaxFuel - currentFuel);
-                Pit_WillAdd = Math.Min(fuelToRequest, Pit_TankSpaceAvailable);
+                double safeFuelRequest = requestedAddLitres;
+                Pit_WillAdd = Math.Min(safeFuelRequest, Pit_TankSpaceAvailable);
 
                 Pit_FuelOnExit = currentFuel + Pit_WillAdd;
+                bool isWetModeNow = FuelCalculator?.IsWet ?? false;
+                double fuelSaveRate = isWetModeNow ? _minWetFuelPerLap : _minDryFuelPerLap;
+                if (fuelSaveRate <= 0.0 && fuelPerLapForCalc > 0.0)
                 Pit_DeltaAfterStop = (LiveFuelPerLap > 0)
                     ? (Pit_FuelOnExit / LiveFuelPerLap) - LiveLapsRemainingInRace
                     : 0;
@@ -1515,39 +2112,40 @@ namespace LaunchPlugin
 
                 if (stopsRequired <= 0)
                 {
-                    IsPitWindowOpen = false;
-                    PitWindowOpeningLap = 0;
+                    fuelSaveRate = fuelPerLapForCalc * 0.97; // light saving fallback
                 }
-                else
-                {
-                    double lapsUntilEmpty = LapsRemainingInTank;
-                    double pitWindowLapThreshold = lapsPerTank;
-                    IsPitWindowOpen = lapsUntilEmpty <= pitWindowLapThreshold;
 
-                    if (IsPitWindowOpen)
-                    {
-                        PitWindowOpeningLap = 0;
-                    }
-                    else
-                    {
-                        double lapsUntilWindowOpens = lapsUntilEmpty - pitWindowLapThreshold;
+                FuelSaveFuelPerLap = fuelSaveRate;
 
-                        // CompletedLaps is decimal? -> normalize to double
-                        double completedLaps = Convert.ToDouble(data.NewData?.CompletedLaps ?? 0m);
+                Pit_DeltaAfterStop = (fuelPerLapForCalc > 0)
+                    ? (Pit_FuelOnExit / fuelPerLapForCalc) - LiveLapsRemainingInRace_Stable
+                    : 0;
 
-                        PitWindowOpeningLap = (int)Math.Floor(completedLaps + lapsUntilWindowOpens);
-                    }
-                }
+                Pit_FuelSaveDeltaAfterStop = (fuelSaveRate > 0)
+                    ? (Pit_FuelOnExit / fuelSaveRate) - LiveLapsRemainingInRace_Stable
+                    : 0;
+
+                // Pit stop counts based on requested MFD refuel amount and
+                // the effective tank capacity shared with the Fuel tab's detected max.
+                double litresShort = Math.Max(0, litresRequiredToFinish - currentFuel);
+                int stopsRequiredByFuel = (effectiveMaxTank > 0)
+                    ? (int)Math.Ceiling(litresShort / effectiveMaxTank)
+                    : 0;
+                int stopsRequiredByPlan = strategyRequiredStops > 0 ? strategyRequiredStops : stopsRequiredByFuel;
+
+                PitStopsRequiredByFuel = Math.Max(0, stopsRequiredByFuel);
+                PitStopsRequiredByPlan = Math.Max(0, stopsRequiredByPlan);
+                Pit_StopsRequiredToEnd = PitStopsRequiredByPlan;
 
                 // --- Push / max-burn guidance ---
                 double pushFuel = 0.0;
-                if (_maxFuelPerLapSession > 0.0 && _maxFuelPerLapSession >= LiveFuelPerLap)
+                if (_maxFuelPerLapSession > 0.0 && _maxFuelPerLapSession >= fuelPerLapForCalc)
                 {
                     pushFuel = _maxFuelPerLapSession;
                 }
                 else
                 {
-                    pushFuel = LiveFuelPerLap * 1.02; // fallback: +2% if we don't have a proper max yet
+                    pushFuel = fuelPerLapForCalc * 1.02; // fallback: +2% if we don't have a proper max yet
                 }
 
                 PushFuelPerLap = pushFuel;
@@ -1555,21 +2153,226 @@ namespace LaunchPlugin
                 if (pushFuel > 0.0)
                 {
                     double lapsRemainingIfPush = currentFuel / pushFuel;
-                    DeltaLapsIfPush = lapsRemainingIfPush - LiveLapsRemainingInRace;
+                    DeltaLapsIfPush = lapsRemainingIfPush - LiveLapsRemainingInRace_Stable;
                     CanAffordToPush = DeltaLapsIfPush >= 0.0;
+
+                    Pit_PushDeltaAfterStop = (Pit_FuelOnExit > 0.0)
+                        ? (Pit_FuelOnExit / pushFuel) - LiveLapsRemainingInRace_Stable
+                        : 0.0;
                 }
                 else
                 {
                     DeltaLapsIfPush = 0.0;
                     CanAffordToPush = false;
+                    Pit_PushDeltaAfterStop = 0.0;
                 }
+
+                double fuelPlanExit = currentFuel + requestedAddLitres;
+                double fuelWillAddExit = currentFuel + Pit_WillAdd;
+
+                double ComputeDeltaLitres(double fuelAmount, double requiredLitres, bool hasRequirement)
+                {
+                    return hasRequirement ? fuelAmount - requiredLitres : 0.0;
+                }
+
+                bool hasNormalRequirement = stableFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
+                double requiredLitresNormal = hasNormalRequirement ? stableLapsRemaining * stableFuelPerLap : 0.0;
+                Fuel_Delta_LitresCurrent = ComputeDeltaLitres(currentFuel, requiredLitresNormal, hasNormalRequirement);
+                Fuel_Delta_LitresPlan = ComputeDeltaLitres(fuelPlanExit, requiredLitresNormal, hasNormalRequirement);
+                Fuel_Delta_LitresWillAdd = ComputeDeltaLitres(fuelWillAddExit, requiredLitresNormal, hasNormalRequirement);
+
+                bool hasPushRequirement = PushFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
+                double requiredLitresPush = hasPushRequirement ? stableLapsRemaining * PushFuelPerLap : 0.0;
+                Fuel_Delta_LitresCurrentPush = ComputeDeltaLitres(currentFuel, requiredLitresPush, hasPushRequirement);
+                Fuel_Delta_LitresPlanPush = ComputeDeltaLitres(fuelPlanExit, requiredLitresPush, hasPushRequirement);
+                Fuel_Delta_LitresWillAddPush = ComputeDeltaLitres(fuelWillAddExit, requiredLitresPush, hasPushRequirement);
+
+                  bool hasSaveRequirement = FuelSaveFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
+                  double requiredLitresSave = hasSaveRequirement ? stableLapsRemaining * FuelSaveFuelPerLap : 0.0;
+                  Fuel_Delta_LitresCurrentSave = ComputeDeltaLitres(currentFuel, requiredLitresSave, hasSaveRequirement);
+                  Fuel_Delta_LitresPlanSave = ComputeDeltaLitres(fuelPlanExit, requiredLitresSave, hasSaveRequirement);
+                  Fuel_Delta_LitresWillAddSave = ComputeDeltaLitres(fuelWillAddExit, requiredLitresSave, hasSaveRequirement);
+                }
+
+                // --- Pit window state exports ---
+                int pitWindowState;
+                string pitWindowLabel;
+                int pitWindowOpeningLap = 0;
+                double tankSpace = Math.Max(0, maxTankCapacity - currentFuel);
+                double completedLaps = Convert.ToDouble(data.NewData?.CompletedLaps ?? 0m);
+                int currentLapNumber = (int)Math.Max(1, Math.Floor(completedLaps) + 1);
+                string sessionStateToken = ReadLapDetectorSessionState();
+                bool sessionRunning = IsSessionRunningForLapDetector(sessionStateToken);
+                bool isRaceSession = string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase);
+                double fuelPerLapForPitWindow = LiveFuelPerLap_Stable > 0.0 ? LiveFuelPerLap_Stable : fuelPerLapForCalc;
+                int pitWindowClosingLap = 0;
+                double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
+
+                // Step 1 — Race-only gate FIRST (so Qualifying always shows N/A)
+                if (!isRaceSession || !sessionRunning)
+                {
+                    pitWindowState = 6;
+                    pitWindowLabel = "N/A";
+                    IsPitWindowOpen = false;
+                    pitWindowOpeningLap = 0;
+                    pitWindowClosingLap = 0;
+                }
+                // Step 1b — Inhibit when no more fuel stops required
+                else if (PitStopsRequiredByFuel <= 0)
+                {
+                    pitWindowState = 6;
+                    pitWindowLabel = "N/A";
+                    IsPitWindowOpen = false;
+                    pitWindowOpeningLap = 0;
+                    pitWindowClosingLap = 0;
+                }
+            // Step 0/2 — Confidence gate (now only applies in-race)
+                else if (LiveFuelPerLap_StableConfidence < fuelReadyConfidence)
+                {
+                    pitWindowState = 5;
+                    pitWindowLabel = "NO DATA YET";
+                    IsPitWindowOpen = false;
+                    pitWindowOpeningLap = 0;
+                    pitWindowClosingLap = 0;
+                }
+                else if (!_isRefuelSelected || pitWindowRequestedAdd <= 0.0)
+                {
+                    pitWindowState = 4;
+                    pitWindowLabel = "SET FUEL!";
+                    IsPitWindowOpen = false;
+                    pitWindowOpeningLap = 0;
+                    pitWindowClosingLap = 0;
+                }
+                else if (maxTankCapacity <= 0.0)
+                {
+                    pitWindowState = 8;
+                    pitWindowLabel = "TANK ERROR";
+                    IsPitWindowOpen = false;
+                    pitWindowOpeningLap = 0;
+                    pitWindowClosingLap = 0;
+                }
+                else
+                {
+
+                    double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
+                    double stableFuelPerLap = LiveFuelPerLap_Stable;
+
+                    bool pushValid = stableLapsRemaining > 0.0 && PushFuelPerLap > 0.0;
+                    bool stdValid = stableLapsRemaining > 0.0 && stableFuelPerLap > 0.0;
+                    bool ecoValid = stableLapsRemaining > 0.0 && FuelSaveFuelPerLap > 0.0;
+
+                    double needAddPush = pushValid ? Math.Max(0.0, (stableLapsRemaining * PushFuelPerLap) - currentFuel) : 0.0;
+                    double needAddStd = stdValid ? Math.Max(0.0, (stableLapsRemaining * stableFuelPerLap) - currentFuel) : 0.0;
+                    double needAddEco = ecoValid ? Math.Max(0.0, (stableLapsRemaining * FuelSaveFuelPerLap) - currentFuel) : 0.0;
+
+                    bool openPush = pushValid && tankSpace >= needAddPush;
+                    bool openStd = stdValid && tankSpace >= needAddStd;
+                    bool openEco = ecoValid && tankSpace >= needAddEco;
+
+                    if (openPush || openStd || openEco)
+                    {
+                        IsPitWindowOpen = true;
+                        pitWindowOpeningLap = currentLapNumber;
+
+                        if (openPush)
+                        {
+                            pitWindowState = 3;
+                            pitWindowLabel = "CLEAR PUSH";
+                        }
+                        else if (openStd)
+                        {
+                            pitWindowState = 2;
+                            pitWindowLabel = "RACE PACE";
+                        }
+                        else
+                        {
+                            pitWindowState = 1;
+                            pitWindowLabel = "FUEL SAVE";
+                        }
+                    }
+                    else
+                    {
+                        pitWindowState = 7;
+                        pitWindowLabel = "TANK SPACE";
+                        IsPitWindowOpen = false;
+
+                        if (ecoValid && fuelPerLapForPitWindow > 0.0)
+                        {
+                            double fuelToBurnEco = Math.Max(0.0, needAddEco - tankSpace);
+                            int lapsToOpen = (int)Math.Ceiling(fuelToBurnEco / fuelPerLapForPitWindow);
+                            if (lapsToOpen < 0) lapsToOpen = 0;
+
+                            pitWindowOpeningLap = currentLapNumber + lapsToOpen;
+                        }
+                        else
+                        {
+                            pitWindowOpeningLap = 0;
+                        }
+                    }
+
+                    if (fuelPerLapForPitWindow > 0.0)
+                    {
+                        double lapsRemainingInTankNow = currentFuel / fuelPerLapForPitWindow;
+                        int closingLap = (int)Math.Floor(lapsRemainingInTankNow);
+                        int latestLap = currentLapNumber + closingLap;
+                        if (latestLap < currentLapNumber) latestLap = currentLapNumber;
+                        pitWindowClosingLap = latestLap;
+                    }
+                    else
+                    {
+                        pitWindowClosingLap = 0;
+                    }
+                }
+
+                PitWindowState = pitWindowState;
+                PitWindowLabel = pitWindowLabel;
+                PitWindowOpeningLap = pitWindowOpeningLap;
+                PitWindowClosingLap = pitWindowClosingLap;
+
+                if ((pitWindowState != _lastPitWindowState ||
+                    !string.Equals(pitWindowLabel, _lastPitWindowLabel, StringComparison.Ordinal)) &&
+                    (DateTime.UtcNow - _lastPitWindowLogUtc).TotalSeconds > 0.5)
+                {
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:Pit Window] state={pitWindowState} label={pitWindowLabel} reqAdd={pitWindowRequestedAdd:F1} " +
+                        $"tankSpace={tankSpace:F1} lap={currentLapNumber} confStable={LiveFuelPerLap_StableConfidence:F0}% confOverall={OverallConfidence:F0}% reqStops={strategyRequiredStops} closeLap={pitWindowClosingLap}");
+
+                _lastPitWindowState = pitWindowState;
+                    _lastPitWindowLabel = pitWindowLabel;
+                    _lastPitWindowLogUtc = DateTime.UtcNow;
+                }
+                else if (pitWindowState != _lastPitWindowState ||
+                    !string.Equals(pitWindowLabel, _lastPitWindowLabel, StringComparison.Ordinal))
+                {
+                    _lastPitWindowState = pitWindowState;
+                    _lastPitWindowLabel = pitWindowLabel;
+                    _lastPitWindowLogUtc = DateTime.UtcNow;
+                }
+
+                LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
+
+                UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
+
+                if (lapCrossed && string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
+                {
+                    double observedAfterZero = (_timerZeroSeen && sessionTime > _timerZeroSessionTime)
+                        ? Math.Max(0.0, sessionTime - _timerZeroSessionTime)
+                        : 0.0;
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Drive Time Projection] " +
+                    $"tRemain={FormatSecondsOrNA(sessionTimeRemain)} " +
+                    $"after0Used={_afterZeroUsedSeconds:F1}s src={AfterZeroSource} " +
+                    $"lapsProj={_lastProjectedLapsRemaining:F2} simLaps={_lastSimLapsRemaining:F2} " +
+                    $"lapRef={_lastProjectionLapSecondsUsed:F3}s lapRefSrc={ProjectionLapTime_StableSource} " +
+                    $"after0Observed={observedAfterZero:F1}s");
             }
 
             // --- 4) Update "last" values for next tick ---
             _lastFuelLevel = currentFuel;
-            _lastLapDistPct = rawLapPct; // keep original scale; we normalize on read
-            if (_lapStartFuel < 0) _lapStartFuel = currentFuel;
-        }
+                _lastLapDistPct = rawLapPct; // keep original scale; we normalize on read
+                if (_lapStartFuel < 0) _lapStartFuel = currentFuel;
+            }
 
         // --- Settings / Car Profiles ---
 
@@ -1611,12 +2414,12 @@ namespace LaunchPlugin
                 {
                     ActiveProfile.RefuelRate = rateLps;   // property already exists on CarProfile
                     ProfilesViewModel?.SaveProfiles();    // persist immediately
-                    SimHub.Logging.Current.Info($"[Profiles] RefuelRate saved for '{ActiveProfile.ProfileName}': {rateLps:F3} L/s");
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Profiles] Refuel rate saved for '{ActiveProfile.ProfileName}': {rateLps:F3} L/s");
                 }
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Info($"[Profiles] SaveRefuelRateToActiveProfile failed: {ex.Message}");
+                SimHub.Logging.Current.Warn($"[LalaPlugin:Profiles] Refuel rate save failed: {ex.Message}");
             }
         }
 
@@ -1638,7 +2441,6 @@ namespace LaunchPlugin
         private bool _hasCapturedLaunchRPMForRun = false;
         private bool _hasCapturedReactionTime = false;
         private bool _hasLoggedCurrentRun = false;
-        private bool _hasProcessedOnTrack = false;
         private bool _hasValidClutchReleaseData = false;
         private bool _hasValidLaunchData = false;
         private bool _isAntiStallActive = false;
@@ -1647,6 +2449,7 @@ namespace LaunchPlugin
         private bool _msgCxPressed = false;
         private bool _pitScreenActive = false;
         private bool _pitScreenDismissed = false;
+        private bool _pitScreenManualEnabled = false;
         private bool _rpmInTargetRange = false;
         private bool _throttleInTargetRange = false;
         private bool _waitingForClutchRelease = false;
@@ -1666,6 +2469,13 @@ namespace LaunchPlugin
         private DateTime _launchEndTime = DateTime.MinValue;
         private bool _launchModeUserDisabled = false;
         private DateTime _manualPrimedStartedAt = DateTime.MinValue;
+        private string _dashDesiredPage = "practice";
+        private bool _dashPendingSwitch = false;
+        private bool _dashExecutedForCurrentArm = false;
+        private int _dashSwitchToken = 0;
+        private string _dashLastSessionType = string.Empty;
+        private bool _dashLastIgnitionOn = false;
+        private bool _launchAbortLatched = false;
 
         // --- FSM Helper Flags ---
         private bool IsIdle => _currentLaunchState == LaunchState.Idle;
@@ -1691,6 +2501,7 @@ namespace LaunchPlugin
         private void SetLaunchState(LaunchState newState)
         {
             if (_currentLaunchState == newState) return;
+            SimHub.Logging.Current.Info($"[LalaPlugin:Launch] State change: {_currentLaunchState} -> {newState}");
 
             _currentLaunchState = newState;
 
@@ -1704,6 +2515,7 @@ namespace LaunchPlugin
         // Code Engines
         private RejoinAssistEngine _rejoinEngine;
         private MessagingSystem _msgSystem;
+        private MessageEngine _msgV1Engine;
         private PitEngine _pit;
 
         private enum LaunchState
@@ -1765,6 +2577,7 @@ namespace LaunchPlugin
 
         // --- Already added earlier for MaxFuel throttling ---
         private double _lastAnnouncedMaxFuel = -1;
+        private const double LiveMaxFuelJitterThreshold = 0.1;
 
         // ==== Refuel learning state (hardened) ====
         private bool _isRefuelling = false;
@@ -1820,6 +2633,10 @@ namespace LaunchPlugin
             // --- INITIALIZATION ---
             this.PluginManager = pluginManager;
             Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
+            
+#if DEBUG
+            FuelProjectionMath.RunSelfTests();
+#endif
             // The Action for "Apply to Live" in the Profiles tab is now simplified: just update the ActiveProfile
             ProfilesViewModel = new ProfilesManagerViewModel(
                 this.PluginManager,
@@ -1832,7 +2649,7 @@ namespace LaunchPlugin
                     this.FuelCalculator?.ForceProfileDataReload();
 
                     // Log so we can confirm it ran
-                    SimHub.Logging.Current.Info("[Profiles] Applied profile to live and refreshed Fuel.");
+                    SimHub.Logging.Current.Info("[LalaPlugin:Profiles] Applied profile to live and refreshed Fuel.");
                 },
                 () => this.CurrentCarModel,
                 () => this.CurrentTrackKey
@@ -1840,6 +2657,7 @@ namespace LaunchPlugin
 
 
             ProfilesViewModel.LoadProfiles();
+            Screens.Mode = "manual";
 
             // --- Set the initial ActiveProfile on startup ---
             // It will be "Default Settings" or the first profile if that doesn't exist.
@@ -1855,34 +2673,90 @@ namespace LaunchPlugin
             _poll250ms.Start();
             _poll500ms.Start();
 
+            ResetLiveMaxFuelTracking();
             ResetAllValues();
+            ResetFinishTimingState();
             _pit?.ResetPitPhaseState();
+
+            // --- ACTIONS (exposed to Controls & Events) ---
+            this.AddAction("MsgCx", (a, b) => MsgCx());
+            this.AddAction("TogglePitScreen", (a, b) => TogglePitScreen());
+            this.AddAction("PrimaryDashMode", (a, b) => PrimaryDashMode());
+            this.AddAction("SecondaryDashMode", (a, b) => SecondaryDashMode());
+            this.AddAction("LaunchMode", (a, b) => LaunchMode());
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, LaunchMode");
+
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
             AttachCore("Fuel.LiveFuelPerLap", () => LiveFuelPerLap);
+            AttachCore("Fuel.LiveFuelPerLap_Stable", () => LiveFuelPerLap_Stable);
+            AttachCore("Fuel.LiveFuelPerLap_StableSource", () => LiveFuelPerLap_StableSource);
+            AttachCore("Fuel.LiveFuelPerLap_StableConfidence", () => LiveFuelPerLap_StableConfidence);
+            AttachCore("Fuel.FuelReadyConfidenceThreshold", () => GetFuelReadyConfidenceThreshold());
             AttachCore("Fuel.LiveLapsRemainingInRace", () => LiveLapsRemainingInRace);
+            AttachCore("Fuel.LiveLapsRemainingInRace_S", () => LiveLapsRemainingInRace_S);
+            AttachCore("Fuel.LiveLapsRemainingInRace_Stable", () => LiveLapsRemainingInRace_Stable);
+            AttachCore("Fuel.LiveLapsRemainingInRace_Stable_S", () => LiveLapsRemainingInRace_Stable_S);
             AttachCore("Fuel.DeltaLaps", () => DeltaLaps);
             AttachCore("Fuel.TargetFuelPerLap", () => TargetFuelPerLap);
             AttachCore("Fuel.IsPitWindowOpen", () => IsPitWindowOpen);
             AttachCore("Fuel.PitWindowOpeningLap", () => PitWindowOpeningLap);
+            AttachCore("Fuel.PitWindowClosingLap", () => PitWindowClosingLap);
+            AttachCore("Fuel.PitWindowState", () => PitWindowState);
+            AttachCore("Fuel.PitWindowLabel", () => PitWindowLabel);
             AttachCore("Fuel.LapsRemainingInTank", () => LapsRemainingInTank);
             AttachCore("Fuel.Confidence", () => Confidence);
             AttachCore("Fuel.PushFuelPerLap", () => PushFuelPerLap);
+            AttachCore("Fuel.FuelSavePerLap", () => FuelSaveFuelPerLap);
             AttachCore("Fuel.DeltaLapsIfPush", () => DeltaLapsIfPush);
             AttachCore("Fuel.CanAffordToPush", () => CanAffordToPush);
+            AttachCore("Fuel.Delta.LitresCurrent", () => Math.Round(Fuel_Delta_LitresCurrent, 1));
+            AttachCore("Fuel.Delta.LitresPlan", () => Math.Round(Fuel_Delta_LitresPlan, 1));
+            AttachCore("Fuel.Delta.LitresWillAdd", () => Math.Round(Fuel_Delta_LitresWillAdd, 1));
+            AttachCore("Fuel.Delta.LitresCurrentPush", () => Math.Round(Fuel_Delta_LitresCurrentPush, 1));
+            AttachCore("Fuel.Delta.LitresPlanPush", () => Math.Round(Fuel_Delta_LitresPlanPush, 1));
+            AttachCore("Fuel.Delta.LitresWillAddPush", () => Math.Round(Fuel_Delta_LitresWillAddPush, 1));
+            AttachCore("Fuel.Delta.LitresCurrentSave", () => Math.Round(Fuel_Delta_LitresCurrentSave, 1));
+            AttachCore("Fuel.Delta.LitresPlanSave", () => Math.Round(Fuel_Delta_LitresPlanSave, 1));
+            AttachCore("Fuel.Delta.LitresWillAddSave", () => Math.Round(Fuel_Delta_LitresWillAddSave, 1));
             AttachCore("Fuel.Pit.TotalNeededToEnd", () => Pit_TotalNeededToEnd);
+            AttachCore("Fuel.Pit.TotalNeededToEnd_S", () => Pit_TotalNeededToEnd_S);
             AttachCore("Fuel.Pit.NeedToAdd", () => Pit_NeedToAdd);
             AttachCore("Fuel.Pit.TankSpaceAvailable", () => Pit_TankSpaceAvailable);
             AttachCore("Fuel.Pit.WillAdd", () => Pit_WillAdd);
             AttachCore("Fuel.Pit.DeltaAfterStop", () => Pit_DeltaAfterStop);
+            AttachCore("Fuel.Pit.DeltaAfterStop_S", () => Pit_DeltaAfterStop_S);
+            AttachCore("Fuel.Pit.FuelSaveDeltaAfterStop", () => Pit_FuelSaveDeltaAfterStop);
+            AttachCore("Fuel.Pit.FuelSaveDeltaAfterStop_S", () => Pit_FuelSaveDeltaAfterStop_S);
+            AttachCore("Fuel.Pit.PushDeltaAfterStop", () => Pit_PushDeltaAfterStop);
+            AttachCore("Fuel.Pit.PushDeltaAfterStop_S", () => Pit_PushDeltaAfterStop_S);
             AttachCore("Fuel.Pit.FuelOnExit", () => Pit_FuelOnExit);
+            AttachCore("Fuel.PitStopsRequiredByFuel", () => PitStopsRequiredByFuel);
+            AttachCore("Fuel.PitStopsRequiredByPlan", () => PitStopsRequiredByPlan);
             AttachCore("Fuel.Pit.StopsRequiredToEnd", () => Pit_StopsRequiredToEnd);
+            AttachCore("Fuel.Live.RefuelRate_Lps", () => FuelCalculator?.EffectiveRefuelRateLps ?? 0.0);
+            AttachCore("Fuel.Live.TireChangeTime_S", () => GetEffectiveTireChangeTimeSeconds());
+            AttachCore("Fuel.Live.PitLaneLoss_S", () => FuelCalculator?.PitLaneTimeLoss ?? 0.0);
+            AttachCore("Fuel.Live.TotalStopLoss", () => CalculateTotalStopLossSeconds());
+            AttachCore("Fuel.Live.DriveTimeAfterZero", () => LiveProjectedDriveTimeAfterZero);
+            AttachCore("Fuel.After0.PlannerSeconds", () => AfterZeroPlannerSeconds);
+            AttachCore("Fuel.After0.LiveEstimateSeconds", () => AfterZeroLiveEstimateSeconds);
+            AttachCore("Fuel.After0.Source", () => AfterZeroSource);
+            AttachCore("Fuel.ProjectionLapTime_Stable", () => ProjectionLapTime_Stable);
+            AttachCore("Fuel.ProjectionLapTime_StableSource", () => ProjectionLapTime_StableSource);
+            AttachCore("Fuel.Live.ProjectedDriveSecondsRemaining", () => LiveProjectedDriveSecondsRemaining);
+            AttachCore("Fuel.Live.IsFuelReady", () => IsFuelReady);
 
             // --- Pace metrics (CORE) ---
             AttachCore("Pace.StintAvgLapTimeSec", () => Pace_StintAvgLapTimeSec);
             AttachCore("Pace.Last5LapAvgSec", () => Pace_Last5LapAvgSec);
+            AttachCore("Pace.LeaderAvgLapTimeSec", () => LiveLeaderAvgPaceSeconds);
+            AttachCore("Pace.LeaderDeltaToPlayerSec", () => Pace_LeaderDeltaToPlayerSec);
             AttachCore("Pace.PaceConfidence", () => PaceConfidence);
             AttachCore("Pace.OverallConfidence", () => OverallConfidence);
+            AttachCore("Reset.LastSession", () => _lastSessionToken);
+            AttachCore("Reset.ThisSession", () => _currentSessionToken);
+            AttachCore("Reset.ThisSessionType", () => _finishTimingSessionType);
 
             // --- Pit time-loss (finals kept CORE; raw & debug VERBOSE) ---
             AttachCore("Pit.LastDirectTravelTime", () => _pit.LastDirectTravelTime);
@@ -1953,6 +2827,11 @@ namespace LaunchPlugin
             AttachCore("DashControlMode", () => Screens.Mode);
             AttachCore("FalseStartDetected", () => _falseStartDetected);
             AttachCore("LastSessionType", () => _lastSessionType);
+            AttachCore("Race.OverallLeaderHasFinished", () => OverallLeaderHasFinished);
+            AttachCore("Race.OverallLeaderHasFinishedValid", () => OverallLeaderHasFinishedValid);
+            AttachCore("Race.ClassLeaderHasFinished", () => ClassLeaderHasFinished);
+            AttachCore("Race.ClassLeaderHasFinishedValid", () => ClassLeaderHasFinishedValid);
+            AttachCore("Race.LeaderHasFinished", () => LeaderHasFinished);
             AttachCore("MsgCxPressed", () => _msgCxPressed);
             AttachCore("PitScreenActive", () => _pitScreenActive);
 
@@ -2057,6 +2936,27 @@ namespace LaunchPlugin
             AttachCore("MSG.MsgCxActionMessage", () => _msgSystem.MsgCxActionMessage);
             AttachCore("MSG.MsgCxActionPulse", () => _msgSystem.MsgCxActionPulse);
 
+            _msgV1Engine = new MessageEngine(pluginManager, this);
+            AttachCore("MSGV1.ActiveText_Lala", () => _msgV1Engine?.Outputs.ActiveTextLala ?? string.Empty);
+            AttachCore("MSGV1.ActivePriority_Lala", () => _msgV1Engine?.Outputs.ActivePriorityLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveMsgId_Lala", () => _msgV1Engine?.Outputs.ActiveMsgIdLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveText_Msg", () => _msgV1Engine?.Outputs.ActiveTextMsg ?? string.Empty);
+            AttachCore("MSGV1.ActivePriority_Msg", () => _msgV1Engine?.Outputs.ActivePriorityMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveMsgId_Msg", () => _msgV1Engine?.Outputs.ActiveMsgIdMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveCount", () => _msgV1Engine?.Outputs.ActiveCount ?? 0);
+            AttachCore("MSGV1.LastCancelMsgId", () => _msgV1Engine?.Outputs.LastCancelMsgId ?? string.Empty);
+            AttachCore("MSGV1.ClearAllPulse", () => _msgV1Engine?.Outputs.ClearAllPulse ?? false);
+            AttachCore("MSGV1.StackCsv", () => _msgV1Engine?.Outputs.StackCsv ?? string.Empty);
+            AttachCore("MSGV1.ActiveTextColor_Lala", () => _msgV1Engine?.Outputs.ActiveTextColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveBgColor_Lala", () => _msgV1Engine?.Outputs.ActiveBgColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveOutlineColor_Lala", () => _msgV1Engine?.Outputs.ActiveOutlineColorLala ?? string.Empty);
+            AttachCore("MSGV1.ActiveFontSize_Lala", () => _msgV1Engine?.Outputs.ActiveFontSizeLala ?? 24);
+            AttachCore("MSGV1.ActiveTextColor_Msg", () => _msgV1Engine?.Outputs.ActiveTextColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveBgColor_Msg", () => _msgV1Engine?.Outputs.ActiveBgColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveOutlineColor_Msg", () => _msgV1Engine?.Outputs.ActiveOutlineColorMsg ?? string.Empty);
+            AttachCore("MSGV1.ActiveFontSize_Msg", () => _msgV1Engine?.Outputs.ActiveFontSizeMsg ?? 24);
+            AttachCore("MSGV1.MissingEvaluatorsCsv", () => _msgV1Engine?.Outputs.MissingEvaluatorsCsv ?? string.Empty);
+
             _pit = new PitEngine(() =>
             {
                 var s = ActiveProfile.RejoinWarningLingerTime;
@@ -2077,7 +2977,7 @@ namespace LaunchPlugin
             // Guards
             if (ActiveProfile == null || string.IsNullOrEmpty(CurrentTrackKey))
             {
-                SimHub.Logging.Current.Warn("LalaLaunch: Cannot save pit time loss – no active profile or track.");
+                SimHub.Logging.Current.Warn("[LalaPlugin:Pit Cycle] Cannot save pit time loss – no active profile or track.");
                 return;
             }
 
@@ -2127,7 +3027,7 @@ namespace LaunchPlugin
             _lastPitLossSavedAtUtc = DateTime.UtcNow;
             _lastPitLossSource = src;
 
-            SimHub.Logging.Current.Info($"[Pit/Pace] Saved PitLaneLoss = {rounded:0.00}s ({src}).");
+            SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] Saved PitLaneLoss = {rounded:0.00}s ({src}).");
         }
 
         public bool SavePendingPitLaneLossIfAny(out string source, out double seconds)
@@ -2144,7 +3044,7 @@ namespace LaunchPlugin
                 Pit_OnValidPitStopTimeLossCalculated(loss, src);
                 source = src;
                 seconds = loss;
-                SimHub.Logging.Current.Info($"[PitLite] Pit Lite Data used for DTL.");
+                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] Pit Lite Data used for DTL.");
                 return true;
             }
 
@@ -2162,6 +3062,8 @@ namespace LaunchPlugin
             // Optionally discard only if you really want to delete last file on exit
             // _telemetryTraceLogger?.DiscardCurrentTrace();
 
+            FuelCalculator?.PromptToSaveLiveFuelOnExit();
+
             // Persist settings
             this.SaveCommonSettings("GlobalSettings_V2", Settings);
             ProfilesViewModel.SaveProfiles();
@@ -2176,6 +3078,18 @@ namespace LaunchPlugin
             // Abort-specific actions
             _telemetryTraceLogger?.StopLaunchTrace();
             _telemetryTraceLogger?.DiscardCurrentTrace();
+        }
+
+        private void CancelLaunchToIdle(string reason)
+        {
+            AbortLaunch();
+            SetLaunchState(LaunchState.Idle);
+
+            if (!_launchAbortLatched)
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:Launch Trace] {reason} – cancelling to Idle.");
+                _launchAbortLatched = true;
+            }
         }
 
         private void ResetAllValues()
@@ -2195,6 +3109,7 @@ namespace LaunchPlugin
             _lastLaunchRPM = 0.0;
             _lastMinRPMDuringLaunch = 0.0;
             _lastAvgSessionLaunchRPM = 0.0;
+            _launchAbortLatched = false;
 
             // Session Data
             _sessionLaunchRPMs.Clear();
@@ -2213,6 +3128,14 @@ namespace LaunchPlugin
             // Set the default state
             SetLaunchState(LaunchState.Idle);
             _maxFuelPerLapSession = 0.0;
+            PitWindowState = 6;
+            PitWindowLabel = "N/A";
+            IsPitWindowOpen = false;
+            PitWindowOpeningLap = 0;
+            PitWindowClosingLap = 0;
+            _lastPitWindowState = -1;
+            _lastPitWindowLabel = string.Empty;
+            _lastPitWindowLogUtc = DateTime.MinValue;
         }
 
         private void ResetCoreLaunchMetrics()
@@ -2248,6 +3171,47 @@ namespace LaunchPlugin
             _wheelSpinDetected = false;
             _minThrottlePostLaunch = 101.0;
             _maxThrottlePostLaunch = -1.0;
+            //_launchAbortLatched = false;
+        }
+
+        private bool IsLaunchBlocked(PluginManager pluginManager, GameData data, out bool inPits, out bool seriousRejoin)
+        {
+            inPits = false;
+            seriousRejoin = false;
+
+            if (pluginManager != null)
+            {
+                var pitRoad = TryReadNullableBool(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad"));
+                var inPitLane = data?.NewData != null ? (data.NewData.IsInPitLane != 0) : (bool?)null;
+                inPits = pitRoad ?? inPitLane ?? false;
+            }
+
+            seriousRejoin = _rejoinEngine?.IsSeriousIncidentActive ?? false;
+
+            return inPits || seriousRejoin;
+        }
+
+        private void ResetFinishTimingState()
+        {
+            _timerZeroSeen = false;
+            _timerZeroSessionTime = double.NaN;
+            _prevSessionTimeRemain = double.NaN;
+            _leaderCheckeredSessionTime = double.NaN;
+            _driverCheckeredSessionTime = double.NaN;
+            _leaderFinishedSeen = false;
+            _overallLeaderHasFinished = false;
+            _classLeaderHasFinished = false;
+            _overallLeaderHasFinishedValid = false;
+            _classLeaderHasFinishedValid = false;
+            _isMultiClassSession = false;
+            _lastClassLeaderLapPct = double.NaN;
+            _lastOverallLeaderLapPct = double.NaN;
+            _lastClassLeaderCarIdx = -1;
+            _lastOverallLeaderCarIdx = -1;
+            _carIdxToClassShortName.Clear();
+            _lastCompletedLapForFinish = -1;
+            LeaderHasFinished = false;
+            _leaderFinishLatchedByFlag = false;
         }
 
 
@@ -2327,7 +3291,7 @@ namespace LaunchPlugin
 
                 PushLiveSnapshotIdentity();
             }
-            catch (Exception ex) { SimHub.Logging.Current.Warn($"[LalaLaunch] Simplified Car/Track probe failed: {ex.Message}"); }
+            catch (Exception ex) { SimHub.Logging.Current.Warn($"[LalaPlugin:Profile] Simplified Car/Track probe failed: {ex.Message}"); }
 
             if (_msgCxCooldownTimer.IsRunning && _msgCxCooldownTimer.ElapsedMilliseconds > 500)
             {
@@ -2339,9 +3303,46 @@ namespace LaunchPlugin
             if (Settings == null) return;
             if (!data.GameRunning || data.NewData == null) return;
 
-            long currentSessionId = Convert.ToInt64(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.SessionID") ?? -1);
-            if (currentSessionId != _lastSessionId)
+            _isRefuelSelected = IsRefuelSelected(pluginManager);
+            _isTireChangeSelected = IsAnyTireChangeSelected(pluginManager);
+
+            // Pull raw session time from SimHub property engine so projections and refuel learning share the same values.
+            double sessionTime = 0.0;
+            try
             {
+                sessionTime = Convert.ToDouble(
+                    pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionTime") ?? 0.0
+                );
+            }
+            catch { sessionTime = 0.0; }
+
+            double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+
+            string currentSessionTypeForConfidence = data.NewData?.SessionTypeName ?? string.Empty;
+            string trackIdentityForConfidence =
+                (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+                    ? CurrentTrackKey
+                    : CurrentTrackName;
+
+            if (!string.IsNullOrWhiteSpace(CurrentCarModel) && !string.IsNullOrWhiteSpace(trackIdentityForConfidence))
+            {
+                if (!string.Equals(CurrentCarModel, _confidenceCarModel, StringComparison.Ordinal) ||
+                    !string.Equals(trackIdentityForConfidence, _confidenceTrackIdentity, StringComparison.Ordinal))
+                {
+                    ResetConfidenceForNewCombo(currentSessionTypeForConfidence);
+                }
+            }
+
+            long currentSessionId = Convert.ToInt64(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.SessionID") ?? -1);
+            long currentSubSessionId = Convert.ToInt64(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.SubSessionID") ?? -1);
+            string currentSessionToken = $"{currentSessionId}:{currentSubSessionId}";
+            if (!string.Equals(currentSessionToken, _lastSessionToken, StringComparison.Ordinal))
+            {
+                string oldToken = string.IsNullOrWhiteSpace(_lastSessionToken) ? "none" : _lastSessionToken;
+                string sessionTypeForLog = string.IsNullOrWhiteSpace(currentSessionTypeForConfidence) ? "unknown" : currentSessionTypeForConfidence;
+                _currentSessionToken = currentSessionToken;
+                SimHub.Logging.Current.Info($"[LalaPlugin:Session] token change old={oldToken} new={currentSessionToken} type={sessionTypeForLog}");
+
                 // If we exited lane and the session ended before S/F, finalize once with PitLite’s one-shot.
                 if (_pitLite != null && _pitLite.ConsumeCandidate(out var scLoss, out var scSrc))
                 {
@@ -2367,9 +3368,17 @@ namespace LaunchPlugin
                 _lastSnapshotTrack = string.Empty;
                 _lastAnnouncedMaxFuel = -1;
                 _lastSessionId = currentSessionId;
+                _lastSubSessionId = currentSubSessionId;
+                _lastSessionToken = currentSessionToken;
                 FuelCalculator.ForceProfileDataReload();
+                ResetLiveFuelModelForNewSession(currentSessionTypeForConfidence, false);
+                ClearFuelInstructionOutputs();
+                ResetFinishTimingState();
+                ResetSmoothedOutputs();
+                _pendingSmoothingReset = true;
+                _msgV1Engine?.ResetSession();
 
-                SimHub.Logging.Current.Info($"[LalaLaunch] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
+                SimHub.Logging.Current.Info($"[LalaPlugin:Profile] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
             }
 
             UpdateLiveSurfaceSummary(pluginManager);
@@ -2379,6 +3388,14 @@ namespace LaunchPlugin
             // --- PitLite tick: after PitEngine update and baseline selection ---
             bool inLane = _pit?.IsOnPitRoad ?? (data.NewData.IsInPitLane != 0);
             int completedLaps = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
+            UpdateFinishTiming(
+                pluginManager,
+                data,
+                sessionTime,
+                sessionTimeRemain,
+                completedLaps,
+                currentSessionId,
+                currentSessionTypeForConfidence);
             double lastLapSec = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
             // IMPORTANT: give PitLite a *real* baseline pace.
             // Order: stable avg (from your fuel/baseline logic) → pit debug avg → profile avg → 0
@@ -2423,16 +3440,6 @@ namespace LaunchPlugin
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
             double currentFuel = data.NewData?.Fuel ?? 0.0;
 
-            // Pull raw session time from SimHub property engine
-            double sessionTime = 0.0;
-            try
-            {
-                sessionTime = Convert.ToDouble(
-                    pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionTime") ?? 0.0
-                );
-            }
-            catch { sessionTime = 0.0; }
-
             bool inPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
 
             // Cooldown: avoid re-learning immediately after a save
@@ -2473,7 +3480,7 @@ namespace LaunchPlugin
                         _refuelStartTime = _refuelWindowStart;
                         _refuelLastRiseTime = sessionTime;
 
-                        SimHub.Logging.Current.Info($"[LalaLaunch] Refuel started at {_refuelStartTime:F1}s (Fuel={_refuelStartFuel:F1})");
+                        SimHub.Logging.Current.Debug($"[LalaPlugin:Refuel] Refuel started at {_refuelStartTime:F1}s (fuel {_refuelStartFuel:F1}L).");
                     }
 
                     // Reset window (whether we started or not)
@@ -2514,13 +3521,13 @@ namespace LaunchPlugin
                             _refuelLearnCooldownEnd = sessionTime + LearnCooldownSec;
 
                             SimHub.Logging.Current.Info(
-                                $"[LaLaLaunch] Learned refuel rate (smoothed): {savedRate:F2} L/s  [raw {rate:F2}] (Δfuel={fuelAdded:F1}, t={duration:F1}s). " +
-                                $"Cooldown until {_refuelLearnCooldownEnd:F1}s");
+                                $"[LalaPlugin:Refuel Rate] Learned refuel rate {savedRate:F2} L/s (raw {rate:F2} L/s, added {fuelAdded:F1} L over {duration:F1} s). " +
+                                $"Cooldown until {_refuelLearnCooldownEnd:F1} s.");
                         }
 
                     }
 
-                    SimHub.Logging.Current.Info($"[LalaLaunch] Refuel ended at {stopTime:F1}s");
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Refuel] Refuel ended at {stopTime:F1} s.");
 
                     // Reset state
                     _isRefuelling = false;
@@ -2555,6 +3562,7 @@ namespace LaunchPlugin
             if (_poll250ms.ElapsedMilliseconds >= 250)
             {
                 _poll250ms.Restart();
+                UpdateLiveMaxFuel(pluginManager);
                 double telemetryMaxFuel = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.FuelLevelMax") ?? 0.0);
                 double baseMaxFuel = (telemetryMaxFuel > 0)
                     ? telemetryMaxFuel
@@ -2576,14 +3584,19 @@ namespace LaunchPlugin
                     _msgSystem.Update(data, pluginManager);
                 else
                     _msgSystem.MaintainMsgCxTimers();
+
+                _msgV1Engine?.Tick(data);
             }
 
             // --- Launch State helpers (need tick-level responsiveness) ---
-            bool isOnTrack = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnTrack") ?? false);
-            if (!isOnTrack && !IsIdle)
+            bool launchBlocked = IsLaunchBlocked(pluginManager, data, out var inPitsBlocked, out var seriousRejoinBlocked);
+            if (launchBlocked && !IsIdle && !_launchAbortLatched)
             {
-                SimHub.Logging.Current.Info("[LalaLaunch] Off track or in pits – aborting launch state to Idle.");
-                AbortLaunch();
+                CancelLaunchToIdle("Blocked (pits/serious)");
+            }
+            else if (!launchBlocked)
+            {
+                _launchAbortLatched = false;
             }
             double clutchRaw = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.ClutchRaw") ?? 0.0);
             _paddleClutch = 100.0 - (clutchRaw * 100.0); // Convert to the same scale as the settings
@@ -2592,7 +3605,7 @@ namespace LaunchPlugin
             if (_poll500ms.ElapsedMilliseconds >= 500)
             {
                 _poll500ms.Restart();
-                UpdateLiveFuelCalcs(data);
+                UpdateLiveFuelCalcs(data, pluginManager);
 
                 var currentBestLap = data.NewData?.BestLapTime ?? TimeSpan.Zero;
                 if (currentBestLap > TimeSpan.Zero && currentBestLap != _lastSeenBestLap)
@@ -2602,7 +3615,11 @@ namespace LaunchPlugin
 
                     int lapMs = (int)currentBestLap.TotalMilliseconds;
                     bool accepted = ProfilesViewModel.TryUpdatePB(CurrentCarModel, CurrentTrackKey, lapMs);
-                    SimHub.Logging.Current.Info($"[PB] candidate={lapMs}ms car='{CurrentCarModel}' trackKey='{CurrentTrackKey}' -> {(accepted ? "accepted" : "rejected")}");
+                    string pbLog = $"[LalaPlugin:Pace] candidate={lapMs}ms car='{CurrentCarModel}' trackKey='{CurrentTrackKey}' -> {(accepted ? "accepted" : "rejected")}";
+                    if (accepted)
+                        SimHub.Logging.Current.Info(pbLog);
+                    else
+                        SimHub.Logging.Current.Debug(pbLog);
                 }
 
                 // =========================================================================
@@ -2622,11 +3639,13 @@ namespace LaunchPlugin
                 if (hasCar && hasTrack && (CurrentCarModel != _lastSeenCar || trackIdentity != _lastSeenTrack))
                 {
                     // It's a new combo, so we'll perform the auto-selection.
-                    SimHub.Logging.Current.Info($"[LalaLaunch] New live combo detected. Auto-selecting profile for Car='{CurrentCarModel}', Track='{trackIdentity}'.");
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Profile] New live combo detected. Auto-selecting profile for Car='{CurrentCarModel}', Track='{trackIdentity}'.");
 
                     // Store this combo's KEY so we don't trigger again for the same session.
                     _lastSeenCar = CurrentCarModel;
                     _lastSeenTrack = trackIdentity; // track key preferred, fall back to display name
+                    ResetSmoothedOutputs();
+                    _pendingSmoothingReset = true;
 
                     // Dispatch UI updates to the main thread.
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -2637,12 +3656,13 @@ namespace LaunchPlugin
                         // Ensure the track exists via the Profiles VM (this triggers UI refresh + selection)
                         if (!string.IsNullOrWhiteSpace(CurrentTrackKey))
                         {
-                            SimHub.Logging.Current.Info($"[LalaLaunch] EnsureCarTrack hook -> car='{CurrentCarModel}', trackKey='{CurrentTrackKey}'");
+                            SimHub.Logging.Current.Debug($"[LalaPlugin:Profiles] Ensure car and track: car='{CurrentCarModel}', trackKey='{CurrentTrackKey}'");
+
                             ProfilesViewModel.EnsureCarTrack(CurrentCarModel, CurrentTrackKey);
                         }
                         else
                         {
-                            SimHub.Logging.Current.Info($"[LalaLaunch] EnsureCarTrack fallback -> car='{CurrentCarModel}', trackName='{trackIdentity}'");
+                            SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] EnsureCarTrack fallback -> car='{CurrentCarModel}', trackName='{trackIdentity}'");
                             ProfilesViewModel.EnsureCarTrack(CurrentCarModel, trackIdentity);
                         }
 
@@ -2676,73 +3696,1135 @@ namespace LaunchPlugin
                 ExecuteLaunchTimers(pluginManager, ref data);
             }
 
-            string currentSession = data.NewData?.SessionTypeName ?? "";
+            string currentSession = Convert.ToString(
+            pluginManager.GetPropertyValue("DataCorePlugin.GameData.SessionTypeName") ?? "");
+
             // Fuel model session-change handling (independent of auto-dash setting)
             if (!string.IsNullOrEmpty(_lastFuelSessionType) && currentSession != _lastFuelSessionType)
             {
                 HandleSessionChangeForFuelModel(_lastFuelSessionType, currentSession);
+                _msgV1Engine?.ResetSession();
             }
             _lastFuelSessionType = currentSession;
 
-            // --- AUTO DASH SWITCHING BASED ON ON-TRACK STATUS ---
-            if (Settings.EnableAutoDashSwitch && isOnTrack && !_hasProcessedOnTrack)
+            // --- AUTO DASH SWITCHING (READINESS-GATED, NO GLOBAL RESET) ---
+            bool ignitionOn = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.EngineIgnitionOn") ?? false);
+            bool engineStarted = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.EngineStarted") ?? false);
+            
+            if (Settings.EnableAutoDashSwitch && !string.IsNullOrWhiteSpace(currentSession) && !string.Equals(currentSession, _dashLastSessionType, StringComparison.Ordinal))
             {
-                _hasProcessedOnTrack = true;
+                _dashLastSessionType = currentSession;
+                _dashPendingSwitch = true;
+                _dashExecutedForCurrentArm = false;
+                _dashSwitchToken++;
                 _lastSessionType = currentSession;
-                SimHub.Logging.Current.Info("[LalaLaunch] New session on-track activity detected. Resetting all values.");
-                ResetAllValues();
+
+                switch (currentSession)
+                {
+                    case "Offline Testing": _dashDesiredPage = "practice"; break;
+                    case "Open Qualify":
+                    case "Lone Qualify":
+                    case "Qualifying":
+                    case "Warmup": _dashDesiredPage = "timing"; break;
+                    case "Race": _dashDesiredPage = "racing"; break;
+                    default: _dashDesiredPage = "practice"; break;
+                }
+            }
+
+            if (!ignitionOn && _dashLastIgnitionOn)
+            {
+                _dashPendingSwitch = true;
+                _dashExecutedForCurrentArm = false;
+                _dashSwitchToken++;
+                SimHub.Logging.Current.Info("[LalaPlugin:Dash] Ignition off detected – auto dash re-armed.");
+            }
+            _dashLastIgnitionOn = ignitionOn;
+
+            if (Settings.EnableAutoDashSwitch && _dashPendingSwitch && !_dashExecutedForCurrentArm && (ignitionOn || engineStarted))
+            {
+                _dashExecutedForCurrentArm = true;
+                int token = _dashSwitchToken;
+                string pageToShow = _dashDesiredPage;
+                string sessionForLog = _dashLastSessionType;
+
                 Task.Run(async () =>
                 {
-                    string pageToShow = "practice";
-                    switch (_lastSessionType)
-                    {
-                        case "Offline Testing": pageToShow = "practice"; break;
-                        case "Open Qualify":
-                        case "Lone Qualify":
-                        case "Qualifying":
-                        case "Warmup": pageToShow = "timing"; break;
-                        case "Race": pageToShow = "racing"; break;
-                    }
                     Screens.Mode = "auto";
                     Screens.CurrentPage = pageToShow;
-                    SimHub.Logging.Current.Info($"[LalaLaunch] OnTrack detected – mode=auto, page='{Screens.CurrentPage}'.");
-                    await Task.Delay(2000);
-                    Screens.Mode = "manual";
-                    SimHub.Logging.Current.Info("[LalaLaunch] Auto mode timer expired – mode set to 'manual'.");
+                    _dashPendingSwitch = false;
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Dash] Auto dash executed for session '{sessionForLog}' – mode=auto, page='{Screens.CurrentPage}'.");
+                    await Task.Delay(750);
+                    if (token == _dashSwitchToken && Settings.EnableAutoDashSwitch)
+                    {
+                        Screens.Mode = "manual";
+                        SimHub.Logging.Current.Info("[LalaPlugin:Dash] Auto dash timer expired – mode set to 'manual'.");
+                    }
                 });
             }
-            else if (!isOnTrack && _hasProcessedOnTrack)
-            {
-                _hasProcessedOnTrack = false;
-            }
             bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false);
+
+            bool newPitScreenActive = _pitScreenActive; // default
+
             if (isOnPitRoad)
             {
                 if (!_pittingTimer.IsRunning)
-                {
                     _pittingTimer.Restart();
-                }
+
                 if (_pittingTimer.Elapsed.TotalMilliseconds > 200)
-                {
-                    _pitScreenActive = !_pitScreenDismissed;
-                }
+                    newPitScreenActive = !_pitScreenDismissed;
+                else
+                    newPitScreenActive = false;
             }
             else
             {
-                _pitScreenActive = false;
+                newPitScreenActive = _pitScreenManualEnabled;
                 _pitScreenDismissed = false;
+
                 if (_pittingTimer.IsRunning)
                 {
                     _pittingTimer.Stop();
                     _pittingTimer.Reset();
                 }
             }
+
+            if (newPitScreenActive != _pitScreenActive)
+            {
+                _pitScreenActive = newPitScreenActive;
+                SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Active -> {_pitScreenActive} (onPitRoad={isOnPitRoad}, dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled})");
+            }
+
         }
         #endregion
 
         #region Private Helper Methods for DataUpdate
 
-        private static double ReadLeaderLapTimeSeconds(PluginManager pluginManager, GameData data)
+        private static double SafeReadDouble(PluginManager pluginManager, string propertyName, double fallback)
+        {
+            try
+            {
+                return Convert.ToDouble(pluginManager.GetPropertyValue(propertyName) ?? fallback);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        private static bool ReadFlagBool(PluginManager pluginManager, params string[] propertyNames)
+        {
+            foreach (var name in propertyNames)
+            {
+                try
+                {
+                    var raw = pluginManager.GetPropertyValue(name);
+                    if (raw != null)
+                    {
+                        return Convert.ToBoolean(raw);
+                    }
+                }
+                catch
+                {
+                    // ignore and try the next candidate
+                }
+            }
+
+            return false;
+        }
+
+        private void RefreshClassMetadata(PluginManager pluginManager)
+        {
+            _carIdxToClassShortName.Clear();
+            var classNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            for (int i = 0; i < 64; i++)
+            {
+                int carIdx = GetInt(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarIdx", int.MinValue);
+                if (carIdx == int.MinValue) break;
+
+                string cls = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarClassShortName");
+                if (string.IsNullOrWhiteSpace(cls))
+                {
+                    cls = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarClassName");
+                }
+
+                if (!string.IsNullOrWhiteSpace(cls))
+                {
+                    _carIdxToClassShortName[carIdx] = cls;
+                    classNames.Add(cls);
+                }
+            }
+
+            _isMultiClassSession = classNames.Count > 1;
+        }
+
+        private string GetCachedClassShortName(int carIdx)
+        {
+            if (carIdx < 0) return null;
+            return _carIdxToClassShortName.TryGetValue(carIdx, out var cls) ? cls : null;
+        }
+
+        private int FindClassLeaderCarIdx(string playerClassShort, int[] classPositions, int[] trackSurfaces)
+        {
+            if (string.IsNullOrWhiteSpace(playerClassShort) || classPositions == null) return -1;
+
+            for (int i = 0; i < classPositions.Length; i++)
+            {
+                if (classPositions[i] != 1) continue;
+                if (!IsCarInWorld(trackSurfaces, i)) continue;
+
+                var classShort = GetCachedClassShortName(i);
+                if (string.IsNullOrWhiteSpace(classShort)) continue;
+
+                if (string.Equals(classShort, playerClassShort, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private static bool IsCarInWorld(int[] trackSurfaces, int index)
+        {
+            if (index < 0) return false;
+            if (trackSurfaces == null) return true;
+            if (index >= trackSurfaces.Length) return true;
+            return trackSurfaces[index] >= 0;
+        }
+
+        private void MaybeLatchLeaderFinished(bool isClassLeader, int leaderIdx, double[] lapPct, int[] trackSurfaces, double sessionTime, int sessionStateNumeric)
+        {
+            if (leaderIdx < 0 || lapPct == null || leaderIdx >= lapPct.Length) return;
+            if (!IsCarInWorld(trackSurfaces, leaderIdx)) return;
+
+            double lastPct = isClassLeader ? _lastClassLeaderLapPct : _lastOverallLeaderLapPct;
+            int lastIdx = isClassLeader ? _lastClassLeaderCarIdx : _lastOverallLeaderCarIdx;
+            double currentPct = lapPct[leaderIdx];
+
+            if (lastIdx != leaderIdx)
+            {
+                if (isClassLeader)
+                {
+                    _lastClassLeaderCarIdx = leaderIdx;
+                    _lastClassLeaderLapPct = currentPct;
+                }
+                else
+                {
+                    _lastOverallLeaderCarIdx = leaderIdx;
+                    _lastOverallLeaderLapPct = currentPct;
+                }
+
+                return;
+            }
+
+            if (!double.IsNaN(lastPct) && lastPct > 0.90 && currentPct < 0.10)
+            {
+                if (isClassLeader && !ClassLeaderHasFinished)
+                {
+                    ClassLeaderHasFinished = true;
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:Drive Time Projection] ClassLeader finished (heuristic): carIdx={leaderIdx} sessionTime={sessionTime:F1}s sessionState={sessionStateNumeric} timerZero={_timerZeroSeen}");
+                }
+
+                if (!isClassLeader && !OverallLeaderHasFinished)
+                {
+                    OverallLeaderHasFinished = true;
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:Drive Time Projection] OverallLeader finished (heuristic): carIdx={leaderIdx} sessionTime={sessionTime:F1}s sessionState={sessionStateNumeric} timerZero={_timerZeroSeen}");
+                }
+            }
+
+            if (isClassLeader)
+            {
+                _lastClassLeaderLapPct = currentPct;
+                _lastClassLeaderCarIdx = leaderIdx;
+            }
+            else
+            {
+                _lastOverallLeaderLapPct = currentPct;
+                _lastOverallLeaderCarIdx = leaderIdx;
+            }
+        }
+
+        private int ReadSessionStateInt(PluginManager pluginManager)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionState");
+                if (raw == null) return 0;
+
+                if (raw is int i) return i;
+                if (raw is long l) return (int)l;
+                if (raw is double d) return (int)d;
+                if (raw is float f) return (int)f;
+
+                var s = Convert.ToString(raw, CultureInfo.InvariantCulture);
+                return int.TryParse(s, out var parsed) ? parsed : 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static int GetInt(PluginManager pluginManager, string propertyName, int fallback)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                if (raw == null) return fallback;
+                return Convert.ToInt32(raw);
+            }
+            catch
+            {
+                return fallback;
+            }
+        }
+
+        private static string GetString(PluginManager pluginManager, string propertyName)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                return Convert.ToString(raw, CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static int[] GetIntArray(PluginManager pluginManager, string propertyName)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                if (raw == null) return null;
+
+                if (raw is int[] ints) return ints;
+                if (raw is long[] longs) return longs.Select(l => (int)l).ToArray();
+                if (raw is float[] floats) return floats.Select(f => (int)f).ToArray();
+                if (raw is double[] doubles) return doubles.Select(d => (int)d).ToArray();
+
+                if (raw is System.Collections.IEnumerable enumerable)
+                {
+                    var list = new List<int>(64);
+                    foreach (var item in enumerable)
+                    {
+                        try
+                        {
+                            list.Add(Convert.ToInt32(item));
+                        }
+                        catch
+                        {
+                            list.Add(0);
+                        }
+                    }
+                    return list.Count > 0 ? list.ToArray() : null;
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        private static double[] GetDoubleArray(PluginManager pluginManager, string propertyName)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                if (raw == null) return null;
+
+                if (raw is double[] doubles) return doubles;
+                if (raw is float[] floats) return floats.Select(f => (double)f).ToArray();
+                if (raw is int[] ints) return ints.Select(i => (double)i).ToArray();
+                if (raw is long[] longs) return longs.Select(l => (double)l).ToArray();
+
+                if (raw is System.Collections.IEnumerable enumerable)
+                {
+                    var list = new List<double>(64);
+                    foreach (var item in enumerable)
+                    {
+                        try
+                        {
+                            list.Add(Convert.ToDouble(item));
+                        }
+                        catch
+                        {
+                            list.Add(double.NaN);
+                        }
+                    }
+                    return list.Count > 0 ? list.ToArray() : null;
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        private bool IsRefuelSelected(PluginManager pluginManager)
+        {
+            try
+            {
+                var raw = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.dpFuelFill");
+                if (raw != null)
+                {
+                    return Convert.ToBoolean(raw);
+                }
+            }
+            catch
+            {
+                // Treat read failures as "selected" to preserve prior behavior.
+            }
+
+            return true;
+        }
+
+        private bool IsAnyTireChangeSelected(PluginManager pluginManager)
+        {
+            bool sawFlag = false;
+            string[] selectors = new[]
+            {
+                "DataCorePlugin.GameRawData.Telemetry.dpLFTireChange",
+                "DataCorePlugin.GameRawData.Telemetry.dpRFTireChange",
+                "DataCorePlugin.GameRawData.Telemetry.dpLRTireChange",
+                "DataCorePlugin.GameRawData.Telemetry.dpRRTireChange"
+            };
+
+            foreach (var name in selectors)
+            {
+                try
+                {
+                    var raw = pluginManager.GetPropertyValue(name);
+                    if (raw != null)
+                    {
+                        sawFlag = true;
+                        if (Convert.ToBoolean(raw))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore and keep looking
+                }
+            }
+
+            return !sawFlag;
+        }
+
+        private double GetEffectiveTireChangeTimeSeconds()
+        {
+            double baseTime = FuelCalculator?.TireChangeTime ?? 0.0;
+            if (!_isTireChangeSelected)
+            {
+                return 0.0;
+            }
+
+            return baseTime < 0.0 ? 0.0 : baseTime;
+        }
+
+        private double CalculateTotalStopLossSeconds()
+        {
+            double pitLaneLoss = FuelCalculator?.PitLaneTimeLoss ?? 0.0;
+            if (pitLaneLoss < 0.0) pitLaneLoss = 0.0;
+
+            double willAdd = Pit_WillAdd;
+            double refuelRate = FuelCalculator?.EffectiveRefuelRateLps ?? 0.0;
+            double fuelTime = (willAdd > 0.0 && refuelRate > 0.0) ? (willAdd / refuelRate) : 0.0;
+            if (fuelTime < 0.0 || double.IsNaN(fuelTime) || double.IsInfinity(fuelTime)) fuelTime = 0.0;
+
+            double tireTime = GetEffectiveTireChangeTimeSeconds();
+            double boxTime = Math.Max(fuelTime, tireTime);
+
+            double total = pitLaneLoss + boxTime;
+            return (total < 0.0 || double.IsNaN(total) || double.IsInfinity(total)) ? 0.0 : total;
+        }
+
+        private static string FormatSecondsOrNA(double seconds)
+        {
+            return (double.IsNaN(seconds) || double.IsInfinity(seconds))
+                ? "n/a"
+                : seconds.ToString("F1", CultureInfo.InvariantCulture);
+        }
+
+        private void ResetSmoothedOutputs()
+        {
+            _smoothedLiveLapsRemainingState = double.NaN;
+            _smoothedPitDeltaState = double.NaN;
+            _smoothedPitPushDeltaState = double.NaN;
+            _smoothedPitFuelSaveDeltaState = double.NaN;
+            _smoothedPitTotalNeededState = double.NaN;
+            _smoothedProjectionValid = false;
+            _smoothedPitValid = false;
+            _pendingSmoothingReset = false;
+        }
+
+        private void ClearFuelInstructionOutputs()
+        {
+            Pit_TotalNeededToEnd = 0;
+            Pit_NeedToAdd = 0;
+            Pit_TankSpaceAvailable = 0;
+            Pit_WillAdd = 0;
+            Pit_FuelOnExit = 0;
+            Pit_DeltaAfterStop = 0;
+            Pit_FuelSaveDeltaAfterStop = 0;
+            Pit_PushDeltaAfterStop = 0;
+            PitStopsRequiredByFuel = 0;
+            PitStopsRequiredByPlan = 0;
+            Pit_StopsRequiredToEnd = 0;
+
+            Fuel_Delta_LitresCurrent = 0;
+            Fuel_Delta_LitresPlan = 0;
+            Fuel_Delta_LitresWillAdd = 0;
+            Fuel_Delta_LitresCurrentPush = 0;
+            Fuel_Delta_LitresPlanPush = 0;
+            Fuel_Delta_LitresWillAddPush = 0;
+            Fuel_Delta_LitresCurrentSave = 0;
+            Fuel_Delta_LitresPlanSave = 0;
+            Fuel_Delta_LitresWillAddSave = 0;
+        }
+
+        private static double ApplyEma(double alpha, double raw, double previous)
+        {
+            if (double.IsNaN(previous))
+            {
+                return raw;
+            }
+
+            return (alpha * raw) + ((1.0 - alpha) * previous);
+        }
+
+        private void UpdateStableFuelPerLap(bool isWetMode, double fallbackFuelPerLap)
+        {
+            var (profileDry, profileWet) = GetProfileFuelBaselines();
+            double profileFuel = isWetMode ? profileWet : profileDry;
+            double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
+
+            double candidate = fallbackFuelPerLap;
+            string source = "Fallback";
+
+            if (Confidence >= fuelReadyConfidence && LiveFuelPerLap > 0.0)
+            {
+                candidate = LiveFuelPerLap;
+                source = "Live";
+            }
+            else if (profileFuel > 0.0 && fuelReadyConfidence <= ProfileAllowedConfidenceCeiling)
+            {
+                candidate = profileFuel;
+                source = "Profile";
+            }
+
+            // --- Stable confidence reflects the chosen stable source, not always live Confidence ---
+            // Align Profile stable confidence with the same threshold you use for switching Live on.
+            double ProfileStableConfidenceFloor = ClampToRange(fuelReadyConfidence, 0.0, 100.0, FuelReadyConfidenceDefault);
+
+            double GetConfidenceForStableSource(string src)
+            {
+                if (string.Equals(src, "Live", StringComparison.OrdinalIgnoreCase)) return Confidence;
+                if (string.Equals(src, "Profile", StringComparison.OrdinalIgnoreCase)) return ProfileStableConfidenceFloor;
+                return 0.0; // Fallback / unknown
+            }
+            // -------------------------------------------------------------------------------
+
+            double stable = _stableFuelPerLap;
+            string selectedSource = source;
+            double selectedConfidence = GetConfidenceForStableSource(selectedSource);
+
+            if (candidate <= 0.0)
+            {
+                if (stable > 0.0)
+                {
+                    // Hold previous stable triple if candidate is invalid.
+                    candidate = stable;
+                    selectedSource = _stableFuelPerLapSource;
+                    selectedConfidence = _stableFuelPerLapConfidence;
+                }
+                else
+                {
+                    stable = 0.0;
+                    selectedSource = "Fallback";
+                    selectedConfidence = 0.0;
+                }
+            }
+            else
+            {
+                if (stable <= 0.0 || Math.Abs(candidate - stable) >= StableFuelPerLapDeadband)
+                {
+                    // Accept new stable candidate: update source + confidence together.
+                    stable = candidate;
+                    selectedSource = source;
+                    selectedConfidence = GetConfidenceForStableSource(selectedSource);
+                }
+                else
+                {
+                    // Deadband hold: keep value, but allow source/confidence to advance
+                    selectedSource = source;
+                    selectedConfidence = GetConfidenceForStableSource(selectedSource);
+                }
+            }
+
+            // Clamp values defensively
+            stable = Math.Max(0.1, stable); // avoid pathological near-zero persistence
+
+            _stableFuelPerLap = stable;
+            _stableFuelPerLapSource = selectedSource;
+            _stableFuelPerLapConfidence = ClampToRange(selectedConfidence, 0.0, 100.0, 0.0);
+
+            LiveFuelPerLap_Stable = _stableFuelPerLap;
+            LiveFuelPerLap_StableSource = _stableFuelPerLapSource;
+            LiveFuelPerLap_StableConfidence = _stableFuelPerLapConfidence;
+        }
+
+        private void UpdateSmoothedFuelOutputs(double requestedAddLitres)
+        {
+            bool projectionValid = LiveFuelPerLap_Stable > 0.0 && LiveLapsRemainingInRace_Stable > 0.0;
+            bool pitValid = LiveFuelPerLap_Stable > 0.0;
+
+            bool validityReset = (projectionValid && !_smoothedProjectionValid) || (pitValid && !_smoothedPitValid);
+
+            if (_pendingSmoothingReset || validityReset)
+            {
+                ResetSmoothedOutputs();
+            }
+
+            if (!projectionValid)
+            {
+                _smoothedProjectionValid = false;
+                _smoothedLiveLapsRemainingState = double.NaN;
+                LiveLapsRemainingInRace_S = LiveLapsRemainingInRace;
+                LiveLapsRemainingInRace_Stable_S = LiveLapsRemainingInRace_Stable;
+            }
+            else
+            {
+                _smoothedLiveLapsRemainingState = ApplyEma(SmoothedAlpha, LiveLapsRemainingInRace_Stable, _smoothedLiveLapsRemainingState);
+                LiveLapsRemainingInRace_S = _smoothedLiveLapsRemainingState;
+                LiveLapsRemainingInRace_Stable_S = _smoothedLiveLapsRemainingState;
+                _smoothedProjectionValid = true;
+            }
+
+            if (!pitValid)
+            {
+                _smoothedPitValid = false;
+                _smoothedPitDeltaState = double.NaN;
+                _smoothedPitPushDeltaState = double.NaN;
+                _smoothedPitFuelSaveDeltaState = double.NaN;
+                _smoothedPitTotalNeededState = double.NaN;
+
+                Pit_DeltaAfterStop_S = Pit_DeltaAfterStop;
+                Pit_PushDeltaAfterStop_S = Pit_PushDeltaAfterStop;
+                Pit_FuelSaveDeltaAfterStop_S = Pit_FuelSaveDeltaAfterStop;
+                Pit_TotalNeededToEnd_S = Pit_TotalNeededToEnd;
+            }
+            else
+            {
+                _smoothedPitDeltaState = ApplyEma(SmoothedAlpha, Pit_DeltaAfterStop, _smoothedPitDeltaState);
+                _smoothedPitPushDeltaState = ApplyEma(SmoothedAlpha, Pit_PushDeltaAfterStop, _smoothedPitPushDeltaState);
+                _smoothedPitFuelSaveDeltaState = ApplyEma(SmoothedAlpha, Pit_FuelSaveDeltaAfterStop, _smoothedPitFuelSaveDeltaState);
+                _smoothedPitTotalNeededState = ApplyEma(SmoothedAlpha, Pit_TotalNeededToEnd, _smoothedPitTotalNeededState);
+
+                Pit_DeltaAfterStop_S = _smoothedPitDeltaState;
+                Pit_PushDeltaAfterStop_S = _smoothedPitPushDeltaState;
+                Pit_FuelSaveDeltaAfterStop_S = _smoothedPitFuelSaveDeltaState;
+                Pit_TotalNeededToEnd_S = _smoothedPitTotalNeededState;
+                _smoothedPitValid = true;
+            }
+        }
+
+        private double GetProjectionLapSeconds(GameData data)
+        {
+            double profileAvgSeconds = GetProfileAvgLapSeconds();
+
+            double lapSeconds = 0.0;
+            string source = "fallback.none";
+
+            double liveAvg = Pace_StintAvgLapTimeSec > 0.0 ? Pace_StintAvgLapTimeSec : Pace_Last5LapAvgSec;
+            if (PaceConfidence >= LapTimeConfidenceSwitchOn && liveAvg > 0.0)
+            {
+                lapSeconds = liveAvg;
+                source = (Math.Abs(liveAvg - Pace_StintAvgLapTimeSec) < 1e-6) ? "pace.stint" : "pace.last5";
+            }
+            else if (profileAvgSeconds > 0.0)
+            {
+                lapSeconds = profileAvgSeconds;
+                source = "profile.avg";
+            }
+            else
+            {
+                double estimator = 0.0;
+                string estimatorSource = string.Empty;
+
+                string estimatedLap = FuelCalculator?.EstimatedLapTime ?? string.Empty;
+                if (TimeSpan.TryParse(estimatedLap, out var ts) && ts.TotalSeconds > 0.0)
+                {
+                    estimator = ts.TotalSeconds;
+                    estimatorSource = "fuelcalc.estimated";
+                }
+
+                double lastLapSeconds = (data.NewData?.LastLapTime ?? TimeSpan.Zero).TotalSeconds;
+                if (estimator <= 0.0 && lastLapSeconds > 0.0)
+                {
+                    estimator = lastLapSeconds;
+                    estimatorSource = "telemetry.lastlap";
+                }
+
+                lapSeconds = estimator;
+                source = string.IsNullOrEmpty(estimatorSource) ? "fallback.none" : estimatorSource;
+            }
+
+            double stable = _stableProjectionLapTime;
+            string selectedSource = source;
+
+            if (lapSeconds <= 0.0)
+            {
+                if (stable > 0.0)
+                {
+                    lapSeconds = stable;
+                    selectedSource = _stableProjectionLapTimeSource;
+                }
+            }
+            else
+            {
+                double roundedCandidate = Math.Round(lapSeconds, 1);
+                if (stable <= 0.0 || Math.Abs(roundedCandidate - stable) >= StableLapTimeDeadband)
+                {
+                    stable = roundedCandidate;
+                    selectedSource = source;
+                }
+                else
+                {
+                    selectedSource = _stableProjectionLapTimeSource;
+                }
+            }
+
+            if (lapSeconds <= 0.0)
+            {
+                stable = lapSeconds;
+            }
+
+            _stableProjectionLapTime = stable;
+            _stableProjectionLapTimeSource = selectedSource;
+            ProjectionLapTime_Stable = _stableProjectionLapTime;
+            ProjectionLapTime_StableSource = _stableProjectionLapTimeSource;
+
+            bool shouldLog = (!string.Equals(selectedSource, _lastProjectionLapSource, StringComparison.Ordinal)) ||
+                             Math.Abs(_stableProjectionLapTime - _lastProjectionLapSeconds) > 0.05;
+
+            if (shouldLog && (DateTime.UtcNow - _lastProjectionLapLogUtc) > TimeSpan.FromSeconds(5))
+            {
+                _lastProjectionLapSource = selectedSource;
+                _lastProjectionLapSeconds = _stableProjectionLapTime;
+                _lastProjectionLapLogUtc = DateTime.UtcNow;
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pace] source={selectedSource} lap={_stableProjectionLapTime:F3}s " +
+                    $"stint={Pace_StintAvgLapTimeSec:F3}s last5={Pace_Last5LapAvgSec:F3}s profile={profileAvgSeconds:F3}s");
+            }
+
+            return _stableProjectionLapTime;
+        }
+
+        private double ComputeProjectedLapsRemaining(double simLapsRemaining, double lapSeconds, double sessionTimeRemain, double driveTimeAfterZero)
+        {
+            double projectedSeconds;
+            double projectedLaps = FuelProjectionMath.ProjectLapsRemaining(
+                lapSeconds,
+                sessionTimeRemain,
+                driveTimeAfterZero,
+                simLapsRemaining,
+                out projectedSeconds);
+
+            LiveProjectedDriveSecondsRemaining = projectedSeconds;
+            return projectedLaps;
+        }
+
+        private double ComputeLiveMaxFuelFromSimhub(PluginManager pluginManager)
+        {
+            double baseMaxFuel = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.MaxFuel", 0.0);
+            if (double.IsNaN(baseMaxFuel) || baseMaxFuel <= 0.0)
+                return 0.0;
+
+            double bopPercent = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct", 1.0);
+            if (double.IsNaN(bopPercent) || bopPercent <= 0.0)
+                bopPercent = 1.0;
+
+            bopPercent = Math.Min(1.0, Math.Max(0.01, bopPercent));
+
+            double detected = baseMaxFuel * bopPercent;
+            return detected < 0.0 ? 0.0 : detected;
+        }
+
+        private void UpdateLiveMaxFuel(PluginManager pluginManager)
+        {
+            double computedMaxFuel = ComputeLiveMaxFuelFromSimhub(pluginManager);
+
+            if (computedMaxFuel > 0.0)
+            {
+                _lastValidLiveMaxFuel = computedMaxFuel;
+                EffectiveLiveMaxTank = computedMaxFuel;
+
+                bool meaningfulChange =
+                    (LiveCarMaxFuel <= 0.0) ||
+                    (Math.Abs(LiveCarMaxFuel - computedMaxFuel) > LiveMaxFuelJitterThreshold);
+
+                if (!meaningfulChange)
+                    return;
+
+                LiveCarMaxFuel = computedMaxFuel;
+
+                if (Math.Abs(LiveCarMaxFuel - _lastAnnouncedMaxFuel) > 0.01 && FuelCalculator != null)
+                {
+                    _lastAnnouncedMaxFuel = LiveCarMaxFuel;
+                    FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
+                }
+
+                return;
+            }
+
+            // computedMaxFuel <= 0 : keep a stable non-zero effective value if we have one
+            EffectiveLiveMaxTank = (LiveCarMaxFuel > 0.0) ? LiveCarMaxFuel : _lastValidLiveMaxFuel;
+        }
+
+        private double ResolveMaxTankCapacity()
+        {
+            double maxTankCapacity = FuelCalculator?.MaxFuelOverride ?? 0.0;
+
+            double sessionMaxFuel = EffectiveLiveMaxTank;
+
+            if (maxTankCapacity <= 0.0)
+            {
+                maxTankCapacity = sessionMaxFuel;
+            }
+            else if (sessionMaxFuel > 0.0)
+            {
+                maxTankCapacity = Math.Min(maxTankCapacity, sessionMaxFuel);
+            }
+
+            return maxTankCapacity;
+        }
+
+        private bool ShouldLogProjection(double simLapsRemaining, double projectedLapsRemaining)
+        {
+            double diff = Math.Abs(projectedLapsRemaining - simLapsRemaining);
+            if (diff < 0.25)
+                return false;
+
+            if ((DateTime.UtcNow - _lastProjectionLogUtc) < TimeSpan.FromSeconds(20))
+                return false;
+
+            if (!double.IsNaN(_lastLoggedProjectedLaps) && Math.Abs(projectedLapsRemaining - _lastLoggedProjectedLaps) < 0.25)
+                return false;
+
+            double afterZeroChange = double.IsNaN(_lastLoggedProjectionAfterZero)
+                ? double.PositiveInfinity
+                : Math.Abs(LiveProjectedDriveTimeAfterZero - _lastLoggedProjectionAfterZero);
+            if (afterZeroChange < 1.0)
+                return false;
+
+            return true;
+        }
+
+        private void LogProjectionDifference(
+            double simLapsRemaining,
+            double projectedLapsRemaining,
+            double lapSeconds,
+            double projectedSeconds,
+            string afterZeroSource,
+            double sessionTimeRemain)
+        {
+            _lastProjectionLogUtc = DateTime.UtcNow;
+            _lastLoggedProjectedLaps = projectedLapsRemaining;
+            _lastLoggedProjectionAfterZero = LiveProjectedDriveTimeAfterZero;
+
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:Drive Time Projection] " +
+                $"projection=drive_time " +
+                $"lapsProj={projectedLapsRemaining:F2} simLaps={simLapsRemaining:F2} deltaLaps={(projectedLapsRemaining - simLapsRemaining):+0.00;-0.00;0.00} " +
+                $"lapRef={lapSeconds:F2}s " +
+                $"after0Used={LiveProjectedDriveTimeAfterZero:F1}s src={afterZeroSource} " +
+                $"tRemain={FormatSecondsOrNA(sessionTimeRemain)} " +
+                $"driveRemain={projectedSeconds:F1}s"
+            );
+        }
+
+        private double ComputeObservedExtraSeconds(double finishSessionTime)
+        {
+            if (double.IsNaN(finishSessionTime) || finishSessionTime <= 0.0)
+            {
+                return 0.0;
+            }
+
+            if (_timerZeroSeen && !double.IsNaN(_timerZeroSessionTime))
+            {
+                return Math.Max(0.0, finishSessionTime - _timerZeroSessionTime);
+            }
+
+            return 0.0;
+        }
+
+        private void MaybeLogAfterZeroResult(double sessionTime, bool sessionEnded)
+        {
+            if (_afterZeroResultLogged || !sessionEnded)
+            {
+                return;
+            }
+
+            double leaderExtra = double.IsNaN(_leaderCheckeredSessionTime)
+                ? double.NaN
+                : ComputeObservedExtraSeconds(_leaderCheckeredSessionTime);
+            double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime);
+
+            if (driverExtra <= 0.0 && sessionTime > 0.0)
+            {
+                driverExtra = ComputeObservedExtraSeconds(sessionTime);
+            }
+
+            string leaderText = double.IsNaN(leaderExtra)
+                ? "n/a"
+                : $"{leaderExtra:F1}s";
+            string driverText = $"{driverExtra:F1}s";
+
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:After0Result] driver={driverText} leader={leaderText} " +
+                $"pred={_afterZeroUsedSeconds:F1}s lapsPred={_lastProjectedLapsRemaining:F2}");
+
+            _afterZeroResultLogged = true;
+        }
+
+     private long _finishTimingSessionId = -1;
+     private string _finishTimingSessionType = string.Empty;
+
+     private void UpdateFinishTiming(
+     PluginManager pluginManager,
+     GameData data,
+     double sessionTime,
+     double sessionTimeRemain,
+     int completedLaps,
+     long sessionId,
+     string sessionType)
+        {
+            bool isRace = string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase);
+
+            // Reset cleanly on session change
+            if (sessionId != _finishTimingSessionId || sessionType != _finishTimingSessionType)
+            {
+                _finishTimingSessionId = sessionId;
+                _finishTimingSessionType = sessionType;
+                _afterZeroResultLogged = false;
+                ResetFinishTimingState();
+                RefreshClassMetadata(pluginManager);
+            }
+
+            if (!isRace)
+            {
+                _prevSessionTimeRemain = !double.IsNaN(sessionTimeRemain) ? sessionTimeRemain : double.NaN;
+                return;
+            }
+
+            bool hasRemain = !double.IsNaN(sessionTimeRemain);
+
+            // Detect first genuine crossing to zero
+            bool crossedToZero =
+                hasRemain &&
+                !double.IsNaN(_prevSessionTimeRemain) &&
+                _prevSessionTimeRemain > 0.5 &&
+                sessionTimeRemain <= 0.5 &&
+                completedLaps > 0;
+
+            if (!_timerZeroSeen && crossedToZero)
+            {
+                _timerZeroSeen = true;
+                _timerZeroSessionTime = sessionTime;
+            }
+
+            if (_carIdxToClassShortName.Count == 0 && isRace)
+            {
+                RefreshClassMetadata(pluginManager);
+            }
+
+            int sessionStateNumeric = ReadSessionStateInt(pluginManager);
+            bool isTimedRace = hasRemain;
+            bool sessionStateRaceOrLater = sessionStateNumeric >= 4;
+
+            int playerCarIdx = GetInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.PlayerCarIdx", -1);
+            string playerClassShort = GetCachedClassShortName(playerCarIdx);
+            if (string.IsNullOrWhiteSpace(playerClassShort) && pluginManager != null)
+            {
+                RefreshClassMetadata(pluginManager);
+                playerClassShort = GetCachedClassShortName(playerCarIdx);
+            }
+
+            var classPositions = GetIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxClassPosition");
+            var trackSurfaces = GetIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxTrackSurface");
+            var lapDistPct = GetDoubleArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLapDistPct");
+
+            int classLeaderIdx = FindClassLeaderCarIdx(playerClassShort, classPositions, trackSurfaces);
+            ClassLeaderHasFinishedValid = classLeaderIdx >= 0;
+
+            int overallLeaderIdx = -1;
+
+            // Single-class: overall leader == class leader
+            if (!_isMultiClassSession && classLeaderIdx >= 0)
+            {
+                overallLeaderIdx = classLeaderIdx;
+            }
+
+            // Validity means “we know who the leader is”, not “we are using it”
+            OverallLeaderHasFinishedValid = overallLeaderIdx >= 0;
+
+            bool checkeredFlagData = isRace && ReadFlagBool(
+                pluginManager,
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckeredFlag",
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
+            );
+            if (checkeredFlagData && !_leaderFinishLatchedByFlag)
+            {
+                _leaderFinishLatchedByFlag = true;
+                OverallLeaderHasFinished = true;
+                OverallLeaderHasFinishedValid = true;
+
+                if (_isMultiClassSession)
+                {
+                    ClassLeaderHasFinished = true;
+                    ClassLeaderHasFinishedValid = classLeaderIdx >= 0;
+                }
+
+                _leaderFinishedSeen = true;
+                if (double.IsNaN(_leaderCheckeredSessionTime))
+                {
+                    _leaderCheckeredSessionTime = sessionTime;
+                }
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Finish] checkered_flag trigger=flag leader_finished={LeaderHasFinished} " +
+                    $"class_finished={ClassLeaderHasFinished} class_valid={ClassLeaderHasFinishedValid} " +
+                    $"overall_finished={OverallLeaderHasFinished} overall_valid={OverallLeaderHasFinishedValid} " +
+                    $"multiclass={_isMultiClassSession}"
+                );
+            }
+
+
+            if (!isTimedRace)
+            {
+                // Lap-limited: no derivation path without per-car lap counts or finish flags.
+                if (classLeaderIdx >= 0 && lapDistPct != null && classLeaderIdx < lapDistPct.Length)
+                {
+                    _lastClassLeaderLapPct = lapDistPct[classLeaderIdx];
+                    _lastClassLeaderCarIdx = classLeaderIdx;
+                }
+
+                if (overallLeaderIdx >= 0 && lapDistPct != null && overallLeaderIdx < lapDistPct.Length)
+                {
+                    _lastOverallLeaderLapPct = lapDistPct[overallLeaderIdx];
+                    _lastOverallLeaderCarIdx = overallLeaderIdx;
+                }
+            }
+            else if (_timerZeroSeen && sessionStateRaceOrLater)
+            {
+                MaybeLatchLeaderFinished(
+                    isClassLeader: true,
+                    leaderIdx: classLeaderIdx,
+                    lapDistPct,
+                    trackSurfaces,
+                    sessionTime,
+                    sessionStateNumeric);
+
+                if (overallLeaderIdx >= 0)
+                {
+                    MaybeLatchLeaderFinished(
+                        isClassLeader: false,
+                        leaderIdx: overallLeaderIdx,
+                        lapDistPct,
+                        trackSurfaces,
+                        sessionTime,
+                        sessionStateNumeric);
+                }
+            }
+            else
+            {
+                if (classLeaderIdx >= 0 && lapDistPct != null && classLeaderIdx < lapDistPct.Length)
+                {
+                    _lastClassLeaderLapPct = lapDistPct[classLeaderIdx];
+                    _lastClassLeaderCarIdx = classLeaderIdx;
+                }
+
+                if (overallLeaderIdx >= 0 && lapDistPct != null && overallLeaderIdx < lapDistPct.Length)
+                {
+                    _lastOverallLeaderLapPct = lapDistPct[overallLeaderIdx];
+                    _lastOverallLeaderCarIdx = overallLeaderIdx;
+                }
+            }
+
+            bool derivedLeaderBefore = LeaderHasFinished;
+            bool derivedLeaderAfter = _isMultiClassSession
+                ? (ClassLeaderHasFinishedValid && ClassLeaderHasFinished)
+                : (OverallLeaderHasFinishedValid && OverallLeaderHasFinished);
+            LeaderHasFinished = derivedLeaderAfter;
+
+            if (!derivedLeaderBefore && derivedLeaderAfter)
+            {
+                _leaderFinishedSeen = true;
+                _leaderCheckeredSessionTime = sessionTime;
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Finish] leader_finish trigger=derived source={(_isMultiClassSession ? "class" : "overall")} " +
+                    $"session_state={sessionStateNumeric} timer0_seen={_timerZeroSeen}");
+            }
+
+            // ----- DRIVER FINISH -----
+            bool lapCompleted =
+                (_lastCompletedLapForFinish >= 0) &&
+                (completedLaps > _lastCompletedLapForFinish);
+
+            _lastCompletedLapForFinish = completedLaps;
+            _prevSessionTimeRemain = hasRemain ? sessionTimeRemain : double.NaN;
+
+            bool checkeredFlag = ReadFlagBool(
+                pluginManager,
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckeredFlag",
+                "DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsCheckered"
+            );
+
+            bool sessionEnded = checkeredFlag || checkeredFlagData;
+
+            if (lapCompleted && checkeredFlag)
+            {
+                _driverCheckeredSessionTime = sessionTime;
+
+                bool leaderCheckeredKnown = !double.IsNaN(_leaderCheckeredSessionTime);
+                double leaderExtra = leaderCheckeredKnown
+                    ? ComputeObservedExtraSeconds(_leaderCheckeredSessionTime)
+                    : double.NaN;
+                double driverExtra = ComputeObservedExtraSeconds(_driverCheckeredSessionTime);
+
+                string leaderAfterZeroText = leaderCheckeredKnown
+                    ? $"{leaderExtra:F1}s"
+                    : "n/a";
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Finish] finish_latch trigger=driver_checkered timer0_s={FormatSecondsOrNA(_timerZeroSessionTime)} " +
+                    $"leader_chk_s={FormatSecondsOrNA(_leaderCheckeredSessionTime)} driver_chk_s={FormatSecondsOrNA(_driverCheckeredSessionTime)} " +
+                    $"leader_after0_s={leaderAfterZeroText} driver_after0_s={driverExtra:F1} " +
+                    $"leader_finished={LeaderHasFinished} class_finished={ClassLeaderHasFinished} overall_finished={OverallLeaderHasFinished} " +
+                    $"session_remain_s={FormatSecondsOrNA(sessionTimeRemain)}"
+                );
+
+                MaybeLogAfterZeroResult(sessionTime, sessionEnded);
+                ResetFinishTimingState();
+            }
+            else if (sessionEnded)
+            {
+                MaybeLogAfterZeroResult(sessionTime, sessionEnded);
+            }
+        }
+
+
+
+        private static (double seconds, bool isFallback) ReadLeaderLapTimeSeconds(
+            PluginManager pluginManager,
+            GameData data,
+            double playerRecentAvg,
+            double leaderAvgFallback)
         {
             // Local helper to normalise any raw value to seconds
             double TryReadSeconds(object raw)
@@ -2758,7 +4840,7 @@ namespace LaunchPlugin
                 }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Info($"[FuelLeader] TryReadSeconds error for value '{raw}': {ex.Message}");
+                    SimHub.Logging.Current.Warn($"[LalaPlugin:Leader Lap] TryReadSeconds error for value '{raw}': {ex.Message}");
                 }
 
                 return 0.0;
@@ -2767,17 +4849,17 @@ namespace LaunchPlugin
             // Candidate sources – ordered by preference
             var candidates = new (string Name, object Raw)[]
             {
-        // Verified working class-leader property:
-        ("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime",
-            pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime")),
+            // Verified working class-leader property:
+            ("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime",
+                pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_ClassLeaderboard_Driver_00_LastLapTime")),
 
-        // Legacy / fallback properties (may or may not exist in your SimHub version):
-        ("IRacingExtraProperties.iRacing_LeaderLastLapTime",
-            pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime")),
-        ("DataCorePlugin.GameData.LeaderLastLapTime",
-            pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime")),
-        ("DataCorePlugin.GameData.LeaderAverageLapTime",
-            pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")),
+            // Legacy / fallback properties (may or may not exist in your SimHub version):
+            ("IRacingExtraProperties.iRacing_LeaderLastLapTime",
+                pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_LeaderLastLapTime")),
+            ("DataCorePlugin.GameData.LeaderLastLapTime",
+                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderLastLapTime")),
+            ("DataCorePlugin.GameData.LeaderAverageLapTime",
+                pluginManager.GetPropertyValue("DataCorePlugin.GameData.LeaderAverageLapTime")),
             };
 
             foreach (var candidate in candidates)
@@ -2785,19 +4867,41 @@ namespace LaunchPlugin
                 double seconds = TryReadSeconds(candidate.Raw);
 
                 // Debug trace for inspection in SimHub log
-                SimHub.Logging.Current.Info(
-                    $"[FuelLeader] candidate {candidate.Name} raw='{candidate.Raw}' seconds={seconds:F3}");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Leader Lap] candidate source={candidate.Name} raw='{candidate.Raw}' parsed_s={seconds:F3}");
+
 
                 if (seconds > 0.0)
                 {
+                    double rejectionFloor = (playerRecentAvg > 0.0) ? playerRecentAvg * 0.5 : 0.0;
+                    if (seconds < 30.0 || (rejectionFloor > 0.0 && seconds < rejectionFloor))
+                    {
+                        double fallback = leaderAvgFallback > 0.0 ? leaderAvgFallback : 0.0;
+                        string rejectReason =
+                            seconds < 30.0 ? "too_small" :
+                            (rejectionFloor > 0.0 && seconds < rejectionFloor) ? "below_player_half" :
+                            "unknown";
+
+                        SimHub.Logging.Current.Info(
+                            $"[LalaPlugin:Leader Lap] reject source={candidate.Name} sec={seconds:F3} " +
+                            $"reason={rejectReason} player_last5_sec={playerRecentAvg:F3} min_sec={rejectionFloor:F3} " +
+                            $"fallback_sec={fallback:F3}");
+
+                        if (fallback > 0.0)
+                        {
+                            return (fallback, true);
+                        }
+
+                        continue;
+                    }
+
                     SimHub.Logging.Current.Info(
-                        $"[FuelLeader] using leader lap from {candidate.Name} = {seconds:F3}s");
-                    return seconds;
+                        $"[LalaPlugin:Leader Lap] using leader lap from {candidate.Name} = {seconds:F3}s");
+                    return (seconds, false);
                 }
             }
 
-            SimHub.Logging.Current.Info("[FuelLeader] no valid leader lap time from any candidate – returning 0");
-            return 0.0;
+            SimHub.Logging.Current.Info("[LalaPlugin:Leader Lap] no valid leader lap time from any candidate – returning 0");
+            return (0.0, false);
         }
 
 
@@ -2913,23 +5017,24 @@ namespace LaunchPlugin
                 SetLaunchState(LaunchState.Idle);
             }
 
-            // --- Manual Launch Timeout Logic ---
-            // Check if a manual launch was started AND we are still in the pre-launch waiting phase.
-            if (_manualPrimedStartedAt != DateTime.MinValue && (IsManualPrimed || IsInProgress))
-            {
-                // Check if more than 30 seconds have passed.
-                if ((DateTime.Now - _manualPrimedStartedAt).TotalSeconds > 30)
-                {
-                    SimHub.Logging.Current.Info("[LalaLaunch] Manual launch timed out after 30 seconds.");
-                    AbortLaunch();
-                }
-            }
-
-
             // --- START PHASE FLAGS ---
             bool isStartReady = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsStartReady") ?? false);
             bool isStartGo = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.SessionFlagsDetails.IsStartGo") ?? false);
             double speed = data.NewData?.SpeedKmh ?? 0;
+
+            // --- Manual Launch Timeout Logic ---
+            // ManualPrimed only: once launch starts (state changes), timeout no longer applies.
+            if (_manualPrimedStartedAt != DateTime.MinValue && IsManualPrimed)
+            {
+                if ((DateTime.Now - _manualPrimedStartedAt).TotalSeconds > 30)
+                {
+                    _launchModeUserDisabled = true; // behave like user cancel; prevents immediate auto re-prime
+                    CancelLaunchToIdle("Manual launch timed out after 30 seconds");
+
+                    // Optional debug (only if speed/start flags are already in scope here)
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Launch] ManualPrimed timeout fired at speed={speed:0.0} startReady={isStartReady} startGo={isStartGo} userDisabled={_launchModeUserDisabled}");
+                }
+            }
 
             // --- FALSE START DETECTION ---
             // Lights are on (ready), but not "Go" yet — and the car moves with clutch released
@@ -3304,7 +5409,7 @@ namespace LaunchPlugin
                 }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Error($"LaunchPlugin: CSV Logging Error: {ex.Message}");
+                    SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] CSV Logging Error: {ex.Message}");
                 }
             }
         }
@@ -3325,6 +5430,7 @@ namespace LaunchPlugin
         // --- Global Settings with Corrected Defaults ---
         public bool EnableDebugLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
+        public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
         public bool EnableAutoDashSwitch { get; set; } = true;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
@@ -3369,12 +5475,12 @@ namespace LaunchPlugin
                 if (!string.IsNullOrWhiteSpace(_currentFilePath) && File.Exists(_currentFilePath))
                 {
                     File.Delete(_currentFilePath);
-                    SimHub.Logging.Current.Info($"[LaunchTrace] Discarded trace file: {_currentFilePath}");
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] Discarded trace file: {_currentFilePath}");
                 }
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"LaunchPlugin: Failed to discard trace file: {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Failed to discard trace file: {ex.Message}");
             }
             finally
             {
@@ -3418,12 +5524,12 @@ namespace LaunchPlugin
                 _currentFilePath = newFilePath;
                 _traceStartTime = DateTime.UtcNow;
 
-                SimHub.Logging.Current.Info($"[LaunchTrace] New launch trace file opened: {_currentFilePath}");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] New launch trace file opened: {_currentFilePath}");
                 return _currentFilePath;
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"TelemetryTraceLogger: Failed to start new launch trace: {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Failed to start new launch trace: {ex.Message}");
                 // Ensure state is clean on failure
                 _traceWriter = null;
                 _currentFilePath = null;
@@ -3482,7 +5588,7 @@ namespace LaunchPlugin
                 }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Error($"TelemetryTraceLogger: Failed to write telemetry data: {ex.Message}");
+                    SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Failed to write telemetry data: {ex.Message}");
                 }
             }
             else if (!_plugin.Settings.EnableTelemetryTracing)
@@ -3501,7 +5607,7 @@ namespace LaunchPlugin
         {
             if (string.IsNullOrEmpty(_currentFilePath) || !System.IO.File.Exists(_currentFilePath))
             {
-                SimHub.Logging.Current.Warn("TelemetryTraceLogger: Cannot append summary. Trace file path is invalid or file does not exist.");
+                SimHub.Logging.Current.Warn("[LalaPlugin:Launch Trace] Cannot append summary. Trace file path is invalid or file does not exist.");
                 return;
             }
 
@@ -3519,14 +5625,13 @@ namespace LaunchPlugin
 
                 // Append all lines at once using File.AppendAllLines to ensure atomicity
                 System.IO.File.AppendAllLines(_currentFilePath, summaryContent);
-                SimHub.Logging.Current.Info($"[LaunchTrace] Successfully appended launch summary to {_currentFilePath}");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] Successfully appended launch summary to {_currentFilePath}");
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"TelemetryTraceLogger: Failed to append launch summary using File.AppendAllLines: {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Failed to append launch summary: {ex.Message}");
             }
         }
-
 
         /// <summary>
         /// Stops the current telemetry trace, flushes and closes the file.
@@ -3539,11 +5644,12 @@ namespace LaunchPlugin
                 {
                     _traceWriter.Flush();
                     _traceWriter.Dispose(); // This closes the underlying file stream and disposes the writer
-                    SimHub.Logging.Current.Info($"[LaunchTrace] Launch trace file closed: {_currentFilePath}");
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] Closed launch trace file: {_currentFilePath}");
                 }
                 catch (Exception ex)
                 {
-                    SimHub.Logging.Current.Error($"TelemetryTraceLogger: Error stopping launch trace: {ex.Message}");
+                    SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Error closing launch trace: {ex.Message}");
+
                 }
                 finally
                 {
@@ -3590,7 +5696,7 @@ namespace LaunchPlugin
 
             if (!System.IO.Directory.Exists(tracePath))
             {
-                SimHub.Logging.Current.Info($"[LaunchTrace] Trace directory not found: {tracePath}");
+                SimHub.Logging.Current.Warn($"[LalaPlugin:Launch Trace] Trace directory not found: {tracePath}");
                 return new List<string>();
             }
 
@@ -3603,7 +5709,7 @@ namespace LaunchPlugin
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"TelemetryTraceLogger: Error getting launch trace files: {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Error getting launch trace files: {ex.Message}");
                 return new List<string>();
             }
         }
@@ -3621,7 +5727,7 @@ namespace LaunchPlugin
 
             if (!System.IO.File.Exists(filePath))
             {
-                SimHub.Logging.Current.Warn($"TelemetryTraceLogger: Trace file not found: {filePath}");
+                SimHub.Logging.Current.Warn($"[LalaPlugin:Launch Trace] Trace file not found: {filePath}");
                 return (dataRows, null);
             }
 
@@ -3656,7 +5762,7 @@ namespace LaunchPlugin
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"TelemetryTraceLogger: Error reading launch trace file '{filePath}': {ex.Message}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Error reading launch trace file '{filePath}': {ex.Message}");
                 return (new List<TelemetryDataRow>(), null);
             }
 
@@ -3698,12 +5804,12 @@ namespace LaunchPlugin
             }
             catch (FormatException ex)
             {
-                SimHub.Logging.Current.Error($"TelemetryTraceLogger: Error parsing telemetry data row: {ex.Message}. Line: '{line}'");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Error parsing telemetry data row: {ex.Message}. Line: '{line}'");
                 return null;
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Error($"TelemetryTraceLogger: Failed parsing row: {ex.Message} | Line: {line}");
+                SimHub.Logging.Current.Error($"[LalaPlugin:Launch Trace] Failed parsing row: {ex.Message} | Line: {line}");
                 return null;
             }
 

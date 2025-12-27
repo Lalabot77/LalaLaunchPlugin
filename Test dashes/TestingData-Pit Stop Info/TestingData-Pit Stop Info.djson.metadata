@@ -1,0 +1,23 @@
+{
+  "ScreenCount": 1.0,
+  "InGameScreensIndexs": [
+    0
+  ],
+  "IdleScreensIndexs": [
+    0
+  ],
+  "MainPreviewIndex": 0,
+  "IsOverlay": false,
+  "OverlaySizeWarning": false,
+  "MetadataVersion": 2.0,
+  "EnableOnDashboardMessaging": true,
+  "PitScreensIndexs": [],
+  "SimHubVersion": "9.9.4",
+  "Category": null,
+  "Title": "TestingData-Pit Stop Info",
+  "Description": "Pit stop testing overlay with DTL, Direct, Net, baseline & save info.",
+  "Author": "LalaLaunch",
+  "Width": 800.0,
+  "Height": 500.0,
+  "DashboardVersion": ""
+}
