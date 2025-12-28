@@ -4128,18 +4128,31 @@ namespace LaunchPlugin
 
         private void ResetSmoothedOutputs()
         {
+            // Reset internal EMA state
             _smoothedLiveLapsRemainingState = double.NaN;
             _smoothedPitDeltaState = double.NaN;
             _smoothedPitPushDeltaState = double.NaN;
             _smoothedPitFuelSaveDeltaState = double.NaN;
             _smoothedPitTotalNeededState = double.NaN;
+
+            // Reset smoothing gates
             _smoothedProjectionValid = false;
             _smoothedPitValid = false;
             _pendingSmoothingReset = false;
+
+            // Also clear the published smoothed outputs so dashboards can't "freeze" old values
+            // when smoothing doesn't run immediately after a reset.
+            LiveLapsRemainingInRace_S = 0;
+
+            Pit_DeltaAfterStop_S = 0;
+            Pit_PushDeltaAfterStop_S = 0;
+            Pit_FuelSaveDeltaAfterStop_S = 0;
+            Pit_TotalNeededToEnd_S = 0;
         }
 
         private void ClearFuelInstructionOutputs()
         {
+            // --- Pit / instructions (already present) ---
             Pit_TotalNeededToEnd = 0;
             Pit_NeedToAdd = 0;
             Pit_TankSpaceAvailable = 0;
@@ -4161,6 +4174,27 @@ namespace LaunchPlugin
             Fuel_Delta_LitresCurrentSave = 0;
             Fuel_Delta_LitresPlanSave = 0;
             Fuel_Delta_LitresWillAddSave = 0;
+
+            // --- Additional dashboard-facing fuel/projection outputs that must not latch across resets ---
+            // (These were listed in SessionResetIssues.docx)
+            DeltaLaps = 0;
+            DeltaLapsIfPush = 0;
+            FuelSaveFuelPerLap = 0;
+            PushFuelPerLap = 0;
+
+            LapsRemainingInTank = 0;
+
+            LiveProjectedDriveTimeAfterZero = 0;
+            LiveProjectedDriveSecondsRemaining = 0;
+
+            LiveLapsRemainingInRace = 0;
+            LiveLapsRemainingInRace_Stable = 0;
+
+            // Smoothed versions are cleared here too for determinism
+            LiveLapsRemainingInRace_S = 0;
+            Pit_DeltaAfterStop_S = 0;
+            Pit_PushDeltaAfterStop_S = 0;
+            Pit_TotalNeededToEnd_S = 0;
         }
 
         private static double ApplyEma(double alpha, double raw, double previous)
