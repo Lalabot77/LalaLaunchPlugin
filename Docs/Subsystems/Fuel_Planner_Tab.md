@@ -5,46 +5,256 @@ Last updated: 2025-12-28
 Branch: docs/refresh-index-subsystems
 
 ## Purpose
-Planner UI for lap time and fuel-per-lap selection, mixing live snapshots with profile data and manual overrides. Drives strategy inputs and displays live/session snapshots.
+The Fuel Planner Tab is the **human-in-the-loop planning interface** that:
+- Presents a snapshot of live session state (fuel, pace, confidence).
+- Allows the driver to **select authoritative planning inputs** (lap time + fuel per lap).
+- Computes a **deterministic pit plan** using planner inputs, independent of live volatility.
+- Exposes “readiness” gates so dashboards can safely auto-apply or inhibit live suggestions.
 
-## Inputs (source + cadence)
-- Live snapshots from `LalaLaunch` (`SetLiveSession`, `SetLiveLapPaceEstimate`, `SetLiveFuelPerLap`, `SetMaxFuelPerLap`, `UpdateLiveDisplay`) pushed every 500 ms poll.【F:LalaLaunch.cs†L3200-L3233】【F:LalaLaunch.cs†L1895-L2143】【F:FuelCalcs.cs†L1729-L1918】
-- Profile data from `ProfilesViewModel` and active profile selection (on load and car/track change).【F:FuelCalcs.cs†L510-L623】
-- User interactions: planning source toggle, manual text edits, LIVE/PB/PROFILE/MAX buttons (on demand).【F:FuelCalcs.cs†L298-L365】【F:FuelCalcs.cs†L676-L806】
+The planner does **not** replace the Fuel Model.  
+It consumes the Fuel Model’s **live snapshot** and produces **explicit planning outputs** that are stable unless the user changes them.
+
+Canonical references:
+- Fuel behaviour contract: `Docs/FuelProperties_Spec.md`
+- Planner/live flow: `Docs/FuelTab_SourceFlowNotes.md`
+- Export definitions: `Docs/SimHubParameterInventory.md`
+
+---
+
+## Scope and boundaries
+
+This doc covers:
+- Planner inputs and precedence rules.
+- How live data is surfaced vs applied.
+- Readiness gating and snapshot semantics.
+- Planner outputs and how they relate to live fuel model outputs.
+
+Out of scope:
+- Fuel burn acceptance, stability, and projection internals (see `Fuel_Model.md`).
+- Dash rendering or UI layout details (see `Dash_Integration.md`).
+
+---
+
+## Inputs (planner-side)
+
+### User-controlled inputs
+These are **authoritative** once set by the user:
+
+- **Estimated Lap Time**
+  - Manual entry (explicit numeric value).
+  - PB-derived race pace.
+  - Profile average.
+  - Live average (if explicitly applied).
+
+- **Fuel Per Lap**
+  - Manual entry.
+  - Profile average.
+  - Live average.
+  - Session max (for safety scenarios).
+
+- **Fuel to Add (MFD request)**
+  - Used for pit math and pit window evaluation.
+  - Clamped by tank capacity.
+
+Planner inputs persist until explicitly changed by the user or reset by session identity change.
+
+---
+
+### Live snapshot inputs (read-only unless applied)
+From the Fuel Model and Pace subsystem:
+- Live fuel-per-lap (raw + stable).
+- Fuel confidence.
+- Live projection lap time.
+- Tank capacity detection.
+- Pit loss estimates (lane + stop).
+- Session context (race vs non-race).
+
+These values **inform** the planner but do not overwrite user-selected inputs unless the user opts in.
+
+Source of truth for snapshot flow: `FuelTab_SourceFlowNotes.md`.
+
+---
 
 ## Internal state
-- `SelectedPlanningSourceMode` (Profile vs LiveSnapshot) with manual flags for lap time and fuel to block auto-apply.【F:FuelCalcs.cs†L298-L339】【F:FuelCalcs.cs†L2635-L2706】
-- Live caches: `_liveAvgLapSeconds`, `_liveMaxFuel`, live min/max burn per condition, `IsFuelReady` gating from plugin.【F:FuelCalcs.cs†L108-L216】【F:FuelCalcs.cs†L1188-L1257】
-- Snapshot identity (live car/track) for header and suggestion availability.【F:FuelCalcs.cs†L1729-L1918】
 
-## Calculation blocks (high level)
-1. **Source selection:** Planning source change clears manual flags and applies profile/live averages to lap time/fuel when allowed.【F:FuelCalcs.cs†L298-L339】【F:FuelCalcs.cs†L2635-L2706】
-2. **Manual overrides:** Text edits set manual flags and `SourceInfo` labels (`source: manual`).【F:FuelCalcs.cs†L500-L716】
-3. **Button actions:** PB/LIVE/PROFILE/MAX call specific loaders and update `SourceInfo` strings; LIVE/PB guard on availability flags.【F:FuelCalcs.cs†L676-L806】【F:FuelCalcs.cs†L1188-L1249】
-4. **Live suggestion handling:** Live fuel auto-applied only when planning source = LiveSnapshot, `IsFuelReady` true, and fuel not manual; max-fuel suggestion requires explicit command (`ApplyLiveMaxFuelSuggestion`).【F:FuelCalcs.cs†L1250-L1257】【F:FuelCalcs.cs†L1222-L1227】
-5. **Snapshot updates:** Live session identity changes refresh header labels and live availability flags.【F:FuelCalcs.cs†L1729-L1918】
+### Planner-selected sources
+The planner tracks *what source is currently active* for each input:
 
-## Outputs (exports + logs)
-- UI bindings in `FuelCalculatorView.xaml` for source info labels, availability states, and helper text.【F:FuelCalculatorView.xaml†L230-L301】【F:FuelCalculatorView.xaml†L371-L423】
-- Strategy values consumed inside `FuelCalcs` for pit/lap projections; no direct SimHub exports beyond those set by `LalaLaunch`.
-- Logs: PB update acceptance/rejection, track resolution, strategy reset, leader lap calc (see `Docs/SimHubLogMessages.md`).【F:FuelCalcs.cs†L2038-L2057】【F:FuelCalcs.cs†L3839-L3879】【F:ProfilesManagerViewModel.cs†L66-L182】
+- `LapTimeSourceInfo`
+  - manual / PB / profile / live
+- `FuelPerLapSourceInfo`
+  - manual / profile / live / max
+
+These are exposed to the UI so the driver can see **why** a number changed.
+
+---
+
+### Readiness and suggestion flags
+- **IsFuelReady**
+  - True only when Fuel Model stable confidence meets readiness threshold.
+  - Used by dashboards and auto-apply logic to avoid premature live usage.
+
+- **IsLiveLapPaceAvailable**
+- **IsLiveFuelPerLapAvailable**
+  - Indicate that live values exist, not that they should be used.
+
+- **ApplyLiveFuelSuggestion / ApplyLiveLapSuggestion**
+  - User-facing toggles.
+  - Availability is tracked separately from application.
+
+This separation is intentional and contractual.
+
+---
+
+## Calculation blocks (planner-side)
+
+### 1) Source selection (authoritative precedence)
+For both lap time and fuel per lap:
+
+1. Manual entry (highest priority).
+2. Explicit user action (PB / LIVE / PROFILE buttons).
+3. Profile default (on load).
+4. Live snapshot (suggestion only, unless applied).
+
+At no point does live data silently override a user-selected value.
+
+Contractual flow: `FuelTab_SourceFlowNotes.md`.
+
+---
+
+### 2) Planner projections
+Using planner-selected lap time + fuel per lap:
+- Total fuel required to finish.
+- Fuel delta (surplus/deficit).
+- Number of stops required by plan.
+- Pit add requirement.
+
+These values are **planner-only** and intentionally decoupled from live volatility.
+
+Exports are prefixed or grouped to distinguish planner vs live-derived values.
+
+---
+
+### 3) Pit loss integration
+Planner pit math incorporates:
+- Fuel add time (liters × refuel rate).
+- Optional tyre change time.
+- Pit lane travel loss (direct or DTL-based).
+
+Loss values are sourced from the live pit timing subsystem but applied deterministically in the planner.
+
+---
+
+### 4) Snapshot refresh rules
+Live snapshot values update continuously, but planner-selected values:
+- Only change on explicit user action.
+- Or reset on session identity change.
+
+This ensures that the planner remains **predictable mid-race**.
+
+---
+
+## Outputs (exports + UI bindings)
+
+### Key planner outputs
+(See `SimHubParameterInventory.md` for full list.)
+
+Typical outputs include:
+- Planner fuel required to end.
+- Planner fuel delta.
+- Planner pit stop count.
+- Planner pit add amount.
+- Planner projected pit loss.
+
+These are distinct from live fuel model outputs and are safe to use for:
+- Strategy displays.
+- Dash overlays.
+- Pre-race planning.
+
+---
+
+### UI indicators
+- Source labels (manual / live / profile / PB).
+- Confidence/readiness indicators.
+- Live suggestion availability markers.
+
+These indicators exist to explain behaviour, not just decorate the UI.
+
+---
 
 ## Dependencies / ordering assumptions
-- Requires active `LalaLaunch` to push live data; planning source LiveSnapshot depends on `IsFuelReady` from plugin.
-- Car/track selection uses `FuelCalcs.SetLiveSession` inputs; must align with profile management flow.
+- Fuel Model must update before planner snapshot refresh.
+- Pace subsystem must update before lap-time suggestions are valid.
+- Tank capacity detection must be resolved before planner pit math is trusted.
+
+---
 
 ## Reset rules
-- Planning source change clears manual lap/fuel flags and reapplies source values.【F:FuelCalcs.cs†L298-L339】
-- `ResetStrategyInputs` and `ResetSnapshotDisplays` clear planner values when strategy reset is triggered (e.g., via settings reset).【F:FuelCalcs.cs†L2038-L2057】【F:FuelCalcs.cs†L2985-L3023】
-- Session identity change from plugin updates live snapshot identity; planner state otherwise persists unless reset invoked.
 
-## Failure modes
-- Live snapshot unavailable or fuel not ready → LiveSnapshot planning source auto-apply no-ops, leaving prior values.
-- Profile entries missing -> profile loads may fall back to defaults; check `TryGetProfileFuelForCondition` return before applying.
-- TODO/VERIFY: Determine UX for wet/dry toggles when live condition flips mid-session; auto-apply currently gated on `IsFuelReady`.
+Planner state resets on:
+- Session identity change (new session token).
+- Car or track change.
+
+On reset:
+- Planner-selected sources revert to profile defaults.
+- Manual overrides are cleared.
+- Live snapshot is rehydrated but not applied.
+
+Reset semantics are shared with the Fuel Model and documented centrally in:
+`Docs/Reset_And_Session_Identity.md`.
+
+---
+
+## Failure modes / edge cases
+
+- **Low confidence live data**
+  - Live values may appear but `IsFuelReady == false`.
+  - Planner must not auto-apply.
+
+- **Tank capacity unknown**
+  - Planner pit math may be inhibited or flagged.
+  - UI should show explicit error/unknown state.
+
+- **Replay sessions**
+  - Live availability flags may flicker.
+  - Planner stability should be verified via logs.
+
+- **User confusion**
+  - Most “why didn’t LIVE apply?” questions are explained by:
+    - readiness gate,
+    - source precedence,
+    - or explicit manual override.
+
+---
 
 ## Test checklist
-- Toggle planning source and confirm manual flags clear and sources reapply.
-- Enter manual lap/fuel then change planning source to ensure auto-apply resumes.
-- Press LIVE/PB/PROFILE/MAX buttons with/without live availability to verify `SourceInfo` labels and blocking.
-- With `IsFuelReady` false, ensure LiveSnapshot auto-apply does not overwrite manual values; once ready, confirm it applies.
+
+1. **Pre-race load**
+   - Planner defaults to profile lap time and fuel.
+   - Live snapshot visible but not applied.
+
+2. **Live suggestion gating**
+   - Early laps: live values appear but `IsFuelReady == false`.
+   - Once confidence rises: `IsFuelReady == true`.
+
+3. **Explicit LIVE apply**
+   - Press LIVE for lap time or fuel.
+   - Source label updates.
+   - Planner outputs recompute deterministically.
+
+4. **Manual override**
+   - Enter manual value.
+   - Live suggestions no longer override.
+
+5. **Session reset**
+   - Change subsession/session.
+   - Planner resets cleanly with no stale values.
+
+---
+
+## TODO / VERIFY
+
+- TODO/VERIFY: Confirm exact confidence threshold used to set `IsFuelReady` and whether it differs for lap time vs fuel.  
+- TODO/VERIFY: Confirm whether planner pit loss always prefers DTL or falls back to direct lane loss when DTL unavailable.  
+- TODO/VERIFY: Confirm which planner outputs are exported as `_S` (smoothed) vs numeric only.
+

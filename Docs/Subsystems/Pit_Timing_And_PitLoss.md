@@ -1,49 +1,274 @@
-# Pit Timing & Pit Loss
+# Pit Timing and Pit Loss
 
 Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
 Last updated: 2025-12-28  
 Branch: docs/refresh-index-subsystems
 
 ## Purpose
-Capture pit-lane travel, compute DTL/direct losses, and publish pit-lite surfaces for dashboards and strategy. Canonical exports: `Pit.*` and `PitLite.*` in `Docs/SimHubParameterInventory.md`.
+The Pit Timing & Pit Loss subsystem measures **real pit lane time loss** during live sessions and exposes a **stable pit-loss figure** used by:
+- Fuel Model pit projections.
+- Fuel Planner pit loss calculations.
+- Dashboards showing expected vs actual pit impact.
+
+It converts raw pit entry/exit signals into **lane travel**, **box time**, and **net pit loss** figures, with safeguards to avoid publishing invalid or misleading data.
+
+Canonical references:
+- Log semantics: `Docs/SimHubLogMessages.md`
+- Fuel consumption & pit integration: `Docs/FuelProperties_Spec.md`
+- Export list & cadence: `Docs/SimHubParameterInventory.md`
+
+---
+
+## Scope and boundaries
+
+This doc covers:
+- Detection of pit entry/exit.
+- Measurement of pit lane travel and stationary time.
+- Computation of pit loss (DTL vs direct).
+- Publication rules and fallbacks.
+
+Out of scope:
+- Fuel-to-add logic (see `Fuel_Model.md`).
+- Planner usage of pit loss (see `Fuel_Planner_Tab.md`).
+- Dash presentation logic (see `Dash_Integration.md`).
+
+---
 
 ## Inputs (source + cadence)
-- Telemetry lap times, pit lane flags, stop duration from SimHub telemetry (per tick in `DataUpdate`).【F:LalaLaunch.cs†L1336-L1415】【F:PitEngine.cs†L80-L239】
-- Baseline pace from fuel/pace estimator (stint/median) and profile averages for pit delta comparisons.【F:LalaLaunch.cs†L1336-L1415】
-- Pit service selections (refuel on/off) influence tank-space and stop-loss calculations in fuel model.【F:LalaLaunch.cs†L1895-L2143】
+
+### Telemetry inputs (runtime, 500 ms cadence)
+- Pit lane entry/exit flags.
+- Vehicle speed (used to detect stop vs drive-through).
+- Lap timing (in-lap, pit-lap, out-lap).
+- Session state (race vs non-race).
+
+These are consumed inside the plugin’s main `DataUpdate` loop.
+
+---
 
 ## Internal state
-- `PitEngine` state machine (AwaitingPitLap, AwaitingOutLap) with latched lane/box timers and stop duration.【F:PitEngine.cs†L80-L239】
-- Debug fields `_pitDbg_*` latched on out-lap completion (raw pit lap, DTL formula terms).【F:LalaLaunch.cs†L1336-L1415】
-- `PitCycleLite` entry/exit latches and candidate loss source (`dtl` vs `direct`).【F:PitCycleLite.cs†L122-L217】
-- Freeze flag `_pitFreezeUntilNextCycle` to hold debug values until next pit entry.【F:LalaLaunch.cs†L1336-L1415】
+
+### Pit cycle state
+A pit cycle is tracked as a **state machine**:
+
+1. **Idle**
+2. **Entry armed**
+3. **In pit lane**
+4. **Stopped / box time**
+5. **Exit detected**
+6. **Out-lap completion**
+7. **Evaluation / publish**
+8. **Reset to idle**
+
+Each cycle is isolated; partial or invalid cycles are discarded.
+
+---
+
+### Latched timing values
+For a valid pit cycle, the subsystem latches:
+- **Lane time** (entry → exit).
+- **Box time** (stationary portion inside pit).
+- **Direct lane travel** (lane minus box).
+- **In-lap time**
+- **Out-lap time**
+- **Baseline lap time** (average pace reference).
+
+These values are frozen once latched to avoid post-hoc drift.
+
+---
 
 ## Calculation blocks (high level)
-1. **Pit entry/exit detection:** `PitCycleLite` arms cycle on entry, latches timers on exit from `PitEngine`.【F:PitCycleLite.cs†L122-L163】
-2. **Pit lap/out-lap validation:** `PitEngine` validates pit lap and out-lap before computing DTL; invalid laps abort cycle.【F:PitEngine.cs†L175-L218】
-3. **DTL/direct selection:** On out-lap completion, chooses DTL if available else direct lane time; publishes totals and debug fields.【F:LalaLaunch.cs†L1336-L1415】【F:PitEngine.cs†L218-L239】
-4. **Persistence:** `Pit_OnValidPitStopTimeLossCalculated` saves pit-lane loss to profile (debounced) and updates Fuel tab snapshot.【F:LalaLaunch.cs†L2950-L3004】
-5. **Fuel integration:** `UpdateLiveFuelCalcs` consumes last direct time and total loss for stop-loss estimates and pit window tank capacity.【F:LalaLaunch.cs†L1895-L2143】
+
+### 1) Pit entry detection
+Pit entry is detected using:
+- Pit lane flag transitions.
+- Edge detection to avoid re-arming mid-lane.
+
+On entry:
+- Previous pit metrics are cleared.
+- Entry timestamp is latched.
+- State transitions to “in pit”.
+
+Logs are emitted to confirm arming.
+
+---
+
+### 2) Box time detection
+While in pit lane:
+- Vehicle speed is monitored.
+- Sustained near-zero speed indicates **box stop**.
+- Box start and end timestamps are latched.
+
+Drive-throughs are detected when:
+- No valid stationary period occurs.
+- Box time remains zero.
+
+---
+
+### 3) Pit exit detection
+On pit lane exit:
+- Exit timestamp is latched.
+- Lane time is computed.
+- Direct lane travel = lane time − box time.
+- Cycle moves to “awaiting out-lap completion”.
+
+If exit occurs without valid entry, the cycle is invalidated.
+
+---
+
+### 4) In-lap / out-lap capture
+- **In-lap**: lap ending at pit entry.
+- **Out-lap**: lap starting at pit exit.
+
+Both laps must complete cleanly to compute DTL (delta time loss).
+If either lap is invalid (incident, missing data), DTL path is aborted.
+
+---
+
+### 5) Pit loss computation
+
+#### A) DTL-based loss (preferred)
+If valid baseline pace exists and both laps are valid:
+
+DTL = (InLap + OutLap) − (2 × BaselineLap)
+
+This reflects **net race time lost** due to pitting.
+
+#### B) Direct lane loss (fallback)
+If baseline or laps are unavailable:
+
+DirectLoss = LaneTime − BoxTime
+
+
+This represents raw pit lane traversal time.
+
+Selection rules:
+- Prefer DTL when available.
+- Fallback to direct lane loss otherwise.
+- Never publish negative or zero losses.
+
+Canonical behaviour is documented in logs and fuel spec.
+
+---
+
+### 6) Publication rules
+Pit loss is published only when:
+- A full pit cycle completes.
+- Loss value passes sanity checks.
+- Session context is valid (typically Race).
+
+Published values update:
+- `Fuel.Live.PitLaneLoss_S`
+- `Fuel.Live.TotalStopLoss`
+- Planner-accessible pit loss fields.
+
+Once published, the value remains until superseded by a newer valid cycle.
+
+---
 
 ## Outputs (exports + logs)
-- Exports: `Pit.LastDirectTravelTime`, `Pit.LastTotalPitCycleTimeLoss`, `PitLite.*` live timers, debug verbose fields (`Lala.Pit.*`). See inventory for cadence.
-- Logs: `[LalaPlugin:Pit Cycle] ...` from `PitEngine`, `[LalaPlugin:Pit Lite] ...` from `PitCycleLite`, profile save logs, pit window logs (fuel model).【F:PitEngine.cs†L90-L239】【F:PitCycleLite.cs†L122-L217】【F:LalaLaunch.cs†L2145-L2335】
+
+### Core exports
+(See `SimHubParameterInventory.md` for authoritative list.)
+
+Typical outputs include:
+- `Fuel.Live.PitLaneLoss_S`
+- `Fuel.Live.TotalStopLoss`
+- `Fuel.Live.RefuelRate_Lps`
+- `Fuel.Live.TireChangeTime_S`
+
+These values feed directly into:
+- Fuel Model pit projections.
+- Fuel Planner pit loss math.
+
+---
+
+### Logs
+The subsystem emits structured INFO logs for:
+- Pit entry arming.
+- Exit detection and latched times.
+- In-lap / out-lap capture.
+- DTL computation and fallback usage.
+- Publication decision (DTL vs direct).
+
+Log semantics are canonical in `SimHubLogMessages.md`.
+
+---
 
 ## Dependencies / ordering assumptions
-- `PitEngine.Update` must run before `PitCycleLite.Update` each tick (`DataUpdate` order) so pit-lite sees fresh timers.【F:LalaLaunch.cs†L3308-L3415】
-- Baseline pace provided by fuel/pace estimator; if missing, PitCycleLite can fall back to direct loss publish.
-- Profile persistence depends on `ActiveProfile` and track key/name; missing profile aborts save with warning log.【F:LalaLaunch.cs†L2950-L3004】
+- Pace subsystem must provide a stable baseline for DTL to be valid.
+- Lap detector must be reliable to correctly identify in-lap and out-lap.
+- Fuel Model consumes pit loss only after publication (not mid-cycle).
+
+---
 
 ## Reset rules
-- Session token change resets PitEngine/PitLite state and may finalize pending candidate once before clearing.【F:LalaLaunch.cs†L3308-L3365】
-- Fuel-model session-type reset indirectly clears pit freeze and debug latches via `ResetLiveFuelModelForNewSession`.【F:LalaLaunch.cs†L830-L1040】
 
-## Failure modes
-- Missing baseline pace → PitLite publishes direct loss instead of DTL.
-- Repeated identical pit loss within debounce window ignored to prevent thrash.
-- TODO/VERIFY: Validate lane/box timers when SimHub pit flags glitch (current code trusts timers if available).
+Pit Timing state resets on:
+- Session identity change.
+- Car or track change.
+- Manual invalidation (e.g. aborted cycle).
+
+On reset:
+- All latched pit timings are cleared.
+- No stale pit loss is reused.
+- Next valid cycle starts fresh.
+
+Reset semantics are centralised in:
+`Docs/Reset_And_Session_Identity.md`.
+
+---
+
+## Failure modes / edge cases
+
+- **Drive-through penalties**
+  - No box time → DTL may still compute if laps valid.
+  - Direct lane loss may be misleading; logs indicate drive-through.
+
+- **Invalid out-lap**
+  - DTL path aborted.
+  - Direct lane loss used if sane.
+
+- **Replay sessions**
+  - Pit signals may be delayed or reordered.
+  - Validate behaviour using logs.
+
+- **Traffic on out-lap**
+  - DTL includes traffic impact by design.
+  - This is intentional and represents real race loss.
+
+---
 
 ## Test checklist
-- Run pit entry/exit to see PitLite entry/exit logs and live timers.
-- Complete pit + out-lap with valid baseline to log DTL formula and profile save; verify `Pit.LastTotalPitCycleTimeLoss` updates.
-- Trigger invalid pit/out-lap (e.g., off-track) to confirm abort logs and no save.
+
+1. **Standard pit stop**
+   - Box stop detected.
+   - Lane, box, and direct times latched.
+   - DTL published after out-lap.
+
+2. **Drive-through**
+   - No box time detected.
+   - Direct loss published or DTL if laps valid.
+
+3. **Aborted cycle**
+   - Enter pit, exit immediately, invalidate cycle.
+   - No pit loss published.
+
+4. **Session reset**
+   - Change subsession.
+   - Confirm all pit timing state cleared.
+
+5. **Planner integration**
+   - Planner pit loss updates only after valid publication.
+
+---
+
+## TODO / VERIFY
+
+- TODO/VERIFY: Confirm exact speed threshold and dwell time used to classify “box stop” vs drive-through.
+- TODO/VERIFY: Confirm whether DTL uses session-average or stint-average pace as baseline.
+- TODO/VERIFY: Confirm pit loss publication gating for non-race sessions (practice/qualifying).
+
+
+
+
