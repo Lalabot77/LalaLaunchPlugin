@@ -2655,16 +2655,21 @@ namespace LaunchPlugin
                 {
                     lap = GetProfileLapTimeForCondition(IsWet, out lapSource);
                 }
-                else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
-                {
-                    if (fuelReady)
+                    else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
                     {
-                        lap = GetLiveAverageLapTimeSnapshot();
-                        lapSource = "Live avg";
+                        // Lap time should follow LIVE PACE availability, not fuel readiness
+                        if (IsLiveLapPaceAvailable)
+                        {
+                            lap = GetLiveAverageLapTimeSnapshot();
+                            lapSource = "Live avg";
+                        }
+                        else
+                        {
+                            lap = GetProfileLapTimeForCondition(IsWet, out lapSource);
+                        }
                     }
-                }
 
-                if (lap.HasValue)
+                    if (lap.HasValue)
                 {
                     EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
                     IsEstimatedLapTimeManual = false;
@@ -2899,6 +2904,12 @@ namespace LaunchPlugin
         if (IsLiveLapPaceAvailable
             && !IsEstimatedLapTimeManual
             && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+        {
+            ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: false);
+        }
+
+        // If user is in LiveSnapshot and hasn't manually overridden lap time, auto-apply when live becomes valid
+        if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot && !IsEstimatedLapTimeManual)
         {
             ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: false);
         }
@@ -3427,54 +3438,71 @@ namespace LaunchPlugin
         LoadProfileData();
     }
 
-    public void RefreshPlannerView()
-    {
-        _suppressPlannerDirtyUpdates = true;
-        try
+        public void RefreshPlannerView()
         {
-            // Keep the car selection aligned with the active profile if available
-            var activeProfile = _plugin?.ActiveProfile;
-            if (activeProfile != null && !ReferenceEquals(SelectedCarProfile, activeProfile))
+            _suppressPlannerDirtyUpdates = true;
+            try
             {
-                SelectedCarProfile = activeProfile;
-            }
+                // IMPORTANT:
+                // In planner-only mode (no live session/replay), Refresh Calcs must NOT rebind
+                // to ActiveProfile / live track identifiers, or it can collapse the planner back
+                // to Default Settings when telemetry is absent.
+                if (!IsLiveSessionActive)
+                {
+                    // Planner-only refresh: keep current UI selections intact and recompute derived outputs.
+                    RefreshProfilePlanningData();
+                    RefreshConditionParameters();
+                    UpdateTrackDerivedSummaries();
+                    UpdateFuelBurnSummaries();
+                    UpdateLiveFuelChoiceDisplays();
+                    CalculateStrategy();
+                    return;
+                }
 
-            // Re-resolve the track against the active profile and live telemetry identifiers
-            TrackStats resolvedTrack = SelectedTrackStats;
-            if (SelectedCarProfile != null)
+                // Live session path (existing behaviour): align planner to active profile + live track identity.
+                var activeProfile = _plugin?.ActiveProfile;
+                if (activeProfile != null && !ReferenceEquals(SelectedCarProfile, activeProfile))
+                {
+                    SelectedCarProfile = activeProfile;
+                }
+
+                // Re-resolve the track against the active profile and live telemetry identifiers
+                TrackStats resolvedTrack = SelectedTrackStats;
+                if (SelectedCarProfile != null)
+                {
+                    var liveTrackKey = _plugin?.CurrentTrackKey;
+                    var liveTrackName = _plugin?.CurrentTrackName;
+
+                    resolvedTrack = SelectedCarProfile.ResolveTrackByNameOrKey(
+                                        resolvedTrack?.Key
+                                        ?? (!string.IsNullOrWhiteSpace(liveTrackKey) ? liveTrackKey : liveTrackName)
+                                        ?? SelectedTrack)
+                                   ?? resolvedTrack;
+                }
+
+                if (!ReferenceEquals(resolvedTrack, SelectedTrackStats) && resolvedTrack != null)
+                {
+                    _suppressProfileDataReload = true;
+                    SelectedTrackStats = resolvedTrack;
+                    _suppressProfileDataReload = false;
+                }
+
+                LoadProfileData();
+                RefreshProfilePlanningData();
+                RefreshConditionParameters();
+                UpdateTrackDerivedSummaries();
+                UpdateFuelBurnSummaries();
+                UpdateLiveFuelChoiceDisplays();
+                CalculateStrategy();
+            }
+            finally
             {
-                var liveTrackKey = _plugin?.CurrentTrackKey;
-                var liveTrackName = _plugin?.CurrentTrackName;
-
-                resolvedTrack = SelectedCarProfile.ResolveTrackByNameOrKey(
-                                    resolvedTrack?.Key
-                                    ?? (!string.IsNullOrWhiteSpace(liveTrackKey) ? liveTrackKey : liveTrackName)
-                                    ?? SelectedTrack)
-                               ?? resolvedTrack;
+                _suppressPlannerDirtyUpdates = false;
+                ResetPlannerDirty();
             }
-
-            if (!ReferenceEquals(resolvedTrack, SelectedTrackStats) && resolvedTrack != null)
-            {
-                _suppressProfileDataReload = true;
-                SelectedTrackStats = resolvedTrack;
-                _suppressProfileDataReload = false;
-            }
-
-            LoadProfileData();
-            RefreshProfilePlanningData();
-            RefreshConditionParameters();
-            UpdateTrackDerivedSummaries();
-            UpdateFuelBurnSummaries();
-            UpdateLiveFuelChoiceDisplays();
-            CalculateStrategy();
         }
-        finally
-        {
-            _suppressPlannerDirtyUpdates = false;
-            ResetPlannerDirty();
-        }
-    }
-    public void LoadProfileData()
+
+        public void LoadProfileData()
     {
         _suppressPlannerDirtyUpdates = true;
         try
@@ -3762,62 +3790,70 @@ namespace LaunchPlugin
             }
         }
 
-        if (!IsEstimatedLapTimeManual)
-        {
-            var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
-            int? lapTimeMs = IsWet ? ts?.AvgLapTimeWet : ts?.AvgLapTimeDry;
-            if (lapTimeMs.HasValue && lapTimeMs > 0)
+            if (!IsEstimatedLapTimeManual)
             {
-                EstimatedLapTime = TimeSpan.FromMilliseconds(lapTimeMs.Value).ToString(@"m\:ss\.fff");
-                LapTimeSourceInfo = $"Profile avg ({(IsWet ? "wet" : "dry")})";
+                // In LiveSnapshot mode, lap time should come from planning source auto-apply logic
+                // (live if available, else profile fallback).
+                ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: false);
             }
         }
-    }
 
-    private void RefreshConditionParameters()
-    {
-        if (_isRefreshingConditionParameters) return;
-        _isRefreshingConditionParameters = true;
-        try
+        private void RefreshConditionParameters()
         {
-            var car = SelectedCarProfile;
-            var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
-            bool isWet = IsWet;
-
-            var carMultipliers = car?.GetConditionMultipliers(isWet);
-            var trackMultipliers = ts?.GetConditionMultipliers(isWet);
-
-            double defaultFormation = carMultipliers?.FormationLapBurnLiters ?? 1.5;
-            double targetFormation = trackMultipliers?.FormationLapBurnLiters ?? defaultFormation;
-
-            if (targetFormation > 0 && Math.Abs(FormationLapFuelLiters - targetFormation) > 0.01)
+            if (_isRefreshingConditionParameters) return;
+            _isRefreshingConditionParameters = true;
+            try
             {
-                FormationLapFuelLiters = targetFormation;
-            }
+                var car = SelectedCarProfile;
+                var ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
+                bool isWet = IsWet;
 
-            if (isWet)
-            {
-                double fallbackWet = carMultipliers?.WetFactorPercent ?? car?.WetFuelMultiplier ?? WetFactorPercent;
-                double targetWet = trackMultipliers?.WetFactorPercent ?? fallbackWet;
-                if (targetWet > 0 && Math.Abs(WetFactorPercent - targetWet) > 0.01)
+                var carMultipliers = car?.GetConditionMultipliers(isWet);
+                var trackMultipliers = ts?.GetConditionMultipliers(isWet);
+
+                double defaultFormation = carMultipliers?.FormationLapBurnLiters ?? 1.5;
+                double targetFormation = trackMultipliers?.FormationLapBurnLiters ?? defaultFormation;
+
+                if (targetFormation > 0 && Math.Abs(FormationLapFuelLiters - targetFormation) > 0.01)
                 {
-                    WetFactorPercent = targetWet;
+                    FormationLapFuelLiters = targetFormation;
                 }
+
+                if (isWet)
+                {
+                    double fallbackWet = carMultipliers?.WetFactorPercent ?? car?.WetFuelMultiplier ?? WetFactorPercent;
+                    double targetWet = trackMultipliers?.WetFactorPercent ?? fallbackWet;
+                    if (targetWet > 0 && Math.Abs(WetFactorPercent - targetWet) > 0.01)
+                    {
+                        WetFactorPercent = targetWet;
+                    }
+                }
+
+                // --- Refuel timing (defensive clamps to prevent absurd stop times from bad units/data) ---
+                var baseSec = trackMultipliers?.RefuelSecondsBase ?? carMultipliers?.RefuelSecondsBase ?? 0.0;
+                var perLiter = trackMultipliers?.RefuelSecondsPerLiter ?? carMultipliers?.RefuelSecondsPerLiter ?? 0.0;
+                var perSquare = trackMultipliers?.RefuelSecondsPerSquare ?? carMultipliers?.RefuelSecondsPerSquare ?? 0.0;
+
+                // Clamp ranges (conservative, avoids UI showing nonsense if profile data is wrong)
+                if (double.IsNaN(baseSec) || double.IsInfinity(baseSec) || baseSec < 0 || baseSec > 60) baseSec = 0.0;
+                if (double.IsNaN(perLiter) || double.IsInfinity(perLiter) || perLiter < 0 || perLiter > 5) perLiter = 0.0;
+                if (double.IsNaN(perSquare) || double.IsInfinity(perSquare) || perSquare < 0 || perSquare > 1) perSquare = 0.0;
+
+                // Prefer assigning via properties if they exist (ensures PropertyChanged/UI updates),
+                // otherwise fall back to backing fields.
+                try { ConditionRefuelBaseSeconds = baseSec; } catch { _conditionRefuelBaseSeconds = baseSec; }
+                try { ConditionRefuelSecondsPerLiter = perLiter; } catch { _conditionRefuelSecondsPerLiter = perLiter; }
+                try { ConditionRefuelSecondsPerSquare = perSquare; } catch { _conditionRefuelSecondsPerSquare = perSquare; }
+            }
+            finally
+            {
+                _isRefreshingConditionParameters = false;
             }
 
-            _conditionRefuelBaseSeconds = trackMultipliers?.RefuelSecondsBase ?? carMultipliers?.RefuelSecondsBase ?? 0.0;
-            _conditionRefuelSecondsPerLiter = trackMultipliers?.RefuelSecondsPerLiter ?? carMultipliers?.RefuelSecondsPerLiter ?? 0.0;
-            _conditionRefuelSecondsPerSquare = trackMultipliers?.RefuelSecondsPerSquare ?? carMultipliers?.RefuelSecondsPerSquare ?? 0.0;
-        }
-        finally
-        {
-            _isRefreshingConditionParameters = false;
+            RaiseSourceWetFactorIndicators();
         }
 
-        RaiseSourceWetFactorIndicators();
-    }
-
-    private void RefreshLiveMaxFuelDisplays(double liveMaxFuel)
+        private void RefreshLiveMaxFuelDisplays(double liveMaxFuel)
     {
         _liveMaxFuel = liveMaxFuel;
         _liveFuelTankLiters = liveMaxFuel;
