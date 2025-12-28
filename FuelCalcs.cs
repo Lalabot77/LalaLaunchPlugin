@@ -2657,7 +2657,7 @@ namespace LaunchPlugin
                 }
                     else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
                     {
-                        // Lap time should follow LIVE PACE availability, not fuel readiness
+                        // Lap time follows pace availability, not fuel readiness
                         if (IsLiveLapPaceAvailable)
                         {
                             lap = GetLiveAverageLapTimeSnapshot();
@@ -3493,6 +3493,16 @@ namespace LaunchPlugin
                 UpdateTrackDerivedSummaries();
                 UpdateFuelBurnSummaries();
                 UpdateLiveFuelChoiceDisplays();
+
+                // FIX 1:
+                // Refresh can temporarily re-apply profile-derived values. If the user has Live snapshot
+                // selected, re-assert the planning source before recalculating so Avg Lap Time etc.
+                // stay on live when live data is available.
+                if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+                {
+                    ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
+                }
+
                 CalculateStrategy();
             }
             finally
@@ -3501,6 +3511,7 @@ namespace LaunchPlugin
                 ResetPlannerDirty();
             }
         }
+
 
         public void LoadProfileData()
     {
