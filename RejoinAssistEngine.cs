@@ -610,7 +610,7 @@ namespace LaunchPlugin
         public void TriggerMsgCxOverride()
         {
             _msgCxTimer.Restart();
-            SimHub.Logging.Current.Info("[RejoinAssist] MsgCx override triggered.");
+            SimHub.Logging.Current.Info("[LalaPlugin:Rejoin Assist] MsgCx override triggered.");
         }
     }
 }

@@ -1,0 +1,28 @@
+MsgId,EvaluatorId,RequiredSignals
+fuel.pit_required_Caution,Eval_FuelPitRequired,FuelLapsRemaining
+fuel.pit_required_Warning,Eval_FuelPitRequired,FuelLapsRemaining
+flag.GreenStart,,"FlagSessionFlags, CompletedLaps"
+flag.GreenClear,,FlagSessionFlags
+flag.BlueFlag,Eval_FlagBlue,FlagSessionFlags
+flag.green,Eval_FlagGreen,FlagSessionFlags
+flag.yellow.local,Eval_FlagYellowLocal,FlagSessionFlags
+flag.yellow.fcy,Eval_FlagFCY,FlagSessionFlags
+flag.safetycar,Eval_SafetyCar,"FlagSessionFlags, PaceMode"
+flag.white,Eval_FlagWhite,FlagSessionFlags
+flag.checkered,Eval_FlagCheckered,FlagSessionFlags
+flag.black,Eval_FlagBlack,FlagSessionFlags
+flag.meatball,Eval_FlagMeatball,FlagSessionFlags
+pit.window_open,Eval_PitWindowOpen,PitWindowOpen
+pit.refuel_complete,Eval_RefuelComplete,PitServiceFuelDone
+fuel.save_required,Eval_FuelSaveRequired,FuelDeltaLaps
+fuel.push_ok,Eval_FuelCanPush,FuelCanPush
+strategy.overtake_soon,Eval_CatchClassAhead,"DriverAheadGapSeconds, PlayerPaceLast5LapAvg"
+strategy.positionchange,Eval_DriverClassPosition,PlayerClassPosition
+traffic.behind_close,Eval_TrafficBehindClose,TrafficBehindGapSeconds
+traffic.behind_attack,Eval_TrafficBehindFast,TrafficBehindDistanceM
+traffic.fasterclass_behind,Eval_FasterClassBehind,"TrafficBehindGapSeconds, TrafficBehindClass, PlayerClassName"
+racecontrol.ahead_slow,Eval_IncidentAhead,IncidentAheadWarning
+rejoin.threat_high,Eval_RejoinThreatHigh,"RejoinThreatLevel, RejoinReasonCode"
+rejoin.threat_med,Eval_RejoinThreatMed,"RejoinThreatLevel, RejoinReasonCode"
+racecontrol.slowdown,Eval_SlowDown,SlowDownTimeRemaining
+racecontrol.inc_points,Eval_IncPoints,IncidentCount

@@ -105,6 +105,25 @@
                         <TextBlock Grid.Column="0" Text="Preset Name:" VerticalAlignment="Center" FontWeight="Bold"/>
                         <TextBox Grid.Column="1"
                      Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding ActivePresetHelperText, ElementName=Root}"
+                                   VerticalAlignment="Center"
+                                   FontStyle="Italic"
+                                   Foreground="#888">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="FontStyle" Value="Italic"/>
+                                    <Setter Property="Foreground" Value="#888"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEditingActivePreset, ElementName=Root}" Value="True">
+                                            <Setter Property="FontStyle" Value="Normal"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="Foreground" Value="#28A745"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </Grid>
 
                     <!-- Race Type -->

@@ -243,7 +243,7 @@ namespace LaunchPlugin
                     try
                     {
                         SimHub.Logging.Current.Info(
-                            $"[Profiles][Lap] PB updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"[LalaPlugin:Profile/Pace] PB updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
                             $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMs)}'"
                         );
                     }
@@ -540,7 +540,7 @@ namespace LaunchPlugin
                     try
                     {
                         SimHub.Logging.Current.Info(
-                            $"[Profiles][Lap] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"[LalaPlugin:Profile/Pace] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
                             $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeDry)}'"
                         );
                     }
@@ -732,7 +732,7 @@ namespace LaunchPlugin
                     try
                     {
                         SimHub.Logging.Current.Info(
-                            $"[Profiles][Lap] AvgWet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"[LalaPlugin:Profile / Pace] AvgWet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
                             $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeWet)}'"
                         );
                     }

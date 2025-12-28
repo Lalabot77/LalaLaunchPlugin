@@ -130,7 +130,7 @@ namespace LaunchPlugin
             {
                 // Pit ENTRY this lap
                 _entrySeenThisLap = true;
-                SimHub.Logging.Current.Info("[PitLite] ENTRY edge detected – arming cycle and clearing previous pit figures.");
+                SimHub.Logging.Current.Info("[LalaPlugin:Pit Lite] Entry detected. Arming cycle and clearing previous pit figures.");
 
                 _armed = true;
 
@@ -148,7 +148,7 @@ namespace LaunchPlugin
             {
                 // Pit EXIT this lap
                 _exitSeenThisLap = true;
-                SimHub.Logging.Current.Info("[PitLite] EXIT edge detected – latching lane/box timers from PitEngine.");
+                SimHub.Logging.Current.Info("[LalaPlugin:Pit Lite] Exit detected. Latching lane and box timers from PitEngine.");
 
                 // Latch timers immediately from PitEngine
                 double tPit = Math.Max(0.0, _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
@@ -158,8 +158,7 @@ namespace LaunchPlugin
                 DirectSec = Math.Max(0.0, tPit - tStop);
                 const double stopDetectionThresholdSec = 1.0; // avoid classifying tiny hesitations as stops
                 Status = (tStop > stopDetectionThresholdSec) ? StatusKind.StopValid : StatusKind.DriveThrough;
-                SimHub.Logging.Current.Info(
-                    $"[PitLite] Exit latched: lane={TimePitLaneSec:F2}s, box={TimePitBoxSec:F2}s, direct={DirectSec:F2}s, status={Status}.");
+                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] Exit latched. Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Direct={DirectSec:F2}s, Status={Status}.");
             }
 
             // Instantaneous tag for the in-progress lap
@@ -179,15 +178,15 @@ namespace LaunchPlugin
                     // ---- S/F of OUT-LAP: one-shot latch for save ----
 
                     var chosenSrc = string.IsNullOrEmpty(TotalLossSource) ? "?" : TotalLossSource;
-                    SimHub.Logging.Current.Info(
-                        $"[PitLite] Out-lap complete: Out={OutLapSec:F2}s, In={InLapSec:F2}s, lane={TimePitLaneSec:F2}s, box={TimePitBoxSec:F2}s, chosen={TotalLossSec:F2}s ({chosenSrc}).");
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] Out-lap complete. Out={OutLapSec:F2}s, In={InLapSec:F2}s, Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Saved={TotalLossSec:F2}s (source={chosenSrc}).");
 
                 }
                 else if (_entrySeenThisLap && InLapSec <= 0.0)
                 {
                     InLapSec = lastLapSec;
                     LastLapType = LapKind.InLap;
-                    SimHub.Logging.Current.Info($"[PitLite] Latched In-lap = {InLapSec:F2}s.");
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] In-lap latched. In={InLapSec:F2}s.");
+
                 }
                 else
                 {
@@ -203,8 +202,7 @@ namespace LaunchPlugin
                     _totalLossSec = Math.Max(0.0, chosen);
                     _totalLossSource = (DTLSec > 0.0) ? "dtl" : "direct";
                     _candidateReady = true;   // one-shot for LalaLaunch
-                    SimHub.Logging.Current.Info(
-                        $"[PitLite] Publishing loss (source={_totalLossSource}): dtl={DTLSec:F2}s, direct={DirectSec:F2}s, avg={avgLapSec:F2}s.");
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] Publishing loss. Source={_totalLossSource}, DTL={DTLSec:F2}s, Direct={DirectSec:F2}s, Avg={avgLapSec:F2}s.");
                 }
                 else if (InLapSec > 0.0 && OutLapSec > 0.0 && TimePitLaneSec > 0.0)
                 {
@@ -212,8 +210,8 @@ namespace LaunchPlugin
                     _totalLossSec = DirectSec;
                     _totalLossSource = "direct";
                     _candidateReady = true;
-                    SimHub.Logging.Current.Info(
-                        $"[PitLite] Publishing direct loss (no avg pace): lane={TimePitLaneSec:F2}s, box={TimePitBoxSec:F2}s, direct={DirectSec:F2}s.");
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] Publishing direct loss (avg pace missing). Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Direct={DirectSec:F2}s.");
+
                 }
 
                 // New lap begins: clear per-lap flags and reset current-lap type
