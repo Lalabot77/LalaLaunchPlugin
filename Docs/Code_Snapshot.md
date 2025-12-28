@@ -1,40 +1,40 @@
 # Code Snapshot
 
 - Branch: work
-- Commit: 5cf1843b5229206fa6efc3b6faf6ec811a6da362
+- Commit: 1bd403867a1752de9e705163a4a2a599905ebe2c
 - Date: 2025-12-28
 
 ## Included .cs Files
-- CarProfiles.cs
-- CopyProfileDialog.xaml.cs
-- DashesTabView.xaml.cs
-- EnumEqualsConverter.cs
-- FuelCalcs.cs
-- FuelCalculatorView.xaml.cs
-- FuelProjectionMath.cs
-- InvertBooleanConverter.cs
-- LalaLaunch.cs
-- LapTimeValidationRule.cs
-- LaunchAnalysisControl.xaml.cs
-- LaunchPluginCombinedSettingsControl.xaml.cs
-- LaunchPluginSettingsUI.xaml.cs
-- LaunchSummaryExpander.xaml.cs
-- Messaging/MessageDefinition.cs
-- Messaging/MessageDefinitionStore.cs
-- Messaging/MessageEngine.cs
-- Messaging/MessageEvaluators.cs
-- Messaging/MessageInstance.cs
-- Messaging/SignalProvider.cs
-- MessagingSystem.cs
-- NotBoolConverter.cs
-- ParsedSummary.cs
-- PitCycleLite.cs
-- PitEngine.cs
-- PresetsManagerView.xaml.cs
-- ProfilesManagerView.xaml.cs
-- ProfilesManagerViewModel.cs
-- Properties/AssemblyInfo.cs
-- RacePreset.cs
-- RacePresetStore.cs
-- RejoinAssistEngine.cs
-- TelemetryLogger.cs
+- CarProfiles.cs — last modified 2025-12-27T12:32:10+00:00
+- CopyProfileDialog.xaml.cs — last modified 2025-09-14T19:32:49+01:00
+- DashesTabView.xaml.cs — last modified 2025-09-14T19:32:49+01:00
+- EnumEqualsConverter.cs — last modified 2025-11-04T19:13:41-06:00
+- FuelCalcs.cs — last modified 2025-12-27T12:37:19+00:00
+- FuelCalculatorView.xaml.cs — last modified 2025-11-27T07:30:04-06:00
+- FuelProjectionMath.cs — last modified 2025-12-27T12:32:10+00:00
+- InvertBooleanConverter.cs — last modified 2025-09-14T19:32:49+01:00
+- LalaLaunch.cs — last modified 2025-12-27T12:37:19+00:00
+- LapTimeValidationRule.cs — last modified 2025-09-14T19:32:49+01:00
+- LaunchAnalysisControl.xaml.cs — last modified 2025-11-27T11:49:07-06:00
+- LaunchPluginCombinedSettingsControl.xaml.cs — last modified 2025-11-04T19:13:41-06:00
+- LaunchPluginSettingsUI.xaml.cs — last modified 2025-09-14T19:32:49+01:00
+- LaunchSummaryExpander.xaml.cs — last modified 2025-11-19T09:20:14-06:00
+- Messaging/MessageDefinition.cs — last modified 2025-12-27T12:32:10+00:00
+- Messaging/MessageDefinitionStore.cs — last modified 2025-12-27T12:32:10+00:00
+- Messaging/MessageEngine.cs — last modified 2025-12-27T12:32:10+00:00
+- Messaging/MessageEvaluators.cs — last modified 2025-12-27T12:32:10+00:00
+- Messaging/MessageInstance.cs — last modified 2025-12-27T12:32:10+00:00
+- Messaging/SignalProvider.cs — last modified 2025-12-27T12:32:10+00:00
+- MessagingSystem.cs — last modified 2025-11-30T10:47:37+00:00
+- NotBoolConverter.cs — last modified 2025-11-04T19:13:41-06:00
+- ParsedSummary.cs — last modified 2025-09-14T19:32:49+01:00
+- PitCycleLite.cs — last modified 2025-12-27T12:32:10+00:00
+- PitEngine.cs — last modified 2025-12-27T12:32:10+00:00
+- PresetsManagerView.xaml.cs — last modified 2025-12-27T12:32:10+00:00
+- ProfilesManagerView.xaml.cs — last modified 2025-09-14T19:32:49+01:00
+- ProfilesManagerViewModel.cs — last modified 2025-12-27T12:32:10+00:00
+- Properties/AssemblyInfo.cs — last modified 2025-09-14T19:32:49+01:00
+- RacePreset.cs — last modified 2025-11-04T19:13:41-06:00
+- RacePresetStore.cs — last modified 2025-11-04T19:13:41-06:00
+- RejoinAssistEngine.cs — last modified 2025-12-27T12:32:10+00:00
+- TelemetryLogger.cs — last modified 2025-09-14T19:32:49+01:00
