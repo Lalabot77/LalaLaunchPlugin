@@ -3670,9 +3670,18 @@ namespace LaunchPlugin
             // Fuel model session-change handling (independent of auto-dash setting)
             if (!string.IsNullOrEmpty(_lastFuelSessionType) && currentSession != _lastFuelSessionType)
             {
+                // First: let the fuel model handle phase transitions (including seed carry-over rules)
                 HandleSessionChangeForFuelModel(_lastFuelSessionType, currentSession);
+
+                // Phase boundary resets (SessionToken stays constant across P/Q/R for same event)
+                ResetFinishTimingState();
+                ResetSmoothedOutputs();
+                ClearFuelInstructionOutputs();
+
+                // Message session state should not bleed across phase transitions
                 _msgV1Engine?.ResetSession();
             }
+
             _lastFuelSessionType = currentSession;
 
             // --- AUTO DASH SWITCHING (READINESS-GATED, NO GLOBAL RESET) ---

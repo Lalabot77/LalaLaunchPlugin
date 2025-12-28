@@ -83,6 +83,12 @@ namespace LaunchPlugin
             Status = StatusKind.None;
             LastLapType = LapKind.None;
             CurrentLapType = LapKind.Normal;
+            // Hard clear any pending candidate so a stale loss cannot publish after a reset
+            _candidateReady = false;
+            _totalLossSec = 0.0;
+            _totalLossSource = "direct";
+            _wasInLane = false;
+            _lastLapCached = 0.0;
         }
 
         /// <summary>
