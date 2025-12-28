@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is `1b8efb1` with the message “Ensure live snapshot car/track labels refresh.” Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
+- The latest commit on `work` is `ca8c893` with the message “Update docs for recent fuel planner and reset changes.” The most recent code-bearing commit is `88cfd6b` (“Improve lap time and planner refresh logic”). Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
