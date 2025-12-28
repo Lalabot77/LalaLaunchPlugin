@@ -4829,7 +4829,34 @@ namespace LaunchPlugin
             }
         }
 
+        private static string CompactPercent(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return value;
+            // "92 %", "92%" -> "92%"
+            return value.Replace(" ", "").Trim();
+        }
 
+        private static string CompactTemp1dp(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return value;
+
+            var trimmed = value.Trim();
+            var match = System.Text.RegularExpressions.Regex.Match(trimmed, @"([-+]?\d+(\.\d+)?)");
+            if (!match.Success) return trimmed;
+
+            if (!double.TryParse(match.Value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var v))
+                return trimmed;
+
+            var rounded = v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+
+            // Replace ONLY the first numeric token
+            return trimmed.Substring(0, match.Index)
+                   + rounded
+                   + trimmed.Substring(match.Index + match.Length);
+        }
 
         private static (double seconds, bool isFallback) ReadLeaderLapTimeSeconds(
             PluginManager pluginManager,
@@ -4935,9 +4962,9 @@ namespace LaunchPlugin
             string tempSegment = ComposeTemperatureSegment(airTemp, trackTemp);
             if (!string.IsNullOrWhiteSpace(tempSegment)) parts.Add(tempSegment);
 
-            if (!string.IsNullOrWhiteSpace(humidity)) parts.Add($"{humidity} humidity");
+            if (!string.IsNullOrWhiteSpace(humidity)) parts.Add($"{CompactPercent(humidity)} humid");
             if (!string.IsNullOrWhiteSpace(rubberState)) parts.Add($"Rubber {rubberState}");
-            if (!string.IsNullOrWhiteSpace(precipitation)) parts.Add($"Precip: {precipitation}");
+            if (!string.IsNullOrWhiteSpace(precipitation)) parts.Add($"{CompactPercent(precipitation)} Rain");
 
             string summary = parts.Count > 0 ? string.Join(" | ", parts) : "-";
 
@@ -4952,6 +4979,9 @@ namespace LaunchPlugin
 
         private static string ComposeTemperatureSegment(string airTemp, string trackTemp)
         {
+            airTemp = CompactTemp1dp(airTemp);
+            trackTemp = CompactTemp1dp(trackTemp);
+
             if (!string.IsNullOrWhiteSpace(airTemp) && !string.IsNullOrWhiteSpace(trackTemp))
             {
                 return $"{airTemp} / {trackTemp}";

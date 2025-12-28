@@ -3138,7 +3138,8 @@ namespace LaunchPlugin
             {
                 if (IsLiveLapPaceAvailable && _liveAvgLapSeconds > 0)
                 {
-                    parts.Add($"Avg {TimeSpan.FromSeconds(_liveAvgLapSeconds):m\\:ss\\.fff} (Live avg)");
+                    parts.Add($"Avg {TimeSpan.FromSeconds(_liveAvgLapSeconds):m\\:ss\\.fff}");
+
                 }
             }
             else
@@ -3294,13 +3295,11 @@ namespace LaunchPlugin
         int liveSamples = isWet ? _liveWetSamples : _liveDrySamples;
 
         // LIVE SESSION WINDOW RULE:
-        // If live is active but we have zero live samples, do NOT show profile fallback here.
-        if (IsLiveSessionActive && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+        // When a live session is active, the LIVE SESSION box must be live-only.
+        // If there are zero live samples, render "-" (do NOT fall back to profile here).
+        if (IsLiveSessionActive && liveSamples <= 0)
         {
-            if (liveSamples <= 0)
-            {
-                return (0, 0, 0, 0, null); // will render as "-"
-            }
+            return (0, 0, 0, 0, null); // will render as "-"
         }
 
         double profileAvg = isWet ? _profileWetFuelAvg : _profileDryFuelAvg;
@@ -3341,11 +3340,19 @@ namespace LaunchPlugin
         if (parts.Count == 0) return "-";
 
         var summary = string.Join(" | ", parts);
+
+        // Live is implied in the LIVE SESSION window, so don't prefix it.
+        if (string.Equals(sourceLabel, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            return summary;
+        }
+
         return string.IsNullOrWhiteSpace(sourceLabel) ? summary : $"{sourceLabel} · {summary}";
+
     }
 
-    // Helper does the actual updates (runs on UI thread)
-    private void ApplyLiveSession(string carName, string trackName)
+        // Helper does the actual updates (runs on UI thread)
+        private void ApplyLiveSession(string carName, string trackName)
     {
         bool hasCar = !string.IsNullOrWhiteSpace(carName) && !carName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
         bool hasTrack = !string.IsNullOrWhiteSpace(trackName) && !trackName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
@@ -3428,6 +3435,10 @@ namespace LaunchPlugin
 
         UpdateTrackDerivedSummaries();
 
+        // IMPORTANT: LIVE SESSION box includes fuel burn; refresh it here so it can render "-" in LiveSnapshot
+        // instead of leaving the last profile-derived string sitting in the UI.
+        UpdateFuelBurnSummaries();
+
         if (IsLiveSessionActive)
         {
             UpdateSurfaceModeLabel();
@@ -3438,7 +3449,7 @@ namespace LaunchPlugin
         }
     }
 
-    private void SetUIDefaults()
+        private void SetUIDefaults()
     {
         ResetSnapshotDisplays();
         _raceLaps = 20.0;
