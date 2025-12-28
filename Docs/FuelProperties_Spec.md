@@ -1,30 +1,87 @@
-# Fuel Properties Technical Specification
+# Fuel Properties Technical Specification (CANONICAL)
 
-This document summarizes how the fuel- and pit-related SimHub properties are computed inside `LalaLaunch.cs`. Names include the implicit `LalaLaunch.` prefix.
+Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
+Last updated: 2025-12-28  
+Branch: docs/refresh-index-subsystems
 
-## Live consumption and stability
-- **Fuel.LiveFuelPerLap** — Rolling average of accepted lap burns. Laps are rejected for pit contact, incidents, tiny/huge fuel deltas, or falling outside a 50–150% profile bracket. Accepted laps update wet/dry windows, mins/maxes, and confidence before sending the value to `FuelCalculator`.【F:LalaLaunch.cs†L1500-L1714】
-- **Fuel.LiveFuelPerLap_Stable / StableSource / StableConfidence** — Smoothed burn selected from live, profile, or sim fallback to mitigate early-lap noise; refreshed each tick alongside the live burn.【F:LalaLaunch.cs†L1714-L1767】
+Scope: describes how fuel- and pit-related SimHub properties are computed inside `LalaLaunch.cs`. Export names include the implicit `LalaLaunch.` prefix and are attached via `AttachCore` (see `Docs/SimHubParameterInventory.md` for the full export list).
 
-## Race length projection
-- **Fuel.LiveLapsRemainingInRace / _Stable / _S variants** — Computed every 500 ms using projected lap time and a timed-race overrun model; falls back to the sim’s laps-remaining when projection is invalid. Stable variants mirror the same calculation but prefer the stable burn/pace inputs.【F:LalaLaunch.cs†L1720-L1804】
-- **Fuel.Live.ProjectedDriveSecondsRemaining / Fuel.Live.DriveTimeAfterZero** — Wall time remaining including expected post–timer-zero driving, derived from session time, projection lap time, and the extra-overrun allowance.【F:LalaLaunch.cs†L1777-L1788】
+## Acceptance and rejection rules (per-lap fuel capture)
+Evidence: `LalaLaunch.cs` — `DetectLapCrossing` and fuel model updates.【F:LalaLaunch.cs†L1080-L1415】
 
-## Tank state, deltas, and pacing
-- **Fuel.LapsRemainingInTank** — Current fuel divided by the stable burn (or live burn when stable is unavailable).【F:LalaLaunch.cs†L1770-L1778】
-- **Fuel.DeltaLaps / Fuel.Delta.* liters** — Surplus or deficit vs. race distance in laps and liters for current, planned, push, and save scenarios; zeros out when no valid burn exists.【F:LalaLaunch.cs†L1931-L2053】
-- **Fuel.PushFuelPerLap / Fuel.FuelSavePerLap / Fuel.DeltaLapsIfPush / Fuel.CanAffordToPush** — Push burn uses observed/session max; save burn uses window minima or 97% fallback. Delta/afford flags compare those burns to projected laps remaining.【F:LalaLaunch.cs†L1969-L2053】
-- **Pace.StintAvgLapTimeSec / Pace.Last5LapAvgSec / Pace.LeaderDeltaToPlayerSec** — Rolling pace feeds for projection; reset when fuel model is invalid to avoid stale projections.【F:LalaLaunch.cs†L1851-L1866】
+- **Lap gating:** only completed laps (`CompletedLaps` increment) while session is running.
+- **Global race warm-up:** laps ≤1 rejected (`race-warmup` reason).
+- **Pit involvement:** any lap touching pit lane rejected (`pit-lap`).
+- **First lap after pit exit:** rejected (`pit-warmup`).
+- **Incidents/off-track:** rejected with incident code when latched (`incident:<code>`).
+- **Telemetry sanity:** fuel delta must be >0.05 L and ≤ max(10 L, 20% of effective tank) or rejected (`fuel<=0`, `fuelTooHigh`).
+- **Profile bracket:** if profile baseline exists, require 0.5–1.5× of baseline or reject (`profileBracket`).
+- **Window maintenance:** rolling dry/wet windows hold up to 5 accepted laps; seeds removed on overflow unless flagged as active seeds.
+- **Max tracking:** session max burn updated only when 0.7–1.8× of baseline to avoid spikes.
 
-## Pit projections and stop timing
-- **Fuel.Pit.TotalNeededToEnd / NeedToAdd** — Total liters required to finish at current/stable burn and the shortfall vs. current fuel.【F:LalaLaunch.cs†L1959-L1985】
-- **Fuel.Pit.TankSpaceAvailable / WillAdd / FuelOnExit** — Capacity-aware add clamped to BoP/override tank size and whether refuel is selected; projected post-stop fuel uses the clamped add.【F:LalaLaunch.cs†L1960-L1985】
-- **Fuel.Pit.DeltaAfterStop / Fuel.Pit.FuelSaveDeltaAfterStop** — Lap surplus after the planned stop using current or save burn; push delta mirrors the same pattern (calculated alongside save delta).【F:LalaLaunch.cs†L1979-L1985】【F:LalaLaunch.cs†L1999-L2027】
-- **Fuel.Live.TotalStopLoss / Fuel.Live.RefuelRate_Lps / Fuel.Live.TireChangeTime_S / Fuel.Live.PitLaneLoss_S** — Strategy-facing timing components sourced from `FuelCalculator` each tick; combined to estimate total pit stop loss.【F:LalaLaunch.cs†L2520-L2531】【F:LalaLaunch.cs†L3795-L3809】
+## Stability selection
+Evidence: `LalaLaunch.cs` — `UpdateStableFuelPerLap` and stable hold logic.【F:LalaLaunch.cs†L4180-L4254】
 
-- **Fuel.PitWindowState / Fuel.PitWindowLabel** — Race-only pit window status for the requested MFD refuel. Confidence ≤ 60% forces **NO DATA YET** (state 5). Non-race or non-running sessions publish **N/A** (state 6). If refuel is off or the request is ≤ 0, state 4 (**SET FUEL!**). Unknown/invalid tank capacity yields state 8 (**TANK ERROR**). Otherwise the window is open when a stop now (using the clamped add) makes finishing viable under ECO/STD/PUSH based on tank space vs. required add (ECO uses `FuelSaveFuelPerLap`, STD uses stable burn, PUSH uses `PushFuelPerLap`), with precedence PUSH > STD > ECO. If no mode is yet viable, state 7 (**TANK SPACE**) is emitted and `PitWindowOpeningLap` marks the first ECO-viable lap (or 0 if not computable) rather than when the MFD request fits; `PitWindowClosingLap` marks the latest safe lap to pit before fuel runs out, otherwise 0. Open states set `Fuel.IsPitWindowOpen` true and `PitWindowOpeningLap` to the in-progress lap; other states clear the flag and lap. The reserved **RACE CONTROL** state 9 is not emitted without a real signal.【F:LalaLaunch.cs†L2056-L2146】
-- **Fuel.PitWindowState enum mapping** — 1 = OPEN ECO, 2 = OPEN STD, 3 = OPEN PUSH, 4 = SET FUEL!, 5 = NO DATA YET, 6 = N/A, 7 = TANK SPACE, 8 = TANK ERROR, 9 = RACE CONTROL (reserved). **Fuel.PitWindowLabel** mirrors these strings.【F:LalaLaunch.cs†L2056-L2146】
-- **Fuel.IsPitWindowOpen / Fuel.PitWindowOpeningLap / Fuel.PitWindowClosingLap** — Backward-compatible booleans and lap markers aligned to the state machine above; `PitWindowOpeningLap` is the current lap when open or the first ECO-viable lap when closed, `PitWindowClosingLap` is the latest safe lap to pit based on the stable burn, and both are 0 when not applicable.【F:LalaLaunch.cs†L2056-L2146】
-- **Fuel.PitStopsRequiredByFuel / Fuel.PitStopsRequiredByPlan / Fuel.Pit.StopsRequiredToEnd** — Capacity-based and strategy-based stop counts; the published value favors the plan when available, otherwise the capacity calculation.【F:LalaLaunch.cs†L1987-L1997】【F:LalaLaunch.cs†L2524-L2526】
+- Candidate sources: **Live** (latest window average) or **Profile** (track fuel average) when confidence ≤ threshold; fallback yields `StableSource="Fallback"`.
+- Deadband: if candidate within `StableFuelPerLapDeadband` of previous stable, value held but source/confidence can advance.
+- Confidence mirrors the chosen source: live uses `Confidence`, profile uses the readiness threshold (floored).
+- Stable values are clamped to ≥0.1 L/lap to avoid near-zero persistence.
+- Stable confidence drives `Fuel.Live.IsFuelReady` and pit window gating.
 
-These calculations are exported through the delegates registered in `AttachCore`/`AttachVerbose` near the plugin initialization block.【F:LalaLaunch.cs†L2280-L2330】
+## Confidence behaviour
+Evidence: `LalaLaunch.cs` — fuel confidence computation and usage.【F:LalaLaunch.cs†L1830-L1890】【F:LalaLaunch.cs†L468-L506】
+
+- Fuel confidence grows with valid window size/quality; pace confidence derived separately.
+- `OverallConfidence` = probabilistic product of fuel and pace confidences; exported for dashes.
+- `Fuel.FuelReadyConfidenceThreshold` defines readiness; when stable confidence drops below it, pit window forces **NO DATA YET**.
+
+## Projection, after-zero, and fallback precedence
+Evidence: `LalaLaunch.cs` — `UpdateLiveFuelCalcs`, after-zero model, projection lap selection.【F:LalaLaunch.cs†L1895-L2347】【F:LalaLaunch.cs†L4306-L4391】
+
+- **Projection lap selection:** prefer stint average when pace confidence ≥ `LapTimeConfidenceSwitchOn`; fall back to last-5; then profile average; else estimator fallback. Source logged and exported.
+- **After-zero handling:** planner seconds (`Fuel.After0.PlannerSeconds`) always available; live estimate activates once timer zero is observed and session time advances beyond zero. Source switches between `planner` and `live` with log notice; `Fuel.After0.Source` reflects the current pick.
+- **Projected laps:** computed via `FuelProjectionMath.ProjectLapsRemaining` using projection lap time, session time remaining, and after-zero allowance. If invalid, falls back to SimHub’s laps-remaining telemetry.
+- **Fallback precedence:** fuel burn falls back to SimHub’s `DataCorePlugin.Computed.Fuel_LitersPerLap` only when no accepted laps exist (marks `_usingFallbackFuelProfile`). Stable burn may hold prior value if the candidate is invalid.
+
+## Pit window and acceptance/rejection rules
+Evidence: `LalaLaunch.cs` — pit window block in `UpdateLiveFuelCalcs`.【F:LalaLaunch.cs†L2145-L2335】
+
+- Race-only and running-session gate; if not racing or no fuel stops required → **N/A**.
+- Confidence gate: stable confidence below readiness threshold → **NO DATA YET** (state 5).
+- Refuel off or request ≤0 → **SET FUEL!** (state 4).
+- Unknown tank capacity → **TANK ERROR** (state 8).
+- Otherwise evaluate tank space vs. required add for PUSH/STD/ECO (using push burn, stable burn, or save burn). Priority PUSH > STD > ECO.
+- If any mode fits → `IsPitWindowOpen=true`, state 3/2/1 with label (**CLEAR PUSH**/**RACE PACE**/**FUEL SAVE**) and `PitWindowOpeningLap=current lap`.
+- If none fit → state 7 (**TANK SPACE**); opening lap projected using ECO burn; closing lap derived from fuel-in-tank ÷ stable burn.
+- `PitWindowClosingLap` computed from current fuel and stable burn; 0 if burn invalid.
+
+## Reset triggers and state cleared
+Evidence: `LalaLaunch.cs` — `ResetLiveFuelModelForNewSession`, `HandleSessionChangeForFuelModel`, session-change handler.【F:LalaLaunch.cs†L823-L1040】【F:LalaLaunch.cs†L3308-L3365】
+
+- `HandleSessionChangeForFuelModel` called on session type changes detected via `DataUpdate`.
+- Driving → Race transition captures seeds then resets model (applies seeds if car/track match).
+- Non-race transitions: full reset without seeding.
+- Reset clears rolling fuel windows, confidence, stable values, lap detector state, pit window state, pace windows, and live max fuel tracking. `FuelCalculator.ResetTrackConditionOverrideForSessionChange()` is invoked.
+- Session token change (`SessionID:SubSessionID`) also clears rejoin, pit, pit-lite state, resets finish timing, smoothers, fuel instructions, and forces profile data reload.
+
+## Stability selection vs. profile and sim fallbacks
+Evidence: `LalaLaunch.cs` — fallback logic inside `UpdateLiveFuelCalcs` and `UpdateStableFuelPerLap`.【F:LalaLaunch.cs†L1895-L2143】【F:LalaLaunch.cs†L4180-L4254】
+
+- **Live preferred:** when valid fuel window exists.  
+- **Profile fallback:** used for stable burn when live confidence < readiness threshold or no live data.  
+- **Sim fallback:** SimHub computed fuel used only to bootstrap live burn when zero accepted laps.  
+- Stable burn holds previous value if the new candidate is invalid and prior stable existed; otherwise resets to 0 with `StableSource="Fallback"`.
+
+## Confidence-driven outputs and readiness
+Evidence: `LalaLaunch.cs` — readiness checks and pit window gating.【F:LalaLaunch.cs†L468-L506】【F:LalaLaunch.cs†L2145-L2335】
+
+- `Fuel.Live.IsFuelReady` = stable confidence ≥ readiness threshold.
+- Pit window state 5 (**NO DATA YET**) when readiness false.
+- UI/strategy elements should check `Fuel.Live.IsFuelReady` before consuming lap/time projections.
+
+## Cross-links to SimHub exports
+- Full export names, cadence, and attachment points: see `Docs/SimHubParameterInventory.md`.
+- Pit window, projection lap source, after-zero source, and confidence values are exported for dashboards and logging.
+
+## TODO/VERIFY
+- TODO/VERIFY: Confirm whether incident/off-track wiring is complete or still placeholder (hooks exist, but source for `_latchedIncidentReason` is not yet connected).【F:LalaLaunch.cs†L1080-L1145】
