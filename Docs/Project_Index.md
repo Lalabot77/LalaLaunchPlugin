@@ -1,8 +1,8 @@
 # Project Index
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
+Validated against commit: 88cfd6ba10558452391dd921d23ae69b94a0a44e  
 Last updated: 2025-12-28  
-Branch: docs/refresh-index-subsystems
+Branch: work
 
 ## What this repo is
 LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control instrumentation, fuel strategy calculations, pit-cycle timing, rejoin assistance, messaging outputs, and dash/screen coordination across the Fuel, Pit, Launch, and Messaging tabs. Runtime behaviour lives in C# (e.g., `LalaLaunch.cs`, `FuelCalcs.cs`, `PitEngine.cs`) with SimHub exports documented below.
@@ -56,6 +56,6 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - Fuel tab/UI source or planner changes → update `FuelTab_SourceFlowNotes.md`.
 
 ## Freshness
-- Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
+- Validated against commit: 88cfd6ba10558452391dd921d23ae69b94a0a44e  
 - Date: 2025-12-28  
-- Branch: docs/refresh-index-subsystems
+- Branch: work

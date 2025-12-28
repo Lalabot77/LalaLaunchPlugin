@@ -1,8 +1,8 @@
 # Reset & Session Identity (CANONICAL)
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
+Validated against commit: 88cfd6ba10558452391dd921d23ae69b94a0a44e  
 Last updated: 2025-12-28  
-Branch: docs/refresh-index-subsystems
+Branch: work
 
 ## Definitions
 - **Session identity/token:** `SessionID:SubSessionID` string derived from `WeekendInfo.SessionID/SubSessionID`, exported as `Reset.ThisSession`; prior value exported as `Reset.LastSession`.【F:LalaLaunch.cs†L3308-L3365】【F:LalaLaunch.cs†L2737-L2740】
@@ -23,6 +23,9 @@ Branch: docs/refresh-index-subsystems
 | Messaging (MSGV1) | Session type change; session token change. | Message stack, active outputs, missing-evaluator state. | None (definitions stay loaded). | Implicit via `ResetSession()`; no dedicated log (use MSGV1 stack logs for evidence).【F:LalaLaunch.cs†L3308-L3365】【F:LalaLaunch.cs†L3649-L3676】 |
 | Rejoin assist | Session token change. | Logic code, threat state, pit-phase detection. | None. | Reset invoked in session-token change block (no direct log).【F:LalaLaunch.cs†L3308-L3365】 |
 | Dash/pit screen | Session token change resets snapshot car/track and pits dismissed flag; auto-dash re-armed on session-type change for ignition transitions. | Live snapshot car/track labels, pit screen dismissed flag, auto-dash arming tokens. | User visibility toggles (settings) persist. | `[LalaPlugin:Profile] Session start snapshot...`【F:LalaLaunch.cs†L3308-L3365】; auto-dash logs on ignition events.【F:LalaLaunch.cs†L3690-L3730】 |
+
+## Dashboard-facing fuel/projection outputs
+- Both session-token resets and session-type transitions now clear all fuel instruction exports (deltas, will-add, laps remaining, projections) alongside smoothed projections so dashboards never retain stale lap/fuel values after a reset. This clearing happens together with the existing fuel/pit resets described above.【F:LalaLaunch.cs†L3340-L3370】【F:LalaLaunch.cs†L3669-L3684】【F:LalaLaunch.cs†L4136-L4168】
 
 ## Timer-zero considerations
 - **Contract:** Timed races should follow the leader-white-flag after timer zero; see `Docs/TimerZeroBehavior.md` for expected iRacing rules.
