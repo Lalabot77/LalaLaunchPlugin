@@ -2746,7 +2746,19 @@ namespace LaunchPlugin
             AttachCore("Pit.LastTotalPitCycleTimeLoss", () => _pit.LastTotalPitCycleTimeLoss);
             AttachCore("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss);
             AttachVerbose("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds);
-            
+
+            // --- Pit Entry Assist (CORE + optional driver/debug) ---
+            AttachCore("Pit.EntryAssistActive", () => _pit.PitEntryAssistActive);
+            AttachCore("Pit.EntryDistanceToLine_m", () => _pit.PitEntryDistanceToLine_m);
+            AttachCore("Pit.EntryRequiredDistance_m", () => _pit.PitEntryRequiredDistance_m);
+            AttachCore("Pit.EntryMargin_m", () => _pit.PitEntryMargin_m);
+            AttachCore("Pit.EntryCue", () => _pit.PitEntryCue);
+
+            AttachCore("Pit.EntrySpeedDelta_kph", () => _pit.PitEntrySpeedDelta_kph);
+            AttachCore("Pit.EntryDecelProfile_mps2", () => _pit.PitEntryDecelProfile_mps2);
+            AttachCore("Pit.EntryBuffer_m", () => _pit.PitEntryBuffer_m);
+
+
             // AttachVerbose("Pit.Debug.LastTimeOnPitRoad",  () => _pit.TimeOnPitRoad.TotalSeconds);
             AttachVerbose("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0);
 
@@ -3365,6 +3377,13 @@ namespace LaunchPlugin
             }
 
             UpdateLiveSurfaceSummary(pluginManager);
+            
+            // --- Pit Entry Assist config from profile (per-car) ---
+            if (_pit != null && ActiveProfile != null)
+            {
+                _pit.ConfigPitEntryDecelMps2 = ActiveProfile.PitEntryDecelMps2;
+                _pit.ConfigPitEntryBufferM = ActiveProfile.PitEntryBufferM;
+            }
 
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
             _pit.Update(data, pluginManager);
