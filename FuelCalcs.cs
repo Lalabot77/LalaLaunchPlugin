@@ -3116,33 +3116,50 @@ namespace LaunchPlugin
 
     private void UpdateLapTimeSummaries()
     {
-        DryLapTimeSummary = BuildLiveLapSummary(ShowDrySnapshotRows);
-        WetLapTimeSummary = BuildLiveLapSummary(ShowWetSnapshotRows);
+        // Live session box should be live-only; no profile fallback.
+        DryLapTimeSummary = BuildLiveLapSummary(ShowDrySnapshotRows, liveOnly: true);
+        WetLapTimeSummary = BuildLiveLapSummary(ShowWetSnapshotRows, liveOnly: true);
     }
 
-    private string BuildLiveLapSummary(bool isVisible)
-    {
-        if (!isVisible) return "-";
-
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(LiveBestLapDisplay) && LiveBestLapDisplay != "-")
+        private string BuildLiveLapSummary(bool isVisible, bool liveOnly)
         {
-            parts.Add($"PB {LiveBestLapDisplay}");
+            if (!isVisible) return "-";
+
+            var parts = new List<string>();
+
+            // PB can remain (it’s a historical metric, not profile fallback).
+            if (!string.IsNullOrWhiteSpace(LiveBestLapDisplay) && LiveBestLapDisplay != "-")
+            {
+                parts.Add($"PB {LiveBestLapDisplay}");
+            }
+
+            // Live-only: only show an average if we actually have a live estimate.
+            if (liveOnly)
+            {
+                if (IsLiveLapPaceAvailable && _liveAvgLapSeconds > 0)
+                {
+                    parts.Add($"Avg {TimeSpan.FromSeconds(_liveAvgLapSeconds):m\\:ss\\.fff}");
+
+                }
+            }
+            else
+            {
+                // Original behaviour (if you still want it elsewhere)
+                var lap = GetConditionAverageLapTime(isWet: isVisible && ShowWetSnapshotRows, out var sourceLabel);
+                if (lap.HasValue)
+                {
+                    var formatted = lap.Value.ToString(@"m\:ss\.fff");
+                    parts.Add(string.IsNullOrWhiteSpace(sourceLabel)
+                        ? $"Avg {formatted}"
+                        : $"Avg {formatted} ({sourceLabel})");
+                }
+            }
+
+            return parts.Count > 0 ? string.Join(" | ", parts) : "-";
         }
 
-        var lap = GetConditionAverageLapTime(isWet: isVisible && ShowWetSnapshotRows, out var sourceLabel);
-        if (lap.HasValue)
-        {
-            var formatted = lap.Value.ToString(@"m\:ss\.fff");
-            parts.Add(string.IsNullOrWhiteSpace(sourceLabel)
-                ? $"Avg {formatted}"
-                : $"Avg {formatted} ({sourceLabel})");
-        }
 
-        return parts.Count > 0 ? string.Join(" | ", parts) : "-";
-    }
-
-    private void UpdatePaceSummaries()
+        private void UpdatePaceSummaries()
     {
         DryPaceDeltaSummary = BuildLivePaceDeltaSummary(ShowDrySnapshotRows, false);
         WetPaceDeltaSummary = BuildLivePaceDeltaSummary(ShowWetSnapshotRows, true);
@@ -3169,45 +3186,49 @@ namespace LaunchPlugin
             : $"Avg {lapDisplay}{labelSuffix} vs Leader {LiveLeaderPaceInfo} (Δ {delta})";
     }
 
-    private string BuildLivePaceDeltaSummary(bool isVisible, bool isWet)
-    {
-        if (!isVisible) return "-";
-
-        var parts = new List<string>();
-        var lap = GetConditionAverageLapTime(isWet, out var sourceLabel);
-        double? lapSeconds = lap?.TotalSeconds;
-
-        string pbDelta = null;
-        if (lapSeconds.HasValue && _loadedBestLapTimeSeconds > 0)
+        private string BuildLivePaceDeltaSummary(bool isVisible, bool isWet)
         {
-            pbDelta = NormalizeDelta((lapSeconds.Value - _loadedBestLapTimeSeconds).ToString("+0.00;-0.00;0.00"));
+            if (!isVisible) return "-";
+
+            // LIVE SESSION WINDOW RULE:
+            // If we're in a live/replay session but live lap pace isn't available yet, show dashes
+            // (do NOT fall back to profile inside the live session box).
+            if (IsLiveSessionActive && (!IsLiveLapPaceAvailable || _liveAvgLapSeconds <= 0))
+            {
+                return "-";
+            }
+
+            var lap = GetConditionAverageLapTime(isWet, out var sourceLabel);
+            double? lapSeconds = lap?.TotalSeconds;
+
+            if (!lapSeconds.HasValue)
+            {
+                return "-";
+            }
+
+            var parts = new List<string>();
+
+            string pbDelta = null;
+            if (_loadedBestLapTimeSeconds > 0)
+            {
+                pbDelta = NormalizeDelta((lapSeconds.Value - _loadedBestLapTimeSeconds).ToString("+0.00;-0.00;0.00"));
+            }
+
+            string leaderDelta = null;
+            if (LiveLeaderAvgPaceSeconds > 0)
+            {
+                leaderDelta = NormalizeDelta((lapSeconds.Value - LiveLeaderAvgPaceSeconds).ToString("+0.00;-0.00;0.00"));
+            }
+
+            if (pbDelta != null) parts.Add($"Δ PB: {pbDelta}");
+            if (leaderDelta != null) parts.Add($"Δ Leader: {leaderDelta}");
+
+            // IMPORTANT:
+            // Do NOT insert "Avg ..." here — Lap Times line already carries Avg + source label.
+            return parts.Count > 0 ? string.Join(" | ", parts) : "-";
         }
 
-        string leaderDelta = null;
-        if (lapSeconds.HasValue && LiveLeaderAvgPaceSeconds > 0)
-        {
-            leaderDelta = NormalizeDelta((lapSeconds.Value - LiveLeaderAvgPaceSeconds).ToString("+0.00;-0.00;0.00"));
-        }
-
-        if (pbDelta != null)
-        {
-            parts.Add($"Δ PB: {pbDelta}");
-        }
-        if (leaderDelta != null)
-        {
-            parts.Add($"Δ Leader: {leaderDelta}");
-        }
-
-        if (lap.HasValue)
-        {
-            var labelSuffix = string.IsNullOrWhiteSpace(sourceLabel) ? string.Empty : $" ({sourceLabel})";
-            parts.Insert(0, $"Avg {lap.Value.ToString(@"m\:ss\.fff")}{labelSuffix}");
-        }
-
-        return parts.Count > 0 ? string.Join(" | ", parts) : "-";
-    }
-
-    private static string NormalizeDelta(string value)
+        private static string NormalizeDelta(string value)
     {
         return string.IsNullOrWhiteSpace(value) || value == "-" ? null : value;
     }
@@ -3273,6 +3294,14 @@ namespace LaunchPlugin
         double liveMax = isWet ? _liveWetFuelMax : _liveDryFuelMax;
         int liveSamples = isWet ? _liveWetSamples : _liveDrySamples;
 
+        // LIVE SESSION WINDOW RULE:
+        // When a live session is active, the LIVE SESSION box must be live-only.
+        // If there are zero live samples, render "-" (do NOT fall back to profile here).
+        if (IsLiveSessionActive && liveSamples <= 0)
+        {
+            return (0, 0, 0, 0, null); // will render as "-"
+        }
+
         double profileAvg = isWet ? _profileWetFuelAvg : _profileDryFuelAvg;
         double profileMin = isWet ? _profileWetFuelMin : _profileDryFuelMin;
         double profileMax = isWet ? _profileWetFuelMax : _profileDryFuelMax;
@@ -3311,11 +3340,19 @@ namespace LaunchPlugin
         if (parts.Count == 0) return "-";
 
         var summary = string.Join(" | ", parts);
+
+        // Live is implied in the LIVE SESSION window, so don't prefix it.
+        if (string.Equals(sourceLabel, "Live", StringComparison.OrdinalIgnoreCase))
+        {
+            return summary;
+        }
+
         return string.IsNullOrWhiteSpace(sourceLabel) ? summary : $"{sourceLabel} · {summary}";
+
     }
 
-    // Helper does the actual updates (runs on UI thread)
-    private void ApplyLiveSession(string carName, string trackName)
+        // Helper does the actual updates (runs on UI thread)
+        private void ApplyLiveSession(string carName, string trackName)
     {
         bool hasCar = !string.IsNullOrWhiteSpace(carName) && !carName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
         bool hasTrack = !string.IsNullOrWhiteSpace(trackName) && !trackName.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
@@ -3398,6 +3435,10 @@ namespace LaunchPlugin
 
         UpdateTrackDerivedSummaries();
 
+        // IMPORTANT: LIVE SESSION box includes fuel burn; refresh it here so it can render "-" in LiveSnapshot
+        // instead of leaving the last profile-derived string sitting in the UI.
+        UpdateFuelBurnSummaries();
+
         if (IsLiveSessionActive)
         {
             UpdateSurfaceModeLabel();
@@ -3408,7 +3449,7 @@ namespace LaunchPlugin
         }
     }
 
-    private void SetUIDefaults()
+        private void SetUIDefaults()
     {
         ResetSnapshotDisplays();
         _raceLaps = 20.0;
@@ -3494,13 +3535,13 @@ namespace LaunchPlugin
                 UpdateFuelBurnSummaries();
                 UpdateLiveFuelChoiceDisplays();
 
-                // FIX 1:
-                // Refresh can temporarily re-apply profile-derived values. If the user has Live snapshot
-                // selected, re-assert the planning source before recalculating so Avg Lap Time etc.
-                // stay on live when live data is available.
-                if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+                // After refresh in live sessions, restore LiveSnapshot auto-fill for lap time
+                // (otherwise LoadProfileData can seed profile averages and leave planner stuck there).
+                if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+                    && IsLiveLapPaceAvailable
+                    && !IsEstimatedLapTimeManual)
                 {
-                    ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
+                    ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: false);
                 }
 
                 CalculateStrategy();
