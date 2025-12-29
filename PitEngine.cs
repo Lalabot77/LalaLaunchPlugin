@@ -248,6 +248,9 @@ namespace LaunchPlugin
 
             // Inputs
             double speedKph = data?.NewData?.SpeedKmh ?? 0.0;
+            bool isInPitLane = (data?.NewData?.IsInPitLane ?? 0) != 0;
+            bool crossedPitLineThisTick = isInPitLane && !_wasInPitLane;
+
 
             // Pit limit (prefer session data, fallback to iRacingExtra)
             double pitLimitKph =
@@ -258,8 +261,12 @@ namespace LaunchPlugin
 
             if (double.IsNaN(pitLimitKph) || pitLimitKph <= 0.1)
             {
+                if (_pitEntryAssistWasActive) SimHub.Logging.Current.Info("[LalaPlugin:PitEntryAssist] END");
                 ResetPitEntryAssistOutputs();
+                _pitEntryAssistWasActive = false;
+                _wasInPitLane = isInPitLane;
                 return;
+
             }
 
             PitEntrySpeedDelta_kph = speedKph - pitLimitKph;
@@ -338,6 +345,26 @@ namespace LaunchPlugin
             else if (margin <= buffer) PitEntryCue = 2;     // BrakeSoon
             else PitEntryCue = 1;                           // OK
 
+            if (crossedPitLineThisTick)
+            {
+                string firstOkText = _pitEntryFirstCompliantCaptured
+                    ? (_pitEntryFirstCompliantDToLine_m.ToString("F1") + "m")
+                    : "n/a";
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:PitEntryAssist] LINE " +
+                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
+                    $"dReq={PitEntryRequiredDistance_m:F1}m " +
+                    $"margin={PitEntryMargin_m:F1}m " +
+                    $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
+                    $"firstOK={firstOkText} " +
+                    $"okBefore={firstOkText} " +
+                    $"decel={PitEntryDecelProfile_mps2:F1} " +
+                    $"buffer={PitEntryBuffer_m:F1} " +
+                    $"cue={PitEntryCue}"
+                );
+            }
+
             // --- Edge-triggered logging (no spam) ---
             if (PitEntryAssistActive && !_pitEntryAssistWasActive)
             {
@@ -355,9 +382,6 @@ namespace LaunchPlugin
                     $"cue={PitEntryCue}"
                 );
             }
-
-            // --- Pit entry line crossing log ---
-            bool isInPitLane = (data?.NewData?.IsInPitLane ?? 0) != 0;
 
             _pitEntryAssistWasActive = PitEntryAssistActive;
 
