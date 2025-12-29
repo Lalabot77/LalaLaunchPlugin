@@ -1,7 +1,7 @@
 # Project Index
 
-Validated against commit: 88cfd6ba10558452391dd921d23ae69b94a0a44e  
-Last updated: 2025-12-28  
+Validated against commit: 52bd57d7c618f4df094c68c4ea6f1e11cc5e328f  
+Last updated: 2026-02-06  
 Branch: work
 
 ## What this repo is
@@ -34,6 +34,7 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 | Message system v1 | Evaluator-driven stack, outputs, and signal registry | [Subsystems/Message_System_V1.md](Subsystems/Message_System_V1.md) |
 | Profiles & PB | Profile resolution, PB updates, and identity snapshots | [Subsystems/Profiles_And_PB.md](Subsystems/Profiles_And_PB.md) |
 | Trace logging | Telemetry trace lifecycle and launch trace handling | [Subsystems/Trace_Logging.md](Subsystems/Trace_Logging.md) |
+| Pit Entry Assist | Pit entry braking cues, margin/cue maths, decel capture instrumentation | [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) |
 | Dash integration | Screen manager modes, pit screen, and dash visibility toggles | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Canonical docs map
