@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 :: === CONFIGURATION ===
-set "SOURCE=C:\Projects\GitHub\LalaLaunchPlugin\bin\Release\LaunchPlugin.dll"
+set "SOURCE=C:\GitHub\LalaLaunchPlugin\bin\Release\LaunchPlugin.dll"
 set "DESTFOLDER=C:\Users\Andy_\OneDrive\Documents\SimHub Projects\LaunchPluginProjects\Builds"
 set "SIMHUBFOLDER=C:\Program Files (x86)\SimHub"
 set SIMHUBEXE=SimHubWPF.exe

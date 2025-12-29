@@ -1,6 +1,8 @@
 ﻿// --- Using Directives ---
 using GameReaderCommon;
+using LaunchPlugin.Messaging;
 using SimHub.Plugins;
+using SimHub.Plugins.DataPlugins.DataCore;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -12,7 +14,6 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Media;
-using LaunchPlugin.Messaging;
 
 
 namespace LaunchPlugin
@@ -108,7 +109,7 @@ namespace LaunchPlugin
         public void TogglePitScreen()
         {
             bool isOnPitRoadFlag = Convert.ToBoolean(
-                PluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false
+                PluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false
             );
 
             if (isOnPitRoadFlag)
@@ -1301,7 +1302,7 @@ namespace LaunchPlugin
             // Pit detection: use both signals (some installs expose only one reliably)
             bool isInPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
             bool isOnPitRoadFlag = Convert.ToBoolean(
-                PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false
+                PluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false
             );
             bool inPitArea = isInPitLaneFlag || isOnPitRoadFlag;
 
@@ -3162,7 +3163,7 @@ namespace LaunchPlugin
 
             if (pluginManager != null)
             {
-                var pitRoad = TryReadNullableBool(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad"));
+                var pitRoad = TryReadNullableBool(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad"));
                 var inPitLane = data?.NewData != null ? (data.NewData.IsInPitLane != 0) : (bool?)null;
                 inPits = pitRoad ?? inPitLane ?? false;
             }
@@ -3738,7 +3739,7 @@ namespace LaunchPlugin
                     }
                 });
             }
-            bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.IsOnPitRoad") ?? false);
+            bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false);
 
             bool newPitScreenActive = _pitScreenActive; // default
 
