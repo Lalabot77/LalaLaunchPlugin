@@ -191,26 +191,7 @@ namespace LaunchPlugin
             // --- Store the previous phase before updating to the new one ---
             //var previousPhase = CurrentPitPhase;
             UpdatePitPhase(data, pluginManager);
-            // LINE log: fires exactly once on pit-lane entry
-            if (isInPitLane && !_wasInPitLane)
-            {
-                string firstOkText = _pitEntryFirstCompliantCaptured ? _pitEntryFirstCompliantDToLine_m.ToString("F1") + "m" : "n/a";
-
-                string okBeforeText = _pitEntryFirstCompliantCaptured ? _pitEntryFirstCompliantDToLine_m.ToString("F1") + "m" : "n/a";
-
-                SimHub.Logging.Current.Info(
-                    $"[LalaPlugin:PitEntryAssist] LINE " +
-                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
-                    $"dReq={PitEntryRequiredDistance_m:F1}m " +
-                    $"margin={PitEntryMargin_m:F1}m " +
-                    $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
-                    $"firstOK={firstOkText} " +
-                    $"okBefore={okBeforeText} " +
-                    $"decel={PitEntryDecelProfile_mps2:F1} " +
-                    $"buffer={PitEntryBuffer_m:F1} " +
-                    $"cue={PitEntryCue}"
-                );
-            }
+           
             UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM);
 
             // If we have just left the pits, start waiting for the out-lap.
@@ -249,8 +230,9 @@ namespace LaunchPlugin
             // Inputs
             double speedKph = data?.NewData?.SpeedKmh ?? 0.0;
             bool isInPitLane = (data?.NewData?.IsInPitLane ?? 0) != 0;
-            bool crossedPitLineThisTick = isInPitLane && !_wasInPitLane;
 
+            // IMPORTANT: use the engine’s pit-lane edge (set in Update())
+            bool crossedPitLineThisTick = isInPitLane && !_wasInPitLane;
 
             // Pit limit (prefer session data, fallback to iRacingExtra)
             double pitLimitKph =
@@ -261,12 +243,8 @@ namespace LaunchPlugin
 
             if (double.IsNaN(pitLimitKph) || pitLimitKph <= 0.1)
             {
-                if (_pitEntryAssistWasActive) SimHub.Logging.Current.Info("[LalaPlugin:PitEntryAssist] END");
                 ResetPitEntryAssistOutputs();
-                _pitEntryAssistWasActive = false;
-                _wasInPitLane = isInPitLane;
                 return;
-
             }
 
             PitEntrySpeedDelta_kph = speedKph - pitLimitKph;
@@ -275,7 +253,8 @@ namespace LaunchPlugin
             bool limiterOn = (data?.NewData?.PitLimiterOn ?? 0) != 0;
             bool armed = (CurrentPitPhase == PitPhase.EnteringPits) || (limiterOn && PitEntrySpeedDelta_kph > 2.0);
 
-            if (!armed)
+            // If we are NOT armed and did NOT cross the line this tick -> fully reset and exit
+            if (!armed && !crossedPitLineThisTick)
             {
                 ResetPitEntryAssistOutputs();
                 return;
@@ -298,6 +277,7 @@ namespace LaunchPlugin
 
                 if (double.IsNaN(carPct) || double.IsNaN(pitEntryPct) || double.IsNaN(trackLenKm) || trackLenKm <= 0)
                 {
+                    // If we crossed the line but can’t compute distance, still allow END/reset and exit
                     ResetPitEntryAssistOutputs();
                     return;
                 }
@@ -311,7 +291,9 @@ namespace LaunchPlugin
             // Window clamp (your spec)
             dToEntry_m = Math.Max(0.0, Math.Min(500.0, dToEntry_m));
 
-            if (dToEntry_m >= 500.0)
+            // If we’re armed: keep the 500m inhibit behaviour.
+            // If we crossed the line: DO NOT early-return; we want LINE to log.
+            if (dToEntry_m >= 500.0 && !crossedPitLineThisTick)
             {
                 ResetPitEntryAssistOutputs();
                 return;
@@ -333,18 +315,39 @@ namespace LaunchPlugin
             PitEntryRequiredDistance_m = dReq;
             PitEntryMargin_m = margin;
 
-            if (!_pitEntryFirstCompliantCaptured && PitEntrySpeedDelta_kph <= 1.0)
-            {
-                _pitEntryFirstCompliantCaptured = true;
-                _pitEntryFirstCompliantDToLine_m = PitEntryDistanceToLine_m;
-            }
-
             // Cue thresholds (as agreed)
             if (margin < -buffer) PitEntryCue = 4;          // Late
             else if (margin <= 0) PitEntryCue = 3;          // BrakeNow
             else if (margin <= buffer) PitEntryCue = 2;     // BrakeSoon
             else PitEntryCue = 1;                           // OK
 
+            // --- Edge-triggered logging (no spam) ---
+            if (PitEntryAssistActive && !_pitEntryAssistWasActive)
+            {
+                // Reset firstOK tracking at activation start
+                _pitEntryFirstCompliantCaptured = false;
+                _pitEntryFirstCompliantDToLine_m = double.NaN;
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:PitEntryAssist] ACTIVATE " +
+                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
+                    $"dReq={PitEntryRequiredDistance_m:F1}m " +
+                    $"margin={PitEntryMargin_m:F1}m " +
+                    $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
+                    $"decel={PitEntryDecelProfile_mps2:F1} " +
+                    $"buffer={PitEntryBuffer_m:F1} " +
+                    $"cue={PitEntryCue}"
+                );
+            }
+
+            // Capture first compliant point AFTER ACTIVATE reset
+            if (!_pitEntryFirstCompliantCaptured && PitEntrySpeedDelta_kph <= 1.0)
+            {
+                _pitEntryFirstCompliantCaptured = true;
+                _pitEntryFirstCompliantDToLine_m = PitEntryDistanceToLine_m;
+            }
+
+            // LINE log (exactly once on pit-lane entry)
             if (crossedPitLineThisTick)
             {
                 string firstOkText = _pitEntryFirstCompliantCaptured
@@ -365,26 +368,7 @@ namespace LaunchPlugin
                 );
             }
 
-            // --- Edge-triggered logging (no spam) ---
-            if (PitEntryAssistActive && !_pitEntryAssistWasActive)
-            {
-                _pitEntryFirstCompliantCaptured = false;
-                _pitEntryFirstCompliantDToLine_m = double.NaN;
-
-                SimHub.Logging.Current.Info(
-                    $"[LalaPlugin:PitEntryAssist] ACTIVATE " +
-                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
-                    $"dReq={PitEntryRequiredDistance_m:F1}m " +
-                    $"margin={PitEntryMargin_m:F1}m " +
-                    $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
-                    $"decel={PitEntryDecelProfile_mps2:F1} " +
-                    $"buffer={PitEntryBuffer_m:F1} " +
-                    $"cue={PitEntryCue}"
-                );
-            }
-
             _pitEntryAssistWasActive = PitEntryAssistActive;
-
         }
 
         private static double ReadDouble(PluginManager pluginManager, string prop, double fallback)
