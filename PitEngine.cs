@@ -52,6 +52,9 @@ namespace LaunchPlugin
         public double PitEntrySpeedDelta_kph { get; private set; } = 0.0;
         public double PitEntryDecelProfile_mps2 { get; private set; } = 0.0;
         public double PitEntryBuffer_m { get; private set; } = 0.0;
+        private bool _pitEntryAssistWasActive;
+        private bool _pitEntryFirstCompliantCaptured;
+        private double _pitEntryFirstCompliantDToLine_m;
 
 
         // --- State management for the Pace Delta calculation ---
@@ -91,6 +94,21 @@ namespace LaunchPlugin
             _paceDeltaState = PaceDeltaState.Idle;
             _avgPaceAtPit = 0.0;
             _lastTimeOnPitRoad = TimeSpan.Zero;
+        }
+
+        public string PitEntryCueText
+        {
+            get
+            {
+                switch (PitEntryCue)
+                {
+                    case 1: return "OK";
+                    case 2: return "BRAKE SOON";
+                    case 3: return "BRAKE NOW";
+                    case 4: return "LATE";
+                    default: return "OFF";
+                }
+            }
         }
 
         public void Update(GameData data, PluginManager pluginManager)
@@ -173,6 +191,26 @@ namespace LaunchPlugin
             // --- Store the previous phase before updating to the new one ---
             //var previousPhase = CurrentPitPhase;
             UpdatePitPhase(data, pluginManager);
+            // LINE log: fires exactly once on pit-lane entry
+            if (isInPitLane && !_wasInPitLane)
+            {
+                string firstOkText = _pitEntryFirstCompliantCaptured ? _pitEntryFirstCompliantDToLine_m.ToString("F1") + "m" : "n/a";
+
+                string okBeforeText = _pitEntryFirstCompliantCaptured ? _pitEntryFirstCompliantDToLine_m.ToString("F1") + "m" : "n/a";
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:PitEntryAssist] LINE " +
+                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
+                    $"dReq={PitEntryRequiredDistance_m:F1}m " +
+                    $"margin={PitEntryMargin_m:F1}m " +
+                    $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
+                    $"firstOK={firstOkText} " +
+                    $"okBefore={okBeforeText} " +
+                    $"decel={PitEntryDecelProfile_mps2:F1} " +
+                    $"buffer={PitEntryBuffer_m:F1} " +
+                    $"cue={PitEntryCue}"
+                );
+            }
             UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM);
 
             // If we have just left the pits, start waiting for the out-lap.
@@ -288,11 +326,41 @@ namespace LaunchPlugin
             PitEntryRequiredDistance_m = dReq;
             PitEntryMargin_m = margin;
 
+            if (!_pitEntryFirstCompliantCaptured && PitEntrySpeedDelta_kph <= 1.0)
+            {
+                _pitEntryFirstCompliantCaptured = true;
+                _pitEntryFirstCompliantDToLine_m = PitEntryDistanceToLine_m;
+            }
+
             // Cue thresholds (as agreed)
             if (margin < -buffer) PitEntryCue = 4;          // Late
             else if (margin <= 0) PitEntryCue = 3;          // BrakeNow
             else if (margin <= buffer) PitEntryCue = 2;     // BrakeSoon
             else PitEntryCue = 1;                           // OK
+
+            // --- Edge-triggered logging (no spam) ---
+            if (PitEntryAssistActive && !_pitEntryAssistWasActive)
+            {
+                _pitEntryFirstCompliantCaptured = false;
+                _pitEntryFirstCompliantDToLine_m = double.NaN;
+
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:PitEntryAssist] ACTIVATE " +
+                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
+                    $"dReq={PitEntryRequiredDistance_m:F1}m " +
+                    $"margin={PitEntryMargin_m:F1}m " +
+                    $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
+                    $"decel={PitEntryDecelProfile_mps2:F1} " +
+                    $"buffer={PitEntryBuffer_m:F1} " +
+                    $"cue={PitEntryCue}"
+                );
+            }
+
+            // --- Pit entry line crossing log ---
+            bool isInPitLane = (data?.NewData?.IsInPitLane ?? 0) != 0;
+
+            _pitEntryAssistWasActive = PitEntryAssistActive;
+
         }
 
         private static double ReadDouble(PluginManager pluginManager, string prop, double fallback)
@@ -308,12 +376,20 @@ namespace LaunchPlugin
 
         private void ResetPitEntryAssistOutputs()
         {
+            // Log END once per activation
+            if (_pitEntryAssistWasActive)
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:PitEntryAssist] END");
+                _pitEntryFirstCompliantCaptured = false;
+                _pitEntryFirstCompliantDToLine_m = double.NaN;
+                _pitEntryAssistWasActive = false;
+            }
+
             PitEntryAssistActive = false;
             PitEntryDistanceToLine_m = 0.0;
             PitEntryRequiredDistance_m = 0.0;
             PitEntryMargin_m = 0.0;
             PitEntryCue = 0;
-
             PitEntrySpeedDelta_kph = 0.0;
             // keep PitEntryDecelProfile_mps2 / PitEntryBuffer_m as last-used (useful for debugging)
         }

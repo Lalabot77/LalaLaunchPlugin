@@ -7,7 +7,7 @@ namespace LaunchPlugin
     internal sealed class DecelCapture
     {
         // Master kill switch (runtime, no const-fold warning)
-        private static readonly bool MASTER_ENABLED = true;
+        private static readonly bool MASTER_ENABLED = false;
 
         // Tunables
         private const double SPEED_MAX_KPH = 200.0;

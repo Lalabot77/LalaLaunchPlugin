@@ -2753,7 +2753,7 @@ namespace LaunchPlugin
             AttachCore("Pit.EntryRequiredDistance_m", () => _pit.PitEntryRequiredDistance_m);
             AttachCore("Pit.EntryMargin_m", () => _pit.PitEntryMargin_m);
             AttachCore("Pit.EntryCue", () => _pit.PitEntryCue);
-
+            AttachCore("Pit.EntryCueText", () => _pit.PitEntryCueText);
             AttachCore("Pit.EntrySpeedDelta_kph", () => _pit.PitEntrySpeedDelta_kph);
             AttachCore("Pit.EntryDecelProfile_mps2", () => _pit.PitEntryDecelProfile_mps2);
             AttachCore("Pit.EntryBuffer_m", () => _pit.PitEntryBuffer_m);
