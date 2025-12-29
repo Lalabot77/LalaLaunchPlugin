@@ -1,8 +1,8 @@
 # SimHub Log Messages (CANONICAL)
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
-Last updated: 2025-12-28  
-Branch: docs/refresh-index-subsystems
+Validated against commit: 52bd57d7c618f4df094c68c4ea6f1e11cc5e328f  
+Last updated: 2026-02-06  
+Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
 
@@ -118,6 +118,11 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 
 ## File and trace housekeeping
 - **`[LaunchTrace] Deleted trace file: <path>`** — Launch trace file deletion via UI command.【F:LaunchAnalysisControl.xaml.cs†L55-L70】
+
+## Pit Entry Assist
+- **`[LalaPlugin:PitEntryAssist] ACTIVATE dToLine=... dReq=... margin=... spdΔ=... decel=... buffer=... cue=...`** — Assist armed; snapshot includes distance to line, required distance, margin, speed delta, decel profile, buffer, and cue.【F:PitEngine.cs†L340-L363】
+- **`[LalaPlugin:PitEntryAssist] LINE dToLine=... dReq=... margin=... spdΔ=... firstOK=... okBefore=... decel=... buffer=... cue=...`** — Fired once on pit lane entry. Adds `firstOK` (distance where speed first dropped to pit limit) and `okBefore` (metres compliant before the line) to the ACTIVATE fields; used to evaluate braking timing per entry.【F:PitEngine.cs†L183-L216】
+- **`[LalaPlugin:PitEntryAssist] END`** — Assist disarmed (pit entry or arming invalidated).【F:PitEngine.cs†L376-L398】
 
 ## Rejoin assist
 - **`[LalaPlugin:Rejoin Assist] MsgCx override triggered.`** — Message context override fired inside rejoin assist engine.【F:RejoinAssistEngine.cs†L601-L622】
