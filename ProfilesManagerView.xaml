@@ -85,6 +85,26 @@
                             </ui:TitledSlider.ToolTip>
                         </ui:TitledSlider>
 
+                        <ui:TitledSlider Title="Pit Entry Decel (m/s²)"
+                         Minimum="8" Maximum="22"
+                         Value="{Binding PitEntryDecelMps2, Mode=TwoWay}">
+                            <ui:TitledSlider.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="Target deceleration for pit entry braking assist (m/s²)." TextWrapping="Wrap" Width="240"/>
+                                </ToolTip>
+                            </ui:TitledSlider.ToolTip>
+                        </ui:TitledSlider>
+
+                        <ui:TitledSlider Title="Pit Entry Buffer (m)"
+                         Minimum="0" Maximum="40"
+                         Value="{Binding PitEntryBufferM, Mode=TwoWay}">
+                            <ui:TitledSlider.ToolTip>
+                                <ToolTip>
+                                    <TextBlock Text="Distance before the pit entry trigger point to start the braking assist." TextWrapping="Wrap" Width="240"/>
+                                </ToolTip>
+                            </ui:TitledSlider.ToolTip>
+                        </ui:TitledSlider>
+
                     </StackPanel>
                 </styles:SHTabItem>
 
