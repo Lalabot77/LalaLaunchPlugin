@@ -110,6 +110,10 @@ namespace LaunchPlugin
             if (car != null)
             {
                 SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] EnsureCar('{carProfileName}') -> FOUND existing profile.");
+                if (EnsurePitEntryDefaults(car, carProfileName))
+                {
+                    SaveProfiles();
+                }
                 return car;
             }
             if (car == null)
@@ -142,6 +146,8 @@ namespace LaunchPlugin
                     car.RejoinWarningMinSpeed = defaultProfile.RejoinWarningMinSpeed;
                     car.SpinYawRateThreshold = defaultProfile.SpinYawRateThreshold;
                     car.TrafficApproachWarnSeconds = defaultProfile.TrafficApproachWarnSeconds;
+                    car.PitEntryDecelMps2 = defaultProfile.PitEntryDecelMps2;
+                    car.PitEntryBufferM = defaultProfile.PitEntryBufferM;
                 }
 
                 // Ensure the newly created car profile has a default track record
@@ -156,6 +162,7 @@ namespace LaunchPlugin
                 {
                     disp.Invoke(() => CarProfiles.Add(car));
                 }
+                EnsurePitEntryDefaults(car, carProfileName);
                 SaveProfiles();
             }
             return car;
@@ -421,6 +428,8 @@ namespace LaunchPlugin
                 newProfile.SpinYawRateThreshold = defaultProfile.SpinYawRateThreshold;
                 newProfile.TrafficApproachWarnSeconds = defaultProfile.TrafficApproachWarnSeconds;
                 newProfile.RacePaceDeltaSeconds = defaultProfile.RacePaceDeltaSeconds;
+                newProfile.PitEntryDecelMps2 = defaultProfile.PitEntryDecelMps2;
+                newProfile.PitEntryBufferM = defaultProfile.PitEntryBufferM;
             }
 
             // Ensure the new profile has a unique name
@@ -491,6 +500,8 @@ namespace LaunchPlugin
             destination.TrafficApproachWarnSeconds = source.TrafficApproachWarnSeconds;
             destination.RacePaceDeltaSeconds = source.RacePaceDeltaSeconds;
             destination.RefuelRate = source.RefuelRate;
+            destination.PitEntryDecelMps2 = source.PitEntryDecelMps2;
+            destination.PitEntryBufferM = source.PitEntryBufferM;
         }
 
         private void DeleteProfile()
@@ -533,6 +544,50 @@ namespace LaunchPlugin
             }
         }
 
+        private (double decel, double buffer) GetPitEntryDefaultsForCar(string carName)
+        {
+            if (!string.IsNullOrWhiteSpace(carName))
+            {
+                var name = carName;
+                if (name.IndexOf("GTP", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    name.IndexOf("963", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    name.IndexOf("LMDh", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    name.IndexOf("Hypercar", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return (15.0, 20.0);
+                }
+
+                if (name.IndexOf("GT3", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return (14.0, 10.0);
+                }
+            }
+
+            return (13.5, 15.0);
+        }
+
+        private bool EnsurePitEntryDefaults(CarProfile profile, string carName)
+        {
+            if (profile == null) return false;
+
+            bool changed = false;
+            var defaults = GetPitEntryDefaultsForCar(carName);
+
+            if (profile.PitEntryDecelMps2 <= 0)
+            {
+                profile.PitEntryDecelMps2 = defaults.decel;
+                changed = true;
+            }
+
+            if (profile.PitEntryBufferM <= 0)
+            {
+                profile.PitEntryBufferM = defaults.buffer;
+                changed = true;
+            }
+
+            return changed;
+        }
+
         public void LoadProfiles()
         {
             try
@@ -560,6 +615,7 @@ namespace LaunchPlugin
             
             // After attempting to load, check if a "Default Settings" profile exists.
             // If not, create one from scratch. This makes the plugin self-healing.
+            bool createdDefault = false;
             if (!CarProfiles.Any(p => p.ProfileName.Equals("Default Settings", StringComparison.OrdinalIgnoreCase)))
             {
                 SimHub.Logging.Current.Info("[LalaPlugin:Profiles] Default Settings profile not found, creating baseline profile.");
@@ -586,6 +642,8 @@ namespace LaunchPlugin
                     TireChangeTime = 22,
                     RacePaceDeltaSeconds = 1.2,
                     RefuelRate = 3.7,
+                    PitEntryDecelMps2 = 13.5,
+                    PitEntryBufferM = 15.0,
 
                     // Dash Display Properties
                     RejoinWarningLingerTime = 10.0,
@@ -614,8 +672,20 @@ namespace LaunchPlugin
                 };
                 defaultProfile.TrackStats.Add(defaultTrack.Key, defaultTrack);
 
-                // Add the newly created profile to our collection and save it to disk.
+                // Add the newly created profile to our collection.
                 CarProfiles.Add(defaultProfile);
+                createdDefault = true;
+            }
+
+            // Seed any missing pit entry defaults on load for backward compatibility.
+            bool seededAny = false;
+            foreach (var profile in CarProfiles)
+            {
+                seededAny |= EnsurePitEntryDefaults(profile, profile.ProfileName);
+            }
+
+            if (seededAny || createdDefault)
+            {
                 SaveProfiles();
             }
         }
