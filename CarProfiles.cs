@@ -124,6 +124,10 @@ namespace LaunchPlugin
         public double SpinYawRateThreshold { get => _spinYawRateThreshold; set { if (_spinYawRateThreshold != value) { _spinYawRateThreshold = value; OnPropertyChanged(); } } }
         private double _trafficApproachWarnSeconds = 5.0;
         public double TrafficApproachWarnSeconds { get => _trafficApproachWarnSeconds; set { if (_trafficApproachWarnSeconds != value) { _trafficApproachWarnSeconds = value; OnPropertyChanged(); } } }
+        private double _pitEntryDecelMps2 = 13.5;
+        public double PitEntryDecelMps2 { get => _pitEntryDecelMps2; set { if (_pitEntryDecelMps2 != value) { _pitEntryDecelMps2 = value; OnPropertyChanged(); } } }
+        private double _pitEntryBufferM = 15.0;
+        public double PitEntryBufferM { get => _pitEntryBufferM; set { if (_pitEntryBufferM != value) { _pitEntryBufferM = value; OnPropertyChanged(); } } }
 
         // --- Helper methods (unchanged and preserved) ---
 

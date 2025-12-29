@@ -138,6 +138,8 @@
                     <ui:TitledSlider Title="Rejoin Assist Clear Speed (kph): " Minimum="10" Maximum="250" Value="{Binding ActiveProfile.RejoinWarningMinSpeed, Mode=TwoWay}" />
                     <ui:TitledSlider Title="Spin Yaw Rate Threshold: " Minimum="10" Maximum="100" Value="{Binding ActiveProfile.SpinYawRateThreshold, Mode=TwoWay}" />
                     <ui:TitledSlider Title="Overtake Alert activation (sec): " Minimum="1" Maximum="20" Value="{Binding ActiveProfile.TrafficApproachWarnSeconds, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Pit Entry Decel (m/s²): " Minimum="8" Maximum="22" Value="{Binding ActiveProfile.PitEntryDecelMps2, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Pit Entry Buffer (m): " Minimum="0" Maximum="40" Value="{Binding ActiveProfile.PitEntryBufferM, Mode=TwoWay}" />
                 </StackPanel>
             </Grid>
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" />
