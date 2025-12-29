@@ -485,6 +485,7 @@ namespace LaunchPlugin
 
         public double ProjectionLapTime_Stable { get; private set; }
         public string ProjectionLapTime_StableSource { get; private set; } = "fallback.none";
+        private readonly DecelCapture _decelCapture = new DecelCapture();
 
         // Combined view of fuel & pace reliability (for dash use)
         public int OverallConfidence
@@ -3770,6 +3771,41 @@ namespace LaunchPlugin
                 _pitScreenActive = newPitScreenActive;
                 SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Active -> {_pitScreenActive} (onPitRoad={isOnPitRoad}, dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled})");
             }
+
+            // --- Decel capture instrumentation (toggle = pit screen active) ---
+            {
+                bool captureOn = _pitScreenActive;
+
+                double speedKph = data.NewData?.SpeedKmh ?? 0.0;
+
+                // Throttle: your codebase treats it like 0..100, so normalise to 0..1
+                double throttleRaw = data.NewData?.Throttle ?? 0.0;
+                double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
+
+                // Brake: confirmed in SimHub property tab
+                double brakeRaw = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.Brake", 0.0);
+                double brake01 = brakeRaw > 1.5 ? (brakeRaw / 100.0) : brakeRaw;
+
+                // LongAccel: confirmed in SimHub property tab (m/s^2 in most setups)
+                double longAccel = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.LongAccel", 0.0);
+
+                // Lateral G: optional; if you have a known property for it, put it here.
+                // If not, pass 0 and the straight-line filter becomes inactive.
+                double latG = 0.0;
+
+                _decelCapture.Update(
+                    captureToggleOn: captureOn,
+                    speedKph: speedKph,
+                    brakePct01: brake01,
+                    throttlePct01: throttle01,
+                    lonAccel_mps2: Math.Abs(longAccel), // make it positive magnitude
+                    latG: latG,
+                    carNameOrClass: string.IsNullOrWhiteSpace(CurrentCarModel) ? "na" : CurrentCarModel,
+                    trackName: string.IsNullOrWhiteSpace(CurrentTrackName) ? "na" : CurrentTrackName,
+                    sessionToken: string.IsNullOrWhiteSpace(_currentSessionToken) ? "na" : _currentSessionToken
+                );
+            }
+
 
         }
         #endregion

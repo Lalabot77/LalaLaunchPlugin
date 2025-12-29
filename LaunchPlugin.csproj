@@ -97,6 +97,7 @@
     <Compile Include="CopyProfileDialog.xaml.cs">
       <DependentUpon>CopyProfileDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="DecelCapture.cs" />
     <Compile Include="EnumEqualsConverter.cs" />
     <Compile Include="FuelCalcs.cs" />
     <Compile Include="FuelProjectionMath.cs" />
