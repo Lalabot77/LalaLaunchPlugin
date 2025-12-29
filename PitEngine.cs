@@ -39,7 +39,9 @@ namespace LaunchPlugin
         private readonly Stopwatch _pitStopTimer = new Stopwatch();   // time spent in stall
         private TimeSpan _lastPitStopDuration = TimeSpan.Zero;
         private TimeSpan _lastTimeOnPitRoad = TimeSpan.Zero; // <-- NEW (latched tPit)
-
+        // --- Decel Calcs ---
+        public double ConfigPitEntryDecelMps2 { get; set; } = 13.5;
+        public double ConfigPitEntryBufferM { get; set; } = 15.0;
 
         // --- State management for the Pace Delta calculation ---
 
@@ -160,6 +162,7 @@ namespace LaunchPlugin
             // --- Store the previous phase before updating to the new one ---
             //var previousPhase = CurrentPitPhase;
             UpdatePitPhase(data, pluginManager);
+            UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM);
 
             // If we have just left the pits, start waiting for the out-lap.
             if (justExitedPits)
