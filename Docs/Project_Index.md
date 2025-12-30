@@ -13,12 +13,14 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - [FuelProperties_Spec.md](FuelProperties_Spec.md) — canonical fuel model behaviour.
 - [FuelTab_SourceFlowNotes.md](FuelTab_SourceFlowNotes.md) — canonical Fuel tab source flow.
 - [Reset_And_Session_Identity.md](Reset_And_Session_Identity.md) — canonical reset/session rules.
+- [Pit_Entry_Assist.md](Pit_Entry_Assist.md) — driver/dash/log spec for pit entry braking cues.
+- [Dash_Integration.md](Dash_Integration.md) — dash consumption and visualisation contracts (Pit Entry Assist included).
 - [BranchWorkflow.md](BranchWorkflow.md) — branching policy.
 - [ConflictResolution.md](ConflictResolution.md) — merge/conflict process.
 
 ## Doc inventory & canonicalisation
 - **Truth docs:** `SimHubParameterInventory.md`, `SimHubLogMessages.md`, `FuelProperties_Spec.md`, `FuelTab_SourceFlowNotes.md`, `Reset_And_Session_Identity.md`, `TimerZeroBehavior.md`.
-- **Subsystem notes:** `Message_Catalog_v5_Signal_Mapping_Report.md`, `FuelTab_LeaderPaceFlow.md`, `FuelTabActionPlanOptions.md`, `FuelTabAnalysis.md`, `LALA-036-extra-time-sanity.md`, `LalaLaunch_Handover_Summary-20251130.docx`.
+- **Subsystem notes:** `Message_Catalog_v5_Signal_Mapping_Report.md`, `FuelTab_LeaderPaceFlow.md`, `FuelTabActionPlanOptions.md`, `FuelTabAnalysis.md`, `LALA-036-extra-time-sanity.md`, `LalaLaunch_Handover_Summary-20251130.docx`, `Pit_Entry_Assist.md`, `Dash_Integration.md`, `Profiles_And_PB.md`.
 - **Workflow/process:** `BranchWorkflow.md`, `ConflictResolution.md`, `RepoStatus.md`.
 - **Legacy / reference-only:** `SimHub_Parameter_Inventory.xlsx`, `FuelProperties_Spec.xlsx`, `FuelProperties_Spec (version 1).xlsx`, `Message_Catalog_v5.xlsx`, `Message_Catalog_v5_MessageToSignal_Map.csv`, `Message_Catalog_v5_Signals.csv`, `CarInfo_AllCars.xlsx`, `Codex_Task_Backlog-20251215.xlsx`, `Dahl Design → Lala Launch Mapping (lala Dash).docx`, `Dahl Design → Lala Launch Message Properties Mapping.docx`, `Dash Design.pptx`, `Dual Clutch Logic.docx`, `Phase 1 and 2 Test Script-20251202.docx`, `SessionResetIssues.docx`, `SimHub_DualClutch_Paddle_Guide.docx`, `TestingData.djson`, `UI Work.pptx`. Keep for reference; they are superseded by the canonical files above unless explicitly cited.
 - **Archived:** leave everything under `/Docs/Archived` untouched.
@@ -34,8 +36,8 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 | Message system v1 | Evaluator-driven stack, outputs, and signal registry | [Subsystems/Message_System_V1.md](Subsystems/Message_System_V1.md) |
 | Profiles & PB | Profile resolution, PB updates, and identity snapshots | [Subsystems/Profiles_And_PB.md](Subsystems/Profiles_And_PB.md) |
 | Trace logging | Telemetry trace lifecycle and launch trace handling | [Subsystems/Trace_Logging.md](Subsystems/Trace_Logging.md) |
-| Pit Entry Assist | Pit entry braking cues, margin/cue maths, decel capture instrumentation | [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) |
-| Dash integration | Screen manager modes, pit screen, and dash visibility toggles | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
+| Pit Entry Assist | Pit entry braking cues, margin/cue maths, decel capture instrumentation | [Pit_Entry_Assist.md](Pit_Entry_Assist.md) (driver/dash) / [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) (engine) |
+| Dash integration | Screen manager modes, pit screen, dash visibility toggles, and Pit Entry Assist visual guidance | [Dash_Integration.md](Dash_Integration.md) / [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Canonical docs map
 | Topic | Canonical file | Notes |
