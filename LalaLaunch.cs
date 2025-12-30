@@ -131,6 +131,24 @@ namespace LaunchPlugin
             }
         }
 
+        public void AcceptTrackMarkerCandidates()
+        {
+            var key = GetCanonicalTrackKeyForMarkers();
+            if (_pit == null) return;
+
+            bool accepted = _pit.AcceptTrackMarkerCandidates(key);
+            if (!accepted)
+            {
+                SimHub.Logging.Current.Debug($"[LalaPlugin:TrackMarkers] Accept ignored (key='{key}', locked={_pit.TrackMarkersStoredLocked})");
+            }
+        }
+
+        public void SetTrackMarkersLocked(bool locked)
+        {
+            var key = GetCanonicalTrackKeyForMarkers();
+            _pit?.SetTrackMarkersLock(key, locked);
+        }
+
         public void MsgCx()
         {
             RegisterMsgCxPress();
@@ -2667,7 +2685,10 @@ namespace LaunchPlugin
             this.AddAction("PrimaryDashMode", (a, b) => PrimaryDashMode());
             this.AddAction("SecondaryDashMode", (a, b) => SecondaryDashMode());
             this.AddAction("LaunchMode", (a, b) => LaunchMode());
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, LaunchMode");
+            this.AddAction("TrackMarkersAccept", (a, b) => AcceptTrackMarkerCandidates());
+            this.AddAction("TrackMarkersLock", (a, b) => SetTrackMarkersLocked(true));
+            this.AddAction("TrackMarkersUnlock", (a, b) => SetTrackMarkersLocked(false));
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, LaunchMode, TrackMarkersAccept, TrackMarkersLock, TrackMarkersUnlock");
 
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
@@ -2964,6 +2985,15 @@ namespace LaunchPlugin
 
             // --- New direct travel time property (CORE) ---
             AttachCore("Fuel.LastPitLaneTravelTime", () => LastDirectTravelTime);
+            AttachCore("TrackMarkers.TrackKey", () => _pit?.TrackMarkersTrackKey ?? GetCanonicalTrackKeyForMarkers());
+            AttachCore("TrackMarkers.Stored.EntryPct", () => _pit?.TrackMarkersStoredEntryPct ?? double.NaN);
+            AttachCore("TrackMarkers.Stored.ExitPct", () => _pit?.TrackMarkersStoredExitPct ?? double.NaN);
+            AttachCore("TrackMarkers.Stored.TrackLengthM", () => _pit?.TrackMarkersStoredTrackLengthM ?? double.NaN);
+            AttachCore("TrackMarkers.Stored.Locked", () => _pit?.TrackMarkersStoredLocked ?? true);
+            AttachCore("TrackMarkers.Stored.LastUpdatedUtc", () => _pit?.TrackMarkersStoredLastUpdatedUtc ?? string.Empty);
+            AttachCore("TrackMarkers.Candidate.EntryPct", () => _pit?.TrackMarkersCandidateEntryPct ?? double.NaN);
+            AttachCore("TrackMarkers.Candidate.ExitPct", () => _pit?.TrackMarkersCandidateExitPct ?? double.NaN);
+            AttachCore("TrackMarkers.Candidate.TrackLengthM", () => _pit?.TrackMarkersCandidateTrackLengthM ?? double.NaN);
 
         }
 
@@ -3244,6 +3274,15 @@ namespace LaunchPlugin
             {
                 FuelCalculator.UpdateLiveDisplay(LiveCarMaxFuel);
             }
+        }
+
+        private string GetCanonicalTrackKeyForMarkers()
+        {
+            if (!string.IsNullOrWhiteSpace(CurrentTrackKey) && !CurrentTrackKey.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+                return CurrentTrackKey;
+            if (!string.IsNullOrWhiteSpace(CurrentTrackName) && !CurrentTrackName.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+                return CurrentTrackName;
+            return "unknown";
         }
 
         public void DataUpdate(PluginManager pluginManager, ref GameData data)
