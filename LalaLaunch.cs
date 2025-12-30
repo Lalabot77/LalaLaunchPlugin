@@ -485,6 +485,7 @@ namespace LaunchPlugin
 
         public double ProjectionLapTime_Stable { get; private set; }
         public string ProjectionLapTime_StableSource { get; private set; } = "fallback.none";
+        private readonly DecelCapture _decelCapture = new DecelCapture();
 
         // Combined view of fuel & pace reliability (for dash use)
         public int OverallConfidence
@@ -2745,7 +2746,19 @@ namespace LaunchPlugin
             AttachCore("Pit.LastTotalPitCycleTimeLoss", () => _pit.LastTotalPitCycleTimeLoss);
             AttachCore("Pit.LastPaceDeltaNetLoss", () => _pit.LastPaceDeltaNetLoss);
             AttachVerbose("Pit.Debug.TimeOnPitRoad", () => _pit.TimeOnPitRoad.TotalSeconds);
-            
+
+            // --- Pit Entry Assist (CORE + optional driver/debug) ---
+            AttachCore("Pit.EntryAssistActive", () => _pit.PitEntryAssistActive);
+            AttachCore("Pit.EntryDistanceToLine_m", () => _pit.PitEntryDistanceToLine_m);
+            AttachCore("Pit.EntryRequiredDistance_m", () => _pit.PitEntryRequiredDistance_m);
+            AttachCore("Pit.EntryMargin_m", () => _pit.PitEntryMargin_m);
+            AttachCore("Pit.EntryCue", () => _pit.PitEntryCue);
+            AttachCore("Pit.EntryCueText", () => _pit.PitEntryCueText);
+            AttachCore("Pit.EntrySpeedDelta_kph", () => _pit.PitEntrySpeedDelta_kph);
+            AttachCore("Pit.EntryDecelProfile_mps2", () => _pit.PitEntryDecelProfile_mps2);
+            AttachCore("Pit.EntryBuffer_m", () => _pit.PitEntryBuffer_m);
+
+
             // AttachVerbose("Pit.Debug.LastTimeOnPitRoad",  () => _pit.TimeOnPitRoad.TotalSeconds);
             AttachVerbose("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0);
 
@@ -3364,6 +3377,13 @@ namespace LaunchPlugin
             }
 
             UpdateLiveSurfaceSummary(pluginManager);
+            
+            // --- Pit Entry Assist config from profile (per-car) ---
+            if (_pit != null && ActiveProfile != null)
+            {
+                _pit.ConfigPitEntryDecelMps2 = ActiveProfile.PitEntryDecelMps2;
+                _pit.ConfigPitEntryBufferM = ActiveProfile.PitEntryBufferM;
+            }
 
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
             _pit.Update(data, pluginManager);
@@ -3770,6 +3790,41 @@ namespace LaunchPlugin
                 _pitScreenActive = newPitScreenActive;
                 SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Active -> {_pitScreenActive} (onPitRoad={isOnPitRoad}, dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled})");
             }
+
+            // --- Decel capture instrumentation (toggle = pit screen active) ---
+            {
+                bool captureOn = _pitScreenActive;
+
+                double speedKph = data.NewData?.SpeedKmh ?? 0.0;
+
+                // Throttle: your codebase treats it like 0..100, so normalise to 0..1
+                double throttleRaw = data.NewData?.Throttle ?? 0.0;
+                double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
+
+                // Brake: confirmed in SimHub property tab
+                double brakeRaw = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.Brake", 0.0);
+                double brake01 = brakeRaw > 1.5 ? (brakeRaw / 100.0) : brakeRaw;
+
+                // LongAccel: confirmed in SimHub property tab (m/s^2 in most setups)
+                double longAccel = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.LongAccel", 0.0);
+
+                // Lateral G: optional; if you have a known property for it, put it here.
+                // If not, pass 0 and the straight-line filter becomes inactive.
+                double latG = 0.0;
+
+                _decelCapture.Update(
+                    captureToggleOn: captureOn,
+                    speedKph: speedKph,
+                    brakePct01: brake01,
+                    throttlePct01: throttle01,
+                    lonAccel_mps2: Math.Abs(longAccel), // make it positive magnitude
+                    latG: latG,
+                    carNameOrClass: string.IsNullOrWhiteSpace(CurrentCarModel) ? "na" : CurrentCarModel,
+                    trackName: string.IsNullOrWhiteSpace(CurrentTrackName) ? "na" : CurrentTrackName,
+                    sessionToken: string.IsNullOrWhiteSpace(_currentSessionToken) ? "na" : _currentSessionToken
+                );
+            }
+
 
         }
         #endregion

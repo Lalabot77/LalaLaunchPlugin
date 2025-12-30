@@ -1,8 +1,8 @@
 # SimHub Log Messages (CANONICAL)
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
-Last updated: 2025-12-28  
-Branch: docs/refresh-index-subsystems
+Validated against commit: 52bd57d7c618f4df094c68c4ea6f1e11cc5e328f  
+Last updated: 2026-02-06  
+Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
 
@@ -118,6 +118,16 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 
 ## File and trace housekeeping
 - **`[LaunchTrace] Deleted trace file: <path>`** — Launch trace file deletion via UI command.【F:LaunchAnalysisControl.xaml.cs†L55-L70】
+
+## Pit Entry Assist
+- **`[LalaPlugin:PitEntryAssist] ACTIVATE dToLine=... dReq=... margin=... spdΔ=... decel=... buffer=... cue=...`** — Edge-triggered when the assist arms (EnteringPits **or** limiter ON with overspeed >2 kph). Captures the resolved distance source, constant-decel requirement, margin, speed delta, profiled decel, buffer, and cue at arming time.【F:PitEngine.cs†L240-L363】
+- **`[LalaPlugin:PitEntryAssist] LINE dToLine=... dReq=... margin=... spdΔ=... firstOK=... okBefore=... decel=... buffer=... cue=...`** — Edge-triggered on the pit-lane entry transition. Adds compliance markers: `firstOK` = distance to line where speed first dropped to pit limit during this activation; `okBefore` = metres compliant before the line (mirrors `firstOK` because compliance is recorded against distance-to-line). Used for tuning decel/buffer per track and verifying braking timing.【F:PitEngine.cs†L183-L216】
+- **`[LalaPlugin:PitEntryAssist] END`** — Edge-triggered when the assist disarms (pit entry handled, invalid inputs, distance ≥500 m, or arming removed).【F:PitEngine.cs†L376-L398】
+
+**Example pit entry lines:**
+- `[LalaPlugin:PitEntryAssist] ACTIVATE dToLine=185.3m dReq=142.7m margin=42.6m spdΔ=35.2kph decel=14.0 buffer=15.0 cue=2`
+- `[LalaPlugin:PitEntryAssist] LINE dToLine=3.2m dReq=0.0m margin=3.2m spdΔ=-2.1kph firstOK=58.4m okBefore=58.4m decel=14.0 buffer=15.0 cue=1`
+- `[LalaPlugin:PitEntryAssist] END`
 
 ## Rejoin assist
 - **`[LalaPlugin:Rejoin Assist] MsgCx override triggered.`** — Message context override fired inside rejoin assist engine.【F:RejoinAssistEngine.cs†L601-L622】
