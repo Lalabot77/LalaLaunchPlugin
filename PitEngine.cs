@@ -568,7 +568,11 @@ namespace LaunchPlugin
             if (string.Equals(key, "unknown", StringComparison.OrdinalIgnoreCase))
                 return;
             var record = GetOrCreateTrackMarkerRecord(key);
+            if (record.Locked == locked)
+                return;
             record.Locked = locked;
+            SaveTrackMarkers();
+            SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] lock trackKey={key} locked={locked}");
         }
 
         private void UpdateTrackMarkerCandidates(string trackKey, double carPct, double trackLenM, bool isInPitLane, bool justExitedPits, GameData data)
