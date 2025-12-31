@@ -133,7 +133,9 @@ namespace LaunchPlugin
             string trackKey = GetCanonicalTrackKey(pluginManager);
             _trackMarkersLastKey = trackKey;
             double carPct = NormalizeTrackPercent(data?.NewData?.TrackPositionPercent ?? double.NaN);
-            double trackLenKm = ReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength", double.NaN);
+            double trackLenKm = TrackLengthHelper.ParseTrackLengthKm(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength"),
+                double.NaN);
             double trackLenM = (!double.IsNaN(trackLenKm) ? trackLenKm * 1000.0 : double.NaN);
 
             bool justExitedPits = _wasInPitLane && !isInPitLane;
@@ -305,7 +307,9 @@ namespace LaunchPlugin
                 // Track length in km (session reported)
                 double trackLenKm = useStored
                     ? storedTrackLenM / 1000.0
-                    : ReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength", double.NaN);
+                    : TrackLengthHelper.ParseTrackLengthKm(
+                        pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength"),
+                        double.NaN);
 
                 if (double.IsNaN(carPct) || double.IsNaN(pitEntryPct) || double.IsNaN(trackLenKm) || trackLenKm <= 0)
                 {
