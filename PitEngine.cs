@@ -1,12 +1,20 @@
 ﻿using GameReaderCommon;
+using Newtonsoft.Json;
 using SimHub.Plugins;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 
 namespace LaunchPlugin
 {
     public class PitEngine
     {
+        private const int TrackMarkerWindowSize = 5;
+        private const double MinTrackLengthM = 500.0;
+        private const double MaxTrackLengthM = 20000.0;
+
         // --- Public surface (used by MSG.PitPhaseDebug) ---
         public PitPhase CurrentPitPhase { get; private set; } = PitPhase.None;
         public bool IsOnPitRoad { get; private set; } = false;
@@ -67,12 +75,17 @@ namespace LaunchPlugin
 
         private bool _wasInPitLane = false;
         private bool _wasInPitStall = false;
+        private string _trackMarkersLastKey = "unknown";
+        private readonly Dictionary<string, TrackMarkerRecord> _trackMarkerStore = new Dictionary<string, TrackMarkerRecord>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, TrackMarkerCandidateState> _trackMarkerCandidates = new Dictionary<string, TrackMarkerCandidateState>(StringComparer.OrdinalIgnoreCase);
+        private bool _trackMarkersLoaded = false;
 
         private readonly Func<double> _getLingerTime;
         public PitEngine() : this(null) { }
         public PitEngine(Func<double> getLingerTime)
         {
             _getLingerTime = getLingerTime;
+            EnsureTrackMarkerStoreLoaded();
         }
 
         public void Reset()
@@ -94,6 +107,7 @@ namespace LaunchPlugin
             _paceDeltaState = PaceDeltaState.Idle;
             _avgPaceAtPit = 0.0;
             _lastTimeOnPitRoad = TimeSpan.Zero;
+            _trackMarkersLastKey = "unknown";
         }
 
         public string PitEntryCueText
@@ -116,6 +130,13 @@ namespace LaunchPlugin
             bool isInPitLane = data.NewData.IsInPitLane != 0;
             bool isInPitStall = Convert.ToBoolean(
                 pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerCarInPitStall") ?? false);
+            string trackKey = GetCanonicalTrackKey(pluginManager);
+            _trackMarkersLastKey = trackKey;
+            double carPct = NormalizeTrackPercent(data?.NewData?.TrackPositionPercent ?? double.NaN);
+            double trackLenKm = TrackLengthHelper.ParseTrackLengthKm(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength"),
+                double.NaN);
+            double trackLenM = (!double.IsNaN(trackLenKm) ? trackLenKm * 1000.0 : double.NaN);
 
             bool justExitedPits = _wasInPitLane && !isInPitLane;
             if (justExitedPits)
@@ -160,6 +181,7 @@ namespace LaunchPlugin
                 var lapsCompleted = data?.NewData?.CompletedLaps ?? 0;
                 if (lapsCompleted < 1)
                 {
+                    UpdateTrackMarkerCandidates(trackKey, carPct, trackLenM, isInPitLane, justExitedPits, data);
                     _paceDeltaState = PaceDeltaState.Idle;
                     return;
                 }
@@ -193,6 +215,7 @@ namespace LaunchPlugin
             UpdatePitPhase(data, pluginManager);
            
             UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM);
+            UpdateTrackMarkerCandidates(trackKey, carPct, trackLenM, isInPitLane, justExitedPits, data);
 
             // If we have just left the pits, start waiting for the out-lap.
             if (justExitedPits)
@@ -266,14 +289,27 @@ namespace LaunchPlugin
 
             if (!dOk)
             {
-                // Fallback: percent + track length
-                double carPct = data?.NewData?.TrackPositionPercent ?? double.NaN;
+                // Fallback: stored markers -> percent + track length
+                double carPct = NormalizeTrackPercent(data?.NewData?.TrackPositionPercent ?? double.NaN);
 
-                // Pit entry line % (use iRacing extra)
-                double pitEntryPct = ReadDouble(pluginManager, "IRacingExtraProperties.iRacing_PitEntryTrkPct", double.NaN);
+                // Pit entry line % (prefer stored markers)
+                var stored = GetStoredTrackMarkers(_trackMarkersLastKey);
+                double storedEntryPct = stored?.PitEntryTrkPct ?? double.NaN;
+                double storedTrackLenM = stored?.TrackLengthM ?? double.NaN;
+                bool useStored = !double.IsNaN(storedEntryPct) && storedEntryPct >= 0.0 && storedEntryPct <= 1.0 &&
+                                 !double.IsNaN(storedTrackLenM) && storedTrackLenM >= MinTrackLengthM && storedTrackLenM <= MaxTrackLengthM &&
+                                 !string.Equals(_trackMarkersLastKey, "unknown", StringComparison.OrdinalIgnoreCase);
 
-                // Track length in km (you confirmed)
-                double trackLenKm = ReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength", double.NaN);
+                double pitEntryPct = useStored
+                    ? storedEntryPct
+                    : ReadDouble(pluginManager, "IRacingExtraProperties.iRacing_PitEntryTrkPct", double.NaN);
+
+                // Track length in km (session reported)
+                double trackLenKm = useStored
+                    ? storedTrackLenM / 1000.0
+                    : TrackLengthHelper.ParseTrackLengthKm(
+                        pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength"),
+                        double.NaN);
 
                 if (double.IsNaN(carPct) || double.IsNaN(pitEntryPct) || double.IsNaN(trackLenKm) || trackLenKm <= 0)
                 {
@@ -464,6 +500,326 @@ namespace LaunchPlugin
             _paceDeltaState = PaceDeltaState.Idle;
             _avgPaceAtPit = 0.0;
             _pitLapSeconds = 0.0;
+        }
+
+        // === Track Markers (auto-learn + store) ===
+        public double TrackMarkersStoredEntryPct => GetStoredTrackMarkers(_trackMarkersLastKey)?.PitEntryTrkPct ?? double.NaN;
+        public double TrackMarkersStoredExitPct => GetStoredTrackMarkers(_trackMarkersLastKey)?.PitExitTrkPct ?? double.NaN;
+        public double TrackMarkersStoredTrackLengthM => GetStoredTrackMarkers(_trackMarkersLastKey)?.TrackLengthM ?? double.NaN;
+        public bool TrackMarkersStoredLocked => GetStoredTrackMarkers(_trackMarkersLastKey)?.Locked ?? true;
+        public string TrackMarkersTrackKey => _trackMarkersLastKey ?? "unknown";
+        public string TrackMarkersStoredLastUpdatedUtc
+        {
+            get
+            {
+                var dt = GetStoredTrackMarkers(_trackMarkersLastKey)?.LastUpdatedUtc ?? DateTime.MinValue;
+                return dt == DateTime.MinValue ? string.Empty : dt.ToString("o");
+            }
+        }
+
+        public double TrackMarkersCandidateEntryPct => GetCandidateState(_trackMarkersLastKey)?.MedianEntryPct ?? double.NaN;
+        public double TrackMarkersCandidateExitPct => GetCandidateState(_trackMarkersLastKey)?.MedianExitPct ?? double.NaN;
+        public double TrackMarkersCandidateTrackLengthM => GetCandidateState(_trackMarkersLastKey)?.MedianTrackLenM ?? double.NaN;
+
+        public bool AcceptTrackMarkerCandidates(string trackKey)
+        {
+            EnsureTrackMarkerStoreLoaded();
+            string key = NormalizeTrackKey(trackKey);
+            if (string.Equals(key, "unknown", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var record = GetOrCreateTrackMarkerRecord(key);
+            if (record.Locked)
+                return false;
+
+            var cand = GetCandidateState(key);
+            if (cand == null)
+                return false;
+
+            bool any = false;
+            if (!double.IsNaN(cand.MedianEntryPct))
+            {
+                record.PitEntryTrkPct = cand.MedianEntryPct;
+                any = true;
+            }
+            if (!double.IsNaN(cand.MedianExitPct))
+            {
+                record.PitExitTrkPct = cand.MedianExitPct;
+                any = true;
+            }
+            if (!double.IsNaN(cand.MedianTrackLenM))
+            {
+                record.TrackLengthM = cand.MedianTrackLenM;
+                any = true;
+            }
+
+            if (!any)
+                return false;
+
+            record.LastUpdatedUtc = DateTime.UtcNow;
+
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:TrackMarkers] accept track='{key}' entry={record.PitEntryTrkPct:F4} exit={record.PitExitTrkPct:F4} len={record.TrackLengthM:F1}m");
+
+            SaveTrackMarkers();
+            return true;
+        }
+
+        public void SetTrackMarkersLock(string trackKey, bool locked)
+        {
+            EnsureTrackMarkerStoreLoaded();
+            string key = NormalizeTrackKey(trackKey);
+            if (string.Equals(key, "unknown", StringComparison.OrdinalIgnoreCase))
+                return;
+            var record = GetOrCreateTrackMarkerRecord(key);
+            if (record.Locked == locked)
+                return;
+            record.Locked = locked;
+            SaveTrackMarkers();
+            SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] lock trackKey={key} locked={locked}");
+        }
+
+        private void UpdateTrackMarkerCandidates(string trackKey, double carPct, double trackLenM, bool isInPitLane, bool justExitedPits, GameData data)
+        {
+            EnsureTrackMarkerStoreLoaded();
+
+            string key = NormalizeTrackKey(trackKey);
+            if (string.Equals(key, "unknown", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var cand = GetCandidateState(key, create: true);
+            bool entryEdge = isInPitLane && !_wasInPitLane;
+            bool exitEdge = justExitedPits;
+
+            double speed = data?.NewData?.SpeedKmh ?? double.NaN;
+            bool speedOk = double.IsNaN(speed) || speed >= 0.1;
+
+            if (!double.IsNaN(carPct) && carPct >= 0.0 && carPct <= 1.0 && speedOk)
+            {
+                if (entryEdge)
+                    AddSample(cand.EntryPcts, carPct, TrackMarkerWindowSize);
+                if (exitEdge)
+                    AddSample(cand.ExitPcts, carPct, TrackMarkerWindowSize);
+            }
+
+            if (!double.IsNaN(trackLenM) && trackLenM >= MinTrackLengthM && trackLenM <= MaxTrackLengthM)
+            {
+                AddSample(cand.TrackLens, trackLenM, TrackMarkerWindowSize);
+            }
+
+            double prevEntry = cand.MedianEntryPct;
+            double prevExit = cand.MedianExitPct;
+            double prevLen = cand.MedianTrackLenM;
+
+            cand.MedianEntryPct = MedianOrNaN(cand.EntryPcts);
+            cand.MedianExitPct = MedianOrNaN(cand.ExitPcts);
+            cand.MedianTrackLenM = MedianOrNaN(cand.TrackLens);
+
+            bool changed = !AreClose(prevEntry, cand.MedianEntryPct) ||
+                           !AreClose(prevExit, cand.MedianExitPct) ||
+                           !AreClose(prevLen, cand.MedianTrackLenM);
+
+            if (changed)
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:TrackMarkers] cand track='{key}' entry={FormatOrNa(cand.MedianEntryPct, "F4")} exit={FormatOrNa(cand.MedianExitPct, "F4")} len={FormatOrNa(cand.MedianTrackLenM, "F1")}m");
+            }
+        }
+
+        private TrackMarkerCandidateState GetCandidateState(string trackKey, bool create = false)
+        {
+            string key = NormalizeTrackKey(trackKey);
+            if (string.IsNullOrWhiteSpace(key)) return null;
+            if (_trackMarkerCandidates.TryGetValue(key, out var c))
+                return c;
+            if (!create) return null;
+
+            c = new TrackMarkerCandidateState();
+            _trackMarkerCandidates[key] = c;
+            return c;
+        }
+
+        private TrackMarkerRecord GetStoredTrackMarkers(string trackKey)
+        {
+            string key = NormalizeTrackKey(trackKey);
+            if (string.IsNullOrWhiteSpace(key))
+                return null;
+            _trackMarkerStore.TryGetValue(key, out var rec);
+            return rec;
+        }
+
+        private TrackMarkerRecord GetOrCreateTrackMarkerRecord(string trackKey)
+        {
+            string key = NormalizeTrackKey(trackKey);
+            if (!_trackMarkerStore.TryGetValue(key, out var rec))
+            {
+                rec = new TrackMarkerRecord { Locked = true };
+                _trackMarkerStore[key] = rec;
+            }
+
+            return rec;
+        }
+
+        private string GetCanonicalTrackKey(PluginManager pluginManager)
+        {
+            try
+            {
+                string rawKey = Convert.ToString(pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackCode") ?? string.Empty);
+                string rawName = Convert.ToString(
+                    pluginManager.GetPropertyValue("IRacingExtraProperties.iRacing_TrackDisplayName") ??
+                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackNameWithConfig") ??
+                    pluginManager.GetPropertyValue("DataCorePlugin.GameData.TrackName") ??
+                    string.Empty);
+
+                rawKey = NormalizeTrackKey(rawKey);
+                rawName = NormalizeTrackKey(rawName);
+
+                if (!string.IsNullOrWhiteSpace(rawKey))
+                    return rawKey;
+                if (!string.IsNullOrWhiteSpace(rawName))
+                    return rawName;
+
+                return "unknown";
+            }
+            catch
+            {
+                return "unknown";
+            }
+        }
+
+        private string NormalizeTrackKey(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return "unknown";
+            var trimmed = key.Trim();
+            if (trimmed.Equals("unknown", StringComparison.OrdinalIgnoreCase))
+                return "unknown";
+            return trimmed;
+        }
+
+        private double NormalizeTrackPercent(double pct)
+        {
+            if (double.IsNaN(pct)) return double.NaN;
+            if (pct > 1.0001 && pct <= 100.0) pct /= 100.0;
+            if (pct < 0.0 || pct > 1.0) return double.NaN;
+            return pct;
+        }
+
+        private void AddSample(List<double> list, double value, int max)
+        {
+            if (double.IsNaN(value)) return;
+            list.Add(value);
+            if (list.Count > max)
+                list.RemoveAt(0);
+        }
+
+        private double MedianOrNaN(List<double> list)
+        {
+            if (list == null || list.Count == 0) return double.NaN;
+            var ordered = list.OrderBy(x => x).ToList();
+            int mid = ordered.Count / 2;
+            if (ordered.Count % 2 == 1) return ordered[mid];
+            return (ordered[mid - 1] + ordered[mid]) / 2.0;
+        }
+
+        private bool AreClose(double a, double b)
+        {
+            if (double.IsNaN(a) && double.IsNaN(b)) return true;
+            if (double.IsNaN(a) || double.IsNaN(b)) return false;
+            return Math.Abs(a - b) <= 1e-6;
+        }
+
+        private string FormatOrNa(double v, string fmt)
+        {
+            return double.IsNaN(v) ? "n/a" : v.ToString(fmt);
+        }
+
+        private string GetTrackMarkersFolderPath()
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory?.TrimEnd('\\', '/');
+            return Path.Combine(baseDir ?? "", "PluginsData", "Common", "LalaLaunch");
+        }
+
+        private string GetTrackMarkersFilePath()
+        {
+            return Path.Combine(GetTrackMarkersFolderPath(), "LalaLaunch.TrackMarkers.json");
+        }
+
+        private void EnsureTrackMarkerStoreLoaded()
+        {
+            if (_trackMarkersLoaded) return;
+
+            var path = GetTrackMarkersFilePath();
+            var folder = GetTrackMarkersFolderPath();
+
+            try
+            {
+                if (!Directory.Exists(folder))
+                    Directory.CreateDirectory(folder);
+
+                if (!File.Exists(path))
+                {
+                    _trackMarkersLoaded = true;
+                    SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] load (new) path='{path}'");
+                    return;
+                }
+
+                var json = File.ReadAllText(path);
+                var loaded = JsonConvert.DeserializeObject<Dictionary<string, TrackMarkerRecord>>(json)
+                             ?? new Dictionary<string, TrackMarkerRecord>(StringComparer.OrdinalIgnoreCase);
+                _trackMarkerStore.Clear();
+                foreach (var kvp in loaded)
+                {
+                    if (string.IsNullOrWhiteSpace(kvp.Key)) continue;
+                    _trackMarkerStore[kvp.Key] = kvp.Value ?? new TrackMarkerRecord { Locked = true };
+                }
+
+                SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] load ok ({_trackMarkerStore.Count} track(s)) path='{path}'");
+                _trackMarkersLoaded = true;
+            }
+            catch (Exception ex)
+            {
+                _trackMarkerStore.Clear();
+                _trackMarkersLoaded = true;
+                SimHub.Logging.Current.Warn($"[LalaPlugin:TrackMarkers] load fail path='{path}' err='{ex.Message}'");
+            }
+        }
+
+        private void SaveTrackMarkers()
+        {
+            var path = GetTrackMarkersFilePath();
+            var folder = GetTrackMarkersFolderPath();
+            try
+            {
+                if (!Directory.Exists(folder))
+                    Directory.CreateDirectory(folder);
+
+                var json = JsonConvert.SerializeObject(_trackMarkerStore, Formatting.Indented);
+                File.WriteAllText(path, json);
+                SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] save ok path='{path}'");
+            }
+            catch (Exception ex)
+            {
+                SimHub.Logging.Current.Warn($"[LalaPlugin:TrackMarkers] save fail path='{path}' err='{ex.Message}'");
+            }
+        }
+
+        private class TrackMarkerRecord
+        {
+            public double PitEntryTrkPct { get; set; } = double.NaN;
+            public double PitExitTrkPct { get; set; } = double.NaN;
+            public double TrackLengthM { get; set; } = double.NaN;
+            public DateTime LastUpdatedUtc { get; set; } = DateTime.MinValue;
+            public bool Locked { get; set; } = true;
+        }
+
+        private class TrackMarkerCandidateState
+        {
+            public List<double> EntryPcts { get; } = new List<double>();
+            public List<double> ExitPcts { get; } = new List<double>();
+            public List<double> TrackLens { get; } = new List<double>();
+            public double MedianEntryPct { get; set; } = double.NaN;
+            public double MedianExitPct { get; set; } = double.NaN;
+            public double MedianTrackLenM { get; set; } = double.NaN;
         }
 
         // Call this when a new session starts, car changes, or the sim connects.

@@ -304,18 +304,10 @@ namespace LaunchPlugin
 
             double mePct = Convert.ToDouble(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.LapDistPct") ?? 0.0);
 
-            string trackLenStr = (pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength") as string) ?? "";
-            double trackLenM = 0.0;
-            if (!string.IsNullOrWhiteSpace(trackLenStr))
-            {
-                var s = trackLenStr.Trim().ToLowerInvariant().Replace(",", ".");
-                if (s.EndsWith("km") && double.TryParse(s.Replace("km", "").Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var km))
-                    trackLenM = km * 1000.0;
-                else if (s.EndsWith("mi") && double.TryParse(s.Replace("mi", "").Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var mi))
-                    trackLenM = mi * 1609.344;
-                else
-                    double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out trackLenM);
-            }
+            double trackLenKm = TrackLengthHelper.ParseTrackLengthKm(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLength"),
+                double.NaN);
+            double trackLenM = double.IsNaN(trackLenKm) ? 0.0 : trackLenKm * 1000.0;
             if (trackLenM <= 0) trackLenM = 5000.0; // safe default
 
             // --- scan all slots (no car-number mapping, no Cars[ ]) ---
