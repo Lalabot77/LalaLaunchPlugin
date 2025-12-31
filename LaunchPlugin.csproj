@@ -145,6 +145,7 @@
     <Compile Include="RacePresetStore.cs" />
     <Compile Include="RejoinAssistEngine.cs" />
     <Compile Include="TelemetryLogger.cs" />
+    <Compile Include="TrackLengthHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <Page Include="CopyProfileDialog.xaml">
