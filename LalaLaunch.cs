@@ -131,22 +131,16 @@ namespace LaunchPlugin
             }
         }
 
-        public void AcceptTrackMarkerCandidates()
-        {
-            var key = GetCanonicalTrackKeyForMarkers();
-            if (_pit == null) return;
-
-            bool accepted = _pit.AcceptTrackMarkerCandidates(key);
-            if (!accepted)
-            {
-                SimHub.Logging.Current.Debug($"[LalaPlugin:TrackMarkers] Accept ignored (key='{key}', locked={_pit.TrackMarkersStoredLocked})");
-            }
-        }
-
         public void SetTrackMarkersLocked(bool locked)
         {
             var key = GetCanonicalTrackKeyForMarkers();
             _pit?.SetTrackMarkersLock(key, locked);
+        }
+
+        private bool IsTrackMarkerPulseActive(DateTime utcTimestamp)
+        {
+            return utcTimestamp != DateTime.MinValue &&
+                   (DateTime.UtcNow - utcTimestamp).TotalSeconds < TrackMarkerPulseHoldSeconds;
         }
 
         public void MsgCx()
@@ -2580,6 +2574,12 @@ namespace LaunchPlugin
         private double _lastAnnouncedMaxFuel = -1;
         private const double LiveMaxFuelJitterThreshold = 0.1;
 
+        // --- Track marker trigger pulses (for messaging module) ---
+        private DateTime _trackMarkerFirstCapturePulseUtc = DateTime.MinValue;
+        private DateTime _trackMarkerTrackLengthChangedPulseUtc = DateTime.MinValue;
+        private DateTime _trackMarkerLinesRefreshedPulseUtc = DateTime.MinValue;
+        private const double TrackMarkerPulseHoldSeconds = 1.0;
+
         // ==== Refuel learning state (hardened) ====
         private bool _isRefuelling = false;
         private double _refuelStartFuel = 0.0;
@@ -2685,10 +2685,9 @@ namespace LaunchPlugin
             this.AddAction("PrimaryDashMode", (a, b) => PrimaryDashMode());
             this.AddAction("SecondaryDashMode", (a, b) => SecondaryDashMode());
             this.AddAction("LaunchMode", (a, b) => LaunchMode());
-            this.AddAction("TrackMarkersAccept", (a, b) => AcceptTrackMarkerCandidates());
             this.AddAction("TrackMarkersLock", (a, b) => SetTrackMarkersLocked(true));
             this.AddAction("TrackMarkersUnlock", (a, b) => SetTrackMarkersLocked(false));
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, LaunchMode, TrackMarkersAccept, TrackMarkersLock, TrackMarkersUnlock");
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, LaunchMode, TrackMarkersLock, TrackMarkersUnlock");
 
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
@@ -2988,12 +2987,18 @@ namespace LaunchPlugin
             AttachCore("TrackMarkers.TrackKey", () => _pit?.TrackMarkersTrackKey ?? GetCanonicalTrackKeyForMarkers());
             AttachCore("TrackMarkers.Stored.EntryPct", () => _pit?.TrackMarkersStoredEntryPct ?? double.NaN);
             AttachCore("TrackMarkers.Stored.ExitPct", () => _pit?.TrackMarkersStoredExitPct ?? double.NaN);
-            AttachCore("TrackMarkers.Stored.TrackLengthM", () => _pit?.TrackMarkersStoredTrackLengthM ?? double.NaN);
             AttachCore("TrackMarkers.Stored.Locked", () => _pit?.TrackMarkersStoredLocked ?? true);
             AttachCore("TrackMarkers.Stored.LastUpdatedUtc", () => _pit?.TrackMarkersStoredLastUpdatedUtc ?? string.Empty);
-            AttachCore("TrackMarkers.Candidate.EntryPct", () => _pit?.TrackMarkersCandidateEntryPct ?? double.NaN);
-            AttachCore("TrackMarkers.Candidate.ExitPct", () => _pit?.TrackMarkersCandidateExitPct ?? double.NaN);
-            AttachCore("TrackMarkers.Candidate.TrackLengthM", () => _pit?.TrackMarkersCandidateTrackLengthM ?? double.NaN);
+            AttachCore("TrackMarkers.Session.TrackLengthM", () => _pit?.TrackMarkersSessionTrackLengthM ?? double.NaN);
+            AttachCore("TrackMarkers.Session.TrackLengthChanged", () => _pit?.TrackMarkersSessionTrackLengthChanged ?? false);
+            AttachCore("TrackMarkers.Session.NeedsEntryRefresh", () => _pit?.TrackMarkersSessionNeedsEntryRefresh ?? false);
+            AttachCore("TrackMarkers.Session.NeedsExitRefresh", () => _pit?.TrackMarkersSessionNeedsExitRefresh ?? false);
+            AttachCore("TrackMarkers.Trigger.FirstCapture", () => IsTrackMarkerPulseActive(_trackMarkerFirstCapturePulseUtc));
+            AttachCore("TrackMarkers.Trigger.TrackLengthChanged", () => IsTrackMarkerPulseActive(_trackMarkerTrackLengthChangedPulseUtc));
+            AttachCore("TrackMarkers.Trigger.LinesRefreshed", () => IsTrackMarkerPulseActive(_trackMarkerLinesRefreshedPulseUtc));
+            AttachCore("MSG.Trigger.trackmarkers.first_capture", () => IsTrackMarkerPulseActive(_trackMarkerFirstCapturePulseUtc));
+            AttachCore("MSG.Trigger.trackmarkers.track_length_changed", () => IsTrackMarkerPulseActive(_trackMarkerTrackLengthChangedPulseUtc));
+            AttachCore("MSG.Trigger.trackmarkers.lines_refreshed", () => IsTrackMarkerPulseActive(_trackMarkerLinesRefreshedPulseUtc));
 
         }
 
@@ -3053,6 +3058,30 @@ namespace LaunchPlugin
             _lastPitLossSource = src;
 
             SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] Saved PitLaneLoss = {rounded:0.00}s ({src}).");
+        }
+
+        private void ProcessTrackMarkerTriggers()
+        {
+            if (_pit == null) return;
+
+            while (_pit.TryDequeueTrackMarkerTrigger(out var trig))
+            {
+                switch (trig.Trigger)
+                {
+                    case PitEngine.TrackMarkerTriggerType.FirstCapture:
+                        _trackMarkerFirstCapturePulseUtc = DateTime.UtcNow;
+                        _msgSystem?.PublishTimedMessage("PIT LINES CAPTURED", TimeSpan.FromSeconds(6));
+                        break;
+                    case PitEngine.TrackMarkerTriggerType.TrackLengthChanged:
+                        _trackMarkerTrackLengthChangedPulseUtc = DateTime.UtcNow;
+                        _msgSystem?.PublishTimedMessage("TRACK LENGTH CHANGED – PIT LINES WILL REFRESH", TimeSpan.FromSeconds(6));
+                        break;
+                    case PitEngine.TrackMarkerTriggerType.LinesRefreshed:
+                        _trackMarkerLinesRefreshedPulseUtc = DateTime.UtcNow;
+                        _msgSystem?.PublishTimedMessage("PIT LINES REFRESHED", TimeSpan.FromSeconds(6));
+                        break;
+                }
+            }
         }
 
         public bool SavePendingPitLaneLossIfAny(out string source, out double seconds)
@@ -3426,6 +3455,7 @@ namespace LaunchPlugin
 
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
             _pit.Update(data, pluginManager);
+            ProcessTrackMarkerTriggers();
             // --- PitLite tick: after PitEngine update and baseline selection ---
             bool inLane = _pit?.IsOnPitRoad ?? (data.NewData.IsInPitLane != 0);
             int completedLaps = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
