@@ -201,6 +201,9 @@ namespace LaunchPlugin
                 {
                     UpdateTrackMarkers(trackKey, carPct, trackLenM, isInPitLane, justExitedPits, isInPitStall, speedKph);
                     _paceDeltaState = PaceDeltaState.Idle;
+                    IsOnPitRoad = isInPitLane;
+                    _wasInPitLane = isInPitLane;
+                    _wasInPitStall = isInPitStall;
                     return;
                 }
             }
