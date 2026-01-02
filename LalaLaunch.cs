@@ -3769,6 +3769,23 @@ namespace LaunchPlugin
             string currentSession = Convert.ToString(
             pluginManager.GetPropertyValue("DataCorePlugin.GameData.SessionTypeName") ?? "");
 
+            // Session summary: handle startup already-in-race case.
+            // The session-change block below won't fire on first tick because _lastFuelSessionType is empty.
+            if (string.IsNullOrEmpty(_lastFuelSessionType) &&
+                string.Equals(currentSession, "Race", StringComparison.OrdinalIgnoreCase))
+            {
+                SessionSummaryRuntime.OnRaceSessionStart(
+                    _currentSessionToken,
+                    currentSession,
+                    CurrentCarModel,
+                    CurrentTrackKey,
+                    FuelCalculator?.SelectedPreset?.Name ?? string.Empty,
+                    FuelCalculator,
+                    Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false),
+                    data.NewData?.Fuel ?? 0.0);
+            }
+
+
             // Fuel model session-change handling (independent of auto-dash setting)
             if (!string.IsNullOrEmpty(_lastFuelSessionType) && currentSession != _lastFuelSessionType)
             {

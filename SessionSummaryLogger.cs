@@ -22,16 +22,17 @@ namespace LaunchPlugin
         public string ResolveSummaryDirectory(string configuredPath)
         {
             return string.IsNullOrWhiteSpace(configuredPath)
-                ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LaunchData", "SessionSummary")
+                ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalaPluginData", "LalaSessionSummaries")
                 : configuredPath.Trim();
         }
 
         public string ResolveTraceDirectory(string configuredPath)
         {
             return string.IsNullOrWhiteSpace(configuredPath)
-                ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LaunchData", "SessionSummary", "Traces")
+                ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalaPluginData", "LalaSessionSummaries", "Traces")
                 : configuredPath.Trim();
         }
+
 
         public string BuildSummaryFilename(string directory)
         {
@@ -48,6 +49,8 @@ namespace LaunchPlugin
 
         public void AppendSummaryRow(SessionSummaryModel summary, string configuredPath)
         {
+            SimHub.Logging.Current.Info($"[LalaPlugin:SessionSummary] AppendSummaryRow called green={summary?.GreenSeen} checkered={summary?.CheckeredSeen}");
+
             if (summary == null || !summary.GreenSeen || !summary.CheckeredSeen)
             {
                 return;
