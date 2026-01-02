@@ -2665,7 +2665,8 @@ namespace LaunchPlugin
                     SimHub.Logging.Current.Info("[LalaPlugin:Profiles] Applied profile to live and refreshed Fuel.");
                 },
                 () => this.CurrentCarModel,
-                () => this.CurrentTrackKey
+                () => this.CurrentTrackKey,
+                (locked) => SetTrackMarkersLocked(locked)
             );
 
 
@@ -3746,6 +3747,8 @@ namespace LaunchPlugin
                 // =======================================================================
                 // ======================= MODIFIED BLOCK END ============================
                 // =======================================================================
+
+                ProfilesViewModel?.RefreshTrackMarkersSnapshot(pluginManager);
             }
 
             UpdateLiveProperties(pluginManager, ref data);

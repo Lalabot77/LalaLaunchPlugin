@@ -4,6 +4,7 @@ using SimHub.Plugins; // Required for this.GetPluginManager()
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -25,7 +26,9 @@ namespace LaunchPlugin
         private readonly Action<CarProfile> _applyProfileToLiveAction;
         private readonly Func<string> _getCurrentCarModel;
         private readonly Func<string> _getCurrentTrackName;
+        private readonly Action<bool> _setTrackMarkersLockAction;
         private readonly string _profilesFilePath;
+        private bool _suppressTrackMarkersLockAction;
         // --- PB constants ---
         private const int PB_MIN_MS = 30000;     // >= 30s
         private const int PB_MAX_MS = 1200000;   // <= 20min
@@ -360,6 +363,66 @@ namespace LaunchPlugin
         public bool IsProfileSelected => SelectedProfile != null;
         public bool IsTrackSelected => SelectedTrack != null;
 
+        private string _storedPitEntryPctText = "n/a";
+        public string StoredPitEntryPctText
+        {
+            get => _storedPitEntryPctText;
+            private set
+            {
+                if (_storedPitEntryPctText != value)
+                {
+                    _storedPitEntryPctText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _storedPitExitPctText = "n/a";
+        public string StoredPitExitPctText
+        {
+            get => _storedPitExitPctText;
+            private set
+            {
+                if (_storedPitExitPctText != value)
+                {
+                    _storedPitExitPctText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _trackMarkersLastUpdatedText = "n/a";
+        public string TrackMarkersLastUpdatedText
+        {
+            get => _trackMarkersLastUpdatedText;
+            private set
+            {
+                if (_trackMarkersLastUpdatedText != value)
+                {
+                    _trackMarkersLastUpdatedText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _trackMarkersLocked;
+        public bool TrackMarkersLocked
+        {
+            get => _trackMarkersLocked;
+            set
+            {
+                if (_trackMarkersLocked != value)
+                {
+                    _trackMarkersLocked = value;
+                    OnPropertyChanged();
+                    if (!_suppressTrackMarkersLockAction && _setTrackMarkersLockAction != null)
+                    {
+                        _setTrackMarkersLockAction(value);
+                    }
+                }
+            }
+        }
+
         // --- Commands for UI Buttons ---
         public RelayCommand NewProfileCommand { get; }
         public RelayCommand CopySettingsCommand { get; }
@@ -369,12 +432,13 @@ namespace LaunchPlugin
         public RelayCommand DeleteTrackCommand { get; }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Action<bool> setTrackMarkersLockAction)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
             _getCurrentCarModel = getCurrentCarModel;
             _getCurrentTrackName = getCurrentTrackName;
+            _setTrackMarkersLockAction = setTrackMarkersLockAction;
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
@@ -702,6 +766,131 @@ namespace LaunchPlugin
             catch (Exception ex)
             {
                 SimHub.Logging.Current.Error($"[LalaPlugin:Profiles] Save failed: {ex.Message}");
+            }
+        }
+
+        private static string FormatPercentText(object raw)
+        {
+            try
+            {
+                double value;
+                if (raw is double d) value = d;
+                else if (raw is float f) value = f;
+                else if (raw is decimal m) value = (double)m;
+                else if (raw is int || raw is long || raw is short || raw is byte || raw is sbyte || raw is uint || raw is ulong || raw is ushort)
+                    value = Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+                else if (raw is string s)
+                {
+                    if (!double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out value) &&
+                        !double.TryParse(s, out value))
+                    {
+                        return "n/a";
+                    }
+                }
+                else
+                {
+                    return "n/a";
+                }
+
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                {
+                    return "n/a";
+                }
+
+                return value.ToString("0.0000", CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return "n/a";
+            }
+        }
+
+        private static string FormatTimestampText(object raw)
+        {
+            try
+            {
+                DateTime timestamp;
+                if (raw is DateTime dt)
+                {
+                    timestamp = dt;
+                }
+                else if (raw is string s)
+                {
+                    if (!DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out timestamp) &&
+                        !DateTime.TryParse(s, CultureInfo.CurrentCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out timestamp))
+                    {
+                        return "n/a";
+                    }
+                }
+                else
+                {
+                    timestamp = Convert.ToDateTime(raw, CultureInfo.InvariantCulture);
+                }
+
+                if (timestamp == DateTime.MinValue)
+                {
+                    return "n/a";
+                }
+
+                return timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return "n/a";
+            }
+        }
+
+        private static bool SafeToBoolean(object raw)
+        {
+            try
+            {
+                if (raw is bool b) return b;
+                if (raw is string s)
+                {
+                    if (bool.TryParse(s, out var parsed)) return parsed;
+                    if (string.Equals(s, "1", StringComparison.OrdinalIgnoreCase)) return true;
+                    if (string.Equals(s, "0", StringComparison.OrdinalIgnoreCase)) return false;
+                }
+
+                return Convert.ToBoolean(raw, CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void RefreshTrackMarkersSnapshot(PluginManager pluginManager)
+        {
+            try
+            {
+                var entry = pluginManager?.GetPropertyValue("LalaLaunch.TrackMarkers.Stored.EntryPct");
+                var exitPct = pluginManager?.GetPropertyValue("LalaLaunch.TrackMarkers.Stored.ExitPct");
+                var updatedUtc = pluginManager?.GetPropertyValue("LalaLaunch.TrackMarkers.Stored.LastUpdatedUtc");
+                var locked = pluginManager?.GetPropertyValue("LalaLaunch.TrackMarkers.Stored.Locked");
+
+                void Apply()
+                {
+                    _suppressTrackMarkersLockAction = true;
+                    try
+                    {
+                        StoredPitEntryPctText = FormatPercentText(entry);
+                        StoredPitExitPctText = FormatPercentText(exitPct);
+                        TrackMarkersLastUpdatedText = FormatTimestampText(updatedUtc);
+                        TrackMarkersLocked = SafeToBoolean(locked);
+                    }
+                    finally
+                    {
+                        _suppressTrackMarkersLockAction = false;
+                    }
+                }
+
+                var disp = System.Windows.Application.Current?.Dispatcher;
+                if (disp == null || disp.CheckAccess()) Apply(); else disp.Invoke((Action)Apply);
+            }
+            catch
+            {
+                // Never allow snapshot refresh to throw
             }
         }
     }

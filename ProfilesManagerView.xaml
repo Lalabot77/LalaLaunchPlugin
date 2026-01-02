@@ -458,6 +458,32 @@
                                     </StackPanel>
                                 </StackPanel>
 
+                                <GroupBox Header="Pit Track Markers" Margin="0,12,0,0" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                    <Grid Margin="8,6,8,8">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Stored Pit Entry %:" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding StoredPitEntryPctText}" VerticalAlignment="Center"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Stored Pit Exit %:" Margin="0,4,10,0" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding StoredPitExitPctText}" Margin="0,4,0,0" VerticalAlignment="Center"/>
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Last Updated (UTC):" Margin="0,4,10,0" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding TrackMarkersLastUpdatedText}" Margin="0,4,0,0" VerticalAlignment="Center"/>
+
+                                        <CheckBox Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Content="Locked" Margin="0,6,0,0" IsChecked="{Binding TrackMarkersLocked, Mode=TwoWay}" />
+                                    </Grid>
+                                </GroupBox>
+
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
