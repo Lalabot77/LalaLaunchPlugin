@@ -234,6 +234,16 @@ namespace LaunchPlugin
             return value;
         }
 
+        private string ToCsvValue(int value)
+        {
+            return value.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private string ToCsvValue(double value)
+        {
+            return value.ToString("G", CultureInfo.InvariantCulture);
+        }
+
         private string ToCsvValue(int? value)
         {
             return value.HasValue ? value.Value.ToString(CultureInfo.InvariantCulture) : "n/a";
