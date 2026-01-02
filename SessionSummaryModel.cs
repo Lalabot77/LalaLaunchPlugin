@@ -1,3 +1,4 @@
+// SessionSummaryModel.cs (C# 7.3 compatible)
 using System;
 
 namespace LaunchPlugin
@@ -10,13 +11,13 @@ namespace LaunchPlugin
         public const string SchemaVersion = "v1";
 
         // Identity fields
-        public string CarIdentifier { get; init; } = string.Empty;
-        public string TrackKey { get; init; } = string.Empty;
-        public string PresetName { get; init; } = string.Empty;
-        public string SessionType { get; init; } = string.Empty;
+        public string CarIdentifier { get; set; }
+        public string TrackKey { get; set; }
+        public string PresetName { get; set; }
+        public string SessionType { get; set; }
 
         // Planner snapshot (captured once per race)
-        public SessionPlannerSnapshot PlannerSnapshot { get; init; } = SessionPlannerSnapshot.Empty;
+        public SessionPlannerSnapshot PlannerSnapshot { get; set; }
 
         // Actuals (populated after checkered)
         public double? ActualFuelUsed { get; set; }
@@ -36,6 +37,32 @@ namespace LaunchPlugin
         public bool IsReplay { get; set; }
 
         // Timestamp metadata for downstream file naming
-        public DateTime RecordedAtUtc { get; init; } = DateTime.UtcNow;
+        public DateTime RecordedAtUtc { get; set; }
+
+        public SessionSummaryModel()
+        {
+            CarIdentifier = string.Empty;
+            TrackKey = string.Empty;
+            PresetName = string.Empty;
+            SessionType = string.Empty;
+
+            PlannerSnapshot = SessionPlannerSnapshot.Empty;
+
+            ActualFuelUsed = null;
+            ActualLapsCompleted = null;
+            ActualPitStops = null;
+            ActualAfterZeroSeconds = null;
+
+            FuelDelta = null;
+            LapDelta = null;
+            PitStopDelta = null;
+            AfterZeroDelta = null;
+
+            GreenSeen = false;
+            CheckeredSeen = false;
+            IsReplay = false;
+
+            RecordedAtUtc = DateTime.UtcNow;
+        }
     }
 }

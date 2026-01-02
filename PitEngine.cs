@@ -311,7 +311,8 @@ namespace LaunchPlugin
                 // Pit entry line % (prefer stored markers)
                 var stored = GetStoredTrackMarkers(_trackMarkersLastKey);
                 double storedEntryPct = stored?.PitEntryTrkPct ?? double.NaN;
-                double sessionTrackLenM = sessionState?.SessionTrackLengthM ?? double.NaN;
+                var session = GetSessionState(_trackMarkersLastKey);
+                double sessionTrackLenM = session?.SessionTrackLengthM ?? double.NaN;
                 bool useStored = !double.IsNaN(storedEntryPct) && storedEntryPct >= 0.0 && storedEntryPct <= 1.0 &&
                                  !double.IsNaN(sessionTrackLenM) && sessionTrackLenM >= MinTrackLengthM && sessionTrackLenM <= MaxTrackLengthM &&
                                  !string.Equals(_trackMarkersLastKey, "unknown", StringComparison.OrdinalIgnoreCase);

@@ -1,28 +1,43 @@
+// SessionPlannerSnapshot.cs  (C# 7.3 compatible)
 using System;
 
 namespace LaunchPlugin
 {
     /// <summary>
-    /// Immutable snapshot of the planned race configuration captured at the green flag.
-    /// Holds only planner outputs; does not read live telemetry or mutate state.
+    /// Immutable-ish snapshot of the planned race configuration captured at the green flag.
+    /// C# 7.3 friendly: no record / init-only setters.
     /// </summary>
-    public sealed record SessionPlannerSnapshot
+    public sealed class SessionPlannerSnapshot
     {
-        public string PresetName { get; init; } = string.Empty;
-        public string CarIdentifier { get; init; } = string.Empty;
-        public string TrackKey { get; init; } = string.Empty;
-        public string SessionType { get; init; } = string.Empty;
-        public double PlannerFuelPerLap { get; init; }
-        public TimeSpan PlannerLapTime { get; init; }
-        public double TotalFuelRequired { get; init; }
-        public int PlannedPitStops { get; init; }
-        public double PlannedAfterZeroAllowance { get; init; }
-        public string CondensedStintPlanSummary { get; init; } = string.Empty;
+        public string PresetName { get; set; }
+        public string CarIdentifier { get; set; }
+        public string TrackKey { get; set; }
+        public string SessionType { get; set; }
 
-        public static SessionPlannerSnapshot Empty => new SessionPlannerSnapshot
+        public double PlannerFuelPerLap { get; set; }
+        public TimeSpan PlannerLapTime { get; set; }
+        public double TotalFuelRequired { get; set; }
+        public int PlannedPitStops { get; set; }
+        public double PlannedAfterZeroAllowance { get; set; }
+        public string CondensedStintPlanSummary { get; set; }
+
+        public SessionPlannerSnapshot()
         {
-            PlannerLapTime = TimeSpan.Zero,
-            CondensedStintPlanSummary = string.Empty
-        };
+            PresetName = string.Empty;
+            CarIdentifier = string.Empty;
+            TrackKey = string.Empty;
+            SessionType = string.Empty;
+            PlannerFuelPerLap = 0.0;
+            PlannerLapTime = TimeSpan.Zero;
+            TotalFuelRequired = 0.0;
+            PlannedPitStops = 0;
+            PlannedAfterZeroAllowance = 0.0;
+            CondensedStintPlanSummary = string.Empty;
+        }
+
+        public static SessionPlannerSnapshot Empty
+        {
+            get { return new SessionPlannerSnapshot(); }
+        }
     }
 }
