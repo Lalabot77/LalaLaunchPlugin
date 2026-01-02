@@ -185,6 +185,8 @@ namespace LaunchPlugin
             if (_pitExitTimer.IsRunning && _pitExitTimer.Elapsed.TotalSeconds >= linger)
                 _pitExitTimer.Reset();
 
+            double speedKph = data?.NewData?.SpeedKmh ?? 0.0;
+
             if (isInPitLane)
             {
                 if (!_pitRoadTimer.IsRunning)
@@ -197,7 +199,7 @@ namespace LaunchPlugin
                 var lapsCompleted = data?.NewData?.CompletedLaps ?? 0;
                 if (lapsCompleted < 1)
                 {
-                    UpdateTrackMarkers(trackKey, carPct, trackLenM, isInPitLane, justExitedPits);
+                    UpdateTrackMarkers(trackKey, carPct, trackLenM, isInPitLane, justExitedPits, isInPitStall, speedKph);
                     _paceDeltaState = PaceDeltaState.Idle;
                     return;
                 }
@@ -231,7 +233,7 @@ namespace LaunchPlugin
             UpdatePitPhase(data, pluginManager);
            
             UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM);
-            UpdateTrackMarkers(trackKey, carPct, trackLenM, isInPitLane, justExitedPits);
+            UpdateTrackMarkers(trackKey, carPct, trackLenM, isInPitLane, justExitedPits, isInPitStall, speedKph);
 
             // If we have just left the pits, start waiting for the out-lap.
             if (justExitedPits)
@@ -560,7 +562,7 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] lock trackKey={key} locked={locked}");
         }
 
-        private void UpdateTrackMarkers(string trackKey, double carPct, double trackLenM, bool isInPitLane, bool justExitedPits)
+        private void UpdateTrackMarkers(string trackKey, double carPct, double trackLenM, bool isInPitLane, bool justExitedPits, bool isInPitStall, double speedKph)
         {
             EnsureTrackMarkerStoreLoaded();
 
@@ -578,12 +580,28 @@ namespace LaunchPlugin
 
             if (entryEdge)
             {
-                HandlePitLineEdge(record, session, key, carPct, isEntry: true);
+                if (!isInPitStall && speedKph > 5.0)
+                {
+                    HandlePitLineEdge(record, session, key, carPct, isEntry: true);
+                }
+                else
+                {
+                    SimHub.Logging.Current.Debug(
+                        $"[LalaPlugin:TrackMarkers] block entry capture track='{key}' pitStall={isInPitStall} speed={speedKph:F1}kph");
+                }
             }
 
             if (exitEdge)
             {
-                HandlePitLineEdge(record, session, key, carPct, isEntry: false);
+                if (!isInPitStall && speedKph > 10.0)
+                {
+                    HandlePitLineEdge(record, session, key, carPct, isEntry: false);
+                }
+                else
+                {
+                    SimHub.Logging.Current.Debug(
+                        $"[LalaPlugin:TrackMarkers] block exit capture track='{key}' pitStall={isInPitStall} speed={speedKph:F1}kph");
+                }
             }
 
             TryFireFirstCapture(record, session, key);
@@ -635,6 +653,20 @@ namespace LaunchPlugin
             double pct = NormalizeTrackPercent(carPct);
             if (double.IsNaN(pct))
                 return;
+
+            if (isEntry && pct < 0.50)
+            {
+                SimHub.Logging.Current.Debug(
+                    $"[LalaPlugin:TrackMarkers] block entry capture track='{key}' pct={pct:F4} (below min bound)");
+                return;
+            }
+
+            if (!isEntry && pct > 0.50)
+            {
+                SimHub.Logging.Current.Debug(
+                    $"[LalaPlugin:TrackMarkers] block exit capture track='{key}' pct={pct:F4} (above max bound)");
+                return;
+            }
 
             double stored = isEntry ? record.PitEntryTrkPct : record.PitExitTrkPct;
             bool missing = double.IsNaN(stored) || stored == 0.0;
