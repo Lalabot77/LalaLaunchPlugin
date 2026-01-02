@@ -1885,6 +1885,18 @@ namespace LaunchPlugin
                         _lastProjectionLapSecondsUsed,
                         LiveProjectedDriveSecondsRemaining);
 
+                    SessionSummaryRuntime.OnLapCrossed(
+                        _currentSessionToken,
+                        completedLapsNow,
+                        lastLapTs,
+                        currentFuel,
+                        stableFuelPerLap,
+                        Confidence,
+                        stableLapsRemaining,
+                        null,
+                        (_pit?.CurrentPitPhase ?? PitPhase.None).ToString(),
+                        _afterZeroUsedSeconds);
+
                     // Per-lap resets for next lap (must be inside completedLapsNow scope)
                     if (pitTripActive)
                     {
@@ -3770,6 +3782,20 @@ namespace LaunchPlugin
 
                 // Message session state should not bleed across phase transitions
                 _msgV1Engine?.ResetSession();
+
+                if (string.Equals(currentSession, "Race", StringComparison.OrdinalIgnoreCase))
+                {
+                    // NOTE: snapshot currently latched at Race session entry; will move to true green latch later
+                    SessionSummaryRuntime.OnRaceSessionStart(
+                        _currentSessionToken,
+                        currentSession,
+                        CurrentCarModel,
+                        CurrentTrackKey,
+                        FuelCalculator?.SelectedPreset?.Name ?? string.Empty,
+                        FuelCalculator,
+                        Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false),
+                        data.NewData?.Fuel ?? 0.0);
+                }
             }
 
             _lastFuelSessionType = currentSession;
@@ -4944,6 +4970,14 @@ namespace LaunchPlugin
                     $"leader_finished={LeaderHasFinished} class_finished={ClassLeaderHasFinished} overall_finished={OverallLeaderHasFinished} " +
                     $"session_remain_s={FormatSecondsOrNA(sessionTimeRemain)}"
                 );
+
+                SessionSummaryRuntime.OnDriverCheckered(
+                    _currentSessionToken,
+                    completedLaps,
+                    data.NewData?.Fuel ?? 0.0,
+                    driverExtra,
+                    null,
+                    Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false));
 
                 MaybeLogAfterZeroResult(sessionTime, sessionEnded);
                 ResetFinishTimingState();

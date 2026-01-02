@@ -113,6 +113,7 @@
     <Compile Include="SessionPlannerSnapshot.cs" />
     <Compile Include="SessionSummaryLogger.cs" />
     <Compile Include="SessionSummaryModel.cs" />
+    <Compile Include="SessionSummaryRuntime.cs" />
     <Compile Include="SessionTraceLapRow.cs" />
     <Compile Include="LaunchAnalysisControl.xaml.cs">
       <DependentUpon>LaunchAnalysisControl.xaml</DependentUpon>
