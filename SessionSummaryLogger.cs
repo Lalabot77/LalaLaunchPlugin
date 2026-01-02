@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 
 namespace LaunchPlugin
@@ -11,6 +12,7 @@ namespace LaunchPlugin
     public sealed class SessionSummaryLogger
     {
         private readonly SessionFileManager _fileManager;
+        private readonly object _ioLock = new object();
 
         public SessionSummaryLogger(SessionFileManager fileManager)
         {
@@ -46,26 +48,71 @@ namespace LaunchPlugin
 
         public void AppendSummaryRow(SessionSummaryModel summary, string configuredPath)
         {
+            if (summary == null || !summary.GreenSeen || !summary.CheckeredSeen)
+            {
+                return;
+            }
+
             string directory = ResolveSummaryDirectory(configuredPath);
             string filename = BuildSummaryFilename(directory);
 
-            // Placeholder: scaffolding only — no file IO occurs here. Writing will be added during the wiring task.
-            _ = directory;
-            _ = filename;
-            _ = summary;
+            Directory.CreateDirectory(directory);
+
+            string headerLine = BuildSummaryHeaderLine();
+            string rowLine = BuildSummaryRowLine(summary);
+
+            lock (_ioLock)
+            {
+                bool exists = File.Exists(filename);
+                using (var writer = new StreamWriter(filename, true))
+                {
+                    if (!exists)
+                    {
+                        writer.WriteLine(headerLine);
+                    }
+
+                    writer.WriteLine(rowLine);
+                }
+            }
         }
 
         public void AppendLapTraceRows(IEnumerable<SessionTraceLapRow> laps, string configuredPath, string activeTraceFile)
         {
+            if (laps == null)
+            {
+                return;
+            }
+
             string directory = ResolveTraceDirectory(configuredPath);
             string filename = string.IsNullOrWhiteSpace(activeTraceFile)
                 ? BuildTraceFilename(directory, "car", "track")
                 : activeTraceFile;
 
-            // Placeholder: scaffolding only — no file IO occurs here. Append logic will be added during the wiring task.
-            _ = directory;
-            _ = filename;
-            _ = laps;
+            Directory.CreateDirectory(directory);
+
+            string headerLine = BuildTraceHeaderLine();
+
+            lock (_ioLock)
+            {
+                bool exists = File.Exists(filename);
+                using (var writer = new StreamWriter(filename, true))
+                {
+                    if (!exists)
+                    {
+                        writer.WriteLine(headerLine);
+                    }
+
+                    foreach (var lap in laps)
+                    {
+                        if (lap == null)
+                        {
+                            continue;
+                        }
+
+                        writer.WriteLine(BuildTraceRowLine(lap));
+                    }
+                }
+            }
         }
 
         public void AppendSummaryToTrace(string summaryLine, string traceFilePath)
@@ -75,8 +122,126 @@ namespace LaunchPlugin
                 return;
             }
 
-            // Placeholder: scaffolding only — no file IO occurs here. Marker-based appends will be added during the wiring task.
-            _ = summaryLine;
+            string directory = Path.GetDirectoryName(traceFilePath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            string markerStart = "#[SessionSummary]";
+            string markerEnd = "#[EndSessionSummary]";
+
+            lock (_ioLock)
+            {
+                var block = string.Join(
+                    Environment.NewLine,
+                    new[]
+                    {
+                        string.Empty,
+                        markerStart,
+                        summaryLine ?? string.Empty,
+                        markerEnd
+                    });
+
+                File.AppendAllText(traceFilePath, block + Environment.NewLine);
+            }
+        }
+
+        private string BuildSummaryHeaderLine()
+        {
+            return string.Join(",",
+                "SchemaVersion",
+                "RecordedAtUtc",
+                "SessionType",
+                "PresetName",
+                "CarIdentifier",
+                "TrackKey",
+                "ActualLapsCompleted",
+                "ActualPitStops",
+                "ActualAfterZeroSeconds",
+                "ActualFuelUsed",
+                "PlannerFuelPerLap",
+                "TotalFuelRequired",
+                "PlannedPitStops",
+                "PlannedAfterZeroAllowance",
+                "PlannerLapTimeSeconds");
+        }
+
+        private string BuildSummaryRowLine(SessionSummaryModel summary)
+        {
+            var snapshot = summary.PlannerSnapshot ?? SessionPlannerSnapshot.Empty;
+
+            return string.Join(",",
+                ToCsvValue(SessionSummaryModel.SchemaVersion),
+                ToCsvValue(summary.RecordedAtUtc.ToString("o", CultureInfo.InvariantCulture)),
+                ToCsvValue(summary.SessionType),
+                ToCsvValue(summary.PresetName),
+                ToCsvValue(summary.CarIdentifier),
+                ToCsvValue(summary.TrackKey),
+                ToCsvValue(summary.ActualLapsCompleted),
+                ToCsvValue(summary.ActualPitStops),
+                ToCsvValue(summary.ActualAfterZeroSeconds),
+                ToCsvValue(summary.ActualFuelUsed),
+                ToCsvValue(snapshot.PlannerFuelPerLap),
+                ToCsvValue(snapshot.TotalFuelRequired),
+                ToCsvValue(snapshot.PlannedPitStops),
+                ToCsvValue(snapshot.PlannedAfterZeroAllowance),
+                ToCsvValue(snapshot.PlannerLapTime.TotalSeconds));
+        }
+
+        private string BuildTraceHeaderLine()
+        {
+            return string.Join(",",
+                "LapNumber",
+                "LapTimeSeconds",
+                "FuelRemaining",
+                "StableFuelPerLap",
+                "FuelConfidence",
+                "LapsRemainingEstimate",
+                "PitStopIndex",
+                "PitStopPhase",
+                "AfterZeroUsageSeconds");
+        }
+
+        private string BuildTraceRowLine(SessionTraceLapRow lap)
+        {
+            return string.Join(",",
+                ToCsvValue(lap.LapNumber),
+                ToCsvValue(lap.LapTime.TotalSeconds),
+                ToCsvValue(lap.FuelRemaining),
+                ToCsvValue(lap.StableFuelPerLap),
+                ToCsvValue(lap.FuelConfidence),
+                ToCsvValue(lap.LapsRemainingEstimate),
+                ToCsvValue(lap.PitStopIndex),
+                ToCsvValue(lap.PitStopPhase),
+                ToCsvValue(lap.AfterZeroUsageSeconds));
+        }
+
+        private string ToCsvValue(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return "n/a";
+            }
+
+            bool needsEscaping = value.Contains(",") || value.Contains("\"") || value.Contains("\n") || value.Contains("\r");
+            if (needsEscaping)
+            {
+                string escaped = value.Replace("\"", "\"\"");
+                return "\"" + escaped + "\"";
+            }
+
+            return value;
+        }
+
+        private string ToCsvValue(int? value)
+        {
+            return value.HasValue ? value.Value.ToString(CultureInfo.InvariantCulture) : "n/a";
+        }
+
+        private string ToCsvValue(double? value)
+        {
+            return value.HasValue ? value.Value.ToString("G", CultureInfo.InvariantCulture) : "n/a";
         }
     }
 }
