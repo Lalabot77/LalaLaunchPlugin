@@ -539,6 +539,37 @@ namespace LaunchPlugin
         public bool TrackMarkersSessionNeedsEntryRefresh => GetSessionState(_trackMarkersLastKey)?.NeedsEntryRefresh ?? false;
         public bool TrackMarkersSessionNeedsExitRefresh => GetSessionState(_trackMarkersLastKey)?.NeedsExitRefresh ?? false;
 
+        public bool TryGetStoredTrackMarkers(string trackKey, out double entryPct, out double exitPct, out DateTime lastUpdatedUtc, out bool locked)
+        {
+            EnsureTrackMarkerStoreLoaded();
+            string key = NormalizeTrackKey(trackKey);
+
+            if (string.IsNullOrWhiteSpace(key) || string.Equals(key, "unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                entryPct = double.NaN;
+                exitPct = double.NaN;
+                locked = true;
+                lastUpdatedUtc = DateTime.MinValue;
+                return false;
+            }
+
+            var record = GetStoredTrackMarkers(key);
+            if (record == null)
+            {
+                entryPct = double.NaN;
+                exitPct = double.NaN;
+                locked = true;
+                lastUpdatedUtc = DateTime.MinValue;
+                return false;
+            }
+
+            entryPct = record.PitEntryTrkPct;
+            exitPct = record.PitExitTrkPct;
+            locked = record.Locked;
+            lastUpdatedUtc = record.LastUpdatedUtc;
+            return true;
+        }
+
         public bool TryDequeueTrackMarkerTrigger(out TrackMarkerTriggerEvent trigger)
         {
             if (_trackMarkerTriggers.Count > 0)
