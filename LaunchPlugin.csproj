@@ -152,6 +152,7 @@
     <Compile Include="RejoinAssistEngine.cs" />
     <Compile Include="TelemetryLogger.cs" />
     <Compile Include="TrackLengthHelper.cs" />
+    <Compile Include="TrackMarkerMessagingModels.cs" />
   </ItemGroup>
   <ItemGroup>
     <Page Include="CopyProfileDialog.xaml">

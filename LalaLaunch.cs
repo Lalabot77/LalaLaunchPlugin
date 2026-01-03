@@ -2633,6 +2633,9 @@ namespace LaunchPlugin
         private DateTime _trackMarkerTrackLengthChangedPulseUtc = DateTime.MinValue;
         private DateTime _trackMarkerLinesRefreshedPulseUtc = DateTime.MinValue;
         private const double TrackMarkerPulseHoldSeconds = 1.0;
+        private readonly TrackMarkerPulse<TrackMarkerCapturedMessage> _trackMarkerCapturedPulse = new TrackMarkerPulse<TrackMarkerCapturedMessage>();
+        private readonly TrackMarkerPulse<TrackMarkerLengthDeltaMessage> _trackMarkerLengthDeltaPulse = new TrackMarkerPulse<TrackMarkerLengthDeltaMessage>();
+        private readonly TrackMarkerPulse<TrackMarkerLockedMismatchMessage> _trackMarkerLockedMismatchPulse = new TrackMarkerPulse<TrackMarkerLockedMismatchMessage>();
 
         // ==== Refuel learning state (hardened) ====
         private bool _isRefuelling = false;
@@ -3127,18 +3130,58 @@ namespace LaunchPlugin
                 {
                     case PitEngine.TrackMarkerTriggerType.FirstCapture:
                         _trackMarkerFirstCapturePulseUtc = DateTime.UtcNow;
+                        _trackMarkerCapturedPulse.Set(new TrackMarkerCapturedMessage
+                        {
+                            TrackKey = trig.TrackKey,
+                            EntryPct = trig.EntryPct,
+                            ExitPct = trig.ExitPct,
+                            Locked = trig.Locked
+                        });
                         _msgSystem?.PublishTimedMessage("PIT LINES CAPTURED", TimeSpan.FromSeconds(6));
                         break;
                     case PitEngine.TrackMarkerTriggerType.TrackLengthChanged:
                         _trackMarkerTrackLengthChangedPulseUtc = DateTime.UtcNow;
+                        _trackMarkerLengthDeltaPulse.Set(new TrackMarkerLengthDeltaMessage
+                        {
+                            TrackKey = trig.TrackKey,
+                            StartM = trig.StartTrackLengthM,
+                            NowM = trig.CurrentTrackLengthM,
+                            DeltaM = trig.TrackLengthDeltaM
+                        });
                         _msgSystem?.PublishTimedMessage("TRACK LENGTH CHANGED – PIT LINES WILL REFRESH", TimeSpan.FromSeconds(6));
                         break;
                     case PitEngine.TrackMarkerTriggerType.LinesRefreshed:
                         _trackMarkerLinesRefreshedPulseUtc = DateTime.UtcNow;
                         _msgSystem?.PublishTimedMessage("PIT LINES REFRESHED", TimeSpan.FromSeconds(6));
                         break;
+                    case PitEngine.TrackMarkerTriggerType.LockedMismatch:
+                        _trackMarkerLockedMismatchPulse.Set(new TrackMarkerLockedMismatchMessage
+                        {
+                            TrackKey = trig.TrackKey,
+                            StoredEntryPct = trig.EntryPct,
+                            StoredExitPct = trig.ExitPct,
+                            CandidateEntryPct = trig.CandidateEntryPct,
+                            CandidateExitPct = trig.CandidateExitPct,
+                            TolerancePct = trig.TolerancePct
+                        });
+                        break;
                 }
             }
+        }
+
+        internal TrackMarkerCapturedMessage ConsumeTrackMarkerCapturedPulse()
+        {
+            return _trackMarkerCapturedPulse.TryConsume(TrackMarkerPulseHoldSeconds, out var data) ? data : null;
+        }
+
+        internal TrackMarkerLengthDeltaMessage ConsumeTrackMarkerLengthDeltaPulse()
+        {
+            return _trackMarkerLengthDeltaPulse.TryConsume(TrackMarkerPulseHoldSeconds, out var data) ? data : null;
+        }
+
+        internal TrackMarkerLockedMismatchMessage ConsumeTrackMarkerLockedMismatchPulse()
+        {
+            return _trackMarkerLockedMismatchPulse.TryConsume(TrackMarkerPulseHoldSeconds, out var data) ? data : null;
         }
 
         public bool SavePendingPitLaneLossIfAny(out string source, out double seconds)
@@ -3497,6 +3540,9 @@ namespace LaunchPlugin
                 ResetSmoothedOutputs();
                 _pendingSmoothingReset = true;
                 _msgV1Engine?.ResetSession();
+                _trackMarkerCapturedPulse.Reset();
+                _trackMarkerLengthDeltaPulse.Reset();
+                _trackMarkerLockedMismatchPulse.Reset();
 
                 SimHub.Logging.Current.Info($"[LalaPlugin:Profile] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
             }

@@ -469,7 +469,10 @@ namespace LaunchPlugin.Messaging
                 { "Eval_FlagWhite", new SimpleFlagEvaluator(SessionFlagBits.White) },
                 { "Eval_FlagCheckered", new SimpleFlagEvaluator(SessionFlagBits.Checkered) },
                 { "Eval_FlagBlack", new SimpleFlagEvaluator(SessionFlagBits.Black) },
-                { "Eval_FlagMeatball", new SimpleFlagEvaluator(SessionFlagBits.Meatball) }
+                { "Eval_FlagMeatball", new SimpleFlagEvaluator(SessionFlagBits.Meatball) },
+                { "Eval_TrackMarkersCaptured", new TrackMarkerCapturedEvaluator() },
+                { "Eval_TrackMarkersLengthDelta", new TrackMarkerLengthDeltaEvaluator() },
+                { "Eval_TrackMarkersLockedMismatch", new TrackMarkerLockedMismatchEvaluator() }
             };
         }
 
