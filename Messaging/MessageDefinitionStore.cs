@@ -405,7 +405,7 @@ namespace LaunchPlugin.Messaging
                     EvaluatorId = "Eval_TrackMarkersCaptured",
                     RequiredSignals = new List<string> { "TrackMarkers.Pulse.Captured" },
                     TokenSpec = null,
-                    TextTemplate = "Pit markers learned for {token}."
+                    TextTemplate = "Pit markers learned."
                 },
                 new MessageDefinition
                 {
@@ -443,7 +443,7 @@ namespace LaunchPlugin.Messaging
                     EvaluatorId = "Eval_TrackMarkersLockedMismatch",
                     RequiredSignals = new List<string> { "TrackMarkers.Pulse.LockedMismatch" },
                     TokenSpec = null,
-                    TextTemplate = "Locked pit markers differ from live detection for {token}."
+                    TextTemplate = "Locked pit markers differ from live detection."
                 },
                 new MessageDefinition
                 {

@@ -3137,7 +3137,6 @@ namespace LaunchPlugin
                             ExitPct = trig.ExitPct,
                             Locked = trig.Locked
                         });
-                        _msgSystem?.PublishTimedMessage("PIT LINES CAPTURED", TimeSpan.FromSeconds(6));
                         break;
                     case PitEngine.TrackMarkerTriggerType.TrackLengthChanged:
                         _trackMarkerTrackLengthChangedPulseUtc = DateTime.UtcNow;
@@ -3148,11 +3147,9 @@ namespace LaunchPlugin
                             NowM = trig.CurrentTrackLengthM,
                             DeltaM = trig.TrackLengthDeltaM
                         });
-                        _msgSystem?.PublishTimedMessage("TRACK LENGTH CHANGED – PIT LINES WILL REFRESH", TimeSpan.FromSeconds(6));
                         break;
                     case PitEngine.TrackMarkerTriggerType.LinesRefreshed:
                         _trackMarkerLinesRefreshedPulseUtc = DateTime.UtcNow;
-                        _msgSystem?.PublishTimedMessage("PIT LINES REFRESHED", TimeSpan.FromSeconds(6));
                         break;
                     case PitEngine.TrackMarkerTriggerType.LockedMismatch:
                         _trackMarkerLockedMismatchPulse.Set(new TrackMarkerLockedMismatchMessage
