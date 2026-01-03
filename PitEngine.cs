@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace LaunchPlugin
 {
@@ -886,10 +887,9 @@ namespace LaunchPlugin
             return Path.Combine(GetTrackMarkersFolderPath(), "LalaLaunch.TrackMarkers.json");
         }
 
-        private void EnsureTrackMarkerStoreLoaded()
+        private bool TryLoadTrackMarkerStore(out Dictionary<string, TrackMarkerRecord> loadedStore)
         {
-            if (_trackMarkersLoaded) return;
-
+            loadedStore = new Dictionary<string, TrackMarkerRecord>(StringComparer.OrdinalIgnoreCase);
             var path = GetTrackMarkersFilePath();
             var folder = GetTrackMarkersFolderPath();
 
@@ -900,30 +900,43 @@ namespace LaunchPlugin
 
                 if (!File.Exists(path))
                 {
-                    _trackMarkersLoaded = true;
                     SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] load (new) path='{path}'");
-                    return;
+                    return true;
                 }
 
                 var json = File.ReadAllText(path);
                 var loaded = JsonConvert.DeserializeObject<Dictionary<string, TrackMarkerRecord>>(json)
                              ?? new Dictionary<string, TrackMarkerRecord>(StringComparer.OrdinalIgnoreCase);
-                _trackMarkerStore.Clear();
                 foreach (var kvp in loaded)
                 {
                     if (string.IsNullOrWhiteSpace(kvp.Key)) continue;
-                    _trackMarkerStore[kvp.Key] = kvp.Value ?? new TrackMarkerRecord { Locked = true };
+                    loadedStore[kvp.Key] = kvp.Value ?? new TrackMarkerRecord { Locked = true };
                 }
 
-                SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] load ok ({_trackMarkerStore.Count} track(s)) path='{path}'");
-                _trackMarkersLoaded = true;
+                SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] load ok ({loadedStore.Count} track(s)) path='{path}'");
+                return true;
             }
             catch (Exception ex)
             {
-                _trackMarkerStore.Clear();
-                _trackMarkersLoaded = true;
                 SimHub.Logging.Current.Warn($"[LalaPlugin:TrackMarkers] load fail path='{path}' err='{ex.Message}'");
+                return false;
             }
+        }
+
+        private void EnsureTrackMarkerStoreLoaded()
+        {
+            if (_trackMarkersLoaded) return;
+
+            if (TryLoadTrackMarkerStore(out var loadedStore))
+            {
+                _trackMarkerStore.Clear();
+                foreach (var kvp in loadedStore)
+                {
+                    _trackMarkerStore[kvp.Key] = kvp.Value;
+                }
+            }
+
+            _trackMarkersLoaded = true;
         }
 
         private void SaveTrackMarkers()
@@ -943,6 +956,48 @@ namespace LaunchPlugin
             {
                 SimHub.Logging.Current.Warn($"[LalaPlugin:TrackMarkers] save fail path='{path}' err='{ex.Message}'");
             }
+        }
+
+        public void ReloadTrackMarkerStore()
+        {
+            var previousStore = new Dictionary<string, TrackMarkerRecord>(_trackMarkerStore, StringComparer.OrdinalIgnoreCase);
+            var previousSessionState = new Dictionary<string, TrackMarkerSessionState>(_trackMarkerSessionState, StringComparer.OrdinalIgnoreCase);
+            var previousTriggers = _trackMarkerTriggers.ToList();
+
+            _trackMarkerStore.Clear();
+            _trackMarkerSessionState.Clear();
+            _trackMarkerTriggers.Clear();
+            _trackMarkersLoaded = false;
+
+            bool loadOk = TryLoadTrackMarkerStore(out var loadedStore);
+            if (loadOk)
+            {
+                foreach (var kvp in loadedStore)
+                {
+                    _trackMarkerStore[kvp.Key] = kvp.Value;
+                }
+            }
+            else
+            {
+                foreach (var kvp in previousStore)
+                {
+                    _trackMarkerStore[kvp.Key] = kvp.Value;
+                }
+
+                foreach (var kvp in previousSessionState)
+                {
+                    _trackMarkerSessionState[kvp.Key] = kvp.Value;
+                }
+
+                foreach (var trig in previousTriggers)
+                {
+                    _trackMarkerTriggers.Enqueue(trig);
+                }
+
+                SimHub.Logging.Current.Warn("[LalaPlugin:TrackMarkers] reload failed; keeping existing in-memory store.");
+            }
+
+            _trackMarkersLoaded = true;
         }
 
         private class TrackMarkerRecord
