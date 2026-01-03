@@ -37,6 +37,7 @@ namespace LaunchPlugin
         private readonly Func<string> _getCurrentTrackName;
         private readonly Func<string, TrackMarkersSnapshot> _getTrackMarkersSnapshotForKey;
         private readonly Action<string, bool> _setTrackMarkersLockForKey;
+        private readonly Action _reloadTrackMarkersFromDisk;
         private readonly string _profilesFilePath;
         private bool _suppressTrackMarkersLockAction;
         // --- PB constants ---
@@ -449,9 +450,10 @@ namespace LaunchPlugin
         public RelayCommand SaveChangesCommand { get; }
         public RelayCommand ApplyToLiveCommand { get; }
         public RelayCommand DeleteTrackCommand { get; }
+        public RelayCommand ReloadTrackMarkersCommand { get; }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
@@ -459,6 +461,7 @@ namespace LaunchPlugin
             _getCurrentTrackName = getCurrentTrackName;
             _getTrackMarkersSnapshotForKey = getTrackMarkersSnapshotForKey;
             _setTrackMarkersLockForKey = setTrackMarkersLockForKey;
+            _reloadTrackMarkersFromDisk = reloadTrackMarkersFromDisk;
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
@@ -473,6 +476,7 @@ namespace LaunchPlugin
             SaveChangesCommand = new RelayCommand(p => SaveProfiles());
             ApplyToLiveCommand = new RelayCommand(p => ApplySelectedProfileToLive(), p => IsProfileSelected);
             DeleteTrackCommand = new RelayCommand(p => DeleteTrack(), p => SelectedTrack != null);
+            ReloadTrackMarkersCommand = new RelayCommand(p => ReloadTrackMarkers());
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
         }
@@ -917,6 +921,19 @@ namespace LaunchPlugin
             catch
             {
                 // Never allow snapshot refresh to throw
+            }
+        }
+
+        private void ReloadTrackMarkers()
+        {
+            try
+            {
+                _reloadTrackMarkersFromDisk?.Invoke();
+                RefreshTrackMarkersSnapshotForSelectedTrack();
+            }
+            catch
+            {
+                // Suppress any UI-facing errors during reload
             }
         }
     }

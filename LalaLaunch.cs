@@ -173,6 +173,12 @@ namespace LaunchPlugin
             _pit?.SetTrackMarkersLock(trackKey, locked);
         }
 
+        public void ReloadTrackMarkersFromDisk()
+        {
+            _pit?.ReloadTrackMarkerStore();
+            ProfilesViewModel?.RefreshTrackMarkersSnapshotForSelectedTrack();
+        }
+
         private bool IsTrackMarkerPulseActive(DateTime utcTimestamp)
         {
             return utcTimestamp != DateTime.MinValue &&
@@ -2703,7 +2709,8 @@ namespace LaunchPlugin
                 () => this.CurrentCarModel,
                 () => this.CurrentTrackKey,
                 (trackKey) => GetTrackMarkersSnapshot(trackKey),
-                (trackKey, locked) => SetTrackMarkersLockedForKey(trackKey, locked)
+                (trackKey, locked) => SetTrackMarkersLockedForKey(trackKey, locked),
+                () => ReloadTrackMarkersFromDisk()
             );
 
 
