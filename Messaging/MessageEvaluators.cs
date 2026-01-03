@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using LaunchPlugin;
+using SimHub.Plugins;
 
 namespace LaunchPlugin.Messaging
 {
@@ -387,6 +389,97 @@ namespace LaunchPlugin.Messaging
                 return true;
             }
             return false;
+        }
+    }
+
+    internal abstract class TrackMarkerBaseEvaluator<T> : BaseEvaluator, IResettableEvaluator where T : class
+    {
+        private readonly HashSet<string> _latched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public void Reset()
+        {
+            _latched.Clear();
+        }
+
+        protected bool AlreadyLatched(string token) => _latched.Contains(token);
+
+        protected void Latch(string token) => _latched.Add(token);
+
+        protected static string NormalizeTrackKey(string trackKey)
+        {
+            if (string.IsNullOrWhiteSpace(trackKey)) return "unknown";
+            return trackKey.Trim();
+        }
+
+        protected bool TryConsumePulse(ISignalProvider signals, string signalId, out T payload)
+        {
+            payload = null;
+            if (!TryGet(signals, signalId, out T data)) return false;
+            payload = data;
+            return payload != null;
+        }
+    }
+
+    internal class TrackMarkerCapturedEvaluator : TrackMarkerBaseEvaluator<TrackMarkerCapturedMessage>
+    {
+        public override bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
+        {
+            result = null;
+            if (!TryConsumePulse(signals, "TrackMarkers.Pulse.Captured", out var payload)) return false;
+
+            string trackKey = NormalizeTrackKey(payload.TrackKey);
+            string token = $"trackmarkers.captured.{trackKey}";
+            if (AlreadyLatched(token)) return false;
+            Latch(token);
+
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:PitMarkers] MSGV1 fire: captured track={trackKey} entryPct={payload.EntryPct:F4} exitPct={payload.ExitPct:F4} locked={payload.Locked}");
+
+            string text = $"Pit markers learned for {trackKey}.";
+            result = Build(text, token);
+            return true;
+        }
+    }
+
+    internal class TrackMarkerLengthDeltaEvaluator : TrackMarkerBaseEvaluator<TrackMarkerLengthDeltaMessage>
+    {
+        public override bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
+        {
+            result = null;
+            if (!TryConsumePulse(signals, "TrackMarkers.Pulse.LengthDelta", out var payload)) return false;
+
+            string trackKey = NormalizeTrackKey(payload.TrackKey);
+            string token = $"trackmarkers.length_delta.{trackKey}";
+            if (AlreadyLatched(token)) return false;
+            Latch(token);
+
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:PitMarkers] MSGV1 fire: track_length_delta track={trackKey} start_m={payload.StartM:F1} now_m={payload.NowM:F1} delta_m={payload.DeltaM:F1}");
+
+            string text = "Track length changed; pit marker distances may be off.";
+            result = Build(text, token);
+            return true;
+        }
+    }
+
+    internal class TrackMarkerLockedMismatchEvaluator : TrackMarkerBaseEvaluator<TrackMarkerLockedMismatchMessage>
+    {
+        public override bool Evaluate(MessageDefinition definition, ISignalProvider signals, DateTime utcNow, out MessageEvaluationResult result)
+        {
+            result = null;
+            if (!TryConsumePulse(signals, "TrackMarkers.Pulse.LockedMismatch", out var payload)) return false;
+
+            string trackKey = NormalizeTrackKey(payload.TrackKey);
+            string token = $"trackmarkers.lock_mismatch.{trackKey}";
+            if (AlreadyLatched(token)) return false;
+            Latch(token);
+
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:PitMarkers] MSGV1 fire: locked_mismatch track={trackKey} storedEntryPct={payload.StoredEntryPct:F4} candEntryPct={payload.CandidateEntryPct:F4} storedExitPct={payload.StoredExitPct:F4} candExitPct={payload.CandidateExitPct:F4} tolPct={payload.TolerancePct:F4}");
+
+            string text = $"Locked pit markers differ from live detection for {trackKey}.";
+            result = Build(text, token);
+            return true;
         }
     }
 

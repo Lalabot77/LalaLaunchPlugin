@@ -677,7 +677,10 @@ namespace LaunchPlugin
                     EnqueueTrackMarkerTrigger(new TrackMarkerTriggerEvent
                     {
                         TrackKey = key,
-                        Trigger = TrackMarkerTriggerType.TrackLengthChanged
+                        Trigger = TrackMarkerTriggerType.TrackLengthChanged,
+                        StartTrackLengthM = session.SessionStartTrackLengthM,
+                        CurrentTrackLengthM = trackLenM,
+                        TrackLengthDeltaM = delta
                     });
                 }
             }
@@ -710,6 +713,26 @@ namespace LaunchPlugin
             bool locked = record.Locked && !missing && !refreshOverride;
 
             bool shouldOverwrite = false;
+
+            if (locked && !session.LockedMismatchTriggered)
+            {
+                double deltaPct = WrapAbsDeltaPct(pct, stored);
+                if (!double.IsNaN(deltaPct) && deltaPct > TrackMarkerDeltaTolerancePct)
+                {
+                    session.LockedMismatchTriggered = true;
+                    EnqueueTrackMarkerTrigger(new TrackMarkerTriggerEvent
+                    {
+                        TrackKey = key,
+                        Trigger = TrackMarkerTriggerType.LockedMismatch,
+                        EntryPct = record.PitEntryTrkPct,
+                        ExitPct = record.PitExitTrkPct,
+                        CandidateEntryPct = isEntry ? pct : double.NaN,
+                        CandidateExitPct = isEntry ? double.NaN : pct,
+                        TolerancePct = TrackMarkerDeltaTolerancePct
+                    });
+                }
+            }
+
             if (missing)
             {
                 shouldOverwrite = true;
@@ -757,7 +780,10 @@ namespace LaunchPlugin
                 EnqueueTrackMarkerTrigger(new TrackMarkerTriggerEvent
                 {
                     TrackKey = key,
-                    Trigger = TrackMarkerTriggerType.FirstCapture
+                    Trigger = TrackMarkerTriggerType.FirstCapture,
+                    EntryPct = record.PitEntryTrkPct,
+                    ExitPct = record.PitExitTrkPct,
+                    Locked = record.Locked
                 });
             }
         }
@@ -1017,19 +1043,30 @@ namespace LaunchPlugin
             public bool NeedsExitRefresh { get; set; }
             public bool FirstCaptureTriggered { get; set; }
             public bool LinesRefreshedTriggered { get; set; }
+            public bool LockedMismatchTriggered { get; set; }
         }
 
         public enum TrackMarkerTriggerType
         {
             FirstCapture,
             TrackLengthChanged,
-            LinesRefreshed
+            LinesRefreshed,
+            LockedMismatch
         }
 
         public struct TrackMarkerTriggerEvent
         {
             public string TrackKey { get; set; }
             public TrackMarkerTriggerType Trigger { get; set; }
+            public double EntryPct { get; set; }
+            public double ExitPct { get; set; }
+            public bool Locked { get; set; }
+            public double StartTrackLengthM { get; set; }
+            public double CurrentTrackLengthM { get; set; }
+            public double TrackLengthDeltaM { get; set; }
+            public double CandidateEntryPct { get; set; }
+            public double CandidateExitPct { get; set; }
+            public double TolerancePct { get; set; }
         }
 
         // Call this when a new session starts, car changes, or the sim connects.
