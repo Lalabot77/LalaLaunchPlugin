@@ -12,6 +12,15 @@ using System.Windows.Data;
 
 namespace LaunchPlugin
 {
+    public struct TrackMarkersSnapshot
+    {
+        public double EntryPct { get; set; }
+        public double ExitPct { get; set; }
+        public DateTime? LastUpdatedUtc { get; set; }
+        public bool Locked { get; set; }
+        public bool HasData { get; set; }
+    }
+
     public class ProfilesManagerViewModel : INotifyPropertyChanged
     {
         // Boilerplate for UI updates
@@ -26,7 +35,8 @@ namespace LaunchPlugin
         private readonly Action<CarProfile> _applyProfileToLiveAction;
         private readonly Func<string> _getCurrentCarModel;
         private readonly Func<string> _getCurrentTrackName;
-        private readonly Action<bool> _setTrackMarkersLockAction;
+        private readonly Func<string, TrackMarkersSnapshot> _getTrackMarkersSnapshotForKey;
+        private readonly Action<string, bool> _setTrackMarkersLockForKey;
         private readonly string _profilesFilePath;
         private bool _suppressTrackMarkersLockAction;
         // --- PB constants ---
@@ -103,6 +113,8 @@ namespace LaunchPlugin
                     string liveTrackName = _getCurrentTrackName();
                     var liveTrack = TracksForSelectedProfile.FirstOrDefault(t => t.DisplayName.Equals(liveTrackName, StringComparison.OrdinalIgnoreCase));
                     SelectedTrack = liveTrack ?? TracksForSelectedProfile.FirstOrDefault();
+
+                    RefreshTrackMarkersSnapshotForSelectedTrack();
                 }
             }
         }
@@ -319,6 +331,7 @@ namespace LaunchPlugin
                     _selectedTrack = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsTrackSelected));
+                    RefreshTrackMarkersSnapshotForSelectedTrack();
                 }
             }
         }
@@ -353,6 +366,8 @@ namespace LaunchPlugin
 
                 // nudge the view in case the control uses a CollectionView
                 System.Windows.Data.CollectionViewSource.GetDefaultView(TracksForSelectedProfile)?.Refresh();
+
+                RefreshTrackMarkersSnapshotForSelectedTrack();
             }
 
             if (disp == null || disp.CheckAccess()) DoRefresh();
@@ -415,9 +430,13 @@ namespace LaunchPlugin
                 {
                     _trackMarkersLocked = value;
                     OnPropertyChanged();
-                    if (!_suppressTrackMarkersLockAction && _setTrackMarkersLockAction != null)
+                    if (!_suppressTrackMarkersLockAction && _setTrackMarkersLockForKey != null)
                     {
-                        _setTrackMarkersLockAction(value);
+                        string key = SelectedTrack?.Key ?? SelectedTrack?.DisplayName;
+                        if (!string.IsNullOrWhiteSpace(key))
+                        {
+                            _setTrackMarkersLockForKey(key, value);
+                        }
                     }
                 }
             }
@@ -432,13 +451,14 @@ namespace LaunchPlugin
         public RelayCommand DeleteTrackCommand { get; }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Action<bool> setTrackMarkersLockAction)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
             _getCurrentCarModel = getCurrentCarModel;
             _getCurrentTrackName = getCurrentTrackName;
-            _setTrackMarkersLockAction = setTrackMarkersLockAction;
+            _getTrackMarkersSnapshotForKey = getTrackMarkersSnapshotForKey;
+            _setTrackMarkersLockForKey = setTrackMarkersLockForKey;
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
@@ -860,24 +880,30 @@ namespace LaunchPlugin
             }
         }
 
-        public void RefreshTrackMarkersSnapshot(PluginManager pluginManager)
+        public void RefreshTrackMarkersSnapshotForSelectedTrack()
         {
             try
             {
-                var entry = pluginManager?.GetPropertyValue("LalaLaunch.TrackMarkers.Stored.EntryPct");
-                var exitPct = pluginManager?.GetPropertyValue("LalaLaunch.TrackMarkers.Stored.ExitPct");
-                var updatedUtc = pluginManager?.GetPropertyValue("LalaLaunch.TrackMarkers.Stored.LastUpdatedUtc");
-                var locked = pluginManager?.GetPropertyValue("LalaLaunch.TrackMarkers.Stored.Locked");
+                string key = SelectedTrack?.Key ?? SelectedTrack?.DisplayName;
+                TrackMarkersSnapshot snapshot = default;
+                if (_getTrackMarkersSnapshotForKey != null && !string.IsNullOrWhiteSpace(key))
+                {
+                    snapshot = _getTrackMarkersSnapshotForKey(key);
+                }
 
                 void Apply()
                 {
                     _suppressTrackMarkersLockAction = true;
                     try
                     {
+                        object entry = snapshot.HasData ? (object)snapshot.EntryPct : null;
+                        object exitPct = snapshot.HasData ? (object)snapshot.ExitPct : null;
+                        object updatedUtc = snapshot.HasData ? (object)(snapshot.LastUpdatedUtc ?? DateTime.MinValue) : null;
+
                         StoredPitEntryPctText = FormatPercentText(entry);
                         StoredPitExitPctText = FormatPercentText(exitPct);
                         TrackMarkersLastUpdatedText = FormatTimestampText(updatedUtc);
-                        TrackMarkersLocked = SafeToBoolean(locked);
+                        TrackMarkersLocked = snapshot.HasData ? snapshot.Locked : false;
                     }
                     finally
                     {

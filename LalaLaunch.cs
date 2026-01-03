@@ -137,6 +137,42 @@ namespace LaunchPlugin
             _pit?.SetTrackMarkersLock(key, locked);
         }
 
+        public TrackMarkersSnapshot GetTrackMarkersSnapshot(string trackKey)
+        {
+            if (string.IsNullOrWhiteSpace(trackKey) || _pit == null)
+            {
+                return new TrackMarkersSnapshot
+                {
+                    EntryPct = double.NaN,
+                    ExitPct = double.NaN,
+                    LastUpdatedUtc = null,
+                    Locked = false,
+                    HasData = false
+                };
+            }
+
+            double entryPct;
+            double exitPct;
+            DateTime lastUpdatedUtc;
+            bool locked;
+            bool ok = _pit.TryGetStoredTrackMarkers(trackKey, out entryPct, out exitPct, out lastUpdatedUtc, out locked);
+
+            return new TrackMarkersSnapshot
+            {
+                EntryPct = entryPct,
+                ExitPct = exitPct,
+                LastUpdatedUtc = lastUpdatedUtc == DateTime.MinValue ? (DateTime?)null : lastUpdatedUtc,
+                Locked = locked,
+                HasData = ok
+            };
+        }
+
+        public void SetTrackMarkersLockedForKey(string trackKey, bool locked)
+        {
+            if (string.IsNullOrWhiteSpace(trackKey)) return;
+            _pit?.SetTrackMarkersLock(trackKey, locked);
+        }
+
         private bool IsTrackMarkerPulseActive(DateTime utcTimestamp)
         {
             return utcTimestamp != DateTime.MinValue &&
@@ -2666,7 +2702,8 @@ namespace LaunchPlugin
                 },
                 () => this.CurrentCarModel,
                 () => this.CurrentTrackKey,
-                (locked) => SetTrackMarkersLocked(locked)
+                (trackKey) => GetTrackMarkersSnapshot(trackKey),
+                (trackKey, locked) => SetTrackMarkersLockedForKey(trackKey, locked)
             );
 
 
@@ -3748,7 +3785,6 @@ namespace LaunchPlugin
                 // ======================= MODIFIED BLOCK END ============================
                 // =======================================================================
 
-                ProfilesViewModel?.RefreshTrackMarkersSnapshot(pluginManager);
             }
 
             UpdateLiveProperties(pluginManager, ref data);
