@@ -1927,7 +1927,7 @@ namespace LaunchPlugin
                         _lastProjectionLapSecondsUsed,
                         LiveProjectedDriveSecondsRemaining);
 
-                    
+
 
                     SessionSummaryRuntime.OnLapCrossed(
                         _currentSessionToken,
@@ -1939,7 +1939,11 @@ namespace LaunchPlugin
                         stableLapsRemaining,
                         null,
                         (_pit?.CurrentPitPhase ?? PitPhase.None).ToString(),
-                        _afterZeroUsedSeconds);
+                        _afterZeroUsedSeconds,
+                        data.NewData?.CarModel ?? string.Empty,
+                        data.NewData?.TrackName ?? string.Empty,
+                        FuelCalculator?.AppliedPreset?.Name ?? string.Empty
+                    );
 
                     // Per-lap resets for next lap (must be inside completedLapsNow scope)
                     if (pitTripActive)

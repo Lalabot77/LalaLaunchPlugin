@@ -65,20 +65,55 @@ namespace LaunchPlugin
                     IsReplay = isReplay
                 };
 
-                _activeTraceFile = Logger.BuildTraceFilename(
-                    Logger.ResolveTraceDirectory(string.Empty),
-                    carIdentifier ?? string.Empty,
-                    trackKey ?? string.Empty,
-                    DateTime.UtcNow);
+                if (string.IsNullOrWhiteSpace(_activeTraceFile))
+                {
+                    bool hasCar = !string.IsNullOrWhiteSpace(carIdentifier);
+                    bool hasTrack = !string.IsNullOrWhiteSpace(trackKey);
+
+                    // If we don't have identity yet, leave it blank and let OnLapCrossed set it later.
+                    if (hasCar && hasTrack)
+                    {
+                        _activeTraceFile = Logger.BuildTraceFilename(
+                            Logger.ResolveTraceDirectory(string.Empty),
+                            carIdentifier ?? string.Empty,
+                            trackKey ?? string.Empty,
+                            DateTime.UtcNow);
+                    }
+                }
+
             }
-            // Identity refresh mode:
-            // If race session start was called early (before car/track/preset were populated),
-            // allow later calls with the SAME sessionKey to fill identity without resetting state.
-            string incomingKey = sessionKey ?? string.Empty;
-            if (_greenSeen &&
-                !_summaryEmitted &&
-                string.Equals(incomingKey, _activeSessionKey, StringComparison.Ordinal))
+        }
+
+        public static void OnLapCrossed(
+    string sessionKey,
+    int lapNumber,
+    TimeSpan lapTime,
+    double fuelRemaining,
+    double stableFuelPerLap,
+    int fuelConfidence,
+    double lapsRemainingEstimate,
+    int? pitStopIndex,
+    string pitStopPhase,
+    double afterZeroUsedSeconds,
+    string carIdentifier,
+    string trackKey,
+    string presetName)
+        {
+            lock (Sync)
             {
+                string key = sessionKey ?? string.Empty;
+
+                if (!_greenSeen || _summaryEmitted || !string.Equals(key, _activeSessionKey, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                if (lapNumber <= _lastLapWritten)
+                {
+                    return;
+                }
+
+                // ---- Identity refresh belongs HERE (not by re-calling OnRaceSessionStart) ----
                 bool hasCar = !string.IsNullOrWhiteSpace(carIdentifier);
                 bool hasTrack = !string.IsNullOrWhiteSpace(trackKey);
                 bool hasPreset = !string.IsNullOrWhiteSpace(presetName);
@@ -103,62 +138,16 @@ namespace LaunchPlugin
                     _summary.PresetName = presetName;
                 }
 
-                // Refresh snapshot if planner is available and we now have better identity.
-                if (planner != null)
+                // Build or repair the trace filename ONCE when identity becomes available.
+                // - If blank: we haven't created it yet (startup-in-race early identity).
+                // - If "Unknown_Unknown": we created too early and want to correct it deterministically.
+                if ((string.IsNullOrWhiteSpace(_activeTraceFile) || IsUnknownTraceFile(_activeTraceFile)) && hasCar && hasTrack)
                 {
-                    _summary.PlannerSnapshot = BuildPlannerSnapshot(
-                        planner,
-                        _summary.PresetName,
-                        _summary.CarIdentifier,
-                        _summary.TrackKey,
-                        sessionType);
-                }
-
-                // If the trace filename was created with Unknown/Unknown, rebuild it once identity is known.
-                if (IsUnknownTraceFile(_activeTraceFile) && hasCar && hasTrack)
-                {
-                    if (string.IsNullOrWhiteSpace(_activeTraceFile))
-                    {
-                        _activeTraceFile = Logger.BuildTraceFilename(
-                            Logger.ResolveTraceDirectory(string.Empty),
-                            carIdentifier ?? string.Empty,
-                            trackKey ?? string.Empty,
-                            DateTime.UtcNow);
-                    }
-
-                }
-
-                return;
-            }
-
-        }
-
-        public static void OnLapCrossed(
-            string sessionKey,
-            int lapNumber,
-            TimeSpan lapTime,
-            double fuelRemaining,
-            double stableFuelPerLap,
-            int fuelConfidence,
-            double lapsRemainingEstimate,
-            int? pitStopIndex,
-            string pitStopPhase,
-            double afterZeroUsedSeconds,
-            string carIdentifier,
-            string trackKey,
-            string presetName)
-
-        {
-            lock (Sync)
-            {
-                if (!_greenSeen || _summaryEmitted || !string.Equals(sessionKey ?? string.Empty, _activeSessionKey, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                if (lapNumber <= _lastLapWritten)
-                {
-                    return;
+                    _activeTraceFile = Logger.BuildTraceFilename(
+                        Logger.ResolveTraceDirectory(string.Empty),
+                        carIdentifier ?? string.Empty,
+                        trackKey ?? string.Empty,
+                        DateTime.UtcNow);
                 }
 
                 _lastLapWritten = lapNumber;
@@ -176,9 +165,11 @@ namespace LaunchPlugin
                     AfterZeroUsageSeconds = afterZeroUsedSeconds
                 };
 
+                // Logger has a circuit breaker: if _activeTraceFile is blank, it returns (no per-lap file spam).
                 Logger.AppendLapTraceRows(new[] { lapRow }, string.Empty, _activeTraceFile);
             }
         }
+
 
         public static void OnDriverCheckered(
             string sessionKey,
