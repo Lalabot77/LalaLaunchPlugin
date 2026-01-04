@@ -82,6 +82,9 @@ namespace LaunchPlugin
         private readonly Stopwatch _lingerTimer = new Stopwatch();
         private readonly Stopwatch _msgCxTimer = new Stopwatch();
         private readonly Stopwatch _spinHoldTimer = new Stopwatch();
+        private readonly Stopwatch _stoppedClearTimer = new Stopwatch();
+        private const double StoppedClearHoldSeconds = 0.4;
+        private bool _suppressedStoppedUntilSpeedClear = false;
 
         // --- User Settings ---
         private readonly Func<double> _getSpeedThreshold;
@@ -174,27 +177,29 @@ namespace LaunchPlugin
 
 
         public void Reset()
-{
-    _currentLogicReason = RejoinReason.None;
-    _detectedReason = RejoinReason.None;
+        {
+            _currentLogicReason = RejoinReason.None;
+            _detectedReason = RejoinReason.None;
+            _suppressedStoppedUntilSpeedClear = false;
 
-    _delayTimer.Reset();
-    _lingerTimer.Reset();
-    _msgCxTimer.Reset();
-    _spinHoldTimer.Reset();
+            _delayTimer.Reset();
+            _lingerTimer.Reset();
+            _msgCxTimer.Reset();
+            _spinHoldTimer.Reset();
+            _stoppedClearTimer.Reset();
 
-    _previousLapDistPct = -1.0;
+            _previousLapDistPct = -1.0;
 
-    // Threat/scan state
-    _rejoinSpeed = 0.0;
-    TimeToThreatSeconds = 99.0;
-    _smoothedTtc = 99.0;
-    CurrentThreatLevel = ThreatLevel.CLEAR;
-    _threatDemoteTarget = ThreatLevel.CLEAR;
-    _threatDemoteSinceUtc = DateTime.MinValue;
-    _threatInit = false;
-    ThreatDebug = string.Empty;
-}
+            // Threat/scan state
+            _rejoinSpeed = 0.0;
+            TimeToThreatSeconds = 99.0;
+            _smoothedTtc = 99.0;
+            CurrentThreatLevel = ThreatLevel.CLEAR;
+            _threatDemoteTarget = ThreatLevel.CLEAR;
+            _threatDemoteSinceUtc = DateTime.MinValue;
+            _threatInit = false;
+            ThreatDebug = string.Empty;
+        }
 
 
 
@@ -463,11 +468,34 @@ namespace LaunchPlugin
             var lapDistPct = data.NewData.TrackPositionPercent;
             var gear = data.NewData.Gear;
 
+            // --- 1b. HANDLE STOPPED-ON-TRACK SUPPRESSION CLEAR CONDITION ---
+            bool aboveClearSpeed = speed > _getSpeedThreshold();
+            if (aboveClearSpeed)
+            {
+                if (!_stoppedClearTimer.IsRunning) _stoppedClearTimer.Restart();
+            }
+            else if (_stoppedClearTimer.IsRunning)
+            {
+                _stoppedClearTimer.Reset();
+            }
+
+            if (_suppressedStoppedUntilSpeedClear &&
+                _stoppedClearTimer.IsRunning &&
+                _stoppedClearTimer.Elapsed.TotalSeconds >= StoppedClearHoldSeconds)
+            {
+                _suppressedStoppedUntilSpeedClear = false;
+            }
+
             // --- 2. READ PIT STATE FROM PITENGINE (no local timers) ---
             bool exitingPitsActive = _pit != null && _pit.CurrentPitPhase == PitPhase.ExitingPits;
 
             // --- 3. DETERMINE THE CURRENT REJOIN REASON ---
             _detectedReason = DetectReason(pluginManager, isOnTrack, isInPitLane, session, isStartReady, isStartSet, isStartGo, speed, surfaceMaterial, yawRate, lapDistPct, gear);
+
+            if (_suppressedStoppedUntilSpeedClear && _detectedReason == RejoinReason.StoppedOnTrack)
+            {
+                _detectedReason = RejoinReason.None;
+            }
 
             // --- 4. APPLY LOGIC WITH A STRICT PRIORITY ORDER ---
 
@@ -601,6 +629,11 @@ namespace LaunchPlugin
 
         public void TriggerMsgCxOverride()
         {
+            if (_currentLogicReason == RejoinReason.StoppedOnTrack || _detectedReason == RejoinReason.StoppedOnTrack)
+            {
+                _suppressedStoppedUntilSpeedClear = true;
+                _stoppedClearTimer.Reset();
+            }
             _msgCxTimer.Restart();
             SimHub.Logging.Current.Info("[LalaPlugin:Rejoin Assist] MsgCx override triggered.");
         }
