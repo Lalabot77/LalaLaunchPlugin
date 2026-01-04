@@ -26,6 +26,26 @@ namespace LaunchPlugin
         {
             lock (Sync)
             {
+                string key = sessionKey ?? string.Empty;
+
+                // If we already started this session and haven't emitted the summary,
+                // ignore repeated calls (prevents resetting and re-creating trace files).
+                if (_greenSeen &&
+                    !_summaryEmitted &&
+                    string.Equals(key, _activeSessionKey, StringComparison.Ordinal))
+                {
+                    // Optional: refresh identity fields if they were blank at initial start
+                    if (_summary != null)
+                    {
+                        if (string.IsNullOrWhiteSpace(_summary.CarIdentifier) && !string.IsNullOrWhiteSpace(carIdentifier)) _summary.CarIdentifier = carIdentifier;
+                        if (string.IsNullOrWhiteSpace(_summary.TrackKey) && !string.IsNullOrWhiteSpace(trackKey)) _summary.TrackKey = trackKey;
+                        if (string.IsNullOrWhiteSpace(_summary.PresetName) && !string.IsNullOrWhiteSpace(presetName)) _summary.PresetName = presetName;
+                        if (string.IsNullOrWhiteSpace(_summary.SessionType) && !string.IsNullOrWhiteSpace(sessionType)) _summary.SessionType = sessionType;
+                    }
+
+                    return;
+                }
+
                 _activeSessionKey = sessionKey ?? string.Empty;
                 _greenSeen = true;
                 _summaryEmitted = false;
@@ -97,11 +117,15 @@ namespace LaunchPlugin
                 // If the trace filename was created with Unknown/Unknown, rebuild it once identity is known.
                 if (IsUnknownTraceFile(_activeTraceFile) && hasCar && hasTrack)
                 {
-                    _activeTraceFile = Logger.BuildTraceFilename(
-                        Logger.ResolveTraceDirectory(string.Empty),
-                        carIdentifier,
-                        trackKey,
-                        DateTime.UtcNow);
+                    if (string.IsNullOrWhiteSpace(_activeTraceFile))
+                    {
+                        _activeTraceFile = Logger.BuildTraceFilename(
+                            Logger.ResolveTraceDirectory(string.Empty),
+                            carIdentifier ?? string.Empty,
+                            trackKey ?? string.Empty,
+                            DateTime.UtcNow);
+                    }
+
                 }
 
                 return;
@@ -119,7 +143,11 @@ namespace LaunchPlugin
             double lapsRemainingEstimate,
             int? pitStopIndex,
             string pitStopPhase,
-            double afterZeroUsedSeconds)
+            double afterZeroUsedSeconds,
+            string carIdentifier,
+            string trackKey,
+            string presetName)
+
         {
             lock (Sync)
             {

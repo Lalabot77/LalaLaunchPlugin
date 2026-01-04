@@ -86,10 +86,15 @@ namespace LaunchPlugin
                 return;
             }
 
+            // Runtime must provide a stable trace file path.
+            // If it's blank, we do NOT auto-create a new timestamped file per call.
+            if (string.IsNullOrWhiteSpace(activeTraceFile))
+            {
+                return;
+            }
+
             string directory = ResolveTraceDirectory(configuredPath);
-            string filename = string.IsNullOrWhiteSpace(activeTraceFile)
-                ? BuildTraceFilename(directory, "car", "track")
-                : activeTraceFile;
+            string filename = activeTraceFile;
 
             Directory.CreateDirectory(directory);
 
