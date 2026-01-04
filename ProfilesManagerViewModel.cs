@@ -4,6 +4,7 @@ using SimHub.Plugins; // Required for this.GetPluginManager()
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -11,6 +12,15 @@ using System.Windows.Data;
 
 namespace LaunchPlugin
 {
+    public struct TrackMarkersSnapshot
+    {
+        public double EntryPct { get; set; }
+        public double ExitPct { get; set; }
+        public DateTime? LastUpdatedUtc { get; set; }
+        public bool Locked { get; set; }
+        public bool HasData { get; set; }
+    }
+
     public class ProfilesManagerViewModel : INotifyPropertyChanged
     {
         // Boilerplate for UI updates
@@ -25,7 +35,11 @@ namespace LaunchPlugin
         private readonly Action<CarProfile> _applyProfileToLiveAction;
         private readonly Func<string> _getCurrentCarModel;
         private readonly Func<string> _getCurrentTrackName;
+        private readonly Func<string, TrackMarkersSnapshot> _getTrackMarkersSnapshotForKey;
+        private readonly Action<string, bool> _setTrackMarkersLockForKey;
+        private readonly Action _reloadTrackMarkersFromDisk;
         private readonly string _profilesFilePath;
+        private bool _suppressTrackMarkersLockAction;
         // --- PB constants ---
         private const int PB_MIN_MS = 30000;     // >= 30s
         private const int PB_MAX_MS = 1200000;   // <= 20min
@@ -100,6 +114,8 @@ namespace LaunchPlugin
                     string liveTrackName = _getCurrentTrackName();
                     var liveTrack = TracksForSelectedProfile.FirstOrDefault(t => t.DisplayName.Equals(liveTrackName, StringComparison.OrdinalIgnoreCase));
                     SelectedTrack = liveTrack ?? TracksForSelectedProfile.FirstOrDefault();
+
+                    RefreshTrackMarkersSnapshotForSelectedTrack();
                 }
             }
         }
@@ -316,6 +332,7 @@ namespace LaunchPlugin
                     _selectedTrack = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsTrackSelected));
+                    RefreshTrackMarkersSnapshotForSelectedTrack();
                 }
             }
         }
@@ -350,6 +367,8 @@ namespace LaunchPlugin
 
                 // nudge the view in case the control uses a CollectionView
                 System.Windows.Data.CollectionViewSource.GetDefaultView(TracksForSelectedProfile)?.Refresh();
+
+                RefreshTrackMarkersSnapshotForSelectedTrack();
             }
 
             if (disp == null || disp.CheckAccess()) DoRefresh();
@@ -360,6 +379,70 @@ namespace LaunchPlugin
         public bool IsProfileSelected => SelectedProfile != null;
         public bool IsTrackSelected => SelectedTrack != null;
 
+        private string _storedPitEntryPctText = "n/a";
+        public string StoredPitEntryPctText
+        {
+            get => _storedPitEntryPctText;
+            private set
+            {
+                if (_storedPitEntryPctText != value)
+                {
+                    _storedPitEntryPctText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _storedPitExitPctText = "n/a";
+        public string StoredPitExitPctText
+        {
+            get => _storedPitExitPctText;
+            private set
+            {
+                if (_storedPitExitPctText != value)
+                {
+                    _storedPitExitPctText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _trackMarkersLastUpdatedText = "n/a";
+        public string TrackMarkersLastUpdatedText
+        {
+            get => _trackMarkersLastUpdatedText;
+            private set
+            {
+                if (_trackMarkersLastUpdatedText != value)
+                {
+                    _trackMarkersLastUpdatedText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _trackMarkersLocked;
+        public bool TrackMarkersLocked
+        {
+            get => _trackMarkersLocked;
+            set
+            {
+                if (_trackMarkersLocked != value)
+                {
+                    _trackMarkersLocked = value;
+                    OnPropertyChanged();
+                    if (!_suppressTrackMarkersLockAction && _setTrackMarkersLockForKey != null)
+                    {
+                        string key = SelectedTrack?.Key ?? SelectedTrack?.DisplayName;
+                        if (!string.IsNullOrWhiteSpace(key))
+                        {
+                            _setTrackMarkersLockForKey(key, value);
+                        }
+                    }
+                }
+            }
+        }
+
         // --- Commands for UI Buttons ---
         public RelayCommand NewProfileCommand { get; }
         public RelayCommand CopySettingsCommand { get; }
@@ -367,14 +450,18 @@ namespace LaunchPlugin
         public RelayCommand SaveChangesCommand { get; }
         public RelayCommand ApplyToLiveCommand { get; }
         public RelayCommand DeleteTrackCommand { get; }
+        public RelayCommand ReloadTrackMarkersCommand { get; }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
             _getCurrentCarModel = getCurrentCarModel;
             _getCurrentTrackName = getCurrentTrackName;
+            _getTrackMarkersSnapshotForKey = getTrackMarkersSnapshotForKey;
+            _setTrackMarkersLockForKey = setTrackMarkersLockForKey;
+            _reloadTrackMarkersFromDisk = reloadTrackMarkersFromDisk;
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
@@ -389,6 +476,7 @@ namespace LaunchPlugin
             SaveChangesCommand = new RelayCommand(p => SaveProfiles());
             ApplyToLiveCommand = new RelayCommand(p => ApplySelectedProfileToLive(), p => IsProfileSelected);
             DeleteTrackCommand = new RelayCommand(p => DeleteTrack(), p => SelectedTrack != null);
+            ReloadTrackMarkersCommand = new RelayCommand(p => ReloadTrackMarkers());
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
         }
@@ -702,6 +790,150 @@ namespace LaunchPlugin
             catch (Exception ex)
             {
                 SimHub.Logging.Current.Error($"[LalaPlugin:Profiles] Save failed: {ex.Message}");
+            }
+        }
+
+        private static string FormatPercentText(object raw)
+        {
+            try
+            {
+                double value;
+                if (raw is double d) value = d;
+                else if (raw is float f) value = f;
+                else if (raw is decimal m) value = (double)m;
+                else if (raw is int || raw is long || raw is short || raw is byte || raw is sbyte || raw is uint || raw is ulong || raw is ushort)
+                    value = Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+                else if (raw is string s)
+                {
+                    if (!double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out value) &&
+                        !double.TryParse(s, out value))
+                    {
+                        return "n/a";
+                    }
+                }
+                else
+                {
+                    return "n/a";
+                }
+
+                if (double.IsNaN(value) || double.IsInfinity(value))
+                {
+                    return "n/a";
+                }
+
+                return value.ToString("0.0000", CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return "n/a";
+            }
+        }
+
+        private static string FormatTimestampText(object raw)
+        {
+            try
+            {
+                DateTime timestamp;
+                if (raw is DateTime dt)
+                {
+                    timestamp = dt;
+                }
+                else if (raw is string s)
+                {
+                    if (!DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out timestamp) &&
+                        !DateTime.TryParse(s, CultureInfo.CurrentCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out timestamp))
+                    {
+                        return "n/a";
+                    }
+                }
+                else
+                {
+                    timestamp = Convert.ToDateTime(raw, CultureInfo.InvariantCulture);
+                }
+
+                if (timestamp == DateTime.MinValue)
+                {
+                    return "n/a";
+                }
+
+                return timestamp.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return "n/a";
+            }
+        }
+
+        private static bool SafeToBoolean(object raw)
+        {
+            try
+            {
+                if (raw is bool b) return b;
+                if (raw is string s)
+                {
+                    if (bool.TryParse(s, out var parsed)) return parsed;
+                    if (string.Equals(s, "1", StringComparison.OrdinalIgnoreCase)) return true;
+                    if (string.Equals(s, "0", StringComparison.OrdinalIgnoreCase)) return false;
+                }
+
+                return Convert.ToBoolean(raw, CultureInfo.InvariantCulture);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void RefreshTrackMarkersSnapshotForSelectedTrack()
+        {
+            try
+            {
+                string key = SelectedTrack?.Key ?? SelectedTrack?.DisplayName;
+                TrackMarkersSnapshot snapshot = default;
+                if (_getTrackMarkersSnapshotForKey != null && !string.IsNullOrWhiteSpace(key))
+                {
+                    snapshot = _getTrackMarkersSnapshotForKey(key);
+                }
+
+                void Apply()
+                {
+                    _suppressTrackMarkersLockAction = true;
+                    try
+                    {
+                        object entry = snapshot.HasData ? (object)snapshot.EntryPct : null;
+                        object exitPct = snapshot.HasData ? (object)snapshot.ExitPct : null;
+                        object updatedUtc = snapshot.HasData ? (object)(snapshot.LastUpdatedUtc ?? DateTime.MinValue) : null;
+
+                        StoredPitEntryPctText = FormatPercentText(entry);
+                        StoredPitExitPctText = FormatPercentText(exitPct);
+                        TrackMarkersLastUpdatedText = FormatTimestampText(updatedUtc);
+                        TrackMarkersLocked = snapshot.HasData ? snapshot.Locked : false;
+                    }
+                    finally
+                    {
+                        _suppressTrackMarkersLockAction = false;
+                    }
+                }
+
+                var disp = System.Windows.Application.Current?.Dispatcher;
+                if (disp == null || disp.CheckAccess()) Apply(); else disp.Invoke((Action)Apply);
+            }
+            catch
+            {
+                // Never allow snapshot refresh to throw
+            }
+        }
+
+        private void ReloadTrackMarkers()
+        {
+            try
+            {
+                _reloadTrackMarkersFromDisk?.Invoke();
+                RefreshTrackMarkersSnapshotForSelectedTrack();
+            }
+            catch
+            {
+                // Suppress any UI-facing errors during reload
             }
         }
     }

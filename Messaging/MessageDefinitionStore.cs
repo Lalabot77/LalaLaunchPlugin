@@ -390,6 +390,63 @@ namespace LaunchPlugin.Messaging
                 },
                 new MessageDefinition
                 {
+                    MsgId = "trackmarkers.captured",
+                    Name = "Pit markers captured",
+                    Category = "Pit",
+                    Priority = MessagePriority.Low,
+                    EnableOnLalaDash = true,
+                    EnableOnMsgDash = true,
+                    ActiveUntil = MessageActiveUntil.DelayThenClear,
+                    ActiveUntilDelayMs = 4000,
+                    MsgCxAction = MessageCancelAction.UntilStateChange,
+                    MsgCxDelayMs = 0,
+                    MinOnTimeMS = 1500,
+                    MinCoolDownMS = 0,
+                    EvaluatorId = "Eval_TrackMarkersCaptured",
+                    RequiredSignals = new List<string> { "TrackMarkers.Pulse.Captured" },
+                    TokenSpec = null,
+                    TextTemplate = "Pit markers learned."
+                },
+                new MessageDefinition
+                {
+                    MsgId = "trackmarkers.length_delta",
+                    Name = "Track length changed",
+                    Category = "Pit",
+                    Priority = MessagePriority.Low,
+                    EnableOnLalaDash = true,
+                    EnableOnMsgDash = true,
+                    ActiveUntil = MessageActiveUntil.DelayThenClear,
+                    ActiveUntilDelayMs = 5000,
+                    MsgCxAction = MessageCancelAction.UntilStateChange,
+                    MsgCxDelayMs = 0,
+                    MinOnTimeMS = 1500,
+                    MinCoolDownMS = 0,
+                    EvaluatorId = "Eval_TrackMarkersLengthDelta",
+                    RequiredSignals = new List<string> { "TrackMarkers.Pulse.LengthDelta" },
+                    TokenSpec = null,
+                    TextTemplate = "Track length changed; pit marker distances may be off."
+                },
+                new MessageDefinition
+                {
+                    MsgId = "trackmarkers.lock_mismatch",
+                    Name = "Locked marker mismatch",
+                    Category = "Pit",
+                    Priority = MessagePriority.Med,
+                    EnableOnLalaDash = true,
+                    EnableOnMsgDash = true,
+                    ActiveUntil = MessageActiveUntil.DelayThenClear,
+                    ActiveUntilDelayMs = 5000,
+                    MsgCxAction = MessageCancelAction.UntilStateChange,
+                    MsgCxDelayMs = 0,
+                    MinOnTimeMS = 1500,
+                    MinCoolDownMS = 0,
+                    EvaluatorId = "Eval_TrackMarkersLockedMismatch",
+                    RequiredSignals = new List<string> { "TrackMarkers.Pulse.LockedMismatch" },
+                    TokenSpec = null,
+                    TextTemplate = "Locked pit markers differ from live detection."
+                },
+                new MessageDefinition
+                {
                     MsgId = "fuel.save_required",
                     Name = "Fuel save required",
                     Category = "Fuel",

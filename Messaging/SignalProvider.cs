@@ -90,7 +90,12 @@ namespace LaunchPlugin.Messaging
                 { "PlayerClassPosition", () => _pluginManager?.GetPropertyValue("DataCorePlugin.GameData.PositionInClass") },
                 { "IncidentCount", () => _pluginManager?.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerCarDriverIncidentCount") },
                 { "SlowDownTimeRemaining", () => _pluginManager?.GetPropertyValue("IRacingExtraProperties.iRacing_SlowDownTime") },
-                { "IncidentAheadWarning", () => false } // placeholder until implemented
+                { "IncidentAheadWarning", () => false }, // placeholder until implemented
+
+                // Track markers (pit entry/exit assist)
+                { "TrackMarkers.Pulse.Captured", () => _plugin?.ConsumeTrackMarkerCapturedPulse() },
+                { "TrackMarkers.Pulse.LengthDelta", () => _plugin?.ConsumeTrackMarkerLengthDeltaPulse() },
+                { "TrackMarkers.Pulse.LockedMismatch", () => _plugin?.ConsumeTrackMarkerLockedMismatchPulse() }
             };
         }
 

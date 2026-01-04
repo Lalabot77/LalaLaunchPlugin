@@ -109,6 +109,12 @@
     </Compile>
     <Compile Include="InvertBooleanConverter.cs" />
     <Compile Include="LapTimeValidationRule.cs" />
+    <Compile Include="SessionFileManager.cs" />
+    <Compile Include="SessionPlannerSnapshot.cs" />
+    <Compile Include="SessionSummaryLogger.cs" />
+    <Compile Include="SessionSummaryModel.cs" />
+    <Compile Include="SessionSummaryRuntime.cs" />
+    <Compile Include="SessionTraceLapRow.cs" />
     <Compile Include="LaunchAnalysisControl.xaml.cs">
       <DependentUpon>LaunchAnalysisControl.xaml</DependentUpon>
     </Compile>
@@ -145,6 +151,8 @@
     <Compile Include="RacePresetStore.cs" />
     <Compile Include="RejoinAssistEngine.cs" />
     <Compile Include="TelemetryLogger.cs" />
+    <Compile Include="TrackLengthHelper.cs" />
+    <Compile Include="TrackMarkerMessagingModels.cs" />
   </ItemGroup>
   <ItemGroup>
     <Page Include="CopyProfileDialog.xaml">

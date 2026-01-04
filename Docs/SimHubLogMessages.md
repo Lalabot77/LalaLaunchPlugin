@@ -129,5 +129,10 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - `[LalaPlugin:PitEntryAssist] LINE dToLine=3.2m dReq=0.0m margin=3.2m spdΔ=-2.1kph firstOK=58.4m okBefore=58.4m decel=14.0 buffer=15.0 cue=1`
 - `[LalaPlugin:PitEntryAssist] END`
 
+## Pit markers and track length
+- **`[LalaPlugin:PitMarkers] MSGV1 fire: captured track=<trackKey> entryPct=<pct> exitPct=<pct> locked=<bool>`** — Fired once per session per track when the first valid pit entry and exit markers are captured; emits an MSGV1 informational message and latches suppression by track key.【F:PitEngine.cs†L738-L767】【F:Messaging/MessageEvaluators.cs†L141-L173】
+- **`[LalaPlugin:PitMarkers] MSGV1 fire: track_length_delta track=<trackKey> start_m=<m> now_m=<m> delta_m=<m>`** — Fired once per session when a track length delta above threshold is detected; publishes an MSGV1 info message advising markers may be off.【F:PitEngine.cs†L654-L687】【F:Messaging/MessageEvaluators.cs†L175-L198】
+- **`[LalaPlugin:PitMarkers] MSGV1 fire: locked_mismatch track=<trackKey> storedEntryPct=<pct> candEntryPct=<pct> storedExitPct=<pct> candExitPct=<pct> tolPct=<pct>`** — Fired once per session per track when stored locked markers differ from a live detection beyond tolerance; sends an MSGV1 medium-priority info message.【F:PitEngine.cs†L682-L723】【F:Messaging/MessageEvaluators.cs†L200-L223】
+
 ## Rejoin assist
 - **`[LalaPlugin:Rejoin Assist] MsgCx override triggered.`** — Message context override fired inside rejoin assist engine.【F:RejoinAssistEngine.cs†L601-L622】
