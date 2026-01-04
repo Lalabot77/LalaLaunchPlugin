@@ -88,6 +88,7 @@ Branch: work
 - **Limiter-friendly arming:** Limiter ON + overspeed prevents missing the assist on ultra-short entries where phase changes late.
 - **Latched decel/buffer:** Outputs retain the last-used decel and buffer after reset to aid post-run debugging.
 - **Per-car profiles:** Values are stored with car profiles to keep braking cues stable across tyre compounds and ABS/regen behaviours.
+- **Pit entry markers & storage:** Pit entry/exit markers auto-learn per track (locked by default) into `PluginsData/Common/LalaLaunch/LalaLaunch.TrackMarkers.json`; track-length deltas >50 m force unlock and MSGV1 notifications. Lock/refresh controls live in Profiles → Tracks. See `Subsystems/Track_Markers.md` for the full capture/lock/notify flow.
 
 ## Known limitations
 - Relies on sim-provided pit distance; if both primary and fallback sources are absent, the assist cannot arm.  
