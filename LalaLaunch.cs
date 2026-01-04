@@ -2632,7 +2632,7 @@ namespace LaunchPlugin
         private DateTime _trackMarkerFirstCapturePulseUtc = DateTime.MinValue;
         private DateTime _trackMarkerTrackLengthChangedPulseUtc = DateTime.MinValue;
         private DateTime _trackMarkerLinesRefreshedPulseUtc = DateTime.MinValue;
-        private const double TrackMarkerPulseHoldSeconds = 1.0;
+        private const double TrackMarkerPulseHoldSeconds = 3.0;
         private readonly TrackMarkerPulse<TrackMarkerCapturedMessage> _trackMarkerCapturedPulse = new TrackMarkerPulse<TrackMarkerCapturedMessage>();
         private readonly TrackMarkerPulse<TrackMarkerLengthDeltaMessage> _trackMarkerLengthDeltaPulse = new TrackMarkerPulse<TrackMarkerLengthDeltaMessage>();
         private readonly TrackMarkerPulse<TrackMarkerLockedMismatchMessage> _trackMarkerLockedMismatchPulse = new TrackMarkerPulse<TrackMarkerLockedMismatchMessage>();
