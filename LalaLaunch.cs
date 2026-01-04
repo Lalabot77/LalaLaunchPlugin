@@ -1927,6 +1927,18 @@ namespace LaunchPlugin
                         _lastProjectionLapSecondsUsed,
                         LiveProjectedDriveSecondsRemaining);
 
+                    // Session summary identity refresh: ensures we capture car/track/preset even if Race-start fired early.
+                    // NOTE: currentSession is not in scope here, so pass "Race".
+                    SessionSummaryRuntime.OnRaceSessionStart(
+                        _currentSessionToken,
+                        "Race",
+                        CurrentCarModel,
+                        CurrentTrackKey,
+                        FuelCalculator?.SelectedPreset?.Name ?? string.Empty,
+                        FuelCalculator,
+                        Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false),
+                        currentFuel);
+
                     SessionSummaryRuntime.OnLapCrossed(
                         _currentSessionToken,
                         completedLapsNow,

@@ -51,6 +51,62 @@ namespace LaunchPlugin
                     trackKey ?? string.Empty,
                     DateTime.UtcNow);
             }
+            // Identity refresh mode:
+            // If race session start was called early (before car/track/preset were populated),
+            // allow later calls with the SAME sessionKey to fill identity without resetting state.
+            string incomingKey = sessionKey ?? string.Empty;
+            if (_greenSeen &&
+                !_summaryEmitted &&
+                string.Equals(incomingKey, _activeSessionKey, StringComparison.Ordinal))
+            {
+                bool hasCar = !string.IsNullOrWhiteSpace(carIdentifier);
+                bool hasTrack = !string.IsNullOrWhiteSpace(trackKey);
+                bool hasPreset = !string.IsNullOrWhiteSpace(presetName);
+
+                if (_summary == null)
+                {
+                    _summary = new SessionSummaryModel();
+                }
+
+                if (IsBlankOrUnknown(_summary.CarIdentifier) && hasCar)
+                {
+                    _summary.CarIdentifier = carIdentifier;
+                }
+
+                if (IsBlankOrUnknown(_summary.TrackKey) && hasTrack)
+                {
+                    _summary.TrackKey = trackKey;
+                }
+
+                if (IsBlankOrUnknown(_summary.PresetName) && hasPreset)
+                {
+                    _summary.PresetName = presetName;
+                }
+
+                // Refresh snapshot if planner is available and we now have better identity.
+                if (planner != null)
+                {
+                    _summary.PlannerSnapshot = BuildPlannerSnapshot(
+                        planner,
+                        _summary.PresetName,
+                        _summary.CarIdentifier,
+                        _summary.TrackKey,
+                        sessionType);
+                }
+
+                // If the trace filename was created with Unknown/Unknown, rebuild it once identity is known.
+                if (IsUnknownTraceFile(_activeTraceFile) && hasCar && hasTrack)
+                {
+                    _activeTraceFile = Logger.BuildTraceFilename(
+                        Logger.ResolveTraceDirectory(string.Empty),
+                        carIdentifier,
+                        trackKey,
+                        DateTime.UtcNow);
+                }
+
+                return;
+            }
+
         }
 
         public static void OnLapCrossed(
@@ -166,5 +222,23 @@ namespace LaunchPlugin
         {
             return $"schema=v1 session_type={summary.SessionType ?? string.Empty} car={summary.CarIdentifier ?? string.Empty} track={summary.TrackKey ?? string.Empty} laps={summary.ActualLapsCompleted?.ToString() ?? string.Empty} pit_stops={summary.ActualPitStops?.ToString() ?? string.Empty} after0_s={summary.ActualAfterZeroSeconds?.ToString("F1") ?? string.Empty} fuel_used_l=n/a";
         }
+        private static bool IsBlankOrUnknown(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ||
+                   string.Equals(value, "Unknown", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(value, "n/a", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsUnknownTraceFile(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return true;
+            }
+
+            // Matches the sanitize fallback in SessionFileManager ("Unknown")
+            return path.IndexOf("SessionTrace_Unknown_Unknown_", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
     }
 }
