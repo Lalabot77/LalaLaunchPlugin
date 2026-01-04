@@ -2651,12 +2651,6 @@ namespace LaunchPlugin
         private int _pitExitDistanceM = 0;
         private int _pitExitTimeS = 0;
         private const double PitExitSpeedEpsilonMps = 0.1;
-        private int _pitExitDistanceM = 0;
-        private int _pitExitTimeS = 0;
-        private const double PitExitSpeedEpsilonMps = 0.1;
-        private int _pitExitDistanceM = 0;
-        private int _pitExitTimeS = 0;
-        private const double PitExitSpeedEpsilonMps = 0.1;
 
         // ==== Refuel learning state (hardened) ====
         private bool _isRefuelling = false;
