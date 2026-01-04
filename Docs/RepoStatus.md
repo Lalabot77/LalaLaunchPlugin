@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is `34433cf` with the message “Improve live session handling and UI formatting.” The preceding commit is `d7c316e` (“Enforce live-only data in session summaries”). Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
+- The latest commit on `work` is the current HEAD with the message “Add pit exit distance/time SimHub outputs.” The preceding commit is `34433cf` (“Improve live session handling and UI formatting.”). Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
