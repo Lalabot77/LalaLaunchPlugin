@@ -50,3 +50,10 @@
 
 ## Where to ask SimHub for car/track live data
 - SimHub exposes the live car and track via data references such as `DataCorePlugin.GameData.CarModel` and `DataCorePlugin.GameData.TrackNameWithConfig`. The UI dropdowns use these live values, so once your GitHub branches are synced you can verify that both the pre-race and snapshot fields bind to the same live strings.
+
+## Feature delivery status (docs canonical)
+- **Pit Entry Assist:** **COMPLETE** — stable, shipped, and represented in driver/dash docs. Uses pit speed + distance sources with decel/buffer tuning; no pending work in this repo.
+- **Track Markers:** **COMPLETE** — pit entry/exit markers auto-learned per track with lock/unlock semantics, track-length change detection, and MSGV1 notifications. Stored in `PluginsData/Common/LalaLaunch/LalaLaunch.TrackMarkers.json`.
+- **MSGV1 for pit markers:** **INTEGRATED** — pit marker capture/length-delta/lock-mismatch messages defined in `Messaging/Messages.json` via `MessageDefinitionStore`; MSGV1 core continues elsewhere but this repo ships pit marker hooks.
+- **Legacy messaging:** **Not used** — only MSGV1 definition-driven messages fire; no legacy/adhoc messaging paths remain for pit markers.
+- **Known/accepted limitations:** Replay session identity quirks remain (see `Reset_And_Session_Identity.md`) and track-length deltas are informational only; both are understood/accepted for current shipping state.

@@ -108,6 +108,7 @@ Evaluate message definitions against telemetry and plugin signals, maintain acti
 ## Inputs (source + cadence)
 - Message definitions from `MessageEngine` (evaluators + registry) loaded at init. Evaluators consume SimHub properties (flags, pace mode, gaps) and plugin exports (pit window, fuel deltas, rejoin threat, pace averages).【F:Messaging/MessageEngine.cs†L430-L560】【F:Docs/Message_Catalog_v5_Signal_Mapping_Report.md†L7-L80】
 - MsgCx action pulses for cancel/override (per action press).【F:LalaLaunch.cs†L87-L118】
+- Pit marker pulses (`TrackMarkers.Pulse.Captured`, `.LengthDelta`, `.LockedMismatch`) supplied by `LalaLaunch`/`PitEngine` for definition-driven notifications.【F:Messaging/SignalProvider.cs†L86-L102】【F:LalaLaunch.cs†L3118-L3179】
 - Planning source and profile changes indirectly affect signals (e.g., fuel deltas).
 
 ## Internal state
@@ -120,11 +121,13 @@ Evaluate message definitions against telemetry and plugin signals, maintain acti
 2. **Signal ingestion:** Signals pulled from SimHub/plugin exports each evaluation tick (cadence controlled by host—TODO/VERIFY cadence in runtime loop).【F:Messaging/MessageEngine.cs†L430-L520】
 3. **Message activation:** Evaluators set active messages, priorities, styles; outputs written to exports.
 4. **Cancel handling:** MsgCx triggers `_msgV1Engine.OnMsgCxPressed()` to clear/cancel messages per engine rules.【F:LalaLaunch.cs†L87-L118】
+5. **Pit marker latching:** `Eval_TrackMarkersCaptured/LengthDelta/LockedMismatch` consume marker pulses once per track key, latching tokens to avoid repeat toasts while markers remain unchanged or locked.【F:Messaging/MessageEvaluators.cs†L401-L476】
 
 ## Outputs (exports + logs)
 - Exports: `MSGV1.ActiveText_*`, priority, IDs, colors, font sizes, `ActiveCount`, `LastCancelMsgId`, `ClearAllPulse`, `StackCsv`, `MissingEvaluatorsCsv` (see inventory).【F:LalaLaunch.cs†L2919-L2940】
 - Logs: `[LalaPlugin:MSGV1] Registered placeholder evaluators: ...` and other engine-level messages.【F:Messaging/MessageEngine.cs†L499-L560】
 - Signal mappings: see `Docs/Message_Catalog_v5_Signal_Mapping_Report.md`.
+- Pit marker toasts are definition-driven (`MsgId`: `trackmarkers.captured`, `trackmarkers.length_delta`, `trackmarkers.lock_mismatch`) with no legacy/adhoc path; texts live in `Messages.json` via `MessageDefinitionStore`.【F:Messaging/MessageDefinitionStore.cs†L393-L452】
 
 ## Dependencies / ordering assumptions
 - Requires plugin exports (fuel deltas, pit window, pace) to be up-to-date; relies on `LalaLaunch` 500 ms loop feeding those exports.
