@@ -76,6 +76,8 @@ Branch: work
 | Pit.EntrySpeedDelta_kph | double | Current speed minus pit speed limit (session pit limit, fallback to iRacing extra). | Per tick when armed. | `PitEngine.UpdatePitEntryAssist` + `AttachCore`【F:PitEngine.cs†L251-L276】【F:LalaLaunch.cs†L2756-L2758】 |
 | Pit.EntryDecelProfile_mps2 | double | Profile-configured pit entry decel used for the constant-decel model (clamped to 5–25 m/s²). | Per tick when armed. | `PitEngine.UpdatePitEntryAssist` + `AttachCore`【F:PitEngine.cs†L240-L259】【F:LalaLaunch.cs†L2757-L2759】 |
 | Pit.EntryBuffer_m | double | Profile-configured buffer distance used for cue thresholds (clamped to 0–50 m). | Per tick when armed. | `PitEngine.UpdatePitEntryAssist` + `AttachCore`【F:PitEngine.cs†L240-L259】【F:LalaLaunch.cs†L2758-L2760】 |
+| PitExit.DistanceM | int | Forward distance in metres to the stored pit exit marker (wraps at S/F). Returns 0 if data missing. | Per tick. | `LalaLaunch.cs` — `UpdatePitExitDisplayValues` + `AttachCore`【F:LalaLaunch.cs†L3411-L3444】【F:LalaLaunch.cs†L3058-L3063】 |
+| PitExit.TimeS | int | Estimated time in seconds to pit exit using current speed (0 if speed too small or data missing). | Per tick. | `LalaLaunch.cs` — `UpdatePitExitDisplayValues` + `AttachCore`【F:LalaLaunch.cs†L3411-L3444】【F:LalaLaunch.cs†L3058-L3063】 |
 
 ## Launch
 | Exported name | Type | Units / meaning | Update cadence | Defined in |

@@ -2648,6 +2648,15 @@ namespace LaunchPlugin
         private readonly TrackMarkerPulse<TrackMarkerCapturedMessage> _trackMarkerCapturedPulse = new TrackMarkerPulse<TrackMarkerCapturedMessage>();
         private readonly TrackMarkerPulse<TrackMarkerLengthDeltaMessage> _trackMarkerLengthDeltaPulse = new TrackMarkerPulse<TrackMarkerLengthDeltaMessage>();
         private readonly TrackMarkerPulse<TrackMarkerLockedMismatchMessage> _trackMarkerLockedMismatchPulse = new TrackMarkerPulse<TrackMarkerLockedMismatchMessage>();
+        private int _pitExitDistanceM = 0;
+        private int _pitExitTimeS = 0;
+        private const double PitExitSpeedEpsilonMps = 0.1;
+        private int _pitExitDistanceM = 0;
+        private int _pitExitTimeS = 0;
+        private const double PitExitSpeedEpsilonMps = 0.1;
+        private int _pitExitDistanceM = 0;
+        private int _pitExitTimeS = 0;
+        private const double PitExitSpeedEpsilonMps = 0.1;
 
         // ==== Refuel learning state (hardened) ====
         private bool _isRefuelling = false;
@@ -3065,6 +3074,8 @@ namespace LaunchPlugin
             AttachCore("TrackMarkers.Session.TrackLengthChanged", () => _pit?.TrackMarkersSessionTrackLengthChanged ?? false);
             AttachCore("TrackMarkers.Session.NeedsEntryRefresh", () => _pit?.TrackMarkersSessionNeedsEntryRefresh ?? false);
             AttachCore("TrackMarkers.Session.NeedsExitRefresh", () => _pit?.TrackMarkersSessionNeedsExitRefresh ?? false);
+            AttachCore("PitExit.DistanceM", () => _pitExitDistanceM);
+            AttachCore("PitExit.TimeS", () => _pitExitTimeS);
             AttachCore("TrackMarkers.Trigger.FirstCapture", () => IsTrackMarkerPulseActive(_trackMarkerFirstCapturePulseUtc));
             AttachCore("TrackMarkers.Trigger.TrackLengthChanged", () => IsTrackMarkerPulseActive(_trackMarkerTrackLengthChangedPulseUtc));
             AttachCore("TrackMarkers.Trigger.LinesRefreshed", () => IsTrackMarkerPulseActive(_trackMarkerLinesRefreshedPulseUtc));
@@ -3602,6 +3613,7 @@ namespace LaunchPlugin
             }
 
             _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
+            UpdatePitExitDisplayValues(data);
 
             // --- Rejoin assist update & lap incident tracking ---
             _rejoinEngine?.Update(data, pluginManager, IsLaunchActive);
@@ -4075,6 +4087,38 @@ namespace LaunchPlugin
             }
 
             return false;
+        }
+
+        private void UpdatePitExitDisplayValues(GameData data)
+        {
+            _pitExitDistanceM = 0;
+            _pitExitTimeS = 0;
+
+            if (data?.NewData == null || _pit == null) return;
+
+            double exitPct = _pit.TrackMarkersStoredExitPct;
+            double trackLenM = _pit.TrackMarkersSessionTrackLengthM;
+
+            double carPct = data.NewData.TrackPositionPercent;
+            if (carPct > 1.5) carPct *= 0.01;
+            if (carPct < 0.0 || carPct > 1.0) carPct = double.NaN;
+
+            double speedKmh = data.NewData.SpeedKmh;
+            double speedMps = speedKmh / 3.6;
+
+            if (double.IsNaN(exitPct) || double.IsNaN(carPct) || double.IsNaN(trackLenM) || trackLenM <= 0.0)
+                return;
+
+            double deltaPct = exitPct - carPct;
+            if (deltaPct < 0.0) deltaPct += 1.0;
+
+            double distanceM = deltaPct * trackLenM;
+            if (double.IsNaN(distanceM) || distanceM < 0.0) distanceM = 0.0;
+
+            double timeS = (speedMps > PitExitSpeedEpsilonMps) ? distanceM / speedMps : 0.0;
+
+            _pitExitDistanceM = Math.Max(0, (int)Math.Round(distanceM, MidpointRounding.AwayFromZero));
+            _pitExitTimeS = Math.Max(0, (int)Math.Round(timeS, MidpointRounding.AwayFromZero));
         }
 
         private void RefreshClassMetadata(PluginManager pluginManager)
