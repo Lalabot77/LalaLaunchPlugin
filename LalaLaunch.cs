@@ -3601,7 +3601,6 @@ namespace LaunchPlugin
             }
 
             _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
-            UpdatePitExitDisplayValues(data);
 
             // --- Rejoin assist update & lap incident tracking ---
             _rejoinEngine?.Update(data, pluginManager, IsLaunchActive);
@@ -3756,6 +3755,7 @@ namespace LaunchPlugin
                     _msgSystem.MaintainMsgCxTimers();
 
                 _msgV1Engine?.Tick(data);
+                UpdatePitExitDisplayValues(data, inLane);
             }
 
             // --- Launch State helpers (need tick-level responsiveness) ---
@@ -4074,10 +4074,12 @@ namespace LaunchPlugin
             return false;
         }
 
-        private void UpdatePitExitDisplayValues(GameData data)
+        private void UpdatePitExitDisplayValues(GameData data, bool inPitLane)
         {
             _pitExitDistanceM = 0;
             _pitExitTimeS = 0;
+
+            if (!inPitLane) return;
 
             if (data?.NewData == null || _pit == null) return;
 
