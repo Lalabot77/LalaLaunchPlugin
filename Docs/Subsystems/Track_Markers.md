@@ -53,6 +53,10 @@ Capture pit entry/exit lines per track, keep them stable across sessions via per
 - **Definitions:** Messages are definition-driven in `MessageDefinitionStore`/`Messages.json` (`MsgId`: `trackmarkers.captured`, `trackmarkers.length_delta`, `trackmarkers.lock_mismatch`); no legacy/adhoc messaging paths are used.【F:Messaging/MessageDefinitionStore.cs†L393-L452】
 - **Active behaviour:** MSGV1 displays a low/med priority toast per trigger; payload includes track key and stored vs candidate values (for mismatch) for log clarity. Pulses expire after ~3 s if not consumed.【F:LalaLaunch.cs†L2635-L3179】
 
+## Pit-exit HUD exports (distance/time)
+- `LalaLaunch` derives `PitExit.DistanceM` and `PitExit.TimeS` from the stored exit marker, cached track length, live car track position, and speed. Outputs are zeroed when not in pit lane and update on the 250 ms poll cadence using the `inLane` flag already computed for PitLite, avoiding unnecessary churn while running on track.【F:LalaLaunch.cs†L3743-L3759】【F:LalaLaunch.cs†L4077-L4104】
+- Calculations preserve prior wrapping/clamping behaviour (forward delta, wrap at S/F, integer rounding) and reuse the existing speed epsilon for time estimates; only the gating/cadence changed.
+
 ## Reuse guidance
 - Treat stored markers as canonical input for pit-related features; use live telemetry only to **propose** changes.
 - Reuse the **auto-learn + lock + MSGV1 notify** pattern for other per-track artefacts to keep UX consistent (capture, allow lock, notify on drift).

@@ -176,6 +176,7 @@ Typical outputs include:
 - `Fuel.Live.TotalStopLoss`
 - `Fuel.Live.RefuelRate_Lps`
 - `Fuel.Live.TireChangeTime_S`
+- `PitExit.DistanceM` / `PitExit.TimeS` (pit-exit waypoint distance/time using stored exit marker + live speed). These remain zero outside the pit lane and refresh on the 250 ms poll cadence, matching pit-lane state to avoid noisy updates when circulating on track.
 
 These values feed directly into:
 - Fuel Model pit projections.
@@ -268,7 +269,6 @@ Reset semantics are centralised in:
 - TODO/VERIFY: Confirm exact speed threshold and dwell time used to classify “box stop” vs drive-through.
 - TODO/VERIFY: Confirm whether DTL uses session-average or stint-average pace as baseline.
 - TODO/VERIFY: Confirm pit loss publication gating for non-race sessions (practice/qualifying).
-
 
 
 

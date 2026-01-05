@@ -1927,6 +1927,8 @@ namespace LaunchPlugin
                         _lastProjectionLapSecondsUsed,
                         LiveProjectedDriveSecondsRemaining);
 
+
+
                     SessionSummaryRuntime.OnLapCrossed(
                         _currentSessionToken,
                         completedLapsNow,
@@ -1937,7 +1939,11 @@ namespace LaunchPlugin
                         stableLapsRemaining,
                         null,
                         (_pit?.CurrentPitPhase ?? PitPhase.None).ToString(),
-                        _afterZeroUsedSeconds);
+                        _afterZeroUsedSeconds,
+                        data.NewData?.CarModel ?? string.Empty,
+                        data.NewData?.TrackName ?? string.Empty,
+                        FuelCalculator?.AppliedPreset?.Name ?? string.Empty
+                    );
 
                     // Per-lap resets for next lap (must be inside completedLapsNow scope)
                     if (pitTripActive)
@@ -2636,6 +2642,9 @@ namespace LaunchPlugin
         private readonly TrackMarkerPulse<TrackMarkerCapturedMessage> _trackMarkerCapturedPulse = new TrackMarkerPulse<TrackMarkerCapturedMessage>();
         private readonly TrackMarkerPulse<TrackMarkerLengthDeltaMessage> _trackMarkerLengthDeltaPulse = new TrackMarkerPulse<TrackMarkerLengthDeltaMessage>();
         private readonly TrackMarkerPulse<TrackMarkerLockedMismatchMessage> _trackMarkerLockedMismatchPulse = new TrackMarkerPulse<TrackMarkerLockedMismatchMessage>();
+        private int _pitExitDistanceM = 0;
+        private int _pitExitTimeS = 0;
+        private const double PitExitSpeedEpsilonMps = 0.1;
 
         // ==== Refuel learning state (hardened) ====
         private bool _isRefuelling = false;
@@ -3053,6 +3062,8 @@ namespace LaunchPlugin
             AttachCore("TrackMarkers.Session.TrackLengthChanged", () => _pit?.TrackMarkersSessionTrackLengthChanged ?? false);
             AttachCore("TrackMarkers.Session.NeedsEntryRefresh", () => _pit?.TrackMarkersSessionNeedsEntryRefresh ?? false);
             AttachCore("TrackMarkers.Session.NeedsExitRefresh", () => _pit?.TrackMarkersSessionNeedsExitRefresh ?? false);
+            AttachCore("PitExit.DistanceM", () => _pitExitDistanceM);
+            AttachCore("PitExit.TimeS", () => _pitExitTimeS);
             AttachCore("TrackMarkers.Trigger.FirstCapture", () => IsTrackMarkerPulseActive(_trackMarkerFirstCapturePulseUtc));
             AttachCore("TrackMarkers.Trigger.TrackLengthChanged", () => IsTrackMarkerPulseActive(_trackMarkerTrackLengthChangedPulseUtc));
             AttachCore("TrackMarkers.Trigger.LinesRefreshed", () => IsTrackMarkerPulseActive(_trackMarkerLinesRefreshedPulseUtc));
@@ -3337,7 +3348,17 @@ namespace LaunchPlugin
                 inPits = pitRoad ?? inPitLane ?? false;
             }
 
-            seriousRejoin = _rejoinEngine?.IsSeriousIncidentActive ?? false;
+            var rejoin = _rejoinEngine;
+            if (rejoin != null)
+            {
+                var logic = rejoin.CurrentLogicCode;
+                var det = rejoin.DetectedReason;
+
+                bool spin = (logic == RejoinReason.Spin || det == RejoinReason.Spin);
+                bool wrongWay = (logic == RejoinReason.WrongWay || det == RejoinReason.WrongWay);
+
+                seriousRejoin = spin || wrongWay;
+            }
 
             return inPits || seriousRejoin;
         }
@@ -3744,6 +3765,7 @@ namespace LaunchPlugin
                     _msgSystem.MaintainMsgCxTimers();
 
                 _msgV1Engine?.Tick(data);
+                UpdatePitExitDisplayValues(data, inLane);
             }
 
             // --- Launch State helpers (need tick-level responsiveness) ---
@@ -3831,10 +3853,7 @@ namespace LaunchPlugin
                     });
 
                 }
-                // =======================================================================
-                // ======================= MODIFIED BLOCK END ============================
-                // =======================================================================
-
+                
             }
 
             UpdateLiveProperties(pluginManager, ref data);
@@ -4063,6 +4082,40 @@ namespace LaunchPlugin
             }
 
             return false;
+        }
+
+        private void UpdatePitExitDisplayValues(GameData data, bool inPitLane)
+        {
+            _pitExitDistanceM = 0;
+            _pitExitTimeS = 0;
+
+            if (!inPitLane) return;
+
+            if (data?.NewData == null || _pit == null) return;
+
+            double exitPct = _pit.TrackMarkersStoredExitPct;
+            double trackLenM = _pit.TrackMarkersSessionTrackLengthM;
+
+            double carPct = data.NewData.TrackPositionPercent;
+            if (carPct > 1.5) carPct *= 0.01;
+            if (carPct < 0.0 || carPct > 1.0) carPct = double.NaN;
+
+            double speedKmh = data.NewData.SpeedKmh;
+            double speedMps = speedKmh / 3.6;
+
+            if (double.IsNaN(exitPct) || double.IsNaN(carPct) || double.IsNaN(trackLenM) || trackLenM <= 0.0)
+                return;
+
+            double deltaPct = exitPct - carPct;
+            if (deltaPct < 0.0) deltaPct += 1.0;
+
+            double distanceM = deltaPct * trackLenM;
+            if (double.IsNaN(distanceM) || distanceM < 0.0) distanceM = 0.0;
+
+            double timeS = (speedMps > PitExitSpeedEpsilonMps) ? distanceM / speedMps : 0.0;
+
+            _pitExitDistanceM = Math.Max(0, (int)Math.Round(distanceM, MidpointRounding.AwayFromZero));
+            _pitExitTimeS = Math.Max(0, (int)Math.Round(timeS, MidpointRounding.AwayFromZero));
         }
 
         private void RefreshClassMetadata(PluginManager pluginManager)

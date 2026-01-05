@@ -1,14 +1,15 @@
 # Code Snapshot
 
 - Branch: work
-- Commit: 1bd403867a1752de9e705163a4a2a599905ebe2c
-- Date: 2025-12-28
+- Commit: 9629205 (Gate pit exit display updates to pit lane)
+- Date: 2026-02-08
 
 ## Architectural notes (pit markers, MSGV1, and host wiring)
 - `PitEngine` now owns pit entry/exit marker auto-learning, storage, and track-length change detection (threshold 50 m). It emits trigger events for first capture, length delta, line refresh, and locked mismatches, and persists markers immediately into `PluginsData/Common/LalaLaunch/LalaLaunch.TrackMarkers.json`. Lock/unlock semantics are enforced at capture time to keep stored markers authoritative unless refreshed or manually unlocked.【F:PitEngine.cs†L525-L769】【F:PitEngine.cs†L669-L714】【F:PitEngine.cs†L968-L1034】
 - `LalaLaunch` manages marker pulses, attaches marker exports (`TrackMarkers.*` stored/session/trigger fields), and exposes actions to lock/unlock markers plus a reload hook for manual JSON edits. Track marker trigger pulses are routed to MSGV1 via pulsed objects held for ~3 s to allow evaluators to consume them once.【F:LalaLaunch.cs†L134-L182】【F:LalaLaunch.cs†L3047-L3179】
 - `SignalProvider` extends MSGV1 signals with `TrackMarkers.Pulse.*` entries that return the most recent pulse payloads for evaluators; these are polled per evaluation tick and cleared on consumption.【F:Messaging/SignalProvider.cs†L86-L102】
 - `MessageDefinitionStore` registers new definition-driven MSGV1 messages for pit marker capture, track-length delta, and locked mismatch, each paired with dedicated evaluators that latch per-track tokens to avoid repeats. Messages live in `Messages.json` (definition store) and replace any legacy/adhoc messaging for this area.【F:Messaging/MessageDefinitionStore.cs†L393-L452】【F:Messaging/MessageEvaluators.cs†L401-L476】
+- `LalaLaunch` now publishes dash-facing pit exit distance and time outputs derived from stored pit exit track percentage, cached track length, live car track position, and speed; values wrap forward around S/F, clamp to integers, and fall back to zero when data is missing or speed is negligible. Updates are throttled to the 250 ms poll cadence and only run while the car is in pit lane, keeping the exports at zero on track.【F:LalaLaunch.cs†L3743-L3759】【F:LalaLaunch.cs†L4077-L4104】
 
 ## Included .cs Files
 - CarProfiles.cs — last modified 2025-12-27T12:32:10+00:00
@@ -19,7 +20,7 @@
 - FuelCalculatorView.xaml.cs — last modified 2025-11-27T07:30:04-06:00
 - FuelProjectionMath.cs — last modified 2025-12-27T12:32:10+00:00
 - InvertBooleanConverter.cs — last modified 2025-09-14T19:32:49+01:00
-- LalaLaunch.cs — last modified 2025-12-27T12:37:19+00:00
+- LalaLaunch.cs — last modified 2026-02-08T00:00:00+00:00
 - LapTimeValidationRule.cs — last modified 2025-09-14T19:32:49+01:00
 - LaunchAnalysisControl.xaml.cs — last modified 2025-11-27T11:49:07-06:00
 - LaunchPluginCombinedSettingsControl.xaml.cs — last modified 2025-11-04T19:13:41-06:00
