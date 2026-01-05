@@ -3348,7 +3348,17 @@ namespace LaunchPlugin
                 inPits = pitRoad ?? inPitLane ?? false;
             }
 
-            seriousRejoin = _rejoinEngine?.IsSeriousIncidentActive ?? false;
+            var rejoin = _rejoinEngine;
+            if (rejoin != null)
+            {
+                var logic = rejoin.CurrentLogicCode;
+                var det = rejoin.DetectedReason;
+
+                bool spin = (logic == RejoinReason.Spin || det == RejoinReason.Spin);
+                bool wrongWay = (logic == RejoinReason.WrongWay || det == RejoinReason.WrongWay);
+
+                seriousRejoin = spin || wrongWay;
+            }
 
             return inPits || seriousRejoin;
         }

@@ -54,6 +54,8 @@ namespace LaunchPlugin
         WARNING,  // Car within 5s
         DANGER    // Car within 2s
     }
+
+
     public class RejoinAssistEngine
     {
         private RejoinReason _currentLogicReason = RejoinReason.None;
@@ -175,6 +177,32 @@ namespace LaunchPlugin
             }
         }
 
+        private void ResetForMsgCx()
+        {
+            // Keep _msgCxTimer running!
+            // Keep stopped suppression latch (so cancel works even while stopped)
+            // _suppressedStoppedUntilSpeedClear stays as-is
+
+            _currentLogicReason = RejoinReason.None;
+            _detectedReason = RejoinReason.None;
+
+            _delayTimer.Reset();
+            _lingerTimer.Reset();
+            _spinHoldTimer.Reset();
+            _stoppedClearTimer.Reset();
+
+            _previousLapDistPct = -1.0;
+
+            // Threat/scan state (same as Reset)
+            _rejoinSpeed = 0.0;
+            TimeToThreatSeconds = 99.0;
+            _smoothedTtc = 99.0;
+            CurrentThreatLevel = ThreatLevel.CLEAR;
+            _threatDemoteTarget = ThreatLevel.CLEAR;
+            _threatDemoteSinceUtc = DateTime.MinValue;
+            _threatInit = false;
+            ThreatDebug = string.Empty;
+        }
 
         public void Reset()
         {
@@ -504,7 +532,7 @@ namespace LaunchPlugin
             {
                 if (_msgCxTimer.Elapsed.TotalSeconds < 1.0)
                 {
-                    Reset();
+                    ResetForMsgCx();
                     _currentLogicReason = RejoinReason.MsgCxPressed;
                 }
                 else if (_msgCxTimer.Elapsed.TotalSeconds < 30.0)
