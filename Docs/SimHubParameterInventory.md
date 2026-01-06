@@ -1,10 +1,10 @@
 # SimHub Parameter Inventory (CANONICAL)
 
-Validated against commit: 52bd57d7c618f4df094c68c4ea6f1e11cc5e328f  
-Last updated: 2026-02-06  
-Branch: work
+Validated against commit: b31a0be584c2941a7d8d4d4c5dde2e852d7b32a2  
+Last updated: 2026-02-07  
+Branch: Opponents-Module
 
-- All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2606-L2955】【F:LalaLaunch.cs†L3235-L3585】
+- All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
 - Legacy spreadsheet `SimHub_Parameter_Inventory.xlsx` is reference-only; this file is canonical.
 - “Defined in” lists the class/method that computes the value before `AttachCore/AttachVerbose` publishes it.
 
@@ -59,20 +59,20 @@ Branch: work
 ## Opponents & Pit Exit
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |
-| Opp.Ahead1.Name / CarNumber / ClassColor | string | Identity of the closest class car ahead (slot bound by iRacing extras; identity = ClassColor:CarNumber). Empty before Race lap ≥2 gate. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — nearby slot ingestion + `AttachCore`【F:Opponents.cs†L42-L262】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Ahead1.GapToPlayerSec | double | Gap seconds to player from IRacing relative (ahead expected positive). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — slot read + `AttachCore`【F:Opponents.cs†L264-L305】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Ahead1.BlendedPaceSec | double | Blended pace (0.70×recent avg + 0.30×best×1.01) for ahead car; NaN when invalid. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — entity cache + `AttachCore`【F:Opponents.cs†L624-L687】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Ahead1.PaceDeltaSecPerLap | double | Closing rate vs player pace (opponent − mine; negative = you are faster). NaN when no pace. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — fight computation + `AttachCore`【F:Opponents.cs†L213-L262】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Ahead1.LapsToFight | double | Laps to reach/fight the ahead car based on gap/closing rate; NaN = no catch/invalid. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — fight computation + `AttachCore`【F:Opponents.cs†L213-L262】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Ahead2.* | string/double | Same fields as Ahead1 for the second car ahead in class. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — slot 2 ahead + `AttachCore`【F:Opponents.cs†L197-L262】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Behind1.* | string/double | Same fields for closest car behind in class. PaceDeltaSecPerLap = (mine − opponent). LapsToFight = laps until caught (NaN = no threat). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — slot behind + `AttachCore`【F:Opponents.cs†L197-L262】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Behind2.* | string/double | Same fields for second car behind in class. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — slot behind + `AttachCore`【F:Opponents.cs†L197-L262】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Leader.BlendedPaceSec / Opp.P2.BlendedPaceSec | double | Blended pace for class leader / P2 from leaderboard rows (NaN if unavailable or gated). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — leaderboard pace + `AttachCore`【F:Opponents.cs†L352-L401】【F:LalaLaunch.cs†L3058-L3098】 |
-| Opp.Summary | string | Compact summary of A1/A2/B1/B2 gap/Δ/fight status for dashboards. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — summary builder + `AttachCore`【F:Opponents.cs†L102-L135】【F:LalaLaunch.cs†L3058-L3098】 |
-| PitExit.Valid | bool | True when pit-exit predictor has a player row + leaderboard data while gated (Race, lap ≥2). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — pit-exit predictor + `AttachCore`【F:Opponents.cs†L456-L548】【F:LalaLaunch.cs†L3058-L3098】 |
-| PitExit.PredictedPositionInClass | int | Predicted class position after a pit stop using pitLossSec from FuelCalculator (1 + cars predicted ahead). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — pit-exit predictor + `AttachCore`【F:Opponents.cs†L477-L548】【F:LalaLaunch.cs†L3058-L3098】 |
-| PitExit.CarsAheadAfterPitCount | int | Count of same-class connected cars expected to be ahead after serving pit loss. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — pit-exit predictor + `AttachCore`【F:Opponents.cs†L500-L548】【F:LalaLaunch.cs†L3058-L3098】 |
-| PitExit.Summary | string | Human summary of predicted post-stop position (`PitExit: P# after stop (ahead=X, loss=Ys)`). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — pit-exit predictor + `AttachCore`【F:Opponents.cs†L518-L548】【F:LalaLaunch.cs†L3058-L3098】 |
+| Opp.Ahead1.Name / CarNumber / ClassColor | string | Identity of the closest class car ahead (slot bound by iRacing extras; identity = ClassColor:CarNumber). Empty before Race lap ≥2 gate. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — nearby slot ingestion + `AttachCore`【F:Opponents.cs†L42-L344】【F:LalaLaunch.cs†L3079-L3093】 |
+| Opp.Ahead1.GapToPlayerSec | double | Gap seconds to player from IRacing relative (stored absolute). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — slot read + `AttachCore`【F:Opponents.cs†L268-L317】【F:LalaLaunch.cs†L3079-L3093】 |
+| Opp.Ahead1.BlendedPaceSec | double | Blended pace (0.70×recent avg + 0.30×best×1.01) for ahead car; NaN when invalid. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — entity cache + `AttachCore`【F:Opponents.cs†L627-L717】【F:LalaLaunch.cs†L3079-L3093】 |
+| Opp.Ahead1.PaceDeltaSecPerLap | double | Closing rate vs player pace (opponent − mine; positive means you are faster by that margin). NaN when no pace. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — fight computation + `AttachCore`【F:Opponents.cs†L268-L317】【F:LalaLaunch.cs†L3079-L3093】 |
+| Opp.Ahead1.LapsToFight | double | Laps to reach/fight the ahead car; requires gap >0 and closingRate >0.05 s/lap, else NaN. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — fight computation + `AttachCore`【F:Opponents.cs†L268-L317】【F:LalaLaunch.cs†L3079-L3093】 |
+| Opp.Ahead2.* | string/double | Same fields as Ahead1 for the second car ahead in class. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — slot 2 ahead + `AttachCore`【F:Opponents.cs†L252-L344】【F:LalaLaunch.cs†L3079-L3094】 |
+| Opp.Behind1.* | string/double | Same fields for closest car behind in class. PaceDeltaSecPerLap = (mine − opponent). LapsToFight published only when closingRate >0.05 s/lap. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — slot behind + `AttachCore`【F:Opponents.cs†L252-L344】【F:LalaLaunch.cs†L3095-L3102】 |
+| Opp.Behind2.* | string/double | Same fields for second car behind in class. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — slot behind + `AttachCore`【F:Opponents.cs†L252-L344】【F:LalaLaunch.cs†L3103-L3109】 |
+| Opp.Leader.BlendedPaceSec / Opp.P2.BlendedPaceSec | double | Blended pace for class leader / P2 from leaderboard rows (NaN if unavailable or gated). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — leaderboard pace + `AttachCore`【F:Opponents.cs†L395-L444】【F:LalaLaunch.cs†L3111-L3113】 |
+| Opp.Summary | string | Compact summary of A1/A2/B1/B2 gap/Δ/fight status for dashboards. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — summary builder + `AttachCore`【F:Opponents.cs†L102-L135】【F:LalaLaunch.cs†L3111-L3113】 |
+| PitExit.Valid | bool | True when pit-exit predictor has a player row + leaderboard data while gated (Race, lap ≥2). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — pit-exit predictor + `AttachCore`【F:Opponents.cs†L507-L579】【F:LalaLaunch.cs†L3115-L3118】 |
+| PitExit.PredictedPositionInClass | int | Predicted class position after a pit stop using validated pitLossSec (1 + cars predicted ahead). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — pit-exit predictor + `AttachCore`【F:Opponents.cs†L507-L566】【F:LalaLaunch.cs†L3115-L3118】 |
+| PitExit.CarsAheadAfterPitCount | int | Count of same-class connected cars expected to be ahead after serving pit loss. | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — pit-exit predictor + `AttachCore`【F:Opponents.cs†L532-L566】【F:LalaLaunch.cs†L3115-L3118】 |
+| PitExit.Summary | string | Human summary of predicted post-stop position (`PitExit: P# after stop (ahead=X, loss=Ys)`). | Per tick (Race only, lap gate ≥2). | `Opponents.cs` — pit-exit predictor + `AttachCore`【F:Opponents.cs†L550-L566】【F:LalaLaunch.cs†L3115-L3118】 |
 
 ## Pit timing and PitLite
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
@@ -94,8 +94,8 @@ Branch: work
 | Pit.EntrySpeedDelta_kph | double | Current speed minus pit speed limit (session pit limit, fallback to iRacing extra). | Per tick when armed. | `PitEngine.UpdatePitEntryAssist` + `AttachCore`【F:PitEngine.cs†L251-L276】【F:LalaLaunch.cs†L2756-L2758】 |
 | Pit.EntryDecelProfile_mps2 | double | Profile-configured pit entry decel used for the constant-decel model (clamped to 5–25 m/s²). | Per tick when armed. | `PitEngine.UpdatePitEntryAssist` + `AttachCore`【F:PitEngine.cs†L240-L259】【F:LalaLaunch.cs†L2757-L2759】 |
 | Pit.EntryBuffer_m | double | Profile-configured buffer distance used for cue thresholds (clamped to 0–50 m). | Per tick when armed. | `PitEngine.UpdatePitEntryAssist` + `AttachCore`【F:PitEngine.cs†L240-L259】【F:LalaLaunch.cs†L2758-L2760】 |
-| PitExit.DistanceM | int | Forward distance in metres to the stored pit exit marker (wraps at S/F). Returns 0 if data missing. | Per tick. | `LalaLaunch.cs` — `UpdatePitExitDisplayValues` + `AttachCore`【F:LalaLaunch.cs†L3411-L3444】【F:LalaLaunch.cs†L3058-L3063】 |
-| PitExit.TimeS | int | Estimated time in seconds to pit exit using current speed (0 if speed too small or data missing). | Per tick. | `LalaLaunch.cs` — `UpdatePitExitDisplayValues` + `AttachCore`【F:LalaLaunch.cs†L3411-L3444】【F:LalaLaunch.cs†L3058-L3063】 |
+| PitExit.DistanceM | int | Forward distance in metres to the stored pit exit marker (wraps at S/F). Returns 0 if data missing. | Per tick. | `LalaLaunch.cs` — `UpdatePitExitDisplayValues` + `AttachCore`【F:LalaLaunch.cs†L4216-L4248】【F:LalaLaunch.cs†L3068-L3069】 |
+| PitExit.TimeS | int | Estimated time in seconds to pit exit using current speed (0 if speed too small or data missing). | Per tick. | `LalaLaunch.cs` — `UpdatePitExitDisplayValues` + `AttachCore`【F:LalaLaunch.cs†L4216-L4248】【F:LalaLaunch.cs†L3068-L3069】 |
 
 ## Launch
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
