@@ -130,6 +130,7 @@
     <Compile Include="DashesTabView.xaml.cs">
       <DependentUpon>DashesTabView.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Opponents.cs" />
     <Compile Include="LaunchPluginSettingsUI.xaml.cs">
       <DependentUpon>LaunchPluginSettingsUI.xaml</DependentUpon>
     </Compile>
