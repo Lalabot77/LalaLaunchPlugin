@@ -169,21 +169,48 @@ namespace LaunchPlugin
 
             try
             {
+                double ApplyLapCap(double value)
+                {
+                    if (double.IsNaN(value))
+                    {
+                        return value;
+                    }
+
+                    return value > 600.0 ? double.NaN : value;
+                }
+
                 if (raw is TimeSpan ts)
                 {
-                    return ts.TotalSeconds;
+                    return ApplyLapCap(ts.TotalSeconds);
                 }
 
                 if (raw is string s)
                 {
-                    if (TimeSpan.TryParse(s, CultureInfo.InvariantCulture, out var parsedTs))
+                    var trimmed = s.Trim();
+                    if (string.IsNullOrEmpty(trimmed))
                     {
-                        return parsedTs.TotalSeconds;
+                        return double.NaN;
                     }
 
-                    if (double.TryParse(s, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedDouble))
+                    if (trimmed.Count(c => c == ':') == 1)
                     {
-                        return parsedDouble;
+                        var parts = trimmed.Split(':');
+                        if (parts.Length == 2
+                            && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var minutes)
+                            && double.TryParse(parts[1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var seconds))
+                        {
+                            return ApplyLapCap((minutes * 60.0) + seconds);
+                        }
+                    }
+
+                    if (TimeSpan.TryParse(trimmed, CultureInfo.InvariantCulture, out var parsedTs))
+                    {
+                        return ApplyLapCap(parsedTs.TotalSeconds);
+                    }
+
+                    if (double.TryParse(trimmed, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedDouble))
+                    {
+                        return ApplyLapCap(parsedDouble);
                     }
 
                     return double.NaN;
@@ -191,7 +218,7 @@ namespace LaunchPlugin
 
                 if (raw is IConvertible)
                 {
-                    return Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+                    return ApplyLapCap(Convert.ToDouble(raw, CultureInfo.InvariantCulture));
                 }
             }
             catch
