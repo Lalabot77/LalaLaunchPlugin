@@ -147,6 +147,61 @@ namespace LaunchPlugin
             }
         }
 
+        private static double SafeReadDouble(PluginManager pluginManager, string propertyName)
+        {
+            try
+            {
+                var raw = pluginManager?.GetPropertyValue(propertyName);
+                return ConvertRawToDouble(raw);
+            }
+            catch
+            {
+                return double.NaN;
+            }
+        }
+
+        private static double ConvertRawToDouble(object raw)
+        {
+            if (raw == null)
+            {
+                return double.NaN;
+            }
+
+            try
+            {
+                if (raw is TimeSpan ts)
+                {
+                    return ts.TotalSeconds;
+                }
+
+                if (raw is string s)
+                {
+                    if (TimeSpan.TryParse(s, CultureInfo.InvariantCulture, out var parsedTs))
+                    {
+                        return parsedTs.TotalSeconds;
+                    }
+
+                    if (double.TryParse(s, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsedDouble))
+                    {
+                        return parsedDouble;
+                    }
+
+                    return double.NaN;
+                }
+
+                if (raw is IConvertible)
+                {
+                    return Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+                }
+            }
+            catch
+            {
+                return double.NaN;
+            }
+
+            return double.NaN;
+        }
+
         private static double SanitizePace(double paceSec)
         {
             if (paceSec <= 0.0 || double.IsNaN(paceSec) || double.IsInfinity(paceSec) || paceSec > 10000.0)
@@ -305,19 +360,6 @@ namespace LaunchPlugin
                 }
             }
 
-            private static double SafeReadDouble(PluginManager pluginManager, string propertyName)
-            {
-                try
-                {
-                    var raw = pluginManager?.GetPropertyValue(propertyName);
-                    return Convert.ToDouble(raw ?? double.NaN, CultureInfo.InvariantCulture);
-                }
-                catch
-                {
-                    return double.NaN;
-                }
-            }
-
             private static bool SafeReadBool(PluginManager pluginManager, string propertyName)
             {
                 try
@@ -410,19 +452,6 @@ namespace LaunchPlugin
                 catch
                 {
                     return string.Empty;
-                }
-            }
-
-            private static double SafeReadDouble(PluginManager pluginManager, string propertyName)
-            {
-                try
-                {
-                    var raw = pluginManager?.GetPropertyValue(propertyName);
-                    return Convert.ToDouble(raw ?? double.NaN, CultureInfo.InvariantCulture);
-                }
-                catch
-                {
-                    return double.NaN;
                 }
             }
 
