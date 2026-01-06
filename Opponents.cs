@@ -84,7 +84,13 @@ namespace LaunchPlugin
             _nearby.PopulateOutputs(Outputs, validatedMyPace);
             Outputs.LeaderBlendedPaceSec = _leaderboard.GetBlendedPaceForPosition(1);
             Outputs.P2BlendedPaceSec = _leaderboard.GetBlendedPaceForPosition(2);
-            Outputs.Summary = BuildSummary(Outputs);
+            var summaries = BuildSummaries(Outputs);
+            Outputs.SummaryAhead = summaries.Ahead;
+            Outputs.SummaryBehind = summaries.Behind;
+            Outputs.SummaryAhead1 = summaries.Ahead1;
+            Outputs.SummaryAhead2 = summaries.Ahead2;
+            Outputs.SummaryBehind1 = summaries.Behind1;
+            Outputs.SummaryBehind2 = summaries.Behind2;
         }
 
         public static string MakeIdentityKey(string classColor, string carNumber)
@@ -99,39 +105,90 @@ namespace LaunchPlugin
             return $"{color}:{number}";
         }
 
-        private static string BuildSummary(OpponentOutputs outputs)
+        private static OpponentSummaries BuildSummaries(OpponentOutputs outputs)
         {
-            var parts = new List<string>();
-            AddSummaryForTarget(parts, "A1", outputs.Ahead1);
-            AddSummaryForTarget(parts, "A2", outputs.Ahead2);
-            AddSummaryForTarget(parts, "B1", outputs.Behind1);
-            AddSummaryForTarget(parts, "B2", outputs.Behind2);
+            string ahead1 = BuildTargetSummary("A1", outputs.Ahead1, true);
+            string ahead2 = BuildTargetSummary("A2", outputs.Ahead2, true);
+            string behind1 = BuildTargetSummary("B1", outputs.Behind1, false);
+            string behind2 = BuildTargetSummary("B2", outputs.Behind2, false);
 
-            if (parts.Count == 0)
+            return new OpponentSummaries
+            {
+                Ahead = BuildSideSummary("Ahead", ahead1, ahead2),
+                Behind = BuildSideSummary("Behind", behind1, behind2),
+                Ahead1 = ahead1,
+                Ahead2 = ahead2,
+                Behind1 = behind1,
+                Behind2 = behind2
+            };
+        }
+
+        private static string BuildSideSummary(string label, params string[] slots)
+        {
+            if (slots == null || slots.Length == 0)
             {
                 return string.Empty;
             }
 
-            return string.Join(" | ", parts);
-        }
-
-        private static void AddSummaryForTarget(List<string> parts, string label, OpponentTargetOutput target)
-        {
-            if (string.IsNullOrWhiteSpace(target.Name) && string.IsNullOrWhiteSpace(target.CarNumber))
+            var populated = slots.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+            if (populated.Count == 0)
             {
-                return;
+                return $"{label}: —";
             }
 
-            string gap = target.GapToPlayerSec > 0 ? $"{target.GapToPlayerSec:F1}s" : "n/a";
-            string delta = (!double.IsNaN(target.PaceDeltaSecPerLap) && target.PaceDeltaSecPerLap != 0.0)
-                ? $"{target.PaceDeltaSecPerLap:+0.00;-0.00;0.00}s/lap"
-                : "0.00s/lap";
-            string fight = double.IsNaN(target.LapsToFight) || target.LapsToFight <= 0.0
-                ? "no fight"
-                : $"{target.LapsToFight:F1} laps";
+            return $"{label}:  {string.Join(" | ", populated)}";
+        }
+
+        private static string BuildTargetSummary(string label, OpponentTargetOutput target, bool isAhead)
+        {
+            if (target == null)
+            {
+                return string.Empty;
+            }
+
+            if (string.IsNullOrWhiteSpace(target.Name) && string.IsNullOrWhiteSpace(target.CarNumber))
+            {
+                return $"{label} —";
+            }
 
             string ident = !string.IsNullOrWhiteSpace(target.CarNumber) ? $"#{target.CarNumber}" : target.Name;
-            parts.Add($"{label}:{ident} gap={gap} Δ={delta} fight={fight}");
+            string gap = FormatGap(target.GapToPlayerSec, isAhead);
+            string delta = FormatDelta(target.PaceDeltaSecPerLap);
+            string lapsToFight = FormatLapsToFight(target.LapsToFight);
+
+            return $"{label} {ident} {gap} {delta} LTF={lapsToFight}";
+        }
+
+        private static string FormatGap(double gapSec, bool isAhead)
+        {
+            if (double.IsNaN(gapSec) || double.IsInfinity(gapSec) || gapSec <= 0.0)
+            {
+                return "—";
+            }
+
+            string signed = (isAhead ? "+" : "-") + gapSec.ToString("0.0", CultureInfo.InvariantCulture);
+            return $"{signed}s";
+        }
+
+        private static string FormatDelta(double delta)
+        {
+            if (double.IsNaN(delta) || double.IsInfinity(delta))
+            {
+                return "Δ—";
+            }
+
+            string signed = delta.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture);
+            return $"Δ{signed}s/L";
+        }
+
+        private static string FormatLapsToFight(double lapsToFight)
+        {
+            if (double.IsNaN(lapsToFight) || double.IsInfinity(lapsToFight) || lapsToFight <= 0.0)
+            {
+                return "—";
+            }
+
+            return lapsToFight.ToString("0.#", CultureInfo.InvariantCulture);
         }
 
         private static string SafeReadString(PluginManager pluginManager, string propertyName)
@@ -758,7 +815,12 @@ namespace LaunchPlugin
             public OpponentTargetOutput Leader { get; } = new OpponentTargetOutput();
             public OpponentTargetOutput P2 { get; } = new OpponentTargetOutput();
             public PitExitOutput PitExit { get; }
-            public string Summary { get; set; } = string.Empty;
+            public string SummaryAhead { get; set; } = string.Empty;
+            public string SummaryBehind { get; set; } = string.Empty;
+            public string SummaryAhead1 { get; set; } = string.Empty;
+            public string SummaryAhead2 { get; set; } = string.Empty;
+            public string SummaryBehind1 { get; set; } = string.Empty;
+            public string SummaryBehind2 { get; set; } = string.Empty;
             public double LeaderBlendedPaceSec { get; set; } = double.NaN;
             public double P2BlendedPaceSec { get; set; } = double.NaN;
 
@@ -771,10 +833,25 @@ namespace LaunchPlugin
                 Leader.Reset();
                 P2.Reset();
                 PitExit.Reset();
-                Summary = string.Empty;
+                SummaryAhead = string.Empty;
+                SummaryBehind = string.Empty;
+                SummaryAhead1 = string.Empty;
+                SummaryAhead2 = string.Empty;
+                SummaryBehind1 = string.Empty;
+                SummaryBehind2 = string.Empty;
                 LeaderBlendedPaceSec = double.NaN;
                 P2BlendedPaceSec = double.NaN;
             }
+        }
+
+        public class OpponentSummaries
+        {
+            public string Ahead { get; set; } = string.Empty;
+            public string Behind { get; set; } = string.Empty;
+            public string Ahead1 { get; set; } = string.Empty;
+            public string Ahead2 { get; set; } = string.Empty;
+            public string Behind1 { get; set; } = string.Empty;
+            public string Behind2 { get; set; } = string.Empty;
         }
 
         public class OpponentTargetOutput
