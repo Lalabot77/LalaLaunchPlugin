@@ -55,7 +55,7 @@ namespace LaunchPlugin
                 return;
             }
 
-            bool gateNow = completedLaps >= 2;
+            bool gateNow = completedLaps >= 1;
             bool allowLogs = gateNow;
 
             _nearby.Update(pluginManager, allowLogs);
