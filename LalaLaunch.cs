@@ -3693,7 +3693,7 @@ namespace LaunchPlugin
                 }
                 catch
                 {
-                    pitLossSec = pitLossSec;
+                    pitLossSec = double.NaN;
                 }
             }
 
