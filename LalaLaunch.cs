@@ -536,6 +536,7 @@ namespace LaunchPlugin
         public double Pace_StintAvgLapTimeSec { get; private set; }
         public double Pace_Last5LapAvgSec { get; private set; }
         public int PaceConfidence { get; private set; }
+        private bool _lastOnPitRoadForOpponents = false;
 
         public double ProjectionLapTime_Stable { get; private set; }
         public string ProjectionLapTime_StableSource { get; private set; } = "fallback.none";
@@ -3934,7 +3935,8 @@ namespace LaunchPlugin
                     });
 
                 }
-                
+
+                UpdateOpponentsAndPitExit(data, pluginManager, completedLaps, currentSessionTypeForConfidence);
             }
 
             UpdateLiveProperties(pluginManager, ref data);
@@ -4061,6 +4063,13 @@ namespace LaunchPlugin
                 });
             }
             bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false);
+            bool pitRoadChanged = isOnPitRoad != _lastOnPitRoadForOpponents;
+            _lastOnPitRoadForOpponents = isOnPitRoad;
+
+            if (pitRoadChanged)
+            {
+                UpdateOpponentsAndPitExit(data, pluginManager, completedLaps, currentSessionTypeForConfidence);
+            }
 
             bool newPitScreenActive = _pitScreenActive; // default
 
@@ -4131,6 +4140,45 @@ namespace LaunchPlugin
         #endregion
 
         #region Private Helper Methods for DataUpdate
+
+        private void UpdateOpponentsAndPitExit(GameData data, PluginManager pluginManager, int completedLaps, string sessionTypeToken)
+        {
+            if (_opponentsEngine == null) return;
+
+            double myPaceSec = Pace_StintAvgLapTimeSec;
+            if (myPaceSec <= 0.0) myPaceSec = Pace_Last5LapAvgSec;
+            if (myPaceSec <= 0.0 && _lastSeenBestLap > TimeSpan.Zero) myPaceSec = _lastSeenBestLap.TotalSeconds;
+
+            double pitLossSec = CalculateTotalStopLossSeconds();
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0)
+            {
+                try
+                {
+                    double fromExport = Convert.ToDouble(pluginManager.GetPropertyValue("LalaLaunch.Fuel.Live.TotalStopLoss") ?? double.NaN);
+                    if (!double.IsNaN(fromExport) && !double.IsInfinity(fromExport))
+                    {
+                        pitLossSec = fromExport;
+                    }
+                }
+                catch
+                {
+                    // ignore and keep evaluating fallbacks
+                }
+            }
+
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0)
+            {
+                pitLossSec = FuelCalculator?.PitLaneTimeLoss ?? 0.0;
+            }
+
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0) pitLossSec = 0.0;
+
+            string sessionTypeForOpponents = !string.IsNullOrWhiteSpace(sessionTypeToken)
+                ? sessionTypeToken
+                : (data.NewData?.SessionTypeName ?? string.Empty);
+            bool isRaceSessionNow = string.Equals(sessionTypeForOpponents, "Race", StringComparison.OrdinalIgnoreCase);
+            _opponentsEngine.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec);
+        }
 
         private static double SafeReadDouble(PluginManager pluginManager, string propertyName, double fallback)
         {
