@@ -2572,6 +2572,7 @@ namespace LaunchPlugin
         private MessagingSystem _msgSystem;
         private MessageEngine _msgV1Engine;
         private PitEngine _pit;
+        private OpponentsEngine _opponentsEngine;
 
         private enum LaunchState
         {
@@ -2739,6 +2740,7 @@ namespace LaunchPlugin
             SaveActiveProfileCommand = new RelayCommand(p => SaveActiveProfile());
             ReturnToDefaultsCommand = new RelayCommand(p => ReturnToDefaults());
             _telemetryTraceLogger = new TelemetryTraceLogger(this);
+            _opponentsEngine = new OpponentsEngine();
 
             _poll250ms.Start();
             _poll500ms.Start();
@@ -3071,6 +3073,47 @@ namespace LaunchPlugin
             AttachCore("MSG.Trigger.trackmarkers.track_length_changed", () => IsTrackMarkerPulseActive(_trackMarkerTrackLengthChangedPulseUtc));
             AttachCore("MSG.Trigger.trackmarkers.lines_refreshed", () => IsTrackMarkerPulseActive(_trackMarkerLinesRefreshedPulseUtc));
 
+            AttachCore("Opp.Ahead1.Name", () => _opponentsEngine?.Outputs.Ahead1.Name ?? string.Empty);
+            AttachCore("Opp.Ahead1.CarNumber", () => _opponentsEngine?.Outputs.Ahead1.CarNumber ?? string.Empty);
+            AttachCore("Opp.Ahead1.ClassColor", () => _opponentsEngine?.Outputs.Ahead1.ClassColor ?? string.Empty);
+            AttachCore("Opp.Ahead1.GapToPlayerSec", () => _opponentsEngine?.Outputs.Ahead1.GapToPlayerSec ?? 0.0);
+            AttachCore("Opp.Ahead1.BlendedPaceSec", () => _opponentsEngine?.Outputs.Ahead1.BlendedPaceSec ?? 0.0);
+            AttachCore("Opp.Ahead1.PaceDeltaSecPerLap", () => _opponentsEngine?.Outputs.Ahead1.PaceDeltaSecPerLap ?? double.NaN);
+            AttachCore("Opp.Ahead1.LapsToFight", () => _opponentsEngine?.Outputs.Ahead1.LapsToFight ?? double.NaN);
+
+            AttachCore("Opp.Ahead2.Name", () => _opponentsEngine?.Outputs.Ahead2.Name ?? string.Empty);
+            AttachCore("Opp.Ahead2.CarNumber", () => _opponentsEngine?.Outputs.Ahead2.CarNumber ?? string.Empty);
+            AttachCore("Opp.Ahead2.ClassColor", () => _opponentsEngine?.Outputs.Ahead2.ClassColor ?? string.Empty);
+            AttachCore("Opp.Ahead2.GapToPlayerSec", () => _opponentsEngine?.Outputs.Ahead2.GapToPlayerSec ?? 0.0);
+            AttachCore("Opp.Ahead2.BlendedPaceSec", () => _opponentsEngine?.Outputs.Ahead2.BlendedPaceSec ?? 0.0);
+            AttachCore("Opp.Ahead2.PaceDeltaSecPerLap", () => _opponentsEngine?.Outputs.Ahead2.PaceDeltaSecPerLap ?? double.NaN);
+            AttachCore("Opp.Ahead2.LapsToFight", () => _opponentsEngine?.Outputs.Ahead2.LapsToFight ?? double.NaN);
+
+            AttachCore("Opp.Behind1.Name", () => _opponentsEngine?.Outputs.Behind1.Name ?? string.Empty);
+            AttachCore("Opp.Behind1.CarNumber", () => _opponentsEngine?.Outputs.Behind1.CarNumber ?? string.Empty);
+            AttachCore("Opp.Behind1.ClassColor", () => _opponentsEngine?.Outputs.Behind1.ClassColor ?? string.Empty);
+            AttachCore("Opp.Behind1.GapToPlayerSec", () => _opponentsEngine?.Outputs.Behind1.GapToPlayerSec ?? 0.0);
+            AttachCore("Opp.Behind1.BlendedPaceSec", () => _opponentsEngine?.Outputs.Behind1.BlendedPaceSec ?? 0.0);
+            AttachCore("Opp.Behind1.PaceDeltaSecPerLap", () => _opponentsEngine?.Outputs.Behind1.PaceDeltaSecPerLap ?? double.NaN);
+            AttachCore("Opp.Behind1.LapsToFight", () => _opponentsEngine?.Outputs.Behind1.LapsToFight ?? double.NaN);
+
+            AttachCore("Opp.Behind2.Name", () => _opponentsEngine?.Outputs.Behind2.Name ?? string.Empty);
+            AttachCore("Opp.Behind2.CarNumber", () => _opponentsEngine?.Outputs.Behind2.CarNumber ?? string.Empty);
+            AttachCore("Opp.Behind2.ClassColor", () => _opponentsEngine?.Outputs.Behind2.ClassColor ?? string.Empty);
+            AttachCore("Opp.Behind2.GapToPlayerSec", () => _opponentsEngine?.Outputs.Behind2.GapToPlayerSec ?? 0.0);
+            AttachCore("Opp.Behind2.BlendedPaceSec", () => _opponentsEngine?.Outputs.Behind2.BlendedPaceSec ?? 0.0);
+            AttachCore("Opp.Behind2.PaceDeltaSecPerLap", () => _opponentsEngine?.Outputs.Behind2.PaceDeltaSecPerLap ?? double.NaN);
+            AttachCore("Opp.Behind2.LapsToFight", () => _opponentsEngine?.Outputs.Behind2.LapsToFight ?? double.NaN);
+
+            AttachCore("Opp.Leader.BlendedPaceSec", () => _opponentsEngine != null ? _opponentsEngine.Outputs.LeaderBlendedPaceSec : double.NaN);
+            AttachCore("Opp.P2.BlendedPaceSec", () => _opponentsEngine != null ? _opponentsEngine.Outputs.P2BlendedPaceSec : double.NaN);
+            AttachCore("Opp.Summary", () => _opponentsEngine?.Outputs.Summary ?? string.Empty);
+
+            AttachCore("PitExit.Valid", () => _opponentsEngine?.Outputs.PitExit.Valid ?? false);
+            AttachCore("PitExit.PredictedPositionInClass", () => _opponentsEngine?.Outputs.PitExit.PredictedPositionInClass ?? 0);
+            AttachCore("PitExit.CarsAheadAfterPitCount", () => _opponentsEngine?.Outputs.PitExit.CarsAheadAfterPitCount ?? 0);
+            AttachCore("PitExit.Summary", () => _opponentsEngine?.Outputs.PitExit.Summary ?? string.Empty);
+
         }
 
         private void Pit_OnValidPitStopTimeLossCalculated(double timeLossSeconds, string sourceFromPublisher)
@@ -3298,6 +3341,7 @@ namespace LaunchPlugin
             _lastPitWindowState = -1;
             _lastPitWindowLabel = string.Empty;
             _lastPitWindowLogUtc = DateTime.MinValue;
+            _opponentsEngine?.Reset();
         }
 
         private void ResetCoreLaunchMetrics()
@@ -3540,6 +3584,7 @@ namespace LaunchPlugin
                 _pit.Reset();
                 _pitLite?.ResetCycle();
                 _pit?.ResetPitPhaseState();
+                _opponentsEngine?.Reset();
                 _currentCarModel = string.Empty;
                 CurrentTrackName = string.Empty;
                 CurrentTrackKey = string.Empty;
@@ -3628,6 +3673,16 @@ namespace LaunchPlugin
                     _latchedIncidentReason = latchedReason;
                 }
             }
+
+            double myPaceSec = Pace_StintAvgLapTimeSec;
+            if (myPaceSec <= 0.0) myPaceSec = Pace_Last5LapAvgSec;
+            if (myPaceSec <= 0.0 && _lastSeenBestLap > TimeSpan.Zero) myPaceSec = _lastSeenBestLap.TotalSeconds;
+
+            double pitLossSec = FuelCalculator?.PitLaneTimeLoss ?? 0.0;
+            if (pitLossSec < 0.0) pitLossSec = 0.0;
+
+            bool isRaceSessionNow = string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase);
+            _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec);
 
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
             double currentFuel = data.NewData?.Fuel ?? 0.0;
