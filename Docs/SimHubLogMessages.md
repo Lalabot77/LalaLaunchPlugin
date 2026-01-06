@@ -1,8 +1,8 @@
 # SimHub Log Messages (CANONICAL)
 
-Validated against commit: 52bd57d7c618f4df094c68c4ea6f1e11cc5e328f  
-Last updated: 2026-02-06  
-Branch: work
+Validated against commit: b31a0be584c2941a7d8d4d4c5dde2e852d7b32a2  
+Last updated: 2026-02-07  
+Branch: Opponents-Module
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
 
@@ -55,10 +55,10 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 
 ## Opponents and pit-exit prediction
 - **`[LalaPlugin:Opponents] Opponents subsystem active (Race session + lap gate met).`** — Gate opened (Race + CompletedLaps ≥2); outputs now live.【F:Opponents.cs†L72-L88】
-- **`[LalaPlugin:Opponents] Slot <slot> rebound -> <identity> (<name>)`** — Nearby slot (Ahead1/2, Behind1/2) re-bound to a new identity; pace cache persists per identity.【F:Opponents.cs†L264-L305】
-- **`[LalaPlugin:PitExit] Predictor valid -> true (pitLoss=X.Xs)`** — Pit-exit predictor became valid with leaderboard/player row found.【F:Opponents.cs†L520-L533】
-- **`[LalaPlugin:PitExit] Predicted class position changed -> P# (ahead=N)`** — Predicted post-stop class position changed while valid.【F:Opponents.cs†L525-L533】
-- **`[LalaPlugin:PitExit] Predictor valid -> false`** — Pit-exit predictor lost validity (no player row/leaderboard data).【F:Opponents.cs†L538-L548】
+- **`[LalaPlugin:Opponents] Slot <slot> rebound -> <identity> (<name>)`** — Nearby slot (Ahead1/2, Behind1/2) re-bound to a new identity; pace cache persists per identity (logs gated to lap ≥2).【F:Opponents.cs†L252-L361】
+- **`[LalaPlugin:PitExit] Predictor valid -> true (pitLoss=X.Xs)`** — Pit-exit predictor became valid with leaderboard/player row found.【F:Opponents.cs†L507-L566】
+- **`[LalaPlugin:PitExit] Predicted class position changed -> P# (ahead=N)`** — Predicted post-stop class position changed while valid.【F:Opponents.cs†L532-L566】
+- **`[LalaPlugin:PitExit] Predictor valid -> false`** — Pit-exit predictor lost validity (no player row/leaderboard data).【F:Opponents.cs†L568-L579】
 
 ## Pit, refuel, and PitLite
 - **`[LalaPlugin:Pit Cycle] Saved PitLaneLoss = Xs (src).`** — Persisted pit lane loss from PitLite/DTL (debounced).【F:LalaLaunch.cs†L2950-L3004】

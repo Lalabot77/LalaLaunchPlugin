@@ -1,8 +1,8 @@
 # Project Index
 
-Validated against commit: work HEAD  
+Validated against commit: b31a0be584c2941a7d8d4d4c5dde2e852d7b32a2  
 Last updated: 2026-02-07  
-Branch: work
+Branch: Opponents-Module
 
 ## What this repo is
 LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control instrumentation, fuel strategy calculations, pit-cycle timing, rejoin assistance, messaging outputs, and dash/screen coordination across the Fuel, Pit, Launch, and Messaging tabs. Runtime behaviour lives in C# (e.g., `LalaLaunch.cs`, `FuelCalcs.cs`, `PitEngine.cs`) with SimHub exports documented below.
@@ -41,7 +41,7 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 | Trace logging | Telemetry trace lifecycle and launch trace handling | [Subsystems/Trace_Logging.md](Subsystems/Trace_Logging.md) |
 | Pit Entry Assist | Pit entry braking cues, margin/cue maths, decel capture instrumentation | [Pit_Entry_Assist.md](Pit_Entry_Assist.md) (driver/dash) / [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) (engine) |
 | Track markers | Auto-learned pit entry/exit markers (per track), locking, track-length change detection, MSGV1 notifications | [Subsystems/Track_Markers.md](Subsystems/Track_Markers.md) |
-| Opponents | Nearby pace/fight prediction and pit-exit class position forecasting (Race-only, lap gate ≥2) | [Subsystems/Opponents.md](Subsystems/Opponents.md) |
+| Opponents | Nearby pace/fight prediction and pit-exit class position forecasting (Race-only, lap gate ≥2, gaps absolute) | [Subsystems/Opponents.md](Subsystems/Opponents.md) |
 | Dash integration | Screen manager modes, pit screen, dash visibility toggles, and Pit Entry Assist visual guidance | [Dash_Integration.md](Dash_Integration.md) / [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Canonical docs map
@@ -64,6 +64,6 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - Fuel tab/UI source or planner changes → update `FuelTab_SourceFlowNotes.md`.
 
 ## Freshness
-- Validated against commit: 88cfd6ba10558452391dd921d23ae69b94a0a44e  
-- Date: 2025-12-28  
-- Branch: work
+- Validated against commit: b31a0be584c2941a7d8d4d4c5dde2e852d7b32a2  
+- Date: 2026-02-07  
+- Branch: Opponents-Module
