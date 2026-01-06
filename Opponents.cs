@@ -274,7 +274,7 @@ namespace LaunchPlugin
 
                 if (string.IsNullOrWhiteSpace(sample.IdentityKey))
                 {
-                    target.BlendedPaceSec = 0.0;
+                    target.BlendedPaceSec = double.NaN;
                     target.PaceDeltaSecPerLap = double.NaN;
                     target.LapsToFight = double.NaN;
                     return;
@@ -289,7 +289,7 @@ namespace LaunchPlugin
                 }
                 else
                 {
-                    target.BlendedPaceSec = 0.0;
+                    target.BlendedPaceSec = double.NaN;
                 }
 
                 if (double.IsNaN(myPaceSec) || double.IsNaN(target.BlendedPaceSec) || target.BlendedPaceSec <= 0.0)
@@ -305,14 +305,15 @@ namespace LaunchPlugin
 
                 target.PaceDeltaSecPerLap = closingRate;
 
-                if (closingRate >= -0.05)
+                double gap = target.GapToPlayerSec;
+                if (gap > 0.0 && closingRate > 0.05)
                 {
-                    target.LapsToFight = double.NaN;
+                    double lapsToFight = gap / closingRate;
+                    target.LapsToFight = lapsToFight > 999.0 ? 999.0 : lapsToFight;
                 }
                 else
                 {
-                    double gap = target.GapToPlayerSec;
-                    target.LapsToFight = gap > 0.0 ? gap / (-closingRate) : double.NaN;
+                    target.LapsToFight = double.NaN;
                 }
             }
 
@@ -755,7 +756,7 @@ namespace LaunchPlugin
             public string CarNumber { get; set; } = string.Empty;
             public string ClassColor { get; set; } = string.Empty;
             public double GapToPlayerSec { get; set; } = 0.0;
-            public double BlendedPaceSec { get; set; } = 0.0;
+            public double BlendedPaceSec { get; set; } = double.NaN;
             public double PaceDeltaSecPerLap { get; set; } = double.NaN;
             public double LapsToFight { get; set; } = double.NaN;
 
@@ -765,7 +766,7 @@ namespace LaunchPlugin
                 CarNumber = string.Empty;
                 ClassColor = string.Empty;
                 GapToPlayerSec = 0.0;
-                BlendedPaceSec = 0.0;
+                BlendedPaceSec = double.NaN;
                 PaceDeltaSecPerLap = double.NaN;
                 LapsToFight = double.NaN;
             }
