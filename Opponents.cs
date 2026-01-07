@@ -39,7 +39,7 @@ namespace LaunchPlugin
             _pitExitPredictor.Reset();
         }
 
-        public void Update(GameData data, PluginManager pluginManager, bool isRaceSession, int completedLaps, double myPaceSec, double pitLossSec, bool pitTripActive, bool onPitRoad, double trackPct, double sessionTimeRemainingSec)
+        public void Update(GameData data, PluginManager pluginManager, bool isRaceSession, int completedLaps, double myPaceSec, double pitLossSec, bool pitTripActive, bool onPitRoad, double trackPct, double sessionTimeRemainingSec, bool debugEnabled)
         {
             var _ = data; // intentional discard to keep signature aligned with caller
             string playerClassColor = SafeReadString(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
@@ -58,9 +58,9 @@ namespace LaunchPlugin
             bool gateNow = completedLaps >= 1;
             bool allowLogs = gateNow;
 
-            _nearby.Update(pluginManager, allowLogs);
+            _nearby.Update(pluginManager, allowLogs, debugEnabled);
             _leaderboard.Update(pluginManager);
-            _pitExitPredictor.Update(_playerIdentityKey, pitLossSec, allowLogs, pitTripActive, onPitRoad, trackPct, completedLaps, sessionTimeRemainingSec);
+            _pitExitPredictor.Update(_playerIdentityKey, pitLossSec, allowLogs, pitTripActive, onPitRoad, trackPct, completedLaps, sessionTimeRemainingSec, debugEnabled);
 
             if (!gateNow)
             {
@@ -343,12 +343,12 @@ namespace LaunchPlugin
                 }
             }
 
-            public void Update(PluginManager pluginManager, bool allowLogs)
+            public void Update(PluginManager pluginManager, bool allowLogs, bool debugEnabled)
             {
-                ReadSlot(pluginManager, "Ahead1", "iRacing_DriverAheadInClass_00", allowLogs);
-                ReadSlot(pluginManager, "Ahead2", "iRacing_DriverAheadInClass_01", allowLogs);
-                ReadSlot(pluginManager, "Behind1", "iRacing_DriverBehindInClass_00", allowLogs);
-                ReadSlot(pluginManager, "Behind2", "iRacing_DriverBehindInClass_01", allowLogs);
+                ReadSlot(pluginManager, "Ahead1", "iRacing_DriverAheadInClass_00", allowLogs, debugEnabled);
+                ReadSlot(pluginManager, "Ahead2", "iRacing_DriverAheadInClass_01", allowLogs, debugEnabled);
+                ReadSlot(pluginManager, "Behind1", "iRacing_DriverBehindInClass_00", allowLogs, debugEnabled);
+                ReadSlot(pluginManager, "Behind2", "iRacing_DriverBehindInClass_01", allowLogs, debugEnabled);
             }
 
             public void PopulateOutputs(OpponentOutputs outputs, double myPaceSec)
@@ -411,7 +411,7 @@ namespace LaunchPlugin
                 }
             }
 
-            private void ReadSlot(PluginManager pluginManager, string slotKey, string baseName, bool allowLogs)
+            private void ReadSlot(PluginManager pluginManager, string slotKey, string baseName, bool allowLogs, bool debugEnabled)
             {
                 string name = SafeReadString(pluginManager, $"IRacingExtraProperties.{baseName}_Name");
                 string carNumber = SafeReadString(pluginManager, $"IRacingExtraProperties.{baseName}_CarNumber");
@@ -444,7 +444,7 @@ namespace LaunchPlugin
                 if (!string.Equals(identity, lastIdentity, StringComparison.Ordinal) && allowLogs)
                 {
                     _lastIdentityBySlot[slotKey] = identity;
-                    if (!string.IsNullOrWhiteSpace(identity))
+                    if (debugEnabled && !string.IsNullOrWhiteSpace(identity))
                     {
                         SimHub.Logging.Current.Info($"[LalaPlugin:Opponents] Slot {slotKey} rebound -> {identity} ({name})");
                     }
@@ -615,7 +615,7 @@ namespace LaunchPlugin
                 _output.Reset();
             }
 
-            public void Update(string playerIdentityKey, double pitLossSec, bool allowLogs, bool pitTripActive, bool onPitRoad, double trackPct, int completedLaps, double sessionTimeRemainingSec)
+            public void Update(string playerIdentityKey, double pitLossSec, bool allowLogs, bool pitTripActive, bool onPitRoad, double trackPct, int completedLaps, double sessionTimeRemainingSec, bool debugEnabled)
             {
                 if (!double.IsNaN(sessionTimeRemainingSec) && !double.IsInfinity(sessionTimeRemainingSec) && sessionTimeRemainingSec <= 120.0)
                 {
@@ -787,7 +787,7 @@ namespace LaunchPlugin
                 {
                     SimHub.Logging.Current.Info($"[LalaPlugin:PitExit] Predictor valid -> true (pitLoss={pitLoss:F1}s)");
                 }
-                else if (_output.Valid && predictedPos != _lastPredictedPos && allowLogs)
+                else if (_output.Valid && predictedPos != _lastPredictedPos && allowLogs && debugEnabled)
                 {
                     bool largeChange = Math.Abs(predictedPos - _lastPredictedPos) >= 2;
                     bool timeElapsed = (DateTime.UtcNow - _lastPredictedLogUtc).TotalSeconds >= 2.0;

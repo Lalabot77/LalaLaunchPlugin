@@ -54,13 +54,13 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:After0Result] driver=... leader=... pred=... lapsPred=...`** — After-zero outcome logged once when session ends or checkered seen.【F:LalaLaunch.cs†L4534-L4560】
 
 ## Opponents and pit-exit prediction
-- **`[LalaPlugin:Opponents] Opponents subsystem active (Race session + lap gate met).`** — Gate opened (Race + CompletedLaps ≥2); outputs now live.【F:Opponents.cs†L72-L88】
-- **`[LalaPlugin:Opponents] Slot <slot> rebound -> <identity> (<name>)`** — Nearby slot (Ahead1/2, Behind1/2) re-bound to a new identity; pace cache persists per identity (logs gated to lap ≥2).【F:Opponents.cs†L252-L361】
+- **`[LalaPlugin:Opponents] Opponents subsystem active (Race session + lap gate met).`** — Gate opened (Race + CompletedLaps ≥1); outputs now live.【F:Opponents.cs†L72-L88】
+- **`[LalaPlugin:Opponents] Slot <slot> rebound -> <identity> (<name>)`** — Nearby slot (Ahead1/2, Behind1/2) re-bound to a new identity; pace cache persists per identity (logs gated to lap ≥1 and debug toggle).【F:Opponents.cs†L252-L361】
 - **`[LalaPlugin:PitExit] Predictor valid -> true (pitLoss=X.Xs)`** — Pit-exit predictor became valid with leaderboard/player row found.【F:Opponents.cs†L507-L566】
-- **`[LalaPlugin:PitExit] Predicted class position changed -> P# (ahead=N)`** — Predicted post-stop class position changed while valid.【F:Opponents.cs†L532-L566】
+- **`[LalaPlugin:PitExit] Predicted class position changed -> P# (ahead=N)`** — Predicted post-stop class position changed while valid (gated to lap ≥1 and debug toggle).【F:Opponents.cs†L532-L566】
 - **`[LalaPlugin:PitExit] Predictor valid -> false`** — Pit-exit predictor lost validity (no player row/leaderboard data).【F:Opponents.cs†L568-L579】
 - **`[LalaPlugin:PitExit] Pit-in snapshot: lap=... t=... posClass=... posOverall=... gapLdr=... pitLoss=... predPosClass=... carsAhead=... srcPitLoss=... laneRef=... boxRef=... directRef=...`** — One-time pit entry snapshot logging player positions, pit loss inputs, and prediction summary.【F:LalaLaunch.cs†L4598-L4638】
-- **`[LalaPlugin:PitExit] Math audit: pitLoss=... playerGap=... | aheadCandidates=[...] | behindCandidates=[...]`** — Optional verbose pit-in audit of boundary candidates and deltas around the pit-loss comparison.【F:Opponents.cs†L713-L782】
+- **`[LalaPlugin:PitExit] Math audit: pitLoss=... playerGap=... | aheadCandidates=[...] | behindCandidates=[...]`** — Pit-in audit of boundary candidates and deltas around the pit-loss comparison, emitted alongside the pit-in snapshot.【F:Opponents.cs†L713-L782】
 - **`[LalaPlugin:PitExit] Pit-out snapshot: lap=... t=... posClass=... posOverall=... predPosClassNow=... carsAheadNow=... lane=... box=... direct=... pitTripActive=...`** — One-time pit exit snapshot logging rejoin position and latched pit lane timings.【F:LalaLaunch.cs†L4640-L4664】
 
 ## Pit, refuel, and PitLite
