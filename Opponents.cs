@@ -1019,6 +1019,14 @@ namespace LaunchPlugin
             public int PredictedPositionInClass { get; set; }
             public int CarsAheadAfterPitCount { get; set; }
             public string Summary { get; set; } = string.Empty;
+            public string AheadName { get; set; } = string.Empty;
+            public string AheadCarNumber { get; set; } = string.Empty;
+            public string AheadClassColor { get; set; } = string.Empty;
+            public double AheadGapSec { get; set; }
+            public string BehindName { get; set; } = string.Empty;
+            public string BehindCarNumber { get; set; } = string.Empty;
+            public string BehindClassColor { get; set; } = string.Empty;
+            public double BehindGapSec { get; set; }
 
             public void Reset()
             {
@@ -1026,6 +1034,14 @@ namespace LaunchPlugin
                 PredictedPositionInClass = 0;
                 CarsAheadAfterPitCount = 0;
                 Summary = string.Empty;
+                AheadName = string.Empty;
+                AheadCarNumber = string.Empty;
+                AheadClassColor = string.Empty;
+                AheadGapSec = 0.0;
+                BehindName = string.Empty;
+                BehindCarNumber = string.Empty;
+                BehindClassColor = string.Empty;
+                BehindGapSec = 0.0;
             }
         }
 
