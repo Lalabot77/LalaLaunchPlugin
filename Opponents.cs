@@ -725,7 +725,15 @@ namespace LaunchPlugin
                     PlayerGapToLeader = playerGapToLeader,
                     PitLossSec = pitLoss,
                     PredictedPositionInClass = predictedPos,
-                    CarsAheadAfterPit = carsAheadAfterPit
+                    CarsAheadAfterPit = carsAheadAfterPit,
+                    AheadName = _output.AheadName,
+                    AheadCarNumber = _output.AheadCarNumber,
+                    AheadClassColor = _output.AheadClassColor,
+                    AheadGapSec = _output.AheadGapSec,
+                    BehindName = _output.BehindName,
+                    BehindCarNumber = _output.BehindCarNumber,
+                    BehindClassColor = _output.BehindClassColor,
+                    BehindGapSec = _output.BehindGapSec
                 };
                 _hasSnapshot = true;
 
@@ -1071,6 +1079,14 @@ namespace LaunchPlugin
             public double PitLossSec { get; set; }
             public int PredictedPositionInClass { get; set; }
             public int CarsAheadAfterPit { get; set; }
+            public string AheadName { get; set; } = string.Empty;
+            public string AheadCarNumber { get; set; } = string.Empty;
+            public string AheadClassColor { get; set; } = string.Empty;
+            public double AheadGapSec { get; set; }
+            public string BehindName { get; set; } = string.Empty;
+            public string BehindCarNumber { get; set; } = string.Empty;
+            public string BehindClassColor { get; set; } = string.Empty;
+            public double BehindGapSec { get; set; }
         }
 
         public class PitExitOutput
