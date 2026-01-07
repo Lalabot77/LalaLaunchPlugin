@@ -649,7 +649,14 @@ namespace LaunchPlugin
                     if (!string.Equals(row.ClassColor, playerRow.ClassColor, StringComparison.Ordinal)) continue;
                     if (!row.IsConnected) continue;
 
-                    double delta = row.RelativeGapToLeader - playerPredictedGapToLeaderAfterPit;
+                    double candidateGapToLeader = row.RelativeGapToLeader;
+                    if (double.IsNaN(candidateGapToLeader) || double.IsInfinity(candidateGapToLeader))
+                        continue;
+
+                    double delta = candidateGapToLeader - playerPredictedGapToLeaderAfterPit;
+                    if (double.IsNaN(delta) || double.IsInfinity(delta))
+                        continue;
+
                     if (delta < 0.0)
                     {
                         carsAheadAfterPit++;
@@ -660,7 +667,7 @@ namespace LaunchPlugin
                             hasAheadCandidate = true;
                         }
                     }
-                    else
+                    else if (delta > 0.0)
                     {
                         if (!hasBehindCandidate || delta < nearestBehindDelta)
                         {
@@ -669,7 +676,9 @@ namespace LaunchPlugin
                             hasBehindCandidate = true;
                         }
                     }
+                    // else delta == 0.0 -> ignore (exact tie)
                 }
+
 
                 int predictedPos = 1 + carsAheadAfterPit;
 
