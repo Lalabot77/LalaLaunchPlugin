@@ -59,6 +59,9 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:PitExit] Predictor valid -> true (pitLoss=X.Xs)`** — Pit-exit predictor became valid with leaderboard/player row found.【F:Opponents.cs†L507-L566】
 - **`[LalaPlugin:PitExit] Predicted class position changed -> P# (ahead=N)`** — Predicted post-stop class position changed while valid.【F:Opponents.cs†L532-L566】
 - **`[LalaPlugin:PitExit] Predictor valid -> false`** — Pit-exit predictor lost validity (no player row/leaderboard data).【F:Opponents.cs†L568-L579】
+- **`[LalaPlugin:PitExit] Pit-in snapshot: lap=... t=... posClass=... posOverall=... gapLdr=... pitLoss=... predPosClass=... carsAhead=... srcPitLoss=... laneRef=... boxRef=... directRef=...`** — One-time pit entry snapshot logging player positions, pit loss inputs, and prediction summary.【F:LalaLaunch.cs†L4598-L4638】
+- **`[LalaPlugin:PitExit] Math audit: pitLoss=... playerGap=... | aheadCandidates=[...] | behindCandidates=[...]`** — Optional verbose pit-in audit of boundary candidates and deltas around the pit-loss comparison.【F:Opponents.cs†L713-L782】
+- **`[LalaPlugin:PitExit] Pit-out snapshot: lap=... t=... posClass=... posOverall=... predPosClassNow=... carsAheadNow=... lane=... box=... direct=... pitTripActive=...`** — One-time pit exit snapshot logging rejoin position and latched pit lane timings.【F:LalaLaunch.cs†L4640-L4664】
 
 ## Pit, refuel, and PitLite
 - **`[LalaPlugin:Pit Cycle] Saved PitLaneLoss = Xs (src).`** — Persisted pit lane loss from PitLite/DTL (debounced).【F:LalaLaunch.cs†L2950-L3004】

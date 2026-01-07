@@ -90,6 +90,9 @@
                     <styles:SHToggleCheckbox Content="Enable Debug Logging" Margin="0,20,0,0"
                                              IsChecked="{Binding Settings.EnableDebugLogging, Mode=TwoWay}" 
                                              ToolTip="Enables verbose logging for troubleshooting the plugin."/>
+                    <styles:SHToggleCheckbox Content="PitExit Verbose Logging" Margin="0,10,0,0"
+                                             IsChecked="{Binding Settings.PitExitVerboseLogging, Mode=TwoWay}"
+                                             ToolTip="Adds PitExit math audit details to pit-in snapshots for troubleshooting."/>
                 </StackPanel>
             </styles:SHSection>
         </StackPanel>
