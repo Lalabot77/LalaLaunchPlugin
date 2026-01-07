@@ -635,6 +635,13 @@ namespace LaunchPlugin
                 double pitLoss = (pitLossSec > 0.0 && !double.IsNaN(pitLossSec) && !double.IsInfinity(pitLossSec)) ? pitLossSec : 0.0;
 
                 int carsAheadAfterPit = 0;
+                double playerPredictedGapToLeaderAfterPit = playerGapToLeader + pitLoss;
+                bool hasAheadCandidate = false;
+                bool hasBehindCandidate = false;
+                double nearestAheadDelta = double.NegativeInfinity;
+                double nearestBehindDelta = double.PositiveInfinity;
+                LeaderboardRow nearestAheadRow = null;
+                LeaderboardRow nearestBehindRow = null;
 
                 foreach (var row in rows)
                 {
@@ -642,20 +649,73 @@ namespace LaunchPlugin
                     if (!string.Equals(row.ClassColor, playerRow.ClassColor, StringComparison.Ordinal)) continue;
                     if (!row.IsConnected) continue;
 
-                    double oppGapToPlayer = row.RelativeGapToLeader - playerGapToLeader;
-                    double predictedGap = oppGapToPlayer - pitLoss;
-                    if (predictedGap < 0.0)
+                    double delta = row.RelativeGapToLeader - playerPredictedGapToLeaderAfterPit;
+                    if (delta < 0.0)
                     {
                         carsAheadAfterPit++;
+                        if (!hasAheadCandidate || delta > nearestAheadDelta)
+                        {
+                            nearestAheadDelta = delta;
+                            nearestAheadRow = row;
+                            hasAheadCandidate = true;
+                        }
+                    }
+                    else
+                    {
+                        if (!hasBehindCandidate || delta < nearestBehindDelta)
+                        {
+                            nearestBehindDelta = delta;
+                            nearestBehindRow = row;
+                            hasBehindCandidate = true;
+                        }
                     }
                 }
 
                 int predictedPos = 1 + carsAheadAfterPit;
 
+                if (hasAheadCandidate)
+                {
+                    _output.AheadName = nearestAheadRow?.Name ?? string.Empty;
+                    _output.AheadCarNumber = nearestAheadRow?.CarNumber ?? string.Empty;
+                    _output.AheadClassColor = nearestAheadRow?.ClassColor ?? string.Empty;
+                    _output.AheadGapSec = Math.Abs(nearestAheadDelta);
+                }
+                else
+                {
+                    _output.AheadName = string.Empty;
+                    _output.AheadCarNumber = string.Empty;
+                    _output.AheadClassColor = string.Empty;
+                    _output.AheadGapSec = 0.0;
+                }
+
+                if (hasBehindCandidate)
+                {
+                    _output.BehindName = nearestBehindRow?.Name ?? string.Empty;
+                    _output.BehindCarNumber = nearestBehindRow?.CarNumber ?? string.Empty;
+                    _output.BehindClassColor = nearestBehindRow?.ClassColor ?? string.Empty;
+                    _output.BehindGapSec = Math.Abs(nearestBehindDelta);
+                }
+                else
+                {
+                    _output.BehindName = string.Empty;
+                    _output.BehindCarNumber = string.Empty;
+                    _output.BehindClassColor = string.Empty;
+                    _output.BehindGapSec = 0.0;
+                }
+
+                string aheadSummaryCar = hasAheadCandidate && !string.IsNullOrWhiteSpace(_output.AheadCarNumber)
+                    ? _output.AheadCarNumber
+                    : "-";
+                string behindSummaryCar = hasBehindCandidate && !string.IsNullOrWhiteSpace(_output.BehindCarNumber)
+                    ? _output.BehindCarNumber
+                    : "-";
+                string aheadSummary = hasAheadCandidate ? $"{aheadSummaryCar}+{_output.AheadGapSec:F1}s" : "-";
+                string behindSummary = hasBehindCandidate ? $"{behindSummaryCar}+{_output.BehindGapSec:F1}s" : "-";
+
                 _output.Valid = true;
                 _output.PredictedPositionInClass = predictedPos;
                 _output.CarsAheadAfterPitCount = carsAheadAfterPit;
-                _output.Summary = $"PitExit: P{predictedPos} after stop (ahead={carsAheadAfterPit}, loss={pitLoss:F1}s)";
+                _output.Summary = $"PitExit: P{predictedPos} after stop (A={aheadSummary}, B={behindSummary}, loss={pitLoss:F1}s)";
                 _snapshot = new PitExitSnapshot
                 {
                     Valid = true,
