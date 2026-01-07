@@ -3685,6 +3685,17 @@ namespace LaunchPlugin
                 _pitExitExitSeenLast = _pitLite.ExitSeenThisLap;
             }
 
+            // Per-tick pit-exit display values (only while in pit lane)
+            if (inLane)
+            {
+                UpdatePitExitDisplayValues(data, true);
+            }
+            else
+            {
+                // Clear once when not in pit lane
+                UpdatePitExitDisplayValues(data, false);
+            }
+
             // --- Rejoin assist update & lap incident tracking ---
             _rejoinEngine?.Update(data, pluginManager, IsLaunchActive);
             if (_rejoinEngine != null && !_hadOffTrackThisLap)
@@ -3887,7 +3898,6 @@ namespace LaunchPlugin
                     _msgSystem.MaintainMsgCxTimers();
 
                 _msgV1Engine?.Tick(data);
-                UpdatePitExitDisplayValues(data, inLane);
             }
 
             // --- Launch State helpers (need tick-level responsiveness) ---
@@ -4267,25 +4277,29 @@ namespace LaunchPlugin
 
         private void UpdatePitExitDisplayValues(GameData data, bool inPitLane)
         {
-            _pitExitDistanceM = 0;
-            _pitExitTimeS = 0;
-
-            if (!inPitLane) return;
+            // Only clear when NOT in pit lane.
+            if (!inPitLane)
+            {
+                _pitExitDistanceM = 0;
+                _pitExitTimeS = 0;
+                return;
+            }
 
             if (data?.NewData == null || _pit == null) return;
 
             double exitPct = _pit.TrackMarkersStoredExitPct;
             double trackLenM = _pit.TrackMarkersSessionTrackLengthM;
 
+            // If we can't compute, HOLD last-good values.
+            if (double.IsNaN(exitPct) || double.IsNaN(trackLenM) || trackLenM <= 0.0)
+                return;
+
             double carPct = data.NewData.TrackPositionPercent;
             if (carPct > 1.5) carPct *= 0.01;
-            if (carPct < 0.0 || carPct > 1.0) carPct = double.NaN;
-
-            double speedKmh = data.NewData.SpeedKmh;
-            double speedMps = speedKmh / 3.6;
-
-            if (double.IsNaN(exitPct) || double.IsNaN(carPct) || double.IsNaN(trackLenM) || trackLenM <= 0.0)
+            if (carPct < 0.0 || carPct > 1.0 || double.IsNaN(carPct) || double.IsInfinity(carPct))
                 return;
+
+            double speedMps = data.NewData.SpeedKmh / 3.6;
 
             double deltaPct = exitPct - carPct;
             if (deltaPct < 0.0) deltaPct += 1.0;
