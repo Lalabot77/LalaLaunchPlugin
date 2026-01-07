@@ -3736,7 +3736,10 @@ namespace LaunchPlugin
             bool isRaceSessionNow = string.Equals(sessionTypeForOpponents, "Race", StringComparison.OrdinalIgnoreCase);
             bool pitExitRecently = (DateTime.UtcNow - _lastPitLaneSeenUtc).TotalSeconds < 1.0;
             bool pitTripActive = _wasInPitThisLap || inLane || pitExitRecently;
-            _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, inLane);
+            double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
+            double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+            bool debugEnabled = Settings?.EnableDebugLogging == true;
+            _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, inLane, trackPct, sessionTimeRemainingSec, debugEnabled);
 
             if (pitEntryEdge)
             {
@@ -4225,7 +4228,8 @@ namespace LaunchPlugin
 
             double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
             double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
-            _opponentsEngine.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, onPitRoad, trackPct, sessionTimeRemainingSec);
+            bool debugEnabled = Settings?.EnableDebugLogging == true;
+            _opponentsEngine.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, onPitRoad, trackPct, sessionTimeRemainingSec, debugEnabled);
         }
 
         private static double SafeReadDouble(PluginManager pluginManager, string propertyName, double fallback)
@@ -4672,7 +4676,7 @@ namespace LaunchPlugin
                 $"boxRef={FormatSecondsWithSuffix(boxRef)} directRef={FormatSecondsWithSuffix(directRef)}"
             );
 
-            if (Settings?.PitExitVerboseLogging == true && _opponentsEngine.TryGetPitExitMathAudit(out var auditLine))
+            if (_opponentsEngine.TryGetPitExitMathAudit(out var auditLine))
             {
                 SimHub.Logging.Current.Info($"[LalaPlugin:PitExit] {auditLine}");
             }
