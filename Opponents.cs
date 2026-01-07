@@ -39,7 +39,7 @@ namespace LaunchPlugin
             _pitExitPredictor.Reset();
         }
 
-        public void Update(GameData data, PluginManager pluginManager, bool isRaceSession, int completedLaps, double myPaceSec, double pitLossSec, bool pitTripActive, bool onPitRoad)
+        public void Update(GameData data, PluginManager pluginManager, bool isRaceSession, int completedLaps, double myPaceSec, double pitLossSec, bool pitTripActive, bool onPitRoad, double trackPct, double sessionTimeRemainingSec)
         {
             var _ = data; // intentional discard to keep signature aligned with caller
             string playerClassColor = SafeReadString(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
@@ -60,7 +60,7 @@ namespace LaunchPlugin
 
             _nearby.Update(pluginManager, allowLogs);
             _leaderboard.Update(pluginManager);
-            _pitExitPredictor.Update(_playerIdentityKey, pitLossSec, allowLogs, pitTripActive, onPitRoad);
+            _pitExitPredictor.Update(_playerIdentityKey, pitLossSec, allowLogs, pitTripActive, onPitRoad, trackPct, completedLaps, sessionTimeRemainingSec);
 
             if (!gateNow)
             {
@@ -590,6 +590,9 @@ namespace LaunchPlugin
             private bool _lastOnPitRoad;
             private bool _hasSnapshot;
             private PitExitSnapshot _snapshot;
+            private int _lastSeg = -1;
+            private double _lastTrackPct = double.NaN;
+            private int _lastCompletedLaps = -1;
 
             public PitExitPredictor(ClassLeaderboardTracker leaderboard, PitExitOutput output)
             {
@@ -606,11 +609,45 @@ namespace LaunchPlugin
                 _lastOnPitRoad = false;
                 _hasSnapshot = false;
                 _snapshot = new PitExitSnapshot();
+                _lastSeg = -1;
+                _lastTrackPct = double.NaN;
+                _lastCompletedLaps = -1;
                 _output.Reset();
             }
 
-            public void Update(string playerIdentityKey, double pitLossSec, bool allowLogs, bool pitTripActive, bool onPitRoad)
+            public void Update(string playerIdentityKey, double pitLossSec, bool allowLogs, bool pitTripActive, bool onPitRoad, double trackPct, int completedLaps, double sessionTimeRemainingSec)
             {
+                if (!double.IsNaN(sessionTimeRemainingSec) && !double.IsInfinity(sessionTimeRemainingSec) && sessionTimeRemainingSec <= 120.0)
+                {
+                    return;
+                }
+
+                bool hasTrackPct = !double.IsNaN(trackPct) && !double.IsInfinity(trackPct);
+                bool lapCrossed = _lastCompletedLaps >= 0 && completedLaps > _lastCompletedLaps;
+                if (lapCrossed || (hasTrackPct && _lastTrackPct > 0.80 && trackPct < 0.20))
+                {
+                    _lastSeg = -1;
+                }
+
+                if (!onPitRoad && hasTrackPct)
+                {
+                    int seg = (int)(trackPct * 4.0);
+                    if (seg < 0) seg = 0;
+                    if (seg > 3) seg = 3;
+
+                    if (seg == _lastSeg)
+                    {
+                        _lastTrackPct = trackPct;
+                        _lastCompletedLaps = completedLaps;
+                        return;
+                    }
+
+                    _lastSeg = seg;
+                }
+
+                _lastTrackPct = trackPct;
+                _lastCompletedLaps = completedLaps;
+
                 var rows = _leaderboard.Rows;
                 if (rows == null || rows.Count == 0 || string.IsNullOrWhiteSpace(playerIdentityKey))
                 {
