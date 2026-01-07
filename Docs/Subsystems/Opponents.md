@@ -4,7 +4,7 @@ Purpose: own all opponent-facing calculations for nearby pace/fight prediction a
 
 ## Gating and scope
 - Runs **race sessions only**; resets caches/outputs if session leaves Race.【F:Opponents.cs†L42-L88】
-- Additional lap gate: requires **CompletedLaps ≥ 2** before any Opp/PitExit outputs become valid. Data is still ingested pre-gate, but outputs/logging are gated. Gate opening logs once per activation.【F:Opponents.cs†L58-L88】
+- Additional lap gate: requires **CompletedLaps ≥ 1** before any Opp/PitExit outputs become valid. Data is still ingested pre-gate, but outputs/logging are gated. Gate opening logs once per activation.【F:Opponents.cs†L58-L88】
 - Uses **IRacingExtraProperties only**; no Dahl DLL or SDK arrays.【F:Opponents.cs†L42-L88】
 
 ## Identity model
@@ -13,8 +13,8 @@ Purpose: own all opponent-facing calculations for nearby pace/fight prediction a
 
 ## Data inputs
 - Nearby targets: `iRacing_DriverAheadInClass_00/01_*`, `iRacing_DriverBehindInClass_00/01_*` for Name, CarNumber, ClassColor, RelativeGapToPlayer, LastLapTime, BestLapTime, IsInPit, IsConnected.【F:Opponents.cs†L252-L344】
-- Leaderboard scan (00–63 until empty row): `iRacing_ClassLeaderboard_Driver_XX_*` for Name, CarNumber, ClassColor, PositionInClass, RelativeGapToLeader, IsInPit/IsConnected, LastLapTime, BestLapTime.【F:Opponents.cs†L395-L430】
-- Player identity: `iRacing_Player_ClassColor`, `iRacing_Player_CarNumber`. Pit-exit receives pit loss from LalaLaunch’s stop-loss calculation (validated to ≥0).【F:Opponents.cs†L42-L88】【F:LalaLaunch.cs†L4144-L4181】
+- Leaderboard scan (00–63 until empty row): `iRacing_ClassLeaderboard_Driver_XX_*` for Name, CarNumber, ClassColor, Position, PositionInClass, RelativeGapToLeader, IsInPit/IsConnected, LastLapTime, BestLapTime.【F:Opponents.cs†L489-L525】
+- Player identity: `iRacing_Player_ClassColor`, `iRacing_Player_CarNumber`. Pit-exit receives pit loss from LalaLaunch’s stop-loss calculation (validated to ≥0).【F:Opponents.cs†L42-L88】【F:LalaLaunch.cs†L3701-L3731】
 
 ## Pace cache & blended pace
 - Entity cache keyed by identity; keeps best lap and a 5-lap ring buffer of valid recent laps (rejects ≤0/NaN/huge, skips laps flagged in-pit).【F:Opponents.cs†L627-L717】
@@ -30,6 +30,8 @@ Purpose: own all opponent-facing calculations for nearby pace/fight prediction a
 ## Pit-exit prediction
 - Finds player row in class leaderboard; gapToPlayer = opp.RelGapToLeader − player.RelGapToLeader. predictedGapAfterPit = gapToPlayer − pitLossSec (pit loss forced to 0 when invalid).【F:Opponents.cs†L507-L553】
 - PredictedPosition = 1 + count of same-class connected cars where predictedGapAfterPit < 0. Logs when validity toggles or predicted position changes while active.【F:Opponents.cs†L532-L566】
+- Prediction-change logs are gated to reduce chatter: emits only on ≥2 place change, ≥2 s since last log, or pitTripActive/onPitRoad transitions (predictor outputs unchanged).【F:Opponents.cs†L676-L694】
+- Snapshot data (player positions, gap-to-leader, pitLoss, predicted pos, cars ahead) is captured for one-shot pit-in/out logging in LalaLaunch. Optional verbose math audit lists boundary candidates around the pit-loss compare and uses `d = (candidateGap - playerGap) - pitLoss` for the same-class set.【F:Opponents.cs†L655-L773】【F:LalaLaunch.cs†L4640-L4689】
 - Publishes PitExit.Valid/PredictedPositionInClass/CarsAheadAfterPitCount/Summary; defaults reset when invalid.【F:Opponents.cs†L507-L579】【F:Opponents.cs†L775-L789】
 
 ## Outputs

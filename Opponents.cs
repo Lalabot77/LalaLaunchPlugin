@@ -39,7 +39,7 @@ namespace LaunchPlugin
             _pitExitPredictor.Reset();
         }
 
-        public void Update(GameData data, PluginManager pluginManager, bool isRaceSession, int completedLaps, double myPaceSec, double pitLossSec)
+        public void Update(GameData data, PluginManager pluginManager, bool isRaceSession, int completedLaps, double myPaceSec, double pitLossSec, bool pitTripActive, bool onPitRoad)
         {
             var _ = data; // intentional discard to keep signature aligned with caller
             string playerClassColor = SafeReadString(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
@@ -60,7 +60,7 @@ namespace LaunchPlugin
 
             _nearby.Update(pluginManager, allowLogs);
             _leaderboard.Update(pluginManager);
-            _pitExitPredictor.Update(_playerIdentityKey, pitLossSec, allowLogs);
+            _pitExitPredictor.Update(_playerIdentityKey, pitLossSec, allowLogs, pitTripActive, onPitRoad);
 
             if (!gateNow)
             {
@@ -103,6 +103,16 @@ namespace LaunchPlugin
             string color = string.IsNullOrWhiteSpace(classColor) ? "?" : classColor.Trim();
             string number = string.IsNullOrWhiteSpace(carNumber) ? "?" : carNumber.Trim();
             return $"{color}:{number}";
+        }
+
+        public bool TryGetPitExitSnapshot(out PitExitSnapshot snapshot)
+        {
+            return _pitExitPredictor.TryGetSnapshot(out snapshot);
+        }
+
+        public bool TryGetPitExitMathAudit(out string auditLine)
+        {
+            return _pitExitPredictor.TryBuildMathAudit(out auditLine);
         }
 
         private static OpponentSummaries BuildSummaries(OpponentOutputs outputs)
@@ -499,6 +509,7 @@ namespace LaunchPlugin
                         Name = name,
                         CarNumber = carNumber,
                         ClassColor = classColor,
+                        PositionOverall = SafeReadInt(pluginManager, $"{baseName}_Position"),
                         PositionInClass = SafeReadInt(pluginManager, $"{baseName}_PositionInClass"),
                         RelativeGapToLeader = SafeReadDouble(pluginManager, $"{baseName}_RelativeGapToLeader"),
                         IsInPit = SafeReadBool(pluginManager, $"{baseName}_IsInPit"),
@@ -574,6 +585,11 @@ namespace LaunchPlugin
 
             private bool _lastValid;
             private int _lastPredictedPos;
+            private DateTime _lastPredictedLogUtc = DateTime.MinValue;
+            private bool _lastPitTripActive;
+            private bool _lastOnPitRoad;
+            private bool _hasSnapshot;
+            private PitExitSnapshot _snapshot;
 
             public PitExitPredictor(ClassLeaderboardTracker leaderboard, PitExitOutput output)
             {
@@ -585,10 +601,15 @@ namespace LaunchPlugin
             {
                 _lastValid = false;
                 _lastPredictedPos = 0;
+                _lastPredictedLogUtc = DateTime.MinValue;
+                _lastPitTripActive = false;
+                _lastOnPitRoad = false;
+                _hasSnapshot = false;
+                _snapshot = new PitExitSnapshot();
                 _output.Reset();
             }
 
-            public void Update(string playerIdentityKey, double pitLossSec, bool allowLogs)
+            public void Update(string playerIdentityKey, double pitLossSec, bool allowLogs, bool pitTripActive, bool onPitRoad)
             {
                 var rows = _leaderboard.Rows;
                 if (rows == null || rows.Count == 0 || string.IsNullOrWhiteSpace(playerIdentityKey))
@@ -635,6 +656,18 @@ namespace LaunchPlugin
                 _output.PredictedPositionInClass = predictedPos;
                 _output.CarsAheadAfterPitCount = carsAheadAfterPit;
                 _output.Summary = $"PitExit: P{predictedPos} after stop (ahead={carsAheadAfterPit}, loss={pitLoss:F1}s)";
+                _snapshot = new PitExitSnapshot
+                {
+                    Valid = true,
+                    PlayerIdentityKey = playerIdentityKey,
+                    PlayerPositionInClass = playerRow.PositionInClass,
+                    PlayerPositionOverall = playerRow.PositionOverall,
+                    PlayerGapToLeader = playerGapToLeader,
+                    PitLossSec = pitLoss,
+                    PredictedPositionInClass = predictedPos,
+                    CarsAheadAfterPit = carsAheadAfterPit
+                };
+                _hasSnapshot = true;
 
                 if (_output.Valid != _lastValid && allowLogs)
                 {
@@ -642,11 +675,102 @@ namespace LaunchPlugin
                 }
                 else if (_output.Valid && predictedPos != _lastPredictedPos && allowLogs)
                 {
-                    SimHub.Logging.Current.Info($"[LalaPlugin:PitExit] Predicted class position changed -> P{predictedPos} (ahead={carsAheadAfterPit})");
+                    bool largeChange = Math.Abs(predictedPos - _lastPredictedPos) >= 2;
+                    bool timeElapsed = (DateTime.UtcNow - _lastPredictedLogUtc).TotalSeconds >= 2.0;
+                    bool pitTripChanged = pitTripActive != _lastPitTripActive;
+                    bool onPitRoadChanged = onPitRoad != _lastOnPitRoad;
+
+                    if (largeChange || timeElapsed || pitTripChanged || onPitRoadChanged)
+                    {
+                        SimHub.Logging.Current.Info($"[LalaPlugin:PitExit] Predicted class position changed -> P{predictedPos} (ahead={carsAheadAfterPit})");
+                        _lastPredictedLogUtc = DateTime.UtcNow;
+                    }
                 }
 
                 _lastValid = _output.Valid;
                 _lastPredictedPos = predictedPos;
+                _lastPitTripActive = pitTripActive;
+                _lastOnPitRoad = onPitRoad;
+            }
+
+            public bool TryGetSnapshot(out PitExitSnapshot snapshot)
+            {
+                snapshot = _snapshot;
+                return _hasSnapshot;
+            }
+
+            public bool TryBuildMathAudit(out string auditLine)
+            {
+                auditLine = null;
+
+                var rows = _leaderboard.Rows;
+                if (!_hasSnapshot || rows == null || rows.Count == 0)
+                {
+                    return false;
+                }
+
+                var playerRow = rows.FirstOrDefault(r => string.Equals(r.IdentityKey, _snapshot.PlayerIdentityKey, StringComparison.Ordinal))
+                                ?? rows.FirstOrDefault(r => r.PositionInClass == _snapshot.PlayerPositionInClass && r.PositionInClass > 0);
+                if (playerRow == null)
+                {
+                    return false;
+                }
+
+                string classColor = playerRow.ClassColor;
+                if (string.IsNullOrWhiteSpace(classColor))
+                {
+                    return false;
+                }
+
+                double playerGap = _snapshot.PlayerGapToLeader;
+                double pitLoss = _snapshot.PitLossSec;
+
+                var ahead = new List<PitExitAuditCandidate>();
+                var behind = new List<PitExitAuditCandidate>();
+
+                foreach (var row in rows)
+                {
+                    if (row.IdentityKey == playerRow.IdentityKey) continue;
+                    if (!string.Equals(row.ClassColor, classColor, StringComparison.Ordinal)) continue;
+                    if (!row.IsConnected) continue;
+
+                    double delta = (row.RelativeGapToLeader - playerGap) - pitLoss;
+                    var candidate = new PitExitAuditCandidate
+                    {
+                        PositionInClass = row.PositionInClass,
+                        GapToLeader = row.RelativeGapToLeader,
+                        DeltaAfterPit = delta,
+                        CarNumber = row.CarNumber ?? string.Empty,
+                        Name = row.Name ?? string.Empty
+                    };
+
+                    if (delta < 0.0)
+                    {
+                        ahead.Add(candidate);
+                    }
+                    else
+                    {
+                        behind.Add(candidate);
+                    }
+                }
+
+                var topAhead = ahead
+                    .OrderByDescending(c => c.DeltaAfterPit)
+                    .ThenBy(c => c.GapToLeader)
+                    .Take(5)
+                    .ToList();
+                var topBehind = behind
+                    .OrderBy(c => c.DeltaAfterPit)
+                    .ThenBy(c => c.GapToLeader)
+                    .Take(5)
+                    .ToList();
+
+                auditLine =
+                    $"Math audit: pitLoss={pitLoss:F1}s playerGap={playerGap:F1}s | " +
+                    $"aheadCandidates=[{FormatAuditCandidates(topAhead)}] | " +
+                    $"behindCandidates=[{FormatAuditCandidates(topBehind)}]";
+
+                return true;
             }
 
             private void SetInvalid(bool allowLogs)
@@ -659,6 +783,7 @@ namespace LaunchPlugin
                 _output.Reset();
                 _lastValid = false;
                 _lastPredictedPos = 0;
+                _hasSnapshot = false;
             }
         }
 
@@ -876,6 +1001,18 @@ namespace LaunchPlugin
             }
         }
 
+        public class PitExitSnapshot
+        {
+            public bool Valid { get; set; }
+            public string PlayerIdentityKey { get; set; }
+            public int PlayerPositionInClass { get; set; }
+            public int PlayerPositionOverall { get; set; }
+            public double PlayerGapToLeader { get; set; }
+            public double PitLossSec { get; set; }
+            public int PredictedPositionInClass { get; set; }
+            public int CarsAheadAfterPit { get; set; }
+        }
+
         public class PitExitOutput
         {
             public bool Valid { get; set; }
@@ -911,12 +1048,43 @@ namespace LaunchPlugin
             public string Name { get; set; }
             public string CarNumber { get; set; }
             public string ClassColor { get; set; }
+            public int PositionOverall { get; set; }
             public int PositionInClass { get; set; }
             public double RelativeGapToLeader { get; set; }
             public bool IsInPit { get; set; }
             public bool IsConnected { get; set; }
             public double LastLapSec { get; set; }
             public double BestLapSec { get; set; }
+        }
+
+        private class PitExitAuditCandidate
+        {
+            public int PositionInClass { get; set; }
+            public double GapToLeader { get; set; }
+            public double DeltaAfterPit { get; set; }
+            public string CarNumber { get; set; }
+            public string Name { get; set; }
+        }
+
+        private static string FormatAuditCandidates(IEnumerable<PitExitAuditCandidate> candidates)
+        {
+            if (candidates == null)
+            {
+                return string.Empty;
+            }
+
+            return string.Join(", ", candidates.Select(c =>
+            {
+                string shortName = ShortenName(c.Name, 14);
+                return $"(i={c.PositionInClass},gap={c.GapToLeader:F1}s,d={c.DeltaAfterPit:F1}s,car={c.CarNumber},name={shortName})";
+            }));
+        }
+
+        private static string ShortenName(string name, int maxLen)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "-";
+            if (name.Length <= maxLen) return name;
+            return name.Substring(0, maxLen);
         }
     }
 }
