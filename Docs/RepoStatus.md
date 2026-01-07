@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is the current HEAD with the message “Gate pit exit display updates to pit lane.” The preceding commits include `40b4cd1` (“Merge pull request #216 from Lalabot77/codex/add-pit-exit-distance-and-time-properties”) and `c803deb` (“Add pit exit distance/time SimHub outputs”). Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
+- The latest commit on `work` is the current HEAD with the message “Docs: document PitExit ahead/behind exports.” The preceding commits include `40b4cd1` (“Merge pull request #216 from Lalabot77/codex/add-pit-exit-distance-and-time-properties”) and `c803deb` (“Add pit exit distance/time SimHub outputs”). Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
