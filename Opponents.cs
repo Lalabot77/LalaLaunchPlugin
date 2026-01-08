@@ -593,6 +593,9 @@ namespace LaunchPlugin
             private int _lastSeg = -1;
             private double _lastTrackPct = double.NaN;
             private int _lastCompletedLaps = -1;
+            private bool _pitTripLockActive;
+            private double _pitEntryGapToLeaderSec = double.NaN;
+            private double _pitLossLockedSec;
 
             public PitExitPredictor(ClassLeaderboardTracker leaderboard, PitExitOutput output)
             {
@@ -612,6 +615,9 @@ namespace LaunchPlugin
                 _lastSeg = -1;
                 _lastTrackPct = double.NaN;
                 _lastCompletedLaps = -1;
+                _pitTripLockActive = false;
+                _pitEntryGapToLeaderSec = double.NaN;
+                _pitLossLockedSec = 0.0;
                 _output.Reset();
             }
 
@@ -670,9 +676,30 @@ namespace LaunchPlugin
                 }
 
                 double pitLoss = (pitLossSec > 0.0 && !double.IsNaN(pitLossSec) && !double.IsInfinity(pitLossSec)) ? pitLossSec : 0.0;
+                bool pitTripStarted = pitTripActive && !_lastPitTripActive;
+                bool pitTripEnded = !pitTripActive && _lastPitTripActive;
+
+                if (pitTripStarted)
+                {
+                    _pitTripLockActive = true;
+                    _pitEntryGapToLeaderSec = playerGapToLeader;
+                    _pitLossLockedSec = pitLoss;
+                }
+                else if (pitTripEnded)
+                {
+                    _pitTripLockActive = false;
+                    _pitEntryGapToLeaderSec = double.NaN;
+                    _pitLossLockedSec = 0.0;
+                }
+
+                double gapUsed = (_pitTripLockActive && !double.IsNaN(_pitEntryGapToLeaderSec) && !double.IsInfinity(_pitEntryGapToLeaderSec))
+                    ? _pitEntryGapToLeaderSec
+                    : playerGapToLeader;
+                double pitLossUsed = _pitTripLockActive ? _pitLossLockedSec : pitLoss;
+                double predGapAfterPit = gapUsed + pitLossUsed;
 
                 int carsAheadAfterPit = 0;
-                double playerPredictedGapToLeaderAfterPit = playerGapToLeader + pitLoss;
+                double playerPredictedGapToLeaderAfterPit = predGapAfterPit;
                 bool hasAheadCandidate = false;
                 bool hasBehindCandidate = false;
                 double nearestAheadDelta = double.NegativeInfinity;
@@ -761,7 +788,7 @@ namespace LaunchPlugin
                 _output.Valid = true;
                 _output.PredictedPositionInClass = predictedPos;
                 _output.CarsAheadAfterPitCount = carsAheadAfterPit;
-                _output.Summary = $"PitExit: P{predictedPos} after stop (A={aheadSummary}, B={behindSummary}, loss={pitLoss:F1}s)";
+                _output.Summary = $"PitExit: P{predictedPos} after stop (A={aheadSummary}, B={behindSummary}, loss={pitLossUsed:F1}s)";
                 _snapshot = new PitExitSnapshot
                 {
                     Valid = true,
@@ -779,7 +806,14 @@ namespace LaunchPlugin
                     BehindName = _output.BehindName,
                     BehindCarNumber = _output.BehindCarNumber,
                     BehindClassColor = _output.BehindClassColor,
-                    BehindGapSec = _output.BehindGapSec
+                    BehindGapSec = _output.BehindGapSec,
+                    GapToLeaderLiveSec = playerGapToLeader,
+                    GapToLeaderUsedSec = gapUsed,
+                    PitEntryGapToLeaderSec = _pitEntryGapToLeaderSec,
+                    PitLossLiveSec = pitLoss,
+                    PitLossUsedSec = pitLossUsed,
+                    PredGapAfterPitSec = predGapAfterPit,
+                    PitTripLockActive = _pitTripLockActive
                 };
                 _hasSnapshot = true;
 
@@ -836,8 +870,10 @@ namespace LaunchPlugin
                     return false;
                 }
 
-                double playerGap = _snapshot.PlayerGapToLeader;
-                double pitLoss = _snapshot.PitLossSec;
+                double playerGap = !double.IsNaN(_snapshot.GapToLeaderUsedSec) && !double.IsInfinity(_snapshot.GapToLeaderUsedSec)
+                    ? _snapshot.GapToLeaderUsedSec
+                    : _snapshot.PlayerGapToLeader;
+                double pitLoss = _snapshot.PitLossUsedSec;
 
                 var ahead = new List<PitExitAuditCandidate>();
                 var behind = new List<PitExitAuditCandidate>();
@@ -1123,6 +1159,13 @@ namespace LaunchPlugin
             public int PlayerPositionOverall { get; set; }
             public double PlayerGapToLeader { get; set; }
             public double PitLossSec { get; set; }
+            public double GapToLeaderLiveSec { get; set; }
+            public double GapToLeaderUsedSec { get; set; }
+            public double PitEntryGapToLeaderSec { get; set; }
+            public double PitLossLiveSec { get; set; }
+            public double PitLossUsedSec { get; set; }
+            public double PredGapAfterPitSec { get; set; }
+            public bool PitTripLockActive { get; set; }
             public int PredictedPositionInClass { get; set; }
             public int CarsAheadAfterPit { get; set; }
             public string AheadName { get; set; } = string.Empty;
