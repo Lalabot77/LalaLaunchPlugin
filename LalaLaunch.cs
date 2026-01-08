@@ -3198,20 +3198,19 @@ namespace LaunchPlugin
                 trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
                 ProfilesViewModel?.SaveProfiles();
             }
-            else if (existingValid && trackRecord.PitLaneLossLocked)
+            else if (candidateValid && existingValid && trackRecord.PitLaneLossLocked)
             {
-                if (candidateValid)
-                {
-                    trackRecord.PitLaneLossBlockedCandidateSeconds = rounded;
-                    trackRecord.PitLaneLossBlockedCandidateSource = src;
-                    trackRecord.PitLaneLossBlockedCandidateUpdatedUtc = now;
 
-                    ProfilesViewModel?.SaveProfiles();
-                    SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate {rounded:0.00}s source={src}");
-                    _lastPitLossSaved = rounded;
-                    _lastPitLossSavedAtUtc = DateTime.UtcNow;
-                    _lastPitLossSource = src;
-                }
+                trackRecord.PitLaneLossBlockedCandidateSeconds = rounded;
+                trackRecord.PitLaneLossBlockedCandidateSource = src;
+                trackRecord.PitLaneLossBlockedCandidateUpdatedUtc = now;
+
+                ProfilesViewModel?.SaveProfiles();
+                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate {rounded:0.00}s source={src}");
+                _lastPitLossSaved = rounded;
+                _lastPitLossSavedAtUtc = now;
+                _lastPitLossSource = src;
+
                 return;
             }
             else
@@ -3228,7 +3227,7 @@ namespace LaunchPlugin
 
             // Remember last save
             _lastPitLossSaved = rounded;
-            _lastPitLossSavedAtUtc = DateTime.UtcNow;
+            _lastPitLossSavedAtUtc = now;
             _lastPitLossSource = src;
 
             SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] Saved PitLaneLoss = {rounded:0.00}s ({src}).");
