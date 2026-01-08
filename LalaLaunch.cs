@@ -4676,6 +4676,13 @@ namespace LaunchPlugin
             int predPosClass = hasSnapshot ? snapshot.PredictedPositionInClass : 0;
             int carsAhead = hasSnapshot ? snapshot.CarsAheadAfterPit : 0;
             double pitLoss = hasSnapshot ? snapshot.PitLossSec : pitLossSec;
+            double entryGapLdr = hasSnapshot ? snapshot.PitEntryGapToLeaderSec : double.NaN;
+            double gapLdrLive = hasSnapshot ? snapshot.GapToLeaderLiveSec : gapLdr;
+            double gapLdrUsed = hasSnapshot ? snapshot.GapToLeaderUsedSec : gapLdr;
+            double pitLossLive = hasSnapshot ? snapshot.PitLossLiveSec : pitLossSec;
+            double pitLossUsed = hasSnapshot ? snapshot.PitLossUsedSec : pitLoss;
+            double predGapAfterPit = hasSnapshot ? snapshot.PredGapAfterPitSec : double.NaN;
+            bool pitTripLockActive = hasSnapshot && snapshot.PitTripLockActive;
 
             double laneRef = _pitLite?.TimePitLaneSec ?? 0.0;
             double boxRef = _pitLite?.TimePitBoxSec ?? 0.0;
@@ -4687,7 +4694,11 @@ namespace LaunchPlugin
                 $"posClass=P{posClass} posOverall=P{posOverall} gapLdr={FormatSecondsWithSuffix(gapLdr)} " +
                 $"pitLoss={FormatSecondsWithSuffix(pitLoss)} predPosClass=P{predPosClass} carsAhead={carsAhead} " +
                 $"srcPitLoss={srcPitLoss} laneRef={FormatSecondsWithSuffix(laneRef)} " +
-                $"boxRef={FormatSecondsWithSuffix(boxRef)} directRef={FormatSecondsWithSuffix(directRef)}"
+                $"boxRef={FormatSecondsWithSuffix(boxRef)} directRef={FormatSecondsWithSuffix(directRef)} " +
+                $"entryGapLdr={FormatSecondsWithSuffix(entryGapLdr)} gapLdrLive={FormatSecondsWithSuffix(gapLdrLive)} " +
+                $"gapLdrUsed={FormatSecondsWithSuffix(gapLdrUsed)} pitLossLive={FormatSecondsWithSuffix(pitLossLive)} " +
+                $"pitLossUsed={FormatSecondsWithSuffix(pitLossUsed)} predGapAfterPit={FormatSecondsWithSuffix(predGapAfterPit)} " +
+                $"lock={pitTripLockActive}"
             );
 
             if (_opponentsEngine.TryGetPitExitMathAudit(out var auditLine))
@@ -4705,6 +4716,11 @@ namespace LaunchPlugin
             int posOverall = hasSnapshot ? snapshot.PlayerPositionOverall : 0;
             int predPosClass = hasSnapshot ? snapshot.PredictedPositionInClass : 0;
             int carsAhead = hasSnapshot ? snapshot.CarsAheadAfterPit : 0;
+            double entryGapLdr = hasSnapshot ? snapshot.PitEntryGapToLeaderSec : double.NaN;
+            double gapLdrLive = hasSnapshot ? snapshot.GapToLeaderLiveSec : double.NaN;
+            double gapLdrUsed = hasSnapshot ? snapshot.GapToLeaderUsedSec : double.NaN;
+            double predGapAfterPit = hasSnapshot ? snapshot.PredGapAfterPitSec : double.NaN;
+            bool pitTripLockActive = hasSnapshot && snapshot.PitTripLockActive;
 
             double laneRef = _pitLite?.TimePitLaneSec ?? 0.0;
             double boxRef = _pitLite?.TimePitBoxSec ?? 0.0;
@@ -4714,7 +4730,10 @@ namespace LaunchPlugin
                 $"[LalaPlugin:PitExit] Pit-out snapshot: lap={lapNumber} t={sessionTime:F1} " +
                 $"posClass=P{posClass} posOverall=P{posOverall} predPosClassNow=P{predPosClass} " +
                 $"carsAheadNow={carsAhead} lane={FormatSecondsWithSuffix(laneRef)} box={FormatSecondsWithSuffix(boxRef)} " +
-                $"direct={FormatSecondsWithSuffix(directRef)} pitTripActive={pitTripActive}"
+                $"direct={FormatSecondsWithSuffix(directRef)} pitTripActive={pitTripActive} " +
+                $"entryGapLdr={FormatSecondsWithSuffix(entryGapLdr)} gapLdrLiveNow={FormatSecondsWithSuffix(gapLdrLive)} " +
+                $"gapLdrUsed={FormatSecondsWithSuffix(gapLdrUsed)} predGapAfterPit={FormatSecondsWithSuffix(predGapAfterPit)} " +
+                $"lock={pitTripLockActive}"
             );
         }
 
