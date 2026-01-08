@@ -296,13 +296,39 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0" Text="Pit Lane Loss (s):" Margin="0,0,10,0" VerticalAlignment="Center" />
-                                        <TextBox Grid.Column="1" TextAlignment="Right" Padding="2,0,2,0" MinWidth="110"
-                                                 Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True, NotifyOnValidationError=True}" />
-                                        <TextBlock Grid.Column="2" Margin="12,0,0,0" FontStyle="Italic" Foreground="#FF9AA0A6" VerticalAlignment="Center" TextWrapping="Wrap">
-                                            <Run Text="{Binding PitLaneLossSource, TargetNullValue=Manual}"/>
-                                            <Run Text=": "/>
-                                            <Run Text="{Binding PitLaneLossUpdatedUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}"/>
-                                        </TextBlock>
+                                        <TextBox Grid.Column="1" TextAlignment="Right" Padding="2,0,2,0" MinWidth="110">
+                                            <TextBox.Text>
+                                                <Binding Path="DataContext.PitLaneLossSecondsText"
+                                                         RelativeSource="{RelativeSource AncestorType=UserControl}"
+                                                         Mode="TwoWay"
+                                                         UpdateSourceTrigger="PropertyChanged"
+                                                         ValidatesOnDataErrors="True"
+                                                         NotifyOnValidationError="True" />
+                                            </TextBox.Text>
+                                        </TextBox>
+                                        <StackPanel Grid.Column="2" Margin="12,0,0,0">
+                                            <TextBlock FontStyle="Italic" Foreground="#FF9AA0A6" VerticalAlignment="Center" TextWrapping="Wrap">
+                                                <Run Text="{Binding PitLaneLossSource, TargetNullValue=Manual}"/>
+                                                <Run Text=": "/>
+                                                <Run Text="{Binding PitLaneLossUpdatedUtc, StringFormat={}{0:yyyy-MM-dd HH:mm}}"/>
+                                            </TextBlock>
+                                            <TextBlock FontStyle="Italic" Foreground="#FF9AA0A6" TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding PitLaneLossBlockedCandidateDisplay, Mode=OneWay}" Value="">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                                <Run Text="{Binding PitLaneLossBlockedCandidateDisplay, Mode=OneWay}" />
+                                            </TextBlock>
+                                            <CheckBox Content="Locked"
+                                                      IsChecked="{Binding DataContext.PitLaneLossLocked, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      Margin="0,2,0,0" />
+                                        </StackPanel>
                                     </Grid>
                                 </StackPanel>
 

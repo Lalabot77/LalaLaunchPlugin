@@ -3185,11 +3185,42 @@ namespace LaunchPlugin
             // Round & persist
             double rounded = Math.Round(loss, 2);
             var trackRecord = ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);
-            trackRecord.PitLaneLossSeconds = rounded;
 
-            // NEW: persist source + timestamp for Profiles page
-            trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
-            trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+            bool existingValid = trackRecord.PitLaneLossSeconds.HasValue
+                && trackRecord.PitLaneLossSeconds.Value > 0.0
+                && !double.IsNaN(trackRecord.PitLaneLossSeconds.Value);
+            bool candidateValid = rounded > 0.0 && !double.IsNaN(rounded);
+
+            if (candidateValid && !existingValid)
+            {
+                trackRecord.PitLaneLossSeconds = rounded;
+                trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
+                trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+                ProfilesViewModel?.SaveProfiles();
+            }
+            else if (existingValid && trackRecord.PitLaneLossLocked)
+            {
+                if (candidateValid)
+                {
+                    trackRecord.PitLaneLossBlockedCandidateSeconds = rounded;
+                    trackRecord.PitLaneLossBlockedCandidateSource = src;
+                    trackRecord.PitLaneLossBlockedCandidateUpdatedUtc = now;
+
+                    ProfilesViewModel?.SaveProfiles();
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate {rounded:0.00}s source={src}");
+                    _lastPitLossSaved = rounded;
+                    _lastPitLossSavedAtUtc = DateTime.UtcNow;
+                    _lastPitLossSource = src;
+                }
+                return;
+            }
+            else
+            {
+                trackRecord.PitLaneLossSeconds = rounded;
+                trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
+                trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+                ProfilesViewModel?.SaveProfiles();
+            }
 
             // Publish to the live snapshot + Fuel tab immediately
             FuelCalculator?.SetLastPitDriveThroughSeconds(rounded);

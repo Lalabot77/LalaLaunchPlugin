@@ -281,6 +281,85 @@ namespace LaunchPlugin
         [JsonProperty] public double? PitLaneLossSeconds { get => _pitLaneLossSeconds; set { if (_pitLaneLossSeconds != value) { _pitLaneLossSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PitLaneLossSecondsText)); } } }
         public string PitLaneLossSecondsText { get => _pitLaneLossSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => PitLaneLossSeconds = StringToNullableDouble(value); }
 
+        private bool _pitLaneLossLocked;
+        [JsonProperty]
+        public bool PitLaneLossLocked
+        {
+            get => _pitLaneLossLocked;
+            set
+            {
+                if (_pitLaneLossLocked != value)
+                {
+                    _pitLaneLossLocked = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PitLaneLossBlockedCandidateDisplay));
+                }
+            }
+        }
+
+        private double _pitLaneLossBlockedCandidateSeconds;
+        [JsonProperty]
+        public double PitLaneLossBlockedCandidateSeconds
+        {
+            get => _pitLaneLossBlockedCandidateSeconds;
+            set
+            {
+                if (Math.Abs(_pitLaneLossBlockedCandidateSeconds - value) > 0.0001)
+                {
+                    _pitLaneLossBlockedCandidateSeconds = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PitLaneLossBlockedCandidateDisplay));
+                }
+            }
+        }
+
+        private DateTime? _pitLaneLossBlockedCandidateUpdatedUtc;
+        [JsonProperty]
+        public DateTime? PitLaneLossBlockedCandidateUpdatedUtc
+        {
+            get => _pitLaneLossBlockedCandidateUpdatedUtc;
+            set
+            {
+                if (_pitLaneLossBlockedCandidateUpdatedUtc != value)
+                {
+                    _pitLaneLossBlockedCandidateUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PitLaneLossBlockedCandidateDisplay));
+                }
+            }
+        }
+
+        private string _pitLaneLossBlockedCandidateSource;
+        [JsonProperty]
+        public string PitLaneLossBlockedCandidateSource
+        {
+            get => _pitLaneLossBlockedCandidateSource;
+            set
+            {
+                if (_pitLaneLossBlockedCandidateSource != value)
+                {
+                    _pitLaneLossBlockedCandidateSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(PitLaneLossBlockedCandidateDisplay));
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public string PitLaneLossBlockedCandidateDisplay
+        {
+            get
+            {
+                if (!PitLaneLossLocked) return string.Empty;
+                if (PitLaneLossBlockedCandidateSeconds <= 0) return string.Empty;
+                if (!PitLaneLossBlockedCandidateUpdatedUtc.HasValue) return string.Empty;
+                var source = string.IsNullOrWhiteSpace(PitLaneLossBlockedCandidateSource)
+                    ? "unknown"
+                    : PitLaneLossBlockedCandidateSource;
+                return $"Blocked candidate: {PitLaneLossBlockedCandidateSeconds:0.0}s @ {PitLaneLossBlockedCandidateUpdatedUtc.Value:yyyy-MM-dd HH:mm} ({source})";
+            }
+        }
+
         private ConditionMultipliers _dryConditionMultipliers = ConditionMultipliers.CreateDefaultDry();
         private ConditionMultipliers _wetConditionMultipliers = ConditionMultipliers.CreateDefaultWet();
 
