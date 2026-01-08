@@ -1308,12 +1308,23 @@ namespace LaunchPlugin
             double projectionLapSeconds,
             double projectedDriveSecondsRemaining)
         {
+            int posClass = 0;
+            int posOverall = 0;
+            double gapToLeaderSec = double.NaN;
+            bool hasRaceState = _opponentsEngine?.TryGetPlayerRaceState(out posClass, out posOverall, out gapToLeaderSec) == true;
+            string posClassText = (hasRaceState && posClass > 0) ? $"P{posClass}" : "na";
+            string posOverallText = (hasRaceState && posOverall > 0) ? $"P{posOverall}" : "na";
+            string gapText = (!double.IsNaN(gapToLeaderSec) && !double.IsInfinity(gapToLeaderSec))
+                ? gapToLeaderSec.ToString("F1", CultureInfo.InvariantCulture)
+                : "na";
+
             SimHub.Logging.Current.Info(
                 $"[LalaPlugin:PACE] Lap {lapNumber}: " +
                 $"ok={paceAccepted} reason={paceReason} " +
                 $"lap_s={lastLapSeconds:F3} baseline_s={paceBaseline} delta_s={paceDelta} " +
                 $"stint_avg_s={stintAvg:F3} last5_avg_s={last5Avg:F3} conf_pct={paceConfidence} " +
-                $"leader_lap_s={leaderLapSeconds:F3} leader_avg_s={leaderAvgSeconds:F3} leader_samples={leaderSampleCount}"
+                $"leader_lap_s={leaderLapSeconds:F3} leader_avg_s={leaderAvgSeconds:F3} leader_samples={leaderSampleCount} " +
+                $"posClass={posClassText} posOverall={posOverallText} gapLdr={gapText}"
             );
             SimHub.Logging.Current.Info(
                 $"[LalaPlugin:FUEL PER LAP] Lap {lapNumber}: " +
@@ -3748,9 +3759,10 @@ namespace LaunchPlugin
             bool pitExitRecently = (DateTime.UtcNow - _lastPitLaneSeenUtc).TotalSeconds < 1.0;
             bool pitTripActive = _wasInPitThisLap || inLane || pitExitRecently;
             double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
+            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
             bool debugEnabled = Settings?.EnableDebugLogging == true;
-            _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, inLane, trackPct, sessionTimeRemainingSec, debugEnabled);
+            _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, inLane, trackPct, sessionTimeSec, sessionTimeRemainingSec, debugEnabled);
 
             if (pitEntryEdge)
             {
@@ -3759,6 +3771,7 @@ namespace LaunchPlugin
 
             if (pitExitEdge)
             {
+                _opponentsEngine?.NotifyPitExitLine(completedLaps, sessionTime, trackPct);
                 LogPitExitPitOutSnapshot(sessionTime, completedLaps + 1, pitTripActive);
             }
 
@@ -4237,9 +4250,10 @@ namespace LaunchPlugin
             bool pitTripActive = _wasInPitThisLap || onPitRoad || pitExitRecently;
 
             double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
+            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
             bool debugEnabled = Settings?.EnableDebugLogging == true;
-            _opponentsEngine.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, onPitRoad, trackPct, sessionTimeRemainingSec, debugEnabled);
+            _opponentsEngine.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, onPitRoad, trackPct, sessionTimeSec, sessionTimeRemainingSec, debugEnabled);
         }
 
         private static double SafeReadDouble(PluginManager pluginManager, string propertyName, double fallback)

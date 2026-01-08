@@ -39,7 +39,7 @@ namespace LaunchPlugin
             _pitExitPredictor.Reset();
         }
 
-        public void Update(GameData data, PluginManager pluginManager, bool isRaceSession, int completedLaps, double myPaceSec, double pitLossSec, bool pitTripActive, bool onPitRoad, double trackPct, double sessionTimeRemainingSec, bool debugEnabled)
+        public void Update(GameData data, PluginManager pluginManager, bool isRaceSession, int completedLaps, double myPaceSec, double pitLossSec, bool pitTripActive, bool onPitRoad, double trackPct, double sessionTimeSec, double sessionTimeRemainingSec, bool debugEnabled)
         {
             var _ = data; // intentional discard to keep signature aligned with caller
             string playerClassColor = SafeReadString(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
@@ -60,7 +60,7 @@ namespace LaunchPlugin
 
             _nearby.Update(pluginManager, allowLogs, debugEnabled);
             _leaderboard.Update(pluginManager);
-            _pitExitPredictor.Update(_playerIdentityKey, pitLossSec, allowLogs, pitTripActive, onPitRoad, trackPct, completedLaps, sessionTimeRemainingSec, debugEnabled);
+            _pitExitPredictor.Update(_playerIdentityKey, pitLossSec, allowLogs, pitTripActive, onPitRoad, trackPct, completedLaps, sessionTimeSec, sessionTimeRemainingSec, debugEnabled);
 
             if (!gateNow)
             {
@@ -113,6 +113,35 @@ namespace LaunchPlugin
         public bool TryGetPitExitMathAudit(out string auditLine)
         {
             return _pitExitPredictor.TryBuildMathAudit(out auditLine);
+        }
+
+        public void NotifyPitExitLine(int completedLaps, double sessionTimeSec, double trackPct)
+        {
+            _pitExitPredictor.NotifyPitExitLine(completedLaps, sessionTimeSec, trackPct);
+        }
+
+        public bool TryGetPlayerRaceState(out int posClass, out int posOverall, out double gapToLeaderSec)
+        {
+            posClass = 0;
+            posOverall = 0;
+            gapToLeaderSec = double.NaN;
+
+            var rows = _leaderboard.Rows;
+            if (rows == null || rows.Count == 0 || string.IsNullOrWhiteSpace(_playerIdentityKey))
+            {
+                return false;
+            }
+
+            var row = rows.FirstOrDefault(r => string.Equals(r.IdentityKey, _playerIdentityKey, StringComparison.Ordinal));
+            if (row == null)
+            {
+                return false;
+            }
+
+            posClass = row.PositionInClass;
+            posOverall = row.PositionOverall;
+            gapToLeaderSec = row.RelativeGapToLeader;
+            return true;
         }
 
         private static OpponentSummaries BuildSummaries(OpponentOutputs outputs)
@@ -596,6 +625,10 @@ namespace LaunchPlugin
             private bool _pitTripLockActive;
             private double _pitEntryGapToLeaderSec = double.NaN;
             private double _pitLossLockedSec;
+            private bool _pendingSettledPitOut;
+            private int _pendingSettledPitOutLap = -1;
+            private double _pitExitSessionTimeSec = double.NaN;
+            private double _pitExitTrackPct = double.NaN;
 
             public PitExitPredictor(ClassLeaderboardTracker leaderboard, PitExitOutput output)
             {
@@ -618,12 +651,16 @@ namespace LaunchPlugin
                 _pitTripLockActive = false;
                 _pitEntryGapToLeaderSec = double.NaN;
                 _pitLossLockedSec = 0.0;
+                _pendingSettledPitOut = false;
+                _pendingSettledPitOutLap = -1;
+                _pitExitSessionTimeSec = double.NaN;
+                _pitExitTrackPct = double.NaN;
                 _output.Reset();
             }
 
-            public void Update(string playerIdentityKey, double pitLossSec, bool allowLogs, bool pitTripActive, bool onPitRoad, double trackPct, int completedLaps, double sessionTimeRemainingSec, bool debugEnabled)
+            public void Update(string playerIdentityKey, double pitLossSec, bool allowLogs, bool pitTripActive, bool onPitRoad, double trackPct, int completedLaps, double sessionTimeSec, double sessionTimeRemainingSec, bool debugEnabled)
             {
-                if (!double.IsNaN(sessionTimeRemainingSec) && !double.IsInfinity(sessionTimeRemainingSec) && sessionTimeRemainingSec <= 120.0)
+                if (!double.IsNaN(sessionTimeRemainingSec) && !double.IsInfinity(sessionTimeRemainingSec) && sessionTimeRemainingSec <= 120.0 && !_pendingSettledPitOut)
                 {
                     return;
                 }
@@ -655,6 +692,51 @@ namespace LaunchPlugin
                 _lastCompletedLaps = completedLaps;
 
                 var rows = _leaderboard.Rows;
+                if (lapCrossed && _pendingSettledPitOut && allowLogs && completedLaps > _pendingSettledPitOutLap)
+                {
+                    int settledPosClass = 0;
+                    int settledPosOverall = 0;
+                    double settledGapToLeader = double.NaN;
+
+                    if (rows != null && rows.Count > 0 && !string.IsNullOrWhiteSpace(playerIdentityKey))
+                    {
+                        var settledRow = rows.FirstOrDefault(r => string.Equals(r.IdentityKey, playerIdentityKey, StringComparison.Ordinal));
+                        if (settledRow != null)
+                        {
+                            settledPosClass = settledRow.PositionInClass;
+                            settledPosOverall = settledRow.PositionOverall;
+                            settledGapToLeader = settledRow.RelativeGapToLeader;
+                        }
+                    }
+
+                    string posClassText = settledPosClass > 0 ? $"P{settledPosClass}" : "na";
+                    string posOverallText = settledPosOverall > 0 ? $"P{settledPosOverall}" : "na";
+                    string gapText = (!double.IsNaN(settledGapToLeader) && !double.IsInfinity(settledGapToLeader))
+                        ? settledGapToLeader.ToString("F1", CultureInfo.InvariantCulture)
+                        : "na";
+                    string sessionText = (!double.IsNaN(sessionTimeSec) && !double.IsInfinity(sessionTimeSec))
+                        ? sessionTimeSec.ToString("F1", CultureInfo.InvariantCulture)
+                        : "na";
+                    string exitLineTimeText = (!double.IsNaN(_pitExitSessionTimeSec) && !double.IsInfinity(_pitExitSessionTimeSec))
+                        ? _pitExitSessionTimeSec.ToString("F1", CultureInfo.InvariantCulture)
+                        : "na";
+                    string exitLinePctText = (!double.IsNaN(_pitExitTrackPct) && !double.IsInfinity(_pitExitTrackPct))
+                        ? _pitExitTrackPct.ToString("F3", CultureInfo.InvariantCulture)
+                        : "na";
+                    int lapNumber = completedLaps + 1;
+
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:PitExit] Pit-out settled: lap={lapNumber} t={sessionText} " +
+                        $"exitLine_t={exitLineTimeText} exitLine_pct={exitLinePctText} " +
+                        $"posClass={posClassText} posOverall={posOverallText} gapLdrLiveNow={gapText}"
+                    );
+
+                    _pendingSettledPitOut = false;
+                    _pendingSettledPitOutLap = -1;
+                    _pitExitSessionTimeSec = double.NaN;
+                    _pitExitTrackPct = double.NaN;
+                }
+
                 if (rows == null || rows.Count == 0 || string.IsNullOrWhiteSpace(playerIdentityKey))
                 {
                     SetInvalid(allowLogs);
@@ -845,6 +927,14 @@ namespace LaunchPlugin
             {
                 snapshot = _snapshot;
                 return _hasSnapshot;
+            }
+
+            public void NotifyPitExitLine(int completedLaps, double sessionTimeSec, double trackPct)
+            {
+                _pendingSettledPitOut = true;
+                _pendingSettledPitOutLap = completedLaps;
+                _pitExitSessionTimeSec = sessionTimeSec;
+                _pitExitTrackPct = trackPct;
             }
 
             public bool TryBuildMathAudit(out string auditLine)
