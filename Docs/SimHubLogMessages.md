@@ -1,8 +1,8 @@
 # SimHub Log Messages (CANONICAL)
 
-Validated against commit: b31a0be584c2941a7d8d4d4c5dde2e852d7b32a2  
-Last updated: 2026-02-07  
-Branch: Opponents-Module
+Validated against commit: f542ae2  
+Last updated: 2026-02-08  
+Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
 
@@ -59,12 +59,14 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:PitExit] Predictor valid -> true (pitLoss=X.Xs)`** — Pit-exit predictor became valid with leaderboard/player row found.【F:Opponents.cs†L507-L566】
 - **`[LalaPlugin:PitExit] Predicted class position changed -> P# (ahead=N)`** — Predicted post-stop class position changed while valid (gated to lap ≥1 and debug toggle).【F:Opponents.cs†L532-L566】
 - **`[LalaPlugin:PitExit] Predictor valid -> false`** — Pit-exit predictor lost validity (no player row/leaderboard data).【F:Opponents.cs†L568-L579】
-- **`[LalaPlugin:PitExit] Pit-in snapshot: lap=... t=... posClass=... posOverall=... gapLdr=... pitLoss=... predPosClass=... carsAhead=... srcPitLoss=... laneRef=... boxRef=... directRef=...`** — One-time pit entry snapshot logging player positions, pit loss inputs, and prediction summary.【F:LalaLaunch.cs†L4598-L4638】
-- **`[LalaPlugin:PitExit] Math audit: pitLoss=... playerGap=... | aheadCandidates=[...] | behindCandidates=[...]`** — Pit-in audit of boundary candidates and deltas around the pit-loss comparison, emitted alongside the pit-in snapshot.【F:Opponents.cs†L713-L782】
-- **`[LalaPlugin:PitExit] Pit-out snapshot: lap=... t=... posClass=... posOverall=... predPosClassNow=... carsAheadNow=... lane=... box=... direct=... pitTripActive=...`** — One-time pit exit snapshot logging rejoin position and latched pit lane timings.【F:LalaLaunch.cs†L4640-L4664】
+- **`[LalaPlugin:PitExit] Pit-in snapshot: lap=... t=... posClass=... posOverall=... gapLdr=... pitLoss=... predPosClass=... carsAhead=... srcPitLoss=... laneRef=... boxRef=... directRef=... entryGapLdr=... gapLdrLive=... gapLdrUsed=... pitLossLive=... pitLossUsed=... predGapAfterPit=... lock=...`** — One-time pit entry snapshot logging player positions, pit loss inputs, locked pit-trip gap/pit loss, and prediction summary (see trailing lock/used/live fields).【F:LalaLaunch.cs†L4712-L4747】
+- **`[LalaPlugin:PitExit] Math audit: pitLoss=... playerGap=... | aheadCandidates=[...] | behindCandidates=[...]`** — Pit-in audit of boundary candidates and deltas around the pit-loss comparison, emitted alongside the pit-in snapshot.【F:Opponents.cs†L950-L1038】
+- **`[LalaPlugin:PitExit] Pit-out snapshot: lap=... t=... posClass=... posOverall=... predPosClassNow=... carsAheadNow=... lane=... box=... direct=... pitTripActive=... entryGapLdr=... gapLdrLiveNow=... gapLdrUsed=... predGapAfterPit=... lock=...`** — One-time pit exit snapshot logging rejoin position, latched pit lane timings, and locked pit-trip context values.【F:LalaLaunch.cs†L4754-L4784】
+- **`[LalaPlugin:PitExit] Pit-out settled: lap=... t=... exitLine_t=... exitLine_pct=... posClass=... posOverall=... gapLdrLiveNow=...`** — One-lap-delayed confirmation log once the post-pit lap crosses, capturing settled position/gap plus the pit-exit line timing snapshot.【F:Opponents.cs†L695-L738】
 
 ## Pit, refuel, and PitLite
 - **`[LalaPlugin:Pit Cycle] Saved PitLaneLoss = Xs (src).`** — Persisted pit lane loss from PitLite/DTL (debounced).【F:LalaLaunch.cs†L2950-L3004】
+- **`[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate Xs source=...`** — Pit lane loss candidate was blocked due to a locked profile value; candidate details saved for UI display.【F:LalaLaunch.cs†L3201-L3212】
 - **`[LalaPlugin:Pit Cycle] Pit Lite Data used for DTL.`** — Consumed PitLite out-lap candidate to save pit loss.【F:LalaLaunch.cs†L3004-L3035】
 - **`[LalaPlugin:Refuel Rate] Learned refuel rate ... Cooldown until ...`** — Refuel EMA learning completed from detected fuel added/time. 【F:LalaLaunch.cs†L3488-L3507】
 - **`[LalaPlugin:Pit Lite] ...`** — See PitCycleLite section below for entry/exit/out-lap/publish logs.
@@ -78,6 +80,7 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Pace] PB Updated: car @ track -> lap`** — PB update accepted via ProfilesManagerViewModel.【F:ProfilesManagerViewModel.cs†L66-L88】
 - **`[LalaPlugin:Profiles] Track resolved: key='...'`** — Track resolution during profile operations.【F:ProfilesManagerViewModel.cs†L160-L182】
 - **`[LalaPlugin:Profiles] Default Settings profile not found, creating baseline profile.`** — Baseline profile auto-created on load miss.【F:ProfilesManagerViewModel.cs†L551-L570】
+- **`[LalaPlugin:Profile] PitLoss lock set to ... for '...'`** — Pit lane loss lock toggled for the selected track in the Profiles UI.【F:ProfilesManagerViewModel.cs†L405-L421】
 - **`[LalaPlugin:Profile/Pace] PB updated for track '...' (...) ...`** — CarProfiles PB change (live or manual).【F:CarProfiles.cs†L230-L251】
 - **`[LalaPlugin:Profile/Pace] AvgDry updated ...`** — Dry average lap time edited for a track.【F:CarProfiles.cs†L526-L547】
 - **`[LalaPlugin:Profile / Pace] AvgWet updated ...`** — Wet average lap time edited for a track.【F:CarProfiles.cs†L718-L740】

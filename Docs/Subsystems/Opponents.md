@@ -1,5 +1,9 @@
 # Opponents subsystem
 
+Validated against commit: f542ae2  
+Last updated: 2026-02-08  
+Branch: work
+
 Purpose: own all opponent-facing calculations for nearby pace/fight prediction and pit-exit position forecasting with SimHub exports under `Opp.*` and `PitExit.*`.
 
 ## Gating and scope
@@ -29,11 +33,13 @@ Purpose: own all opponent-facing calculations for nearby pace/fight prediction a
 
 ## Pit-exit prediction
 - Finds player row in class leaderboard; predicted gap to leader after pit = player.RelGapToLeader + pitLossSec (pit loss forced to 0 when invalid). Each same-class, connected row computes `delta = row.RelGapToLeader − playerPredictedGapToLeaderAfterPit`. Negative delta means the car is ahead after pit; positive delta means behind.【F:Opponents.cs†L507-L553】
+- On pit entry, the predictor **locks** the player gap-to-leader and pit-loss inputs for the duration of the pit trip, preventing drift if leaderboard gaps update mid-stop. Lock clears once pitTripActive ends.【F:Opponents.cs†L783-L832】
 - PredictedPosition = 1 + count of same-class connected cars where delta < 0. Logs when validity toggles or predicted position changes while active; predicted-position-change logs require debug toggle + lap gate.【F:Opponents.cs†L532-L566】
 - Update cadence: runs every tick on pit road; off pit road, runs only when the player enters a new lap quarter (TrackPct × 4 → 0-3). Prediction is skipped near race end if reliable session time remaining is ≤120 s.【F:Opponents.cs†L612-L742】
 - Nearest ahead/behind exports come from the same scan: nearest ahead = largest negative delta (closest ahead); nearest behind = smallest positive delta (closest behind). Only same-class, connected cars are considered.【F:Opponents.cs†L532-L658】
 - Prediction-change logs are gated to reduce chatter: emits only on ≥2 place change, ≥2 s since last log, or pitTripActive/onPitRoad transitions (predictor outputs unchanged).【F:Opponents.cs†L676-L694】
-- Snapshot data (player positions, gap-to-leader, pitLoss, predicted pos, cars ahead) is captured for one-shot pit-in/out logging in LalaLaunch. Math audit lists boundary candidates around the pit-loss compare and uses `d = (candidateGap - playerGap) - pitLoss` for the same-class set; it is emitted with the pit-in snapshot.【F:Opponents.cs†L655-L773】【F:LalaLaunch.cs†L4640-L4689】
+- Snapshot data (player positions, gap-to-leader, pitLoss, predicted pos, cars ahead, **locked gap/pit loss**, and derived predicted gap) is captured for one-shot pit-in/out logging in LalaLaunch. Math audit lists boundary candidates around the pit-loss compare and uses `d = (candidateGap - playerGap) - pitLoss` for the same-class set; it is emitted with the pit-in snapshot.【F:Opponents.cs†L862-L978】【F:LalaLaunch.cs†L4712-L4784】
+- A one-lap-delayed “pit-out settled” log is emitted after crossing the lap boundary following pit exit to record the final settled position and gap-to-leader at the end of the out-lap.【F:Opponents.cs†L695-L738】
 - Publishes PitExit.Valid/PredictedPositionInClass/CarsAheadAfterPitCount/Summary plus nearest ahead/behind identity/gap fields; defaults reset when invalid.【F:Opponents.cs†L507-L579】【F:Opponents.cs†L775-L789】
 
 ## Outputs
