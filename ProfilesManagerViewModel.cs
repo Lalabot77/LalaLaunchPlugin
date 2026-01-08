@@ -332,6 +332,8 @@ namespace LaunchPlugin
                     _selectedTrack = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsTrackSelected));
+                    OnPropertyChanged(nameof(PitLaneLossSecondsText));
+                    OnPropertyChanged(nameof(PitLaneLossLocked));
                     RefreshTrackMarkersSnapshotForSelectedTrack();
                 }
             }
@@ -378,6 +380,43 @@ namespace LaunchPlugin
 
         public bool IsProfileSelected => SelectedProfile != null;
         public bool IsTrackSelected => SelectedTrack != null;
+
+        public string PitLaneLossSecondsText
+        {
+            get => SelectedTrack?.PitLaneLossSecondsText;
+            set
+            {
+                if (SelectedTrack == null) return;
+
+                var parsed = SelectedTrack.StringToNullableDouble(value);
+                double? rounded = parsed.HasValue ? (double?)Math.Round(parsed.Value, 2) : null;
+
+                if (SelectedTrack.PitLaneLossSeconds != rounded)
+                {
+                    SelectedTrack.PitLaneLossSeconds = rounded;
+                    SelectedTrack.PitLaneLossSource = "manual";
+                    SelectedTrack.PitLaneLossUpdatedUtc = DateTime.UtcNow;
+                    SaveProfiles();
+                }
+                OnPropertyChanged();
+            }
+        }
+
+        public bool PitLaneLossLocked
+        {
+            get => SelectedTrack?.PitLaneLossLocked ?? false;
+            set
+            {
+                if (SelectedTrack == null) return;
+                if (SelectedTrack.PitLaneLossLocked != value)
+                {
+                    SelectedTrack.PitLaneLossLocked = value;
+                    SaveProfiles();
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] PitLoss lock set to {value} for '{SelectedTrack.DisplayName}'.");
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         private string _storedPitEntryPctText = "n/a";
         public string StoredPitEntryPctText
