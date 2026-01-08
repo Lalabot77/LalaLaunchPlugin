@@ -221,6 +221,10 @@ namespace LaunchPlugin
             return null; // Return null if parsing fails
         }
 
+        [JsonIgnore]
+        public Action RequestSaveProfiles { get; set; }
+
+
         // --- Core Data ---
         private string _displayName;
         [JsonProperty] public string DisplayName { get => _displayName; set { if (_displayName != value) { _displayName = value; OnPropertyChanged(); } } }
@@ -279,7 +283,23 @@ namespace LaunchPlugin
         }
         private double? _pitLaneLossSeconds;
         [JsonProperty] public double? PitLaneLossSeconds { get => _pitLaneLossSeconds; set { if (_pitLaneLossSeconds != value) { _pitLaneLossSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PitLaneLossSecondsText)); } } }
-        public string PitLaneLossSecondsText { get => _pitLaneLossSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => PitLaneLossSeconds = StringToNullableDouble(value); }
+        public string PitLaneLossSecondsText
+        {
+            get => PitLaneLossSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            set
+            {
+                var parsed = StringToNullableDouble(value);
+                double? rounded = parsed.HasValue ? (double?)Math.Round(parsed.Value, 2) : null;
+
+                if (PitLaneLossSeconds != rounded)
+                {
+                    PitLaneLossSeconds = rounded;
+                    PitLaneLossSource = "manual";
+                    PitLaneLossUpdatedUtc = DateTime.UtcNow;
+                    RequestSaveProfiles?.Invoke();
+                }
+            }
+        }
 
         private bool _pitLaneLossLocked;
         [JsonProperty]

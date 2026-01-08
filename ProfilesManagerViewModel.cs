@@ -327,17 +327,25 @@ namespace LaunchPlugin
             get => _selectedTrack;
             set
             {
-                if (_selectedTrack != value)
+                if (!ReferenceEquals(_selectedTrack, value))
                 {
+                    // Detach from old selection (important)
+                    if (_selectedTrack != null)
+                        _selectedTrack.RequestSaveProfiles = null;
+
                     _selectedTrack = value;
+
+                    // Attach to new selection
+                    if (_selectedTrack != null)
+                        _selectedTrack.RequestSaveProfiles = SaveProfiles;
+
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsTrackSelected));
-                    OnPropertyChanged(nameof(PitLaneLossSecondsText));
-                    OnPropertyChanged(nameof(PitLaneLossLocked));
                     RefreshTrackMarkersSnapshotForSelectedTrack();
                 }
             }
         }
+
 
         public void RefreshTracksForSelectedProfile()
         {
