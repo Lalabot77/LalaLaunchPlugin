@@ -3185,6 +3185,7 @@ namespace LaunchPlugin
                 trackRecord.PitLaneLossSeconds = rounded;
                 trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
                 trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+                ProfilesViewModel?.SaveProfiles();
             }
             else if (existingValid && trackRecord.PitLaneLossLocked)
             {
@@ -3196,6 +3197,9 @@ namespace LaunchPlugin
 
                     ProfilesViewModel?.SaveProfiles();
                     SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate {rounded:0.00}s source={src}");
+                    _lastPitLossSaved = rounded;
+                    _lastPitLossSavedAtUtc = DateTime.UtcNow;
+                    _lastPitLossSource = src;
                 }
                 return;
             }
@@ -3204,6 +3208,7 @@ namespace LaunchPlugin
                 trackRecord.PitLaneLossSeconds = rounded;
                 trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
                 trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+                ProfilesViewModel?.SaveProfiles();
             }
 
             // Publish to the live snapshot + Fuel tab immediately

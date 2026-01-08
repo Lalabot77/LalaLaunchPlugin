@@ -317,13 +317,13 @@
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Visible"/>
                                                         <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding PitLaneLossBlockedCandidateDisplay}" Value="">
+                                                            <DataTrigger Binding="{Binding PitLaneLossBlockedCandidateDisplay, Mode=OneWay}" Value="">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
                                                 </TextBlock.Style>
-                                                <Run Text="{Binding PitLaneLossBlockedCandidateDisplay}" />
+                                                <Run Text="{Binding PitLaneLossBlockedCandidateDisplay, Mode=OneWay}" />
                                             </TextBlock>
                                             <CheckBox Content="Locked"
                                                       IsChecked="{Binding DataContext.PitLaneLossLocked, RelativeSource={RelativeSource AncestorType=UserControl}}"
