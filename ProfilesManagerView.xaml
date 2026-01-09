@@ -402,7 +402,7 @@
 
                                         <CheckBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                   Content="Locked"
-                  IsEnabled="False"
+                  IsChecked="{Binding DryConditionsLocked, Mode=TwoWay}"
                   Margin="0,8,0,0"/>
                                     </Grid>
                                 </GroupBox>
@@ -474,7 +474,7 @@
 
                                         <CheckBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                   Content="Locked"
-                  IsEnabled="False"
+                  IsChecked="{Binding WetConditionsLocked, Mode=TwoWay}"
                   Margin="0,8,0,0"/>
                                     </Grid>
                                 </GroupBox>
