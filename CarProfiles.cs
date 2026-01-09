@@ -317,6 +317,38 @@ namespace LaunchPlugin
             }
         }
 
+        private bool _dryConditionsLocked;
+        [JsonProperty]
+        public bool DryConditionsLocked
+        {
+            get => _dryConditionsLocked;
+            set
+            {
+                if (_dryConditionsLocked != value)
+                {
+                    _dryConditionsLocked = value;
+                    OnPropertyChanged();
+                    RequestSaveProfiles?.Invoke();
+                }
+            }
+        }
+
+        private bool _wetConditionsLocked;
+        [JsonProperty]
+        public bool WetConditionsLocked
+        {
+            get => _wetConditionsLocked;
+            set
+            {
+                if (_wetConditionsLocked != value)
+                {
+                    _wetConditionsLocked = value;
+                    OnPropertyChanged();
+                    RequestSaveProfiles?.Invoke();
+                }
+            }
+        }
+
         private double _pitLaneLossBlockedCandidateSeconds;
         [JsonProperty]
         public double PitLaneLossBlockedCandidateSeconds
