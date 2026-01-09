@@ -2868,8 +2868,8 @@ namespace LaunchPlugin
             AttachVerbose("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0);
 
             // --- PIT TEST / RAW (all VERBOSE) ---
-            AttachVerbose("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
-            AttachVerbose("Lala.Pit.AvgPaceSource", () => _pitDbg_AvgPaceSource);
+            AttachCore("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
+            AttachCore("Lala.Pit.AvgPaceSource", () => _pitDbg_AvgPaceSource);
             AttachVerbose("Lala.Pit.Raw.PitLapSec", () => _pitDbg_RawPitLapSec);
             AttachVerbose("Lala.Pit.Raw.DTLFormulaSec", () => _pitDbg_RawDTLFormulaSec);
             AttachVerbose("Lala.Pit.InLapSec", () => _pitDbg_InLapSec);
@@ -2914,7 +2914,7 @@ namespace LaunchPlugin
             AttachVerbose("PitLite.LastLapType", () => _pitLite?.LastLapType.ToString() ?? "None");
             AttachCore("PitLite.TotalLossSec", () => _pitLite?.TotalLossSec ?? 0.0);
             AttachVerbose("PitLite.LossSource", () => _pitLite?.TotalLossSource ?? "None");
-            AttachVerbose("PitLite.LastSaved.Sec", () => _pitDbg_CandidateSavedSec);
+            AttachCore("PitLite.LastSaved.Sec", () => _pitDbg_CandidateSavedSec);
             AttachVerbose("PitLite.LastSaved.Source", () => _pitDbg_CandidateSource ?? "none");
             AttachCore("PitLite.TotalLossPlusBoxSec", () => _pitLite?.TotalLossPlusBoxSec ?? 0.0);
 
