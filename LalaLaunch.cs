@@ -518,6 +518,8 @@ namespace LaunchPlugin
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
         private DateTime _lastPitLaneSeenUtc = DateTime.MinValue;
+        private bool _pitExitEntrySeenLast = false;
+        private bool _pitExitExitSeenLast = false;
         private double _lastLoggedProjectedLaps = double.NaN;
         private DateTime _lastProjectionLogUtc = DateTime.MinValue;
         private string _lastProjectionLapSource = string.Empty;
@@ -536,6 +538,7 @@ namespace LaunchPlugin
         public double Pace_StintAvgLapTimeSec { get; private set; }
         public double Pace_Last5LapAvgSec { get; private set; }
         public int PaceConfidence { get; private set; }
+        private bool _lastOnPitRoadForOpponents = false;
 
         public double ProjectionLapTime_Stable { get; private set; }
         public string ProjectionLapTime_StableSource { get; private set; } = "fallback.none";
@@ -1305,12 +1308,23 @@ namespace LaunchPlugin
             double projectionLapSeconds,
             double projectedDriveSecondsRemaining)
         {
+            int posClass = 0;
+            int posOverall = 0;
+            double gapToLeaderSec = double.NaN;
+            bool hasRaceState = _opponentsEngine?.TryGetPlayerRaceState(out posClass, out posOverall, out gapToLeaderSec) == true;
+            string posClassText = (hasRaceState && posClass > 0) ? $"P{posClass}" : "na";
+            string posOverallText = (hasRaceState && posOverall > 0) ? $"P{posOverall}" : "na";
+            string gapText = (!double.IsNaN(gapToLeaderSec) && !double.IsInfinity(gapToLeaderSec))
+                ? gapToLeaderSec.ToString("F1", CultureInfo.InvariantCulture)
+                : "na";
+
             SimHub.Logging.Current.Info(
                 $"[LalaPlugin:PACE] Lap {lapNumber}: " +
                 $"ok={paceAccepted} reason={paceReason} " +
                 $"lap_s={lastLapSeconds:F3} baseline_s={paceBaseline} delta_s={paceDelta} " +
                 $"stint_avg_s={stintAvg:F3} last5_avg_s={last5Avg:F3} conf_pct={paceConfidence} " +
-                $"leader_lap_s={leaderLapSeconds:F3} leader_avg_s={leaderAvgSeconds:F3} leader_samples={leaderSampleCount}"
+                $"leader_lap_s={leaderLapSeconds:F3} leader_avg_s={leaderAvgSeconds:F3} leader_samples={leaderSampleCount} " +
+                $"posClass={posClassText} posOverall={posOverallText} gapLdr={gapText}"
             );
             SimHub.Logging.Current.Info(
                 $"[LalaPlugin:FUEL PER LAP] Lap {lapNumber}: " +
@@ -2572,6 +2586,7 @@ namespace LaunchPlugin
         private MessagingSystem _msgSystem;
         private MessageEngine _msgV1Engine;
         private PitEngine _pit;
+        private OpponentsEngine _opponentsEngine;
 
         private enum LaunchState
         {
@@ -2739,6 +2754,7 @@ namespace LaunchPlugin
             SaveActiveProfileCommand = new RelayCommand(p => SaveActiveProfile());
             ReturnToDefaultsCommand = new RelayCommand(p => ReturnToDefaults());
             _telemetryTraceLogger = new TelemetryTraceLogger(this);
+            _opponentsEngine = new OpponentsEngine();
 
             _poll250ms.Start();
             _poll500ms.Start();
@@ -2852,8 +2868,8 @@ namespace LaunchPlugin
             AttachVerbose("Pit.Debug.LastPitStopDuration", () => _pit?.PitStopElapsedSec ?? 0.0);
 
             // --- PIT TEST / RAW (all VERBOSE) ---
-            AttachVerbose("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
-            AttachVerbose("Lala.Pit.AvgPaceSource", () => _pitDbg_AvgPaceSource);
+            AttachCore("Lala.Pit.AvgPaceUsedSec", () => _pitDbg_AvgPaceUsedSec);
+            AttachCore("Lala.Pit.AvgPaceSource", () => _pitDbg_AvgPaceSource);
             AttachVerbose("Lala.Pit.Raw.PitLapSec", () => _pitDbg_RawPitLapSec);
             AttachVerbose("Lala.Pit.Raw.DTLFormulaSec", () => _pitDbg_RawDTLFormulaSec);
             AttachVerbose("Lala.Pit.InLapSec", () => _pitDbg_InLapSec);
@@ -2898,7 +2914,7 @@ namespace LaunchPlugin
             AttachVerbose("PitLite.LastLapType", () => _pitLite?.LastLapType.ToString() ?? "None");
             AttachCore("PitLite.TotalLossSec", () => _pitLite?.TotalLossSec ?? 0.0);
             AttachVerbose("PitLite.LossSource", () => _pitLite?.TotalLossSource ?? "None");
-            AttachVerbose("PitLite.LastSaved.Sec", () => _pitDbg_CandidateSavedSec);
+            AttachCore("PitLite.LastSaved.Sec", () => _pitDbg_CandidateSavedSec);
             AttachVerbose("PitLite.LastSaved.Source", () => _pitDbg_CandidateSource ?? "none");
             AttachCore("PitLite.TotalLossPlusBoxSec", () => _pitLite?.TotalLossPlusBoxSec ?? 0.0);
 
@@ -3071,6 +3087,62 @@ namespace LaunchPlugin
             AttachCore("MSG.Trigger.trackmarkers.track_length_changed", () => IsTrackMarkerPulseActive(_trackMarkerTrackLengthChangedPulseUtc));
             AttachCore("MSG.Trigger.trackmarkers.lines_refreshed", () => IsTrackMarkerPulseActive(_trackMarkerLinesRefreshedPulseUtc));
 
+            double SafeOppValue(double v) => (double.IsNaN(v) || double.IsInfinity(v)) ? 0.0 : v;
+
+            AttachCore("Opp.Ahead1.Name", () => _opponentsEngine?.Outputs.Ahead1.Name ?? string.Empty);
+            AttachCore("Opp.Ahead1.CarNumber", () => _opponentsEngine?.Outputs.Ahead1.CarNumber ?? string.Empty);
+            AttachCore("Opp.Ahead1.ClassColor", () => _opponentsEngine?.Outputs.Ahead1.ClassColor ?? string.Empty);
+            AttachCore("Opp.Ahead1.GapToPlayerSec", () => SafeOppValue(_opponentsEngine?.Outputs.Ahead1.GapToPlayerSec ?? 0.0));
+            AttachCore("Opp.Ahead1.BlendedPaceSec", () => SafeOppValue(_opponentsEngine?.Outputs.Ahead1.BlendedPaceSec ?? 0.0));
+            AttachCore("Opp.Ahead1.PaceDeltaSecPerLap", () => SafeOppValue(_opponentsEngine?.Outputs.Ahead1.PaceDeltaSecPerLap ?? double.NaN));
+            AttachCore("Opp.Ahead1.LapsToFight", () => SafeOppValue(_opponentsEngine?.Outputs.Ahead1.LapsToFight ?? double.NaN));
+
+            AttachCore("Opp.Ahead2.Name", () => _opponentsEngine?.Outputs.Ahead2.Name ?? string.Empty);
+            AttachCore("Opp.Ahead2.CarNumber", () => _opponentsEngine?.Outputs.Ahead2.CarNumber ?? string.Empty);
+            AttachCore("Opp.Ahead2.ClassColor", () => _opponentsEngine?.Outputs.Ahead2.ClassColor ?? string.Empty);
+            AttachCore("Opp.Ahead2.GapToPlayerSec", () => SafeOppValue(_opponentsEngine?.Outputs.Ahead2.GapToPlayerSec ?? 0.0));
+            AttachCore("Opp.Ahead2.BlendedPaceSec", () => SafeOppValue(_opponentsEngine?.Outputs.Ahead2.BlendedPaceSec ?? 0.0));
+            AttachCore("Opp.Ahead2.PaceDeltaSecPerLap", () => SafeOppValue(_opponentsEngine?.Outputs.Ahead2.PaceDeltaSecPerLap ?? double.NaN));
+            AttachCore("Opp.Ahead2.LapsToFight", () => SafeOppValue(_opponentsEngine?.Outputs.Ahead2.LapsToFight ?? double.NaN));
+
+            AttachCore("Opp.Behind1.Name", () => _opponentsEngine?.Outputs.Behind1.Name ?? string.Empty);
+            AttachCore("Opp.Behind1.CarNumber", () => _opponentsEngine?.Outputs.Behind1.CarNumber ?? string.Empty);
+            AttachCore("Opp.Behind1.ClassColor", () => _opponentsEngine?.Outputs.Behind1.ClassColor ?? string.Empty);
+            AttachCore("Opp.Behind1.GapToPlayerSec", () => SafeOppValue(_opponentsEngine?.Outputs.Behind1.GapToPlayerSec ?? 0.0));
+            AttachCore("Opp.Behind1.BlendedPaceSec", () => SafeOppValue(_opponentsEngine?.Outputs.Behind1.BlendedPaceSec ?? 0.0));
+            AttachCore("Opp.Behind1.PaceDeltaSecPerLap", () => SafeOppValue(_opponentsEngine?.Outputs.Behind1.PaceDeltaSecPerLap ?? double.NaN));
+            AttachCore("Opp.Behind1.LapsToFight", () => SafeOppValue(_opponentsEngine?.Outputs.Behind1.LapsToFight ?? double.NaN));
+
+            AttachCore("Opp.Behind2.Name", () => _opponentsEngine?.Outputs.Behind2.Name ?? string.Empty);
+            AttachCore("Opp.Behind2.CarNumber", () => _opponentsEngine?.Outputs.Behind2.CarNumber ?? string.Empty);
+            AttachCore("Opp.Behind2.ClassColor", () => _opponentsEngine?.Outputs.Behind2.ClassColor ?? string.Empty);
+            AttachCore("Opp.Behind2.GapToPlayerSec", () => SafeOppValue(_opponentsEngine?.Outputs.Behind2.GapToPlayerSec ?? 0.0));
+            AttachCore("Opp.Behind2.BlendedPaceSec", () => SafeOppValue(_opponentsEngine?.Outputs.Behind2.BlendedPaceSec ?? 0.0));
+            AttachCore("Opp.Behind2.PaceDeltaSecPerLap", () => SafeOppValue(_opponentsEngine?.Outputs.Behind2.PaceDeltaSecPerLap ?? double.NaN));
+            AttachCore("Opp.Behind2.LapsToFight", () => SafeOppValue(_opponentsEngine?.Outputs.Behind2.LapsToFight ?? double.NaN));
+
+            AttachCore("Opp.Leader.BlendedPaceSec", () => SafeOppValue(_opponentsEngine != null ? _opponentsEngine.Outputs.LeaderBlendedPaceSec : double.NaN));
+            AttachCore("Opp.P2.BlendedPaceSec", () => SafeOppValue(_opponentsEngine != null ? _opponentsEngine.Outputs.P2BlendedPaceSec : double.NaN));
+            AttachCore("Opponents_SummaryAhead", () => _opponentsEngine?.Outputs.SummaryAhead ?? string.Empty);
+            AttachCore("Opponents_SummaryBehind", () => _opponentsEngine?.Outputs.SummaryBehind ?? string.Empty);
+            AttachCore("Opponents_SummaryAhead1", () => _opponentsEngine?.Outputs.SummaryAhead1 ?? string.Empty);
+            AttachCore("Opponents_SummaryAhead2", () => _opponentsEngine?.Outputs.SummaryAhead2 ?? string.Empty);
+            AttachCore("Opponents_SummaryBehind1", () => _opponentsEngine?.Outputs.SummaryBehind1 ?? string.Empty);
+            AttachCore("Opponents_SummaryBehind2", () => _opponentsEngine?.Outputs.SummaryBehind2 ?? string.Empty);
+
+            AttachCore("PitExit.Valid", () => _opponentsEngine?.Outputs.PitExit.Valid ?? false);
+            AttachCore("PitExit.PredictedPositionInClass", () => _opponentsEngine?.Outputs.PitExit.PredictedPositionInClass ?? 0);
+            AttachCore("PitExit.CarsAheadAfterPitCount", () => _opponentsEngine?.Outputs.PitExit.CarsAheadAfterPitCount ?? 0);
+            AttachCore("PitExit.Summary", () => _opponentsEngine?.Outputs.PitExit.Summary ?? string.Empty);
+            AttachCore("PitExit.Ahead.Name", () => _opponentsEngine?.Outputs.PitExit.AheadName ?? string.Empty);
+            AttachCore("PitExit.Ahead.CarNumber", () => _opponentsEngine?.Outputs.PitExit.AheadCarNumber ?? string.Empty);
+            AttachCore("PitExit.Ahead.ClassColor", () => _opponentsEngine?.Outputs.PitExit.AheadClassColor ?? string.Empty);
+            AttachCore("PitExit.Ahead.GapSec", () => _opponentsEngine?.Outputs.PitExit.AheadGapSec ?? 0.0);
+            AttachCore("PitExit.Behind.Name", () => _opponentsEngine?.Outputs.PitExit.BehindName ?? string.Empty);
+            AttachCore("PitExit.Behind.CarNumber", () => _opponentsEngine?.Outputs.PitExit.BehindCarNumber ?? string.Empty);
+            AttachCore("PitExit.Behind.ClassColor", () => _opponentsEngine?.Outputs.PitExit.BehindClassColor ?? string.Empty);
+            AttachCore("PitExit.Behind.GapSec", () => _opponentsEngine?.Outputs.PitExit.BehindGapSec ?? 0.0);
+
         }
 
         private void Pit_OnValidPitStopTimeLossCalculated(double timeLossSeconds, string sourceFromPublisher)
@@ -3113,11 +3185,41 @@ namespace LaunchPlugin
             // Round & persist
             double rounded = Math.Round(loss, 2);
             var trackRecord = ActiveProfile.EnsureTrack(CurrentTrackKey, CurrentTrackName);
-            trackRecord.PitLaneLossSeconds = rounded;
 
-            // NEW: persist source + timestamp for Profiles page
-            trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
-            trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+            bool existingValid = trackRecord.PitLaneLossSeconds.HasValue
+                && trackRecord.PitLaneLossSeconds.Value > 0.0
+                && !double.IsNaN(trackRecord.PitLaneLossSeconds.Value);
+            bool candidateValid = rounded > 0.0 && !double.IsNaN(rounded);
+
+            if (candidateValid && !existingValid)
+            {
+                trackRecord.PitLaneLossSeconds = rounded;
+                trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
+                trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+                ProfilesViewModel?.SaveProfiles();
+            }
+            else if (candidateValid && existingValid && trackRecord.PitLaneLossLocked)
+            {
+
+                trackRecord.PitLaneLossBlockedCandidateSeconds = rounded;
+                trackRecord.PitLaneLossBlockedCandidateSource = src;
+                trackRecord.PitLaneLossBlockedCandidateUpdatedUtc = now;
+
+                ProfilesViewModel?.SaveProfiles();
+                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate {rounded:0.00}s source={src}");
+                _lastPitLossSaved = rounded;
+                _lastPitLossSavedAtUtc = now;
+                _lastPitLossSource = src;
+
+                return;
+            }
+            else
+            {
+                trackRecord.PitLaneLossSeconds = rounded;
+                trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
+                trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
+                ProfilesViewModel?.SaveProfiles();
+            }
 
             // Publish to the live snapshot + Fuel tab immediately
             FuelCalculator?.SetLastPitDriveThroughSeconds(rounded);
@@ -3125,7 +3227,7 @@ namespace LaunchPlugin
 
             // Remember last save
             _lastPitLossSaved = rounded;
-            _lastPitLossSavedAtUtc = DateTime.UtcNow;
+            _lastPitLossSavedAtUtc = now;
             _lastPitLossSource = src;
 
             SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] Saved PitLaneLoss = {rounded:0.00}s ({src}).");
@@ -3224,8 +3326,6 @@ namespace LaunchPlugin
             // Optionally discard only if you really want to delete last file on exit
             // _telemetryTraceLogger?.DiscardCurrentTrace();
 
-            FuelCalculator?.PromptToSaveLiveFuelOnExit();
-
             // Persist settings
             this.SaveCommonSettings("GlobalSettings_V2", Settings);
             ProfilesViewModel.SaveProfiles();
@@ -3298,6 +3398,7 @@ namespace LaunchPlugin
             _lastPitWindowState = -1;
             _lastPitWindowLabel = string.Empty;
             _lastPitWindowLogUtc = DateTime.MinValue;
+            _opponentsEngine?.Reset();
         }
 
         private void ResetCoreLaunchMetrics()
@@ -3540,6 +3641,7 @@ namespace LaunchPlugin
                 _pit.Reset();
                 _pitLite?.ResetCycle();
                 _pit?.ResetPitPhaseState();
+                _opponentsEngine?.Reset();
                 _currentCarModel = string.Empty;
                 CurrentTrackName = string.Empty;
                 CurrentTrackKey = string.Empty;
@@ -3612,6 +3714,27 @@ namespace LaunchPlugin
 
             _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
 
+            bool pitEntryEdge = false;
+            bool pitExitEdge = false;
+            if (_pitLite != null)
+            {
+                pitEntryEdge = _pitLite.EntrySeenThisLap && !_pitExitEntrySeenLast;
+                pitExitEdge = _pitLite.ExitSeenThisLap && !_pitExitExitSeenLast;
+                _pitExitEntrySeenLast = _pitLite.EntrySeenThisLap;
+                _pitExitExitSeenLast = _pitLite.ExitSeenThisLap;
+            }
+
+            // Per-tick pit-exit display values (only while in pit lane)
+            if (inLane)
+            {
+                UpdatePitExitDisplayValues(data, true);
+            }
+            else
+            {
+                // Clear once when not in pit lane
+                UpdatePitExitDisplayValues(data, false);
+            }
+
             // --- Rejoin assist update & lap incident tracking ---
             _rejoinEngine?.Update(data, pluginManager, IsLaunchActive);
             if (_rejoinEngine != null && !_hadOffTrackThisLap)
@@ -3627,6 +3750,57 @@ namespace LaunchPlugin
                     _hadOffTrackThisLap = true;
                     _latchedIncidentReason = latchedReason;
                 }
+            }
+
+            double myPaceSec = Pace_StintAvgLapTimeSec;
+            if (myPaceSec <= 0.0) myPaceSec = Pace_Last5LapAvgSec;
+            if (myPaceSec <= 0.0 && _lastSeenBestLap > TimeSpan.Zero) myPaceSec = _lastSeenBestLap.TotalSeconds;
+
+            double pitLossSec = CalculateTotalStopLossSeconds();
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0)
+            {
+                try
+                {
+                    double fromExport = Convert.ToDouble(pluginManager.GetPropertyValue("LalaLaunch.Fuel.Live.TotalStopLoss") ?? double.NaN);
+                    if (!double.IsNaN(fromExport) && !double.IsInfinity(fromExport))
+                    {
+                        pitLossSec = fromExport;
+                    }
+                }
+                catch
+                {
+                    pitLossSec = double.NaN;
+                }
+            }
+
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0)
+            {
+                pitLossSec = FuelCalculator?.PitLaneTimeLoss ?? 0.0;
+            }
+
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0) pitLossSec = 0.0;
+
+            string sessionTypeForOpponents = !string.IsNullOrWhiteSpace(currentSessionTypeForConfidence)
+                ? currentSessionTypeForConfidence
+                : (data.NewData?.SessionTypeName ?? string.Empty);
+            bool isRaceSessionNow = string.Equals(sessionTypeForOpponents, "Race", StringComparison.OrdinalIgnoreCase);
+            bool pitExitRecently = (DateTime.UtcNow - _lastPitLaneSeenUtc).TotalSeconds < 1.0;
+            bool pitTripActive = _wasInPitThisLap || inLane || pitExitRecently;
+            double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
+            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
+            double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+            bool debugEnabled = Settings?.EnableDebugLogging == true;
+            _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, inLane, trackPct, sessionTimeSec, sessionTimeRemainingSec, debugEnabled);
+
+            if (pitEntryEdge)
+            {
+                LogPitExitPitInSnapshot(sessionTime, completedLaps + 1, pitLossSec);
+            }
+
+            if (pitExitEdge)
+            {
+                _opponentsEngine?.NotifyPitExitLine(completedLaps, sessionTime, trackPct);
+               // LogPitExitPitOutSnapshot(sessionTime, completedLaps + 1, pitTripActive);
             }
 
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
@@ -3765,7 +3939,6 @@ namespace LaunchPlugin
                     _msgSystem.MaintainMsgCxTimers();
 
                 _msgV1Engine?.Tick(data);
-                UpdatePitExitDisplayValues(data, inLane);
             }
 
             // --- Launch State helpers (need tick-level responsiveness) ---
@@ -3853,7 +4026,8 @@ namespace LaunchPlugin
                     });
 
                 }
-                
+
+                UpdateOpponentsAndPitExit(data, pluginManager, completedLaps, currentSessionTypeForConfidence);
             }
 
             UpdateLiveProperties(pluginManager, ref data);
@@ -3980,6 +4154,13 @@ namespace LaunchPlugin
                 });
             }
             bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false);
+            bool pitRoadChanged = isOnPitRoad != _lastOnPitRoadForOpponents;
+            _lastOnPitRoadForOpponents = isOnPitRoad;
+
+            if (pitRoadChanged)
+            {
+                UpdateOpponentsAndPitExit(data, pluginManager, completedLaps, currentSessionTypeForConfidence);
+            }
 
             bool newPitScreenActive = _pitScreenActive; // default
 
@@ -4051,6 +4232,58 @@ namespace LaunchPlugin
 
         #region Private Helper Methods for DataUpdate
 
+        private void UpdateOpponentsAndPitExit(GameData data, PluginManager pluginManager, int completedLaps, string sessionTypeToken)
+        {
+            if (_opponentsEngine == null) return;
+
+            double myPaceSec = Pace_StintAvgLapTimeSec;
+            if (myPaceSec <= 0.0) myPaceSec = Pace_Last5LapAvgSec;
+            if (myPaceSec <= 0.0 && _lastSeenBestLap > TimeSpan.Zero) myPaceSec = _lastSeenBestLap.TotalSeconds;
+
+            double pitLossSec = CalculateTotalStopLossSeconds();
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0)
+            {
+                try
+                {
+                    double fromExport = Convert.ToDouble(pluginManager.GetPropertyValue("LalaLaunch.Fuel.Live.TotalStopLoss") ?? double.NaN);
+                    if (!double.IsNaN(fromExport) && !double.IsInfinity(fromExport))
+                    {
+                        pitLossSec = fromExport;
+                    }
+                }
+                catch
+                {
+                    // ignore and keep evaluating fallbacks
+                }
+            }
+
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0)
+            {
+                pitLossSec = FuelCalculator?.PitLaneTimeLoss ?? 0.0;
+            }
+
+            if (double.IsNaN(pitLossSec) || double.IsInfinity(pitLossSec) || pitLossSec < 0.0) pitLossSec = 0.0;
+
+            string sessionTypeForOpponents = !string.IsNullOrWhiteSpace(sessionTypeToken)
+                ? sessionTypeToken
+                : (data.NewData?.SessionTypeName ?? string.Empty);
+            bool isRaceSessionNow = string.Equals(sessionTypeForOpponents, "Race", StringComparison.OrdinalIgnoreCase);
+
+            bool isOnPitRoadFlag = Convert.ToBoolean(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false
+            );
+            bool isInPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
+            bool onPitRoad = isOnPitRoadFlag || isInPitLaneFlag;
+            bool pitExitRecently = (DateTime.UtcNow - _lastPitLaneSeenUtc).TotalSeconds < 1.0;
+            bool pitTripActive = _wasInPitThisLap || onPitRoad || pitExitRecently;
+
+            double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
+            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
+            double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+            bool debugEnabled = Settings?.EnableDebugLogging == true;
+            _opponentsEngine.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, onPitRoad, trackPct, sessionTimeSec, sessionTimeRemainingSec, debugEnabled);
+        }
+
         private static double SafeReadDouble(PluginManager pluginManager, string propertyName, double fallback)
         {
             try
@@ -4086,25 +4319,29 @@ namespace LaunchPlugin
 
         private void UpdatePitExitDisplayValues(GameData data, bool inPitLane)
         {
-            _pitExitDistanceM = 0;
-            _pitExitTimeS = 0;
-
-            if (!inPitLane) return;
+            // Only clear when NOT in pit lane.
+            if (!inPitLane)
+            {
+                _pitExitDistanceM = 0;
+                _pitExitTimeS = 0;
+                return;
+            }
 
             if (data?.NewData == null || _pit == null) return;
 
             double exitPct = _pit.TrackMarkersStoredExitPct;
             double trackLenM = _pit.TrackMarkersSessionTrackLengthM;
 
+            // If we can't compute, HOLD last-good values.
+            if (double.IsNaN(exitPct) || double.IsNaN(trackLenM) || trackLenM <= 0.0)
+                return;
+
             double carPct = data.NewData.TrackPositionPercent;
             if (carPct > 1.5) carPct *= 0.01;
-            if (carPct < 0.0 || carPct > 1.0) carPct = double.NaN;
-
-            double speedKmh = data.NewData.SpeedKmh;
-            double speedMps = speedKmh / 3.6;
-
-            if (double.IsNaN(exitPct) || double.IsNaN(carPct) || double.IsNaN(trackLenM) || trackLenM <= 0.0)
+            if (carPct < 0.0 || carPct > 1.0 || double.IsNaN(carPct) || double.IsInfinity(carPct))
                 return;
+
+            double speedMps = data.NewData.SpeedKmh / 3.6;
 
             double deltaPct = exitPct - carPct;
             if (deltaPct < 0.0) deltaPct += 1.0;
@@ -4436,6 +4673,112 @@ namespace LaunchPlugin
                 : seconds.ToString("F1", CultureInfo.InvariantCulture);
         }
 
+        private static string FormatSecondsWithSuffix(double seconds)
+        {
+            return (double.IsNaN(seconds) || double.IsInfinity(seconds))
+                ? "n/a"
+                : seconds.ToString("F1", CultureInfo.InvariantCulture) + "s";
+        }
+
+        private string ResolvePitExitPitLossSource()
+        {
+            if (ActiveProfile == null) return "default";
+
+            try
+            {
+                var trackStats = ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackKey)
+                                 ?? ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackName);
+                if (trackStats?.PitLaneLossSeconds is double pll && pll > 0.0)
+                {
+                    string src = (trackStats.PitLaneLossSource ?? string.Empty).Trim().ToLowerInvariant();
+                    if (src == "dtl" || src == "direct" || src == "total")
+                    {
+                        return "learned_cached";
+                    }
+
+                    return "profile_dtl";
+                }
+            }
+            catch
+            {
+                return "default_fallback";
+            }
+
+            return "default_fallback";
+        }
+
+        private void LogPitExitPitInSnapshot(double sessionTime, int lapNumber, double pitLossSec)
+        {
+            if (_opponentsEngine == null) return;
+
+            var hasSnapshot = _opponentsEngine.TryGetPitExitSnapshot(out var snapshot);
+            int posClass = hasSnapshot ? snapshot.PlayerPositionInClass : 0;
+            int posOverall = hasSnapshot ? snapshot.PlayerPositionOverall : 0;
+            double gapLdr = hasSnapshot ? snapshot.PlayerGapToLeader : double.NaN;
+            int predPosClass = hasSnapshot ? snapshot.PredictedPositionInClass : 0;
+            int carsAhead = hasSnapshot ? snapshot.CarsAheadAfterPit : 0;
+            double pitLoss = hasSnapshot ? snapshot.PitLossSec : pitLossSec;
+            double entryGapLdr = hasSnapshot ? snapshot.PitEntryGapToLeaderSec : double.NaN;
+            double gapLdrLive = hasSnapshot ? snapshot.GapToLeaderLiveSec : gapLdr;
+            double gapLdrUsed = hasSnapshot ? snapshot.GapToLeaderUsedSec : gapLdr;
+            double pitLossLive = hasSnapshot ? snapshot.PitLossLiveSec : pitLossSec;
+            double pitLossUsed = hasSnapshot ? snapshot.PitLossUsedSec : pitLoss;
+            double predGapAfterPit = hasSnapshot ? snapshot.PredGapAfterPitSec : double.NaN;
+            bool pitTripLockActive = hasSnapshot && snapshot.PitTripLockActive;
+
+            double laneRef = _pitLite?.TimePitLaneSec ?? 0.0;
+            double boxRef = _pitLite?.TimePitBoxSec ?? 0.0;
+            double directRef = _pitLite?.DirectSec ?? 0.0;
+            string srcPitLoss = ResolvePitExitPitLossSource();
+
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:PitExit] Pit-in snapshot: lap={lapNumber} t={sessionTime:F1} " +
+                $"posClass=P{posClass} posOverall=P{posOverall} gapLdr={FormatSecondsWithSuffix(gapLdr)} " +
+                $"pitLoss={FormatSecondsWithSuffix(pitLoss)} predPosClass=P{predPosClass} carsAhead={carsAhead} " +
+                $"srcPitLoss={srcPitLoss} laneRef={FormatSecondsWithSuffix(laneRef)} " +
+                $"boxRef={FormatSecondsWithSuffix(boxRef)} directRef={FormatSecondsWithSuffix(directRef)} " +
+                $"entryGapLdr={FormatSecondsWithSuffix(entryGapLdr)} gapLdrLive={FormatSecondsWithSuffix(gapLdrLive)} " +
+                $"gapLdrUsed={FormatSecondsWithSuffix(gapLdrUsed)} pitLossLive={FormatSecondsWithSuffix(pitLossLive)} " +
+                $"pitLossUsed={FormatSecondsWithSuffix(pitLossUsed)} predGapAfterPit={FormatSecondsWithSuffix(predGapAfterPit)} " +
+                $"lock={pitTripLockActive}"
+            );
+
+            if (_opponentsEngine.TryGetPitExitMathAudit(out var auditLine))
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:PitExit] {auditLine}");
+            }
+        }
+/*
+        private void LogPitExitPitOutSnapshot(double sessionTime, int lapNumber, bool pitTripActive)
+        {
+            if (_opponentsEngine == null) return;
+
+            var hasSnapshot = _opponentsEngine.TryGetPitExitSnapshot(out var snapshot);
+            int posClass = hasSnapshot ? snapshot.PlayerPositionInClass : 0;
+            int posOverall = hasSnapshot ? snapshot.PlayerPositionOverall : 0;
+            int predPosClass = hasSnapshot ? snapshot.PredictedPositionInClass : 0;
+            int carsAhead = hasSnapshot ? snapshot.CarsAheadAfterPit : 0;
+            double entryGapLdr = hasSnapshot ? snapshot.PitEntryGapToLeaderSec : double.NaN;
+            double gapLdrLive = hasSnapshot ? snapshot.GapToLeaderLiveSec : double.NaN;
+            double gapLdrUsed = hasSnapshot ? snapshot.GapToLeaderUsedSec : double.NaN;
+            double predGapAfterPit = hasSnapshot ? snapshot.PredGapAfterPitSec : double.NaN;
+            bool pitTripLockActive = hasSnapshot && snapshot.PitTripLockActive;
+
+            double laneRef = _pitLite?.TimePitLaneSec ?? 0.0;
+            double boxRef = _pitLite?.TimePitBoxSec ?? 0.0;
+            double directRef = _pitLite?.DirectSec ?? 0.0;
+
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:PitExit] Pit-out snapshot: lap={lapNumber} t={sessionTime:F1} " +
+                $"posClass=P{posClass} posOverall=P{posOverall} predPosClassNow=P{predPosClass} " +
+                $"carsAheadNow={carsAhead} lane={FormatSecondsWithSuffix(laneRef)} box={FormatSecondsWithSuffix(boxRef)} " +
+                $"direct={FormatSecondsWithSuffix(directRef)} pitTripActive={pitTripActive} " +
+                $"entryGapLdr={FormatSecondsWithSuffix(entryGapLdr)} gapLdrLiveNow={FormatSecondsWithSuffix(gapLdrLive)} " +
+                $"gapLdrUsed={FormatSecondsWithSuffix(gapLdrUsed)} predGapAfterPit={FormatSecondsWithSuffix(predGapAfterPit)} " +
+                $"lock={pitTripLockActive}"
+            );
+        }
+*/
         private void ResetSmoothedOutputs()
         {
             // Reset internal EMA state
@@ -5788,6 +6131,7 @@ namespace LaunchPlugin
 
         // --- Global Settings with Corrected Defaults ---
         public bool EnableDebugLogging { get; set; } = false;
+        public bool PitExitVerboseLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
         public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
         public bool EnableAutoDashSwitch { get; set; } = true;

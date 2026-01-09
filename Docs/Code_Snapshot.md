@@ -1,7 +1,7 @@
 # Code Snapshot
 
 - Branch: work
-- Commit: 9629205 (Gate pit exit display updates to pit lane)
+- Commit: (current HEAD) (Docs: document PitExit ahead/behind exports)
 - Date: 2026-02-08
 
 ## Architectural notes (pit markers, MSGV1, and host wiring)

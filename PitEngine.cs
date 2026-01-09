@@ -80,8 +80,8 @@ namespace LaunchPlugin
         private readonly Queue<TrackMarkerTriggerEvent> _trackMarkerTriggers = new Queue<TrackMarkerTriggerEvent>();
         private bool _trackMarkersLoaded = false;
 
-        private const double TrackMarkerDeltaTolerancePct = 0.001; // 0.1%
-        private const double TrackLengthChangeThresholdM = 50.0;
+        private const double TrackMarkerDeltaTolerancePct = 0.00030; // 0.1%
+        private const double TrackLengthChangeThresholdM = 20.0;
 
         private readonly Func<double> _getLingerTime;
         public PitEngine() : this(null) { }
@@ -305,43 +305,56 @@ namespace LaunchPlugin
                 return;
             }
 
-            // Distance to pit entry (prefer iRacingExtra distance)
-            double dToEntry_m = ReadDouble(pluginManager, "IRacingExtraProperties.iRacing_DistanceToPitEntry", double.NaN);
-            bool dOk = !double.IsNaN(dToEntry_m) && dToEntry_m >= 0.0 && dToEntry_m <= 5000.0;
+            // Distance to pit entry (PREFERRED: stored markers; FALLBACK: iRacingExtra)
+            double dToEntry_m = double.NaN;
 
-            if (!dOk)
+            // Precompute stored marker validity
+            double carPct = NormalizeTrackPercent(data?.NewData?.TrackPositionPercent ?? double.NaN);
+
+            var stored = GetStoredTrackMarkers(_trackMarkersLastKey);
+            double storedEntryPct = stored?.PitEntryTrkPct ?? double.NaN;
+
+            var session = GetSessionState(_trackMarkersLastKey);
+            double sessionTrackLenM = session?.SessionTrackLengthM ?? double.NaN;
+
+            bool useStored = !double.IsNaN(carPct) &&
+                             !double.IsNaN(storedEntryPct) && storedEntryPct >= 0.0 && storedEntryPct <= 1.0 &&
+                             !double.IsNaN(sessionTrackLenM) && sessionTrackLenM >= MinTrackLengthM && sessionTrackLenM <= MaxTrackLengthM &&
+                             !string.Equals(_trackMarkersLastKey, "unknown", StringComparison.OrdinalIgnoreCase);
+
+            // 1) PRIMARY: use stored pct + cached track length
+            if (useStored)
             {
-                // Fallback: stored markers -> percent + track length
-                double carPct = NormalizeTrackPercent(data?.NewData?.TrackPositionPercent ?? double.NaN);
-
-                // Pit entry line % (prefer stored markers)
-                var stored = GetStoredTrackMarkers(_trackMarkersLastKey);
-                double storedEntryPct = stored?.PitEntryTrkPct ?? double.NaN;
-                var session = GetSessionState(_trackMarkersLastKey);
-                double sessionTrackLenM = session?.SessionTrackLengthM ?? double.NaN;
-                bool useStored = !double.IsNaN(storedEntryPct) && storedEntryPct >= 0.0 && storedEntryPct <= 1.0 &&
-                                 !double.IsNaN(sessionTrackLenM) && sessionTrackLenM >= MinTrackLengthM && sessionTrackLenM <= MaxTrackLengthM &&
-                                 !string.Equals(_trackMarkersLastKey, "unknown", StringComparison.OrdinalIgnoreCase);
-
-                double pitEntryPct = useStored
-                    ? storedEntryPct
-                    : ReadDouble(pluginManager, "IRacingExtraProperties.iRacing_PitEntryTrkPct", double.NaN);
-
-                // Track length in km (session cached)
-                double trackLenKm = sessionTrackLenM / 1000.0;
-
-                if (double.IsNaN(carPct) || double.IsNaN(pitEntryPct) || double.IsNaN(trackLenKm) || trackLenKm <= 0)
-                {
-                    // If we crossed the line but can’t compute distance, still allow END/reset and exit
-                    ResetPitEntryAssistOutputs();
-                    return;
-                }
-
-                double trackLen_m = trackLenKm * 1000.0;
-                double dp = pitEntryPct - carPct;
+                double trackLen_m = sessionTrackLenM;
+                double dp = storedEntryPct - carPct;
                 if (dp < 0) dp += 1.0;
                 dToEntry_m = dp * trackLen_m;
             }
+            else
+            {
+                // 2) FALLBACK: iRacingExtra distance
+                dToEntry_m = ReadDouble(pluginManager, "IRacingExtraProperties.iRacing_DistanceToPitEntry", double.NaN);
+                bool dOk = !double.IsNaN(dToEntry_m) && dToEntry_m >= 0.0 && dToEntry_m <= 5000.0;
+
+                if (!dOk)
+                {
+                    // 3) LAST RESORT: iRacingExtra pct + cached track length (if available)
+                    double pitEntryPct = ReadDouble(pluginManager, "IRacingExtraProperties.iRacing_PitEntryTrkPct", double.NaN);
+
+                    if (double.IsNaN(carPct) || double.IsNaN(pitEntryPct) ||
+                        double.IsNaN(sessionTrackLenM) || sessionTrackLenM < MinTrackLengthM || sessionTrackLenM > MaxTrackLengthM)
+                    {
+                        ResetPitEntryAssistOutputs();
+                        return;
+                    }
+
+                    double trackLen_m = sessionTrackLenM;
+                    double dp = pitEntryPct - carPct;
+                    if (dp < 0) dp += 1.0;
+                    dToEntry_m = dp * trackLen_m;
+                }
+            }
+
 
             // Window clamp (your spec)
             dToEntry_m = Math.Max(0.0, Math.Min(500.0, dToEntry_m));
@@ -432,9 +445,34 @@ namespace LaunchPlugin
             {
                 var v = pluginManager.GetPropertyValue(prop);
                 if (v == null) return fallback;
-                return Convert.ToDouble(v);
+
+                if (v is double d) return d;
+                if (v is float f) return (double)f;
+                if (v is int i) return (double)i;
+                if (v is long l) return (double)l;
+
+                if (v is string s)
+                {
+                    s = s.Trim();
+                    var m = System.Text.RegularExpressions.Regex.Match(s, @"[-+]?\d+(\.\d+)?");
+                    if (m.Success)
+                    {
+                        if (double.TryParse(
+                                m.Value,
+                                System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture,
+                                out var parsed))
+                            return parsed;
+                    }
+                    return fallback;
+                }
+
+                return Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture);
             }
-            catch { return fallback; }
+            catch
+            {
+                return fallback;
+            }
         }
 
         private void ResetPitEntryAssistOutputs()
@@ -621,7 +659,7 @@ namespace LaunchPlugin
                 }
                 else
                 {
-                    SimHub.Logging.Current.Debug(
+                    SimHub.Logging.Current.Info(
                         $"[LalaPlugin:TrackMarkers] block entry capture track='{key}' pitStall={isInPitStall} speed={speedKph:F1}kph");
                 }
             }
@@ -634,7 +672,7 @@ namespace LaunchPlugin
                 }
                 else
                 {
-                    SimHub.Logging.Current.Debug(
+                    SimHub.Logging.Current.Info(
                         $"[LalaPlugin:TrackMarkers] block exit capture track='{key}' pitStall={isInPitStall} speed={speedKph:F1}kph");
                 }
             }
@@ -694,14 +732,14 @@ namespace LaunchPlugin
 
             if (isEntry && pct < 0.50)
             {
-                SimHub.Logging.Current.Debug(
+                SimHub.Logging.Current.Info(
                     $"[LalaPlugin:TrackMarkers] block entry capture track='{key}' pct={pct:F4} (below min bound)");
                 return;
             }
 
             if (!isEntry && pct > 0.50)
             {
-                SimHub.Logging.Current.Debug(
+                SimHub.Logging.Current.Info(
                     $"[LalaPlugin:TrackMarkers] block exit capture track='{key}' pct={pct:F4} (above max bound)");
                 return;
             }

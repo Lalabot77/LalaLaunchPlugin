@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is the current HEAD with the message “Gate pit exit display updates to pit lane.” The preceding commits include `40b4cd1` (“Merge pull request #216 from Lalabot77/codex/add-pit-exit-distance-and-time-properties”) and `c803deb` (“Add pit exit distance/time SimHub outputs”). Use `git log --oneline -n 5` to see the last few commits if you want to double-check.
+- The latest commit on `work` is the current HEAD with the message “Update LalaLaunch.cs.” The preceding merges include PRs #234–#237 for pit-exit audit/logging and pit-loss locking improvements; use `git log --oneline -n 8` to see the recent merges if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
@@ -56,4 +56,6 @@
 - **Track Markers:** **COMPLETE** — pit entry/exit markers auto-learned per track with lock/unlock semantics, track-length change detection, and MSGV1 notifications. Stored in `PluginsData/Common/LalaLaunch/LalaLaunch.TrackMarkers.json`.
 - **MSGV1 for pit markers:** **INTEGRATED** — pit marker capture/length-delta/lock-mismatch messages defined in `Messaging/Messages.json` via `MessageDefinitionStore`; MSGV1 core continues elsewhere but this repo ships pit marker hooks.
 - **Legacy messaging:** **Not used** — only MSGV1 definition-driven messages fire; no legacy/adhoc messaging paths remain for pit markers.
+- **Pit loss locking:** **COMPLETE** — per-track pit loss values can be locked to block auto-updates; blocked candidates are captured and surfaced in the Profiles UI for review before manual unlock.
+- **Pit-exit prediction audit + settled logging:** **COMPLETE** — pit-exit predictor now locks pit-loss and gap inputs at pit entry to avoid drift, logs richer pit-in/out snapshots plus math audit, and emits a one-lap-delayed “pit-out settled” confirmation.
 - **Known/accepted limitations:** Replay session identity quirks remain (see `Reset_And_Session_Identity.md`) and track-length deltas are informational only; both are understood/accepted for current shipping state.

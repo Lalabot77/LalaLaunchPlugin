@@ -1,8 +1,8 @@
 # Pit Timing and Pit Loss
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
-Last updated: 2025-12-28  
-Branch: docs/refresh-index-subsystems
+Validated against commit: f542ae2  
+Last updated: 2026-02-08  
+Branch: work
 
 ## Purpose
 The Pit Timing & Pit Loss subsystem measures **real pit lane time loss** during live sessions and exposes a **stable pit-loss figure** used by:
@@ -164,6 +164,11 @@ Published values update:
 
 Once published, the value remains until superseded by a newer valid cycle.
 
+#### Locking and blocked candidates
+- Per-track pit loss values can be **locked** in Profiles. When locked, new candidates are **not** applied to the stored pit loss value.
+- Blocked candidates are captured with timestamp and source so the UI can show what was rejected while locked.
+- When unlocked, the next valid cycle can overwrite the stored pit loss normally.
+
 ---
 
 ## Outputs (exports + logs)
@@ -191,6 +196,7 @@ The subsystem emits structured INFO logs for:
 - In-lap / out-lap capture.
 - DTL computation and fallback usage.
 - Publication decision (DTL vs direct).
+- Locking blocks (candidate blocked + logged) when the profile pit loss is locked.
 
 Log semantics are canonical in `SimHubLogMessages.md`.
 
@@ -269,6 +275,5 @@ Reset semantics are centralised in:
 - TODO/VERIFY: Confirm exact speed threshold and dwell time used to classify “box stop” vs drive-through.
 - TODO/VERIFY: Confirm whether DTL uses session-average or stint-average pace as baseline.
 - TODO/VERIFY: Confirm pit loss publication gating for non-race sessions (practice/qualifying).
-
 
 
