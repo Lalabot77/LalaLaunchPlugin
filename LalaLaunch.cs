@@ -1677,33 +1677,6 @@ namespace LaunchPlugin
                             Pace_Last5LapAvgSec = 0.0;
                         }
 
-                        if (ActiveProfile != null)
-                        {
-                            var trackKey = CurrentTrackKey ?? CurrentTrackName;
-                            if (!string.IsNullOrWhiteSpace(trackKey))
-                            {
-                                var trackRecord = ActiveProfile.EnsureTrack(trackKey, CurrentTrackName ?? trackKey);
-                                int sampleCount = _recentLapTimes.Count;
-
-                                if (_isWetMode)
-                                {
-                                    trackRecord.WetLapTimeSampleCount = sampleCount;
-                                    if (!trackRecord.WetConditionsLocked && Pace_StintAvgLapTimeSec > 0)
-                                    {
-                                        trackRecord.AvgLapTimeWet = (int)Math.Round(Pace_StintAvgLapTimeSec * 1000.0);
-                                    }
-                                }
-                                else
-                                {
-                                    trackRecord.DryLapTimeSampleCount = sampleCount;
-                                    if (!trackRecord.DryConditionsLocked && Pace_StintAvgLapTimeSec > 0)
-                                    {
-                                        trackRecord.AvgLapTimeDry = (int)Math.Round(Pace_StintAvgLapTimeSec * 1000.0);
-                                    }
-                                }
-                            }
-                        }
-
                         UpdateLeaderDelta();
 
                         // Update pace confidence
@@ -1900,67 +1873,14 @@ namespace LaunchPlugin
                             _avgDryFuelPerLap, _minDryFuelPerLap, _maxDryFuelPerLap, _validDryLaps,
                             _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
 
-                        if (ActiveProfile != null)
+                        // Keep profile’s dry fuel updated from stable dry data only
+                        if (!_isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
                         {
-                            var trackKey = CurrentTrackKey ?? CurrentTrackName;
-                            if (!string.IsNullOrWhiteSpace(trackKey))
+                            var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
+                            if (trackRecord != null)
                             {
-                                var trackRecord = ActiveProfile.EnsureTrack(trackKey, CurrentTrackName ?? trackKey);
-
-                                if (_isWetMode)
-                                {
-                                    trackRecord.WetFuelSampleCount = _validWetLaps;
-                                    if (!trackRecord.WetConditionsLocked)
-                                    {
-                                        bool updated = false;
-                                        if (_avgWetFuelPerLap > 0 && Math.Abs((trackRecord.AvgFuelPerLapWet ?? 0) - _avgWetFuelPerLap) > 1e-6)
-                                        {
-                                            trackRecord.AvgFuelPerLapWet = _avgWetFuelPerLap;
-                                            updated = true;
-                                        }
-                                        if (_minWetFuelPerLap > 0 && Math.Abs((trackRecord.MinFuelPerLapWet ?? 0) - _minWetFuelPerLap) > 1e-6)
-                                        {
-                                            trackRecord.MinFuelPerLapWet = _minWetFuelPerLap;
-                                            updated = true;
-                                        }
-                                        if (_maxWetFuelPerLap > 0 && Math.Abs((trackRecord.MaxFuelPerLapWet ?? 0) - _maxWetFuelPerLap) > 1e-6)
-                                        {
-                                            trackRecord.MaxFuelPerLapWet = _maxWetFuelPerLap;
-                                            updated = true;
-                                        }
-                                        if (updated)
-                                        {
-                                            trackRecord.MarkFuelUpdated("Telemetry fuel");
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    trackRecord.DryFuelSampleCount = _validDryLaps;
-                                    if (!trackRecord.DryConditionsLocked)
-                                    {
-                                        bool updated = false;
-                                        if (_avgDryFuelPerLap > 0 && Math.Abs((trackRecord.AvgFuelPerLapDry ?? 0) - _avgDryFuelPerLap) > 1e-6)
-                                        {
-                                            trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
-                                            updated = true;
-                                        }
-                                        if (_minDryFuelPerLap > 0 && Math.Abs((trackRecord.MinFuelPerLapDry ?? 0) - _minDryFuelPerLap) > 1e-6)
-                                        {
-                                            trackRecord.MinFuelPerLapDry = _minDryFuelPerLap;
-                                            updated = true;
-                                        }
-                                        if (_maxDryFuelPerLap > 0 && Math.Abs((trackRecord.MaxFuelPerLapDry ?? 0) - _maxDryFuelPerLap) > 1e-6)
-                                        {
-                                            trackRecord.MaxFuelPerLapDry = _maxDryFuelPerLap;
-                                            updated = true;
-                                        }
-                                        if (updated)
-                                        {
-                                            trackRecord.MarkFuelUpdated("Telemetry fuel");
-                                        }
-                                    }
-                                }
+                                trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
+                                trackRecord.MarkFuelUpdated("Telemetry fuel");
                             }
                         }
 
@@ -3880,7 +3800,7 @@ namespace LaunchPlugin
             if (pitExitEdge)
             {
                 _opponentsEngine?.NotifyPitExitLine(completedLaps, sessionTime, trackPct);
-                LogPitExitPitOutSnapshot(sessionTime, completedLaps + 1, pitTripActive);
+               // LogPitExitPitOutSnapshot(sessionTime, completedLaps + 1, pitTripActive);
             }
 
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
@@ -4773,18 +4693,18 @@ namespace LaunchPlugin
                     string src = (trackStats.PitLaneLossSource ?? string.Empty).Trim().ToLowerInvariant();
                     if (src == "dtl" || src == "direct" || src == "total")
                     {
-                        return "learned";
+                        return "learned_cached";
                     }
 
-                    return "profile";
+                    return "profile_dtl";
                 }
             }
             catch
             {
-                return "default";
+                return "default_fallback";
             }
 
-            return "default";
+            return "default_fallback";
         }
 
         private void LogPitExitPitInSnapshot(double sessionTime, int lapNumber, double pitLossSec)
@@ -4828,7 +4748,7 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info($"[LalaPlugin:PitExit] {auditLine}");
             }
         }
-
+/*
         private void LogPitExitPitOutSnapshot(double sessionTime, int lapNumber, bool pitTripActive)
         {
             if (_opponentsEngine == null) return;
@@ -4858,7 +4778,7 @@ namespace LaunchPlugin
                 $"lock={pitTripLockActive}"
             );
         }
-
+*/
         private void ResetSmoothedOutputs()
         {
             // Reset internal EMA state
