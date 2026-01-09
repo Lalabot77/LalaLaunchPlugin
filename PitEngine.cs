@@ -80,8 +80,8 @@ namespace LaunchPlugin
         private readonly Queue<TrackMarkerTriggerEvent> _trackMarkerTriggers = new Queue<TrackMarkerTriggerEvent>();
         private bool _trackMarkersLoaded = false;
 
-        private const double TrackMarkerDeltaTolerancePct = 0.001; // 0.1%
-        private const double TrackLengthChangeThresholdM = 50.0;
+        private const double TrackMarkerDeltaTolerancePct = 0.00030; // 0.1%
+        private const double TrackLengthChangeThresholdM = 20.0;
 
         private readonly Func<double> _getLingerTime;
         public PitEngine() : this(null) { }
@@ -659,7 +659,7 @@ namespace LaunchPlugin
                 }
                 else
                 {
-                    SimHub.Logging.Current.Debug(
+                    SimHub.Logging.Current.Info(
                         $"[LalaPlugin:TrackMarkers] block entry capture track='{key}' pitStall={isInPitStall} speed={speedKph:F1}kph");
                 }
             }
@@ -672,7 +672,7 @@ namespace LaunchPlugin
                 }
                 else
                 {
-                    SimHub.Logging.Current.Debug(
+                    SimHub.Logging.Current.Info(
                         $"[LalaPlugin:TrackMarkers] block exit capture track='{key}' pitStall={isInPitStall} speed={speedKph:F1}kph");
                 }
             }
@@ -732,14 +732,14 @@ namespace LaunchPlugin
 
             if (isEntry && pct < 0.50)
             {
-                SimHub.Logging.Current.Debug(
+                SimHub.Logging.Current.Info(
                     $"[LalaPlugin:TrackMarkers] block entry capture track='{key}' pct={pct:F4} (below min bound)");
                 return;
             }
 
             if (!isEntry && pct > 0.50)
             {
-                SimHub.Logging.Current.Debug(
+                SimHub.Logging.Current.Info(
                     $"[LalaPlugin:TrackMarkers] block exit capture track='{key}' pct={pct:F4} (above max bound)");
                 return;
             }
