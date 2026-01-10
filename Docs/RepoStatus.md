@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is the current HEAD with the message “Update LalaLaunch.cs.” The preceding merges include PRs #234–#237 for pit-exit audit/logging and pit-loss locking improvements; use `git log --oneline -n 8` to see the recent merges if you want to double-check.
+- The latest commit on `work` is the current HEAD with documentation refresh work; the preceding merges include PRs #238–#241 for doc refresh, dry/wet condition lock UI, the Opponents subsystem, and session summary schema/pit-stop counting changes. Use `git log --oneline -n 8` to see the recent merges if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
@@ -58,4 +58,7 @@
 - **Legacy messaging:** **Not used** — only MSGV1 definition-driven messages fire; no legacy/adhoc messaging paths remain for pit markers.
 - **Pit loss locking:** **COMPLETE** — per-track pit loss values can be locked to block auto-updates; blocked candidates are captured and surfaced in the Profiles UI for review before manual unlock.
 - **Pit-exit prediction audit + settled logging:** **COMPLETE** — pit-exit predictor now locks pit-loss and gap inputs at pit entry to avoid drift, logs richer pit-in/out snapshots plus math audit, and emits a one-lap-delayed “pit-out settled” confirmation.
+- **Opponents subsystem:** **COMPLETE** — race-only opponent pace/fight and pit-exit prediction exports with lap gate ≥1, summary strings, and log support.
+- **Dry/Wet condition lock UI:** **COMPLETE** — per-track dry/wet condition lock toggles persist immediately in profiles (no save prompt).
+- **Session summary + trace v2:** **COMPLETE** — session summary CSV v2, lap trace rows with pit-stop index/phase, and corrected pit-stop counting semantics.
 - **Known/accepted limitations:** Replay session identity quirks remain (see `Reset_And_Session_Identity.md`) and track-length deltas are informational only; both are understood/accepted for current shipping state.

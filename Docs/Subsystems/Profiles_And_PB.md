@@ -1,14 +1,15 @@
 # Profiles and Personal Bests
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1
-Last updated: 2025-12-28
-Branch: docs/refresh-index-subsystems
+Validated against commit: da0639e
+Last updated: 2026-02-09
+Branch: work
 
 ## Purpose
 Profiles and PBs provide **persistent baselines** for:
 - Fuel per lap
 - Lap time
 - Wet vs dry conditions
+- Dry/Wet condition lock flags per track
 
 They seed live models but never override confirmed live data.
 
@@ -30,6 +31,7 @@ They seed live models but never override confirmed live data.
 - Dry and wet averages
 - Sample counts
 - PB lap times
+- Dry/Wet lock flags on each track record
 
 ---
 
@@ -46,6 +48,7 @@ On session start:
 Profiles update only when:
 - Sufficient accepted samples exist
 - New values pass sanity bounds
+- Condition lock toggles (Dry/Wet) persist immediately when toggled in the Profiles UI.
 
 ---
 
@@ -63,6 +66,7 @@ PB laps are captured when:
 - Profile fuel per lap
 - PB lap time
 - Logs for capture/rejection
+- Track condition lock flags (DryConditionsLocked/WetConditionsLocked)
 
 ---
 
@@ -78,6 +82,7 @@ Live seeds reset on session identity change.
 - Bad samples → rejected by bounds
 - Profile drift → mitigated by averaging
 - PB overwrite errors → logged and rejected
+- Lock toggles persist immediately; ensure the intended track is selected before toggling.
 
 ---
 

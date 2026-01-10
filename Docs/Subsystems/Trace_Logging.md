@@ -1,8 +1,8 @@
 # Trace Logging
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1
-Last updated: 2025-12-28
-Branch: docs/refresh-index-subsystems
+Validated against commit: da0639e
+Last updated: 2026-02-09
+Branch: work
 
 ## Purpose
 Trace Logging captures **post-race forensic data** for:
@@ -10,6 +10,7 @@ Trace Logging captures **post-race forensic data** for:
 - Pace evolution
 - Pit loss
 - Strategy validation
+- Session summary and per-lap trace exports
 
 It is intentionally low-frequency and human-readable.
 
@@ -28,6 +29,7 @@ It is intentionally low-frequency and human-readable.
 ## Internal State
 
 - Active trace file handle
+- Session summary model (v2 schema)
 - Session metadata
 - Trace validity flags
 
@@ -36,52 +38,56 @@ It is intentionally low-frequency and human-readable.
 ## Logic Blocks
 
 ### 1) File Lifecycle
-- Open on race start
-- Append per-lap summaries
-- Close on session end
-- Discard invalid traces
+- Open on race start and create a per-session trace filename once car/track identity is available.
+- Append one row per completed lap for the trace output.
+- Append a summary row only once green + checkered are seen.
+- Optionally embed the summary line into the trace file (wrapped by `#[SessionSummary]` markers) for full context.
+- Discard invalid traces (e.g., missing identity, replay gating).
 
 ---
 
 ### 2) Data Selection
 One row per lap crossing:
-- Lap number
-- Fuel used
-- Pace reference
-- Projection snapshot
-- Pit state
+- Lap number + lap time
+- Fuel remaining + stable burn + confidence + laps-remaining estimate
+- Pit stop index + pit stop phase
+- After-zero usage seconds
 
 ---
 
 ## Outputs
 
-- CSV trace files
-- INFO logs for open/close/discard
+- Summary file: `SessionSummary.csv` under `Logs/LalaPluginData/LalaSessionSummaries` (or configured path). Rows are only written once green + checkered are seen and include planner, profile, and actual race stats in schema version `v2`.【F:SessionSummaryLogger.cs†L31-L116】【F:SessionSummaryModel.cs†L9-L137】
+- Per-lap trace files: `SessionTrace_<car>_<track>_<timestamp>.csv` under `.../LalaSessionSummaries/Traces`. Trace rows include `PitStopIndex` and `PitStopPhase` alongside lap/fuel snapshots.【F:SessionSummaryLogger.cs†L41-L131】【F:SessionTraceLapRow.cs†L7-L33】
+- Summary embedded in trace: the summary row can be appended inside the trace file between `#[SessionSummary]` markers for later parsing.【F:SessionSummaryLogger.cs†L133-L178】
 
 ---
 
 ## Reset Rules
 
-- New session identity → new trace
-- Invalid trace → discard
+- New session identity → new trace + summary context reset.
+- Invalid trace → discard.
 
 ---
 
 ## Failure Modes
 
-- Replay sessions → may discard trace
-- Missing lap events → partial trace
-- File IO errors → logged
+- Replay sessions → summary and trace rows are suppressed when flagged as replay.
+- Missing lap events → partial trace.
+- File IO errors → logged.
 
 ---
 
 ## Test Checklist
 
-- Trace opens on race
-- One row per lap
-- Trace closes cleanly
+- Trace opens on race.
+- One row per lap (with pit stop index/phase fields populated as expected).
+- Summary row appended once green + checkered are seen.
 
 ---
+
+## Pit stop index semantics
+- `PitStopIndex` is **1-based** and increments once per completed pit cycle (first stop => 1). The maximum index seen is used as the session’s `Actual_PitStops` value in the summary output.【F:LalaLaunch.cs†L3927-L3942】【F:SessionSummaryRuntime.cs†L152-L245】
 
 ## TODO / VERIFY
 
