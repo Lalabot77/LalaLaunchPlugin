@@ -13,6 +13,16 @@ namespace LaunchPlugin
         private static string _activeTraceFile = string.Empty;
         private static int _lastLapWritten;
         private static SessionSummaryModel _summary = new SessionSummaryModel();
+        private static double? _raceStartSessionTimeSec;
+        private static double? _raceCheckeredSessionTimeSec;
+        private static double? _fuelAtGreenLiters;
+        private static double? _fuelAtCheckeredLiters;
+        private static double _fuelAddedTotalLiters;
+        private static int _validPaceLapCountTotal;
+        private static double _validPaceLapTimeSumSec;
+        private static int _validFuelLapCountTotal;
+        private static double _validFuelUsedSumLiters;
+        private static int _pitStopCountTotal;
 
         public static void OnRaceSessionStart(
             string sessionKey,
@@ -22,7 +32,8 @@ namespace LaunchPlugin
             string presetName,
             FuelCalcs planner,
             bool isReplay,
-            double fuelAtGreen)
+            double fuelAtGreen,
+            double sessionTimeSec)
         {
             lock (Sync)
             {
@@ -50,8 +61,27 @@ namespace LaunchPlugin
                 _greenSeen = true;
                 _summaryEmitted = false;
                 _lastLapWritten = 0;
+                _raceStartSessionTimeSec = double.IsNaN(sessionTimeSec) ? (double?)null : sessionTimeSec;
+                _raceCheckeredSessionTimeSec = null;
+                _fuelAtGreenLiters = fuelAtGreen;
+                _fuelAtCheckeredLiters = null;
+                _fuelAddedTotalLiters = 0.0;
+                _validPaceLapCountTotal = 0;
+                _validPaceLapTimeSumSec = 0.0;
+                _validFuelLapCountTotal = 0;
+                _validFuelUsedSumLiters = 0.0;
+                _pitStopCountTotal = 0;
 
                 var snapshot = BuildPlannerSnapshot(planner, presetName, carIdentifier, trackKey, sessionType);
+                string plannerTrackCondition = string.Empty;
+                if (planner != null)
+                {
+                    plannerTrackCondition = planner.IsWet ? "Wet" : "Dry";
+                }
+
+                double? profileAvgLapTimeSec = planner?.TryGetProfileAvgLapTimeSec(trackKey, string.Empty, planner?.IsWet == true);
+                double? profileFuelAvgPerLap = planner?.TryGetProfileFuelAvgPerLap(trackKey, string.Empty, planner?.IsWet == true);
+                double? profileBestLapTimeSec = planner?.TryGetProfileBestLapTimeSec(trackKey, string.Empty);
 
                 _summary = new SessionSummaryModel
                 {
@@ -60,6 +90,15 @@ namespace LaunchPlugin
                     PresetName = presetName ?? string.Empty,
                     SessionType = sessionType ?? string.Empty,
                     PlannerSnapshot = snapshot,
+                    PlannerTrackCondition = plannerTrackCondition,
+                    PlannerTotalFuelNeededLiters = planner?.TotalFuelNeeded,
+                    PlannerEstDriveTimeAfterTimerZeroSec = planner?.StrategyDriverExtraSecondsAfterZero,
+                    PlannerEstTimePerStopSec = planner?.FirstStopTimeLoss,
+                    PlannerRequiredPitStops = planner?.RequiredPitStops,
+                    PlannerLapsLappedExpected = planner?.LastLapsLappedExpected,
+                    ProfileAvgLapTimeSec = profileAvgLapTimeSec,
+                    ProfileFuelAvgPerLapLiters = profileFuelAvgPerLap,
+                    ProfileBestLapTimeSec = profileBestLapTimeSec,
                     GreenSeen = true,
                     CheckeredSeen = false,
                     IsReplay = isReplay
@@ -177,7 +216,8 @@ namespace LaunchPlugin
             double fuelRemaining,
             double observedAfterZeroSeconds,
             int? pitStopsDone,
-            bool isReplay)
+            bool isReplay,
+            double sessionTimeSec)
         {
             lock (Sync)
             {
@@ -195,12 +235,119 @@ namespace LaunchPlugin
                 _summary.CheckeredSeen = true;
                 _summary.IsReplay = isReplay;
                 _summary.ActualLapsCompleted = completedLaps;
-                _summary.ActualPitStops = pitStopsDone;
+                _summary.ActualPitStops = _pitStopCountTotal > 0 ? _pitStopCountTotal : pitStopsDone;
                 _summary.ActualAfterZeroSeconds = observedAfterZeroSeconds;
-                _summary.ActualFuelUsed = null;
+                _summary.ActualFuelStartLiters = _fuelAtGreenLiters;
+                _summary.ActualFuelFinishLiters = double.IsNaN(fuelRemaining) ? (double?)null : fuelRemaining;
+                _summary.ActualFuelAddedLiters = _fuelAddedTotalLiters;
+
+                _raceCheckeredSessionTimeSec = double.IsNaN(sessionTimeSec) ? (double?)null : sessionTimeSec;
+                if (_raceStartSessionTimeSec.HasValue && _raceCheckeredSessionTimeSec.HasValue)
+                {
+                    double totalTime = _raceCheckeredSessionTimeSec.Value - _raceStartSessionTimeSec.Value;
+                    _summary.ActualTotalTimeSec = totalTime >= 0.0 ? (double?)totalTime : null;
+                }
+
+                if (_summary.ActualFuelStartLiters.HasValue && _summary.ActualFuelFinishLiters.HasValue)
+                {
+                    _summary.ActualFuelUsed = _summary.ActualFuelStartLiters.Value +
+                                              (_summary.ActualFuelAddedLiters ?? 0.0) -
+                                              _summary.ActualFuelFinishLiters.Value;
+                }
+                else
+                {
+                    _summary.ActualFuelUsed = null;
+                }
+
+                if (_summary.ActualLapsCompleted.HasValue && _summary.ActualLapsCompleted.Value > 0)
+                {
+                    if (_summary.ActualFuelUsed.HasValue)
+                    {
+                        _summary.ActualAvgFuelPerLapAllLaps =
+                            _summary.ActualFuelUsed.Value / _summary.ActualLapsCompleted.Value;
+                    }
+
+                    if (_summary.ActualTotalTimeSec.HasValue)
+                    {
+                        _summary.ActualAvgLapTimeSecAllLaps =
+                            _summary.ActualTotalTimeSec.Value / _summary.ActualLapsCompleted.Value;
+                    }
+                }
+
+                if (_validPaceLapCountTotal > 0)
+                {
+                    _summary.ActualAvgLapTimeSecValidLaps = _validPaceLapTimeSumSec / _validPaceLapCountTotal;
+                }
+
+                if (_validFuelLapCountTotal > 0)
+                {
+                    _summary.ActualAvgFuelPerLapValidLaps = _validFuelUsedSumLiters / _validFuelLapCountTotal;
+                }
+
+                _summary.ActualValidPaceLapCount = _validPaceLapCountTotal;
+                _summary.ActualValidFuelLapCount = _validFuelLapCountTotal;
+                _summary.ActualLapsLapped = null;
 
                 Logger.AppendSummaryRow(_summary, string.Empty);
                 _summaryEmitted = true;
+            }
+        }
+
+        public static void OnFuelAdded(string sessionKey, double fuelAdded)
+        {
+            lock (Sync)
+            {
+                if (!_greenSeen || _summaryEmitted || fuelAdded <= 0.0 ||
+                    !string.Equals(sessionKey ?? string.Empty, _activeSessionKey, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _fuelAddedTotalLiters += fuelAdded;
+            }
+        }
+
+        public static void OnValidPaceLap(string sessionKey, double lapTimeSeconds)
+        {
+            lock (Sync)
+            {
+                if (!_greenSeen || _summaryEmitted || lapTimeSeconds <= 0.0 ||
+                    !string.Equals(sessionKey ?? string.Empty, _activeSessionKey, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _validPaceLapCountTotal++;
+                _validPaceLapTimeSumSec += lapTimeSeconds;
+            }
+        }
+
+        public static void OnValidFuelLap(string sessionKey, double fuelUsedLiters)
+        {
+            lock (Sync)
+            {
+                if (!_greenSeen || _summaryEmitted || fuelUsedLiters <= 0.0 ||
+                    !string.Equals(sessionKey ?? string.Empty, _activeSessionKey, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _validFuelLapCountTotal++;
+                _validFuelUsedSumLiters += fuelUsedLiters;
+            }
+        }
+
+        public static void OnPitStopCompleted(string sessionKey)
+        {
+            lock (Sync)
+            {
+                if (!_greenSeen || _summaryEmitted ||
+                    !string.Equals(sessionKey ?? string.Empty, _activeSessionKey, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                _pitStopCountTotal++;
             }
         }
 
