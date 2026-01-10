@@ -517,6 +517,7 @@ namespace LaunchPlugin
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
+        private int _summaryPitStopIndex = 0;
         private DateTime _lastPitLaneSeenUtc = DateTime.MinValue;
         private bool _pitExitEntrySeenLast = false;
         private bool _pitExitExitSeenLast = false;
@@ -1657,6 +1658,8 @@ namespace LaunchPlugin
                             _recentLapTimes.RemoveAt(0);
                         }
 
+                        SessionSummaryRuntime.OnValidPaceLap(_currentSessionToken, lastLapSec);
+
                         // Stint average: across all recent clean laps
                         Pace_StintAvgLapTimeSec = _recentLapTimes.Average();
 
@@ -1792,6 +1795,7 @@ namespace LaunchPlugin
                             _freshDrySamplesInWindow++;
 
                         window.Add(fuelUsed);
+                        SessionSummaryRuntime.OnValidFuelLap(_currentSessionToken, fuelUsed);
                         while (window.Count > FuelWindowSize)
                         {
                             if (_isWetMode && _hasActiveWetSeed)
@@ -1951,7 +1955,7 @@ namespace LaunchPlugin
                         stableFuelPerLap,
                         Confidence,
                         stableLapsRemaining,
-                        null,
+                        _summaryPitStopIndex,
                         (_pit?.CurrentPitPhase ?? PitPhase.None).ToString(),
                         _afterZeroUsedSeconds,
                         data.NewData?.CarModel ?? string.Empty,
@@ -3653,6 +3657,7 @@ namespace LaunchPlugin
                 _lastSessionId = currentSessionId;
                 _lastSubSessionId = currentSubSessionId;
                 _lastSessionToken = currentSessionToken;
+                _summaryPitStopIndex = 0;
                 FuelCalculator.ForceProfileDataReload();
                 ResetLiveFuelModelForNewSession(currentSessionTypeForConfidence, false);
                 ClearFuelInstructionOutputs();
@@ -3871,6 +3876,11 @@ namespace LaunchPlugin
                     double fuelAdded = currentFuel - _refuelStartFuel;
                     double duration = Math.Max(0.0, stopTime - _refuelStartTime);
 
+                    if (fuelAdded > 0.0)
+                    {
+                        SessionSummaryRuntime.OnFuelAdded(_currentSessionToken, fuelAdded);
+                    }
+
                     if (fuelAdded >= MinValidAddLiters && duration >= MinValidDurSec)
                     {
                         double rate = fuelAdded / duration;
@@ -3916,6 +3926,9 @@ namespace LaunchPlugin
                 {
                     _pitDbg_CandidateSavedSec = lossSec;
                     _pitDbg_CandidateSource = (src ?? "direct").ToLowerInvariant();
+
+                    // PitStopIndex is 1-based: increment once per completed pit cycle (first stop => 1).
+                    _summaryPitStopIndex++;
 
                     Pit_OnValidPitStopTimeLossCalculated(lossSec, src);
                     _lastSavedLap = completedLaps;
@@ -4061,10 +4074,12 @@ namespace LaunchPlugin
                     currentSession,
                     CurrentCarModel,
                     CurrentTrackKey,
+                    CurrentTrackName,
                     FuelCalculator?.SelectedPreset?.Name ?? string.Empty,
                     FuelCalculator,
                     Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false),
-                    data.NewData?.Fuel ?? 0.0);
+                    data.NewData?.Fuel ?? 0.0,
+                    sessionTime);
             }
 
 
@@ -4090,10 +4105,12 @@ namespace LaunchPlugin
                         currentSession,
                         CurrentCarModel,
                         CurrentTrackKey,
+                        CurrentTrackName,
                         FuelCalculator?.SelectedPreset?.Name ?? string.Empty,
                         FuelCalculator,
                         Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false),
-                        data.NewData?.Fuel ?? 0.0);
+                        data.NewData?.Fuel ?? 0.0,
+                        sessionTime);
                 }
             }
 
@@ -5479,7 +5496,8 @@ namespace LaunchPlugin
                     data.NewData?.Fuel ?? 0.0,
                     driverExtra,
                     null,
-                    Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false));
+                    Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false),
+                    sessionTime);
 
                 MaybeLogAfterZeroResult(sessionTime, sessionEnded);
                 ResetFinishTimingState();
