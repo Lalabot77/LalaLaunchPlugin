@@ -10,5 +10,10 @@ namespace LaunchPlugin
             InitializeComponent();
             this.DataContext = viewModel;
         }
+
+        private void SHButtonPrimary_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+
+        }
     }
 }
