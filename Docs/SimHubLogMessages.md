@@ -1,7 +1,7 @@
 # SimHub Log Messages (CANONICAL)
 
-Validated against commit: f542ae2  
-Last updated: 2026-02-08  
+Validated against commit: da0639e  
+Last updated: 2026-02-09  
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
@@ -131,6 +131,7 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 
 ## File and trace housekeeping
 - **`[LaunchTrace] Deleted trace file: <path>`** — Launch trace file deletion via UI command.【F:LaunchAnalysisControl.xaml.cs†L55-L70】
+- **`[LalaPlugin:SessionSummary] AppendSummaryRow called green=... checkered=...`** — Session summary CSV writer invoked; row is only appended when green and checkered are both seen.【F:SessionSummaryLogger.cs†L50-L74】
 
 ## Pit Entry Assist
 - **`[LalaPlugin:PitEntryAssist] ACTIVATE dToLine=... dReq=... margin=... spdΔ=... decel=... buffer=... cue=...`** — Edge-triggered when the assist arms (EnteringPits **or** limiter ON with overspeed >2 kph). Captures the resolved distance source, constant-decel requirement, margin, speed delta, profiled decel, buffer, and cue at arming time.【F:PitEngine.cs†L240-L363】

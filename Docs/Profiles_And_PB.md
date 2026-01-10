@@ -1,7 +1,7 @@
 # Profiles and Personal Bests
 
-Validated against commit: f542ae2  
-Last updated: 2026-02-08  
+Validated against commit: da0639e  
+Last updated: 2026-02-09  
 Branch: work
 
 ## Purpose
@@ -23,6 +23,10 @@ Personal Bests (PBs) store best-observed lap times for reference and seeding.
 - **Pit Lane Loss (s):** Track-level pit loss value used for fuel planning and pit-exit prediction. Editable directly in the Profiles UI track table.【F:ProfilesManagerView.xaml†L286-L333】
 - **Lock:** When enabled, the stored pit loss is protected from automatic updates. New pit loss candidates are captured as “blocked candidate” info for review, and auto-save resumes once unlocked.【F:ProfilesManagerViewModel.cs†L405-L421】【F:LalaLaunch.cs†L3199-L3212】
 - **Blocked candidate display:** Shows the last blocked candidate time, timestamp, and source while the lock is active, making it easy to compare before unlocking.【F:CarProfiles.cs†L349-L359】【F:ProfilesManagerView.xaml†L315-L327】
+
+## Profile contents (Dry/Wet condition locks)
+- **Dry/Wet lock toggles:** Each track has a Dry and Wet “Locked” checkbox in the Profiles UI that persists immediately (no separate save prompt). These flags are stored on the track record for the dry/wet condition blocks.【F:ProfilesManagerView.xaml†L360-L512】【F:CarProfiles.cs†L320-L347】
+- **Immediate persistence:** The lock toggles save through the track-level `RequestSaveProfiles` hook, which is wired to `SaveProfiles` when a track is selected.【F:CarProfiles.cs†L327-L347】【F:ProfilesManagerViewModel.cs†L330-L356】
 
 ## PB capture overview
 - PBs update when a **valid lap** beats the stored PB for the current car/track.
