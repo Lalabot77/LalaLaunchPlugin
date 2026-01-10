@@ -38,6 +38,7 @@ namespace LaunchPlugin
         private readonly Func<string, TrackMarkersSnapshot> _getTrackMarkersSnapshotForKey;
         private readonly Action<string, bool> _setTrackMarkersLockForKey;
         private readonly Action _reloadTrackMarkersFromDisk;
+        private readonly Action<string> _resetTrackMarkersForKey;
         private readonly string _profilesFilePath;
         private bool _suppressTrackMarkersLockAction;
         // --- PB constants ---
@@ -362,7 +363,10 @@ namespace LaunchPlugin
 
                     // Attach to new selection
                     if (_selectedTrack != null)
+                    {
+                        _selectedTrack.ParentProfileName = SelectedProfile?.ProfileName;
                         _selectedTrack.RequestSaveProfiles = SaveProfiles;
+                    }
 
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsTrackSelected));
@@ -388,6 +392,7 @@ namespace LaunchPlugin
                     foreach (var t in SelectedProfile.TrackStats.Values
                                  .OrderBy(t => t.DisplayName ?? t.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase))
                     {
+                        t.ParentProfileName = SelectedProfile?.ProfileName;
                         TracksForSelectedProfile.Add(t);
                     }
                 }
@@ -523,9 +528,10 @@ namespace LaunchPlugin
         public RelayCommand ApplyToLiveCommand { get; }
         public RelayCommand DeleteTrackCommand { get; }
         public RelayCommand ReloadTrackMarkersCommand { get; }
+        public RelayCommand RelearnPitDataCommand { get; }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
@@ -534,6 +540,7 @@ namespace LaunchPlugin
             _getTrackMarkersSnapshotForKey = getTrackMarkersSnapshotForKey;
             _setTrackMarkersLockForKey = setTrackMarkersLockForKey;
             _reloadTrackMarkersFromDisk = reloadTrackMarkersFromDisk;
+            _resetTrackMarkersForKey = resetTrackMarkersForKey;
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
@@ -549,6 +556,7 @@ namespace LaunchPlugin
             ApplyToLiveCommand = new RelayCommand(p => ApplySelectedProfileToLive(), p => IsProfileSelected);
             DeleteTrackCommand = new RelayCommand(p => DeleteTrack(), p => SelectedTrack != null);
             ReloadTrackMarkersCommand = new RelayCommand(p => ReloadTrackMarkers());
+            RelearnPitDataCommand = new RelayCommand(p => RelearnPitData(), p => SelectedTrack != null);
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
         }
@@ -1008,6 +1016,32 @@ namespace LaunchPlugin
             catch
             {
                 // Suppress any UI-facing errors during reload
+            }
+        }
+
+        private void RelearnPitData()
+        {
+            try
+            {
+                if (SelectedProfile == null || SelectedTrack == null) return;
+
+                string carName = SelectedProfile.ProfileName ?? "(unknown)";
+                string trackName = SelectedTrack.DisplayName ?? SelectedTrack.Key ?? "(unknown)";
+                SimHub.Logging.Current.Info($"[LalaPlugin:Profiles] Relearn Pit Data for {carName} @ {trackName}");
+
+                SelectedTrack.RelearnPitLoss();
+
+                string key = SelectedTrack.Key ?? SelectedTrack.DisplayName;
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    _resetTrackMarkersForKey?.Invoke(key);
+                }
+
+                RefreshTrackMarkersSnapshotForSelectedTrack();
+            }
+            catch
+            {
+                // Suppress any UI-facing errors during reset
             }
         }
     }

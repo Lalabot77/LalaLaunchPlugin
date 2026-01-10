@@ -635,6 +635,20 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] lock trackKey={key} locked={locked}");
         }
 
+        public void ResetTrackMarkersForKey(string trackKey)
+        {
+            EnsureTrackMarkerStoreLoaded();
+            string key = NormalizeTrackKey(trackKey);
+            if (string.IsNullOrWhiteSpace(key) || string.Equals(key, "unknown", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var record = GetOrCreateTrackMarkerRecord(key);
+            record.PitEntryTrkPct = double.NaN;
+            record.PitExitTrkPct = double.NaN;
+            record.LastUpdatedUtc = DateTime.MinValue;
+            SaveTrackMarkers();
+        }
+
         private void UpdateTrackMarkers(string trackKey, double carPct, double trackLenM, bool isInPitLane, bool justExitedPits, bool isInPitStall, double speedKph)
         {
             EnsureTrackMarkerStoreLoaded();

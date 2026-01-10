@@ -416,10 +416,15 @@
                                         </StackPanel>
 
                                         <!-- Placeholder lock -->
-                                        <CheckBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
+                                        <CheckBox Grid.Row="5" Grid.Column="0"
                                           Content="Locked"
                                           IsChecked="{Binding DryConditionsLocked, Mode=TwoWay}"
                                           Margin="0,8,0,0"/>
+                                        <styles:SHButtonPrimary Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2"
+                                          Content="Relearn"
+                                          Command="{Binding RelearnDryCommand}"
+                                          Margin="8,8,0,0"
+                                          HorizontalAlignment="Left"/>
                                     </Grid>
                                 </GroupBox>
 
@@ -517,10 +522,15 @@
                                         </StackPanel>
 
                                         <!-- Placeholder lock -->
-                                        <CheckBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
+                                        <CheckBox Grid.Row="5" Grid.Column="0"
                                           Content="Locked"
                                           IsChecked="{Binding WetConditionsLocked, Mode=TwoWay}"
                                           Margin="0,8,0,0"/>
+                                        <styles:SHButtonPrimary Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2"
+                                          Content="Relearn"
+                                          Command="{Binding RelearnWetCommand}"
+                                          Margin="8,8,0,0"
+                                          HorizontalAlignment="Left"/>
                                     </Grid>
                                 </GroupBox>
 
@@ -561,7 +571,10 @@
                                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding TrackMarkersLastUpdatedText}" Margin="0,4,0,0" VerticalAlignment="Center"/>
 
                                         <CheckBox Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Content="Locked" Margin="0,6,6,0" IsChecked="{Binding TrackMarkersLocked, Mode=TwoWay}" />
-                                        <Button Grid.Row="3" Grid.Column="2" Content="Reload markers" Command="{Binding ReloadTrackMarkersCommand}" Margin="0,6,0,0" ToolTip="Reload LalaLaunch.TrackMarkers.json from disk (for manual edits)." />
+                                        <StackPanel Grid.Row="3" Grid.Column="2" Orientation="Horizontal" Margin="0,6,0,0" HorizontalAlignment="Left">
+                                            <styles:SHButtonPrimary Content="Reload markers" Command="{Binding ReloadTrackMarkersCommand}" ToolTip="Reload LalaLaunch.TrackMarkers.json from disk (for manual edits)." />
+                                            <styles:SHButtonPrimary Content="Relearn" Command="{Binding RelearnPitDataCommand}" Margin="6,0,0,0" />
+                                        </StackPanel>
                                     </Grid>
                                 </GroupBox>
 

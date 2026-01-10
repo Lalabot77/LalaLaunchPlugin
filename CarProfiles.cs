@@ -224,6 +224,17 @@ namespace LaunchPlugin
         [JsonIgnore]
         public Action RequestSaveProfiles { get; set; }
 
+        [JsonIgnore]
+        public string ParentProfileName { get; set; }
+
+        private RelayCommand _relearnDryCommand;
+        [JsonIgnore]
+        public RelayCommand RelearnDryCommand => _relearnDryCommand ?? (_relearnDryCommand = new RelayCommand(p => RelearnDryConditions()));
+
+        private RelayCommand _relearnWetCommand;
+        [JsonIgnore]
+        public RelayCommand RelearnWetCommand => _relearnWetCommand ?? (_relearnWetCommand = new RelayCommand(p => RelearnWetConditions()));
+
 
         // --- Core Data ---
         private string _displayName;
@@ -640,6 +651,57 @@ namespace LaunchPlugin
         {
             FuelUpdatedSource = source;
             FuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void RelearnPitLoss()
+        {
+            PitLaneLossSeconds = null;
+            PitLaneLossSource = string.Empty;
+            PitLaneLossUpdatedUtc = null;
+            PitLaneLossBlockedCandidateSeconds = 0;
+            PitLaneLossBlockedCandidateUpdatedUtc = null;
+            PitLaneLossBlockedCandidateSource = null;
+            RequestSaveProfiles?.Invoke();
+        }
+
+        public void RelearnDryConditions()
+        {
+            BestLapMsDry = null;
+            AvgLapTimeDry = null;
+            MinFuelPerLapDry = null;
+            AvgFuelPerLapDry = null;
+            MaxFuelPerLapDry = null;
+            DryLapTimeSampleCount = 0;
+            DryFuelSampleCount = 0;
+            FuelUpdatedSource = null;
+            FuelUpdatedUtc = null;
+            DryConditionsLocked = false;
+
+            var carName = string.IsNullOrWhiteSpace(ParentProfileName) ? "(unknown)" : ParentProfileName;
+            var trackName = DisplayName ?? Key ?? "(unknown)";
+            SimHub.Logging.Current.Info($"[LalaPlugin:Profiles] Relearn Dry Conditions for {carName} @ {trackName}");
+
+            RequestSaveProfiles?.Invoke();
+        }
+
+        public void RelearnWetConditions()
+        {
+            BestLapMsWet = null;
+            AvgLapTimeWet = null;
+            MinFuelPerLapWet = null;
+            AvgFuelPerLapWet = null;
+            MaxFuelPerLapWet = null;
+            WetLapTimeSampleCount = 0;
+            WetFuelSampleCount = 0;
+            FuelUpdatedSource = null;
+            FuelUpdatedUtc = null;
+            WetConditionsLocked = false;
+
+            var carName = string.IsNullOrWhiteSpace(ParentProfileName) ? "(unknown)" : ParentProfileName;
+            var trackName = DisplayName ?? Key ?? "(unknown)";
+            SimHub.Logging.Current.Info($"[LalaPlugin:Profiles] Relearn Wet Conditions for {carName} @ {trackName}");
+
+            RequestSaveProfiles?.Invoke();
         }
 
 

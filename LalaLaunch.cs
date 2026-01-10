@@ -173,6 +173,12 @@ namespace LaunchPlugin
             _pit?.SetTrackMarkersLock(trackKey, locked);
         }
 
+        public void ResetTrackMarkersForKey(string trackKey)
+        {
+            if (string.IsNullOrWhiteSpace(trackKey)) return;
+            _pit?.ResetTrackMarkersForKey(trackKey);
+        }
+
         public void ReloadTrackMarkersFromDisk()
         {
             _pit?.ReloadTrackMarkerStore();
@@ -2741,7 +2747,8 @@ namespace LaunchPlugin
                 () => this.CurrentTrackKey,
                 (trackKey) => GetTrackMarkersSnapshot(trackKey),
                 (trackKey, locked) => SetTrackMarkersLockedForKey(trackKey, locked),
-                () => ReloadTrackMarkersFromDisk()
+                () => ReloadTrackMarkersFromDisk(),
+                (trackKey) => ResetTrackMarkersForKey(trackKey)
             );
 
 
