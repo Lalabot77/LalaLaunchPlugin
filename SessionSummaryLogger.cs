@@ -164,21 +164,34 @@ namespace LaunchPlugin
                 "PresetName",
                 "CarIdentifier",
                 "TrackKey",
-                "ActualLapsCompleted",
-                "ActualPitStops",
-                "ActualAfterZeroSeconds",
-                "ActualFuelUsed",
-                "PlannerFuelPerLap",
-                "TotalFuelRequired",
-                "PlannedPitStops",
-                "PlannedAfterZeroAllowance",
-                "PlannerLapTimeSeconds");
+                "Planner_TrackCondition",
+                "Planner_TotalFuelNeeded_L",
+                "Planner_EstDriveTimeAfterTimerZero_Sec",
+                "Planner_EstTimePerStop_Sec",
+                "Planner_RequiredPitStops",
+                "Planner_LapsLappedExpected",
+                "Profile_AvgLapTimeSec",
+                "Profile_FuelAvgPerLap_L",
+                "Profile_BestLapTimeSec",
+                "Actual_LapsCompleted",
+                "Actual_PitStops",
+                "Actual_AfterZeroSeconds",
+                "Actual_TotalTimeSec",
+                "Actual_FuelStart_L",
+                "Actual_FuelAdded_L",
+                "Actual_FuelFinish_L",
+                "Actual_FuelUsed_L",
+                "Actual_AvgFuelPerLap_L_AllLaps",
+                "Actual_AvgLapTimeSec_AllLaps",
+                "Actual_AvgLapTimeSec_ValidLaps",
+                "Actual_AvgFuelPerLap_L_ValidLaps",
+                "Actual_LapsLapped",
+                "Actual_ValidPaceLapCount",
+                "Actual_ValidFuelLapCount");
         }
 
         private string BuildSummaryRowLine(SessionSummaryModel summary)
         {
-            var snapshot = summary.PlannerSnapshot ?? SessionPlannerSnapshot.Empty;
-
             return string.Join(",",
                 ToCsvValue(SessionSummaryModel.SchemaVersion),
                 ToCsvValue(summary.RecordedAtUtc.ToString("o", CultureInfo.InvariantCulture)),
@@ -186,15 +199,30 @@ namespace LaunchPlugin
                 ToCsvValue(summary.PresetName),
                 ToCsvValue(summary.CarIdentifier),
                 ToCsvValue(summary.TrackKey),
+                ToCsvValue(summary.PlannerTrackCondition),
+                ToCsvValue(summary.PlannerTotalFuelNeededLiters),
+                ToCsvValue(summary.PlannerEstDriveTimeAfterTimerZeroSec),
+                ToCsvValue(summary.PlannerEstTimePerStopSec),
+                ToCsvValue(summary.PlannerRequiredPitStops),
+                ToCsvValue(summary.PlannerLapsLappedExpected),
+                ToCsvValue(summary.ProfileAvgLapTimeSec),
+                ToCsvValue(summary.ProfileFuelAvgPerLapLiters),
+                ToCsvValue(summary.ProfileBestLapTimeSec),
                 ToCsvValue(summary.ActualLapsCompleted),
                 ToCsvValue(summary.ActualPitStops),
                 ToCsvValue(summary.ActualAfterZeroSeconds),
+                ToCsvValue(summary.ActualTotalTimeSec),
+                ToCsvValue(summary.ActualFuelStartLiters),
+                ToCsvValue(summary.ActualFuelAddedLiters),
+                ToCsvValue(summary.ActualFuelFinishLiters),
                 ToCsvValue(summary.ActualFuelUsed),
-                ToCsvValue(snapshot.PlannerFuelPerLap),
-                ToCsvValue(snapshot.TotalFuelRequired),
-                ToCsvValue(snapshot.PlannedPitStops),
-                ToCsvValue(snapshot.PlannedAfterZeroAllowance),
-                ToCsvValue(snapshot.PlannerLapTime.TotalSeconds));
+                ToCsvValue(summary.ActualAvgFuelPerLapAllLaps),
+                ToCsvValue(summary.ActualAvgLapTimeSecAllLaps),
+                ToCsvValue(summary.ActualAvgLapTimeSecValidLaps),
+                ToCsvValue(summary.ActualAvgFuelPerLapValidLaps),
+                ToCsvValue(summary.ActualLapsLapped),
+                ToCsvValue(summary.ActualValidPaceLapCount),
+                ToCsvValue(summary.ActualValidFuelLapCount));
         }
 
         private string BuildTraceHeaderLine()
@@ -229,7 +257,7 @@ namespace LaunchPlugin
         {
             if (string.IsNullOrEmpty(value))
             {
-                return "n/a";
+                return string.Empty;
             }
 
             bool needsEscaping = value.Contains(",") || value.Contains("\"") || value.Contains("\n") || value.Contains("\r");
@@ -254,12 +282,12 @@ namespace LaunchPlugin
 
         private string ToCsvValue(int? value)
         {
-            return value.HasValue ? value.Value.ToString(CultureInfo.InvariantCulture) : "n/a";
+            return value.HasValue ? value.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
         }
 
         private string ToCsvValue(double? value)
         {
-            return value.HasValue ? value.Value.ToString("G", CultureInfo.InvariantCulture) : "n/a";
+            return value.HasValue ? value.Value.ToString("G", CultureInfo.InvariantCulture) : string.Empty;
         }
     }
 }

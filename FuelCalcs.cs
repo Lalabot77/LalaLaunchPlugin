@@ -1756,6 +1756,48 @@ namespace LaunchPlugin
 
         public FuelTimingSnapshot TimingParameters => new FuelTimingSnapshot(EffectiveRefuelRateLps, TireChangeTime, PitLaneTimeLoss);
 
+        public double? TryGetProfileAvgLapTimeSec(string trackKey, string trackName, bool isWet)
+        {
+            var profile = _plugin?.ActiveProfile;
+            if (profile == null) return null;
+
+            var ts = profile.ResolveTrackByNameOrKey(trackKey) ?? profile.ResolveTrackByNameOrKey(trackName);
+            if (ts == null) return null;
+
+            int? ms = isWet ? ts.AvgLapTimeWet : ts.AvgLapTimeDry;
+            if (!ms.HasValue || ms.Value <= 0) return null;
+
+            return ms.Value / 1000.0;
+        }
+
+        public double? TryGetProfileFuelAvgPerLap(string trackKey, string trackName, bool isWet)
+        {
+            var profile = _plugin?.ActiveProfile;
+            if (profile == null) return null;
+
+            var ts = profile.ResolveTrackByNameOrKey(trackKey) ?? profile.ResolveTrackByNameOrKey(trackName);
+            if (ts == null) return null;
+
+            double? value = isWet ? ts.AvgFuelPerLapWet : ts.AvgFuelPerLapDry;
+            if (!value.HasValue || value.Value <= 0.0) return null;
+
+            return value.Value;
+        }
+
+        public double? TryGetProfileBestLapTimeSec(string trackKey, string trackName)
+        {
+            var profile = _plugin?.ActiveProfile;
+            if (profile == null) return null;
+
+            var ts = profile.ResolveTrackByNameOrKey(trackKey) ?? profile.ResolveTrackByNameOrKey(trackName);
+            if (ts == null) return null;
+
+            int? ms = ts.BestLapMs;
+            if (!ms.HasValue || ms.Value <= 0) return null;
+
+            return ms.Value / 1000.0;
+        }
+
     private double ComputeRefuelSeconds(double fuelToAdd)
     {
         if (fuelToAdd <= 0.0) return 0.0;
@@ -1947,6 +1989,7 @@ namespace LaunchPlugin
     }
     public double TotalFuelNeeded { get => _totalFuelNeeded; private set { _totalFuelNeeded = value; OnPropertyChanged("TotalFuelNeeded"); } }
     public int RequiredPitStops { get => _requiredPitStops; private set { _requiredPitStops = value; OnPropertyChanged("RequiredPitStops"); } }
+    public int LastLapsLappedExpected { get; private set; }
     public string StintBreakdown { get => _stintBreakdown; private set { _stintBreakdown = value; OnPropertyChanged("StintBreakdown"); } }
     public int StopsSaved { get => _stopsSaved; private set { _stopsSaved = value; OnPropertyChanged("StopsSaved"); } }
     public string TotalTimeDifference { get => _totalTimeDifference; private set { _totalTimeDifference = value; OnPropertyChanged("TotalTimeDifference"); } }
@@ -4188,6 +4231,7 @@ namespace LaunchPlugin
             result.Breakdown = headerNoStop + Environment.NewLine + Environment.NewLine + bodyNoStop.ToString();
 
             result.TotalTime = totalLaps * playerPaceSeconds;
+            LastLapsLappedExpected = lappedEventsNoStop.Count;
             return result;
         }
         // Mandatory-tyres integration: if baseline would be 0-stop, force exactly one stop
@@ -4290,6 +4334,7 @@ namespace LaunchPlugin
 
             result.Breakdown = header + Environment.NewLine + Environment.NewLine + sb.ToString();
 
+            LastLapsLappedExpected = 0;
             return result;
         }
 
@@ -4495,6 +4540,7 @@ namespace LaunchPlugin
         result.Breakdown = summary + Environment.NewLine + Environment.NewLine + body.ToString();
 
         result.TotalTime = totalLaps * playerPaceSeconds + totalPitTime;
+        LastLapsLappedExpected = lappedEvents.Count;
         return result;
     }
     private double ParseLapTime(string timeString)
