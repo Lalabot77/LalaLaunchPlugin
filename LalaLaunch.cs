@@ -517,6 +517,7 @@ namespace LaunchPlugin
         private double _lastPitLossSaved = 0.0;
         private DateTime _lastPitLossSavedAtUtc = DateTime.MinValue;
         private string _lastPitLossSource = "";
+        private int _summaryPitStopIndex = 0;
         private DateTime _lastPitLaneSeenUtc = DateTime.MinValue;
         private bool _pitExitEntrySeenLast = false;
         private bool _pitExitExitSeenLast = false;
@@ -1954,7 +1955,7 @@ namespace LaunchPlugin
                         stableFuelPerLap,
                         Confidence,
                         stableLapsRemaining,
-                        null,
+                        _summaryPitStopIndex,
                         (_pit?.CurrentPitPhase ?? PitPhase.None).ToString(),
                         _afterZeroUsedSeconds,
                         data.NewData?.CarModel ?? string.Empty,
@@ -3194,11 +3195,6 @@ namespace LaunchPlugin
                 && !double.IsNaN(trackRecord.PitLaneLossSeconds.Value);
             bool candidateValid = rounded > 0.0 && !double.IsNaN(rounded);
 
-            if (candidateValid)
-            {
-                SessionSummaryRuntime.OnPitStopCompleted(_currentSessionToken);
-            }
-
             if (candidateValid && !existingValid)
             {
                 trackRecord.PitLaneLossSeconds = rounded;
@@ -3661,6 +3657,7 @@ namespace LaunchPlugin
                 _lastSessionId = currentSessionId;
                 _lastSubSessionId = currentSubSessionId;
                 _lastSessionToken = currentSessionToken;
+                _summaryPitStopIndex = 0;
                 FuelCalculator.ForceProfileDataReload();
                 ResetLiveFuelModelForNewSession(currentSessionTypeForConfidence, false);
                 ClearFuelInstructionOutputs();
@@ -3930,6 +3927,8 @@ namespace LaunchPlugin
                     _pitDbg_CandidateSavedSec = lossSec;
                     _pitDbg_CandidateSource = (src ?? "direct").ToLowerInvariant();
 
+                    _summaryPitStopIndex++;
+
                     Pit_OnValidPitStopTimeLossCalculated(lossSec, src);
                     _lastSavedLap = completedLaps;
                 }
@@ -4074,6 +4073,7 @@ namespace LaunchPlugin
                     currentSession,
                     CurrentCarModel,
                     CurrentTrackKey,
+                    CurrentTrackName,
                     FuelCalculator?.SelectedPreset?.Name ?? string.Empty,
                     FuelCalculator,
                     Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false),
@@ -4104,6 +4104,7 @@ namespace LaunchPlugin
                         currentSession,
                         CurrentCarModel,
                         CurrentTrackKey,
+                        CurrentTrackName,
                         FuelCalculator?.SelectedPreset?.Name ?? string.Empty,
                         FuelCalculator,
                         Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.IsReplay") ?? false),

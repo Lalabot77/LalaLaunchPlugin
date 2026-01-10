@@ -22,13 +22,14 @@ namespace LaunchPlugin
         private static double _validPaceLapTimeSumSec;
         private static int _validFuelLapCountTotal;
         private static double _validFuelUsedSumLiters;
-        private static int _pitStopCountTotal;
+        private static int? _maxPitStopIndexSeen;
 
         public static void OnRaceSessionStart(
             string sessionKey,
             string sessionType,
             string carIdentifier,
             string trackKey,
+            string trackName,
             string presetName,
             FuelCalcs planner,
             bool isReplay,
@@ -70,7 +71,7 @@ namespace LaunchPlugin
                 _validPaceLapTimeSumSec = 0.0;
                 _validFuelLapCountTotal = 0;
                 _validFuelUsedSumLiters = 0.0;
-                _pitStopCountTotal = 0;
+                _maxPitStopIndexSeen = null;
 
                 var snapshot = BuildPlannerSnapshot(planner, presetName, carIdentifier, trackKey, sessionType);
                 string plannerTrackCondition = string.Empty;
@@ -79,9 +80,9 @@ namespace LaunchPlugin
                     plannerTrackCondition = planner.IsWet ? "Wet" : "Dry";
                 }
 
-                double? profileAvgLapTimeSec = planner?.TryGetProfileAvgLapTimeSec(trackKey, string.Empty, planner?.IsWet == true);
-                double? profileFuelAvgPerLap = planner?.TryGetProfileFuelAvgPerLap(trackKey, string.Empty, planner?.IsWet == true);
-                double? profileBestLapTimeSec = planner?.TryGetProfileBestLapTimeSec(trackKey, string.Empty);
+                double? profileAvgLapTimeSec = planner?.TryGetProfileAvgLapTimeSec(trackKey, trackName, planner?.IsWet == true);
+                double? profileFuelAvgPerLap = planner?.TryGetProfileFuelAvgPerLap(trackKey, trackName, planner?.IsWet == true);
+                double? profileBestLapTimeSec = planner?.TryGetProfileBestLapTimeSec(trackKey, trackName);
 
                 _summary = new SessionSummaryModel
                 {
@@ -150,6 +151,11 @@ namespace LaunchPlugin
                 if (lapNumber <= _lastLapWritten)
                 {
                     return;
+                }
+
+                if (pitStopIndex.HasValue && (!_maxPitStopIndexSeen.HasValue || pitStopIndex.Value > _maxPitStopIndexSeen.Value))
+                {
+                    _maxPitStopIndexSeen = pitStopIndex.Value;
                 }
 
                 // ---- Identity refresh belongs HERE (not by re-calling OnRaceSessionStart) ----
@@ -235,7 +241,7 @@ namespace LaunchPlugin
                 _summary.CheckeredSeen = true;
                 _summary.IsReplay = isReplay;
                 _summary.ActualLapsCompleted = completedLaps;
-                _summary.ActualPitStops = _pitStopCountTotal > 0 ? _pitStopCountTotal : pitStopsDone;
+                _summary.ActualPitStops = _maxPitStopIndexSeen.HasValue ? _maxPitStopIndexSeen.Value : pitStopsDone;
                 _summary.ActualAfterZeroSeconds = observedAfterZeroSeconds;
                 _summary.ActualFuelStartLiters = _fuelAtGreenLiters;
                 _summary.ActualFuelFinishLiters = double.IsNaN(fuelRemaining) ? (double?)null : fuelRemaining;
@@ -334,20 +340,6 @@ namespace LaunchPlugin
 
                 _validFuelLapCountTotal++;
                 _validFuelUsedSumLiters += fuelUsedLiters;
-            }
-        }
-
-        public static void OnPitStopCompleted(string sessionKey)
-        {
-            lock (Sync)
-            {
-                if (!_greenSeen || _summaryEmitted ||
-                    !string.Equals(sessionKey ?? string.Empty, _activeSessionKey, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                _pitStopCountTotal++;
             }
         }
 
