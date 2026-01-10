@@ -50,6 +50,14 @@ namespace LaunchPlugin
         /// </summary>
         public bool TryUpdatePB(string carName, string trackKey, int lapMs)
         {
+            return TryUpdatePBByCondition(carName, trackKey, lapMs, isWetEffective: false);
+        }
+
+        /// <summary>
+        /// Try to update personal best for the given car+track based on track condition. Returns true if updated.
+        /// </summary>
+        public bool TryUpdatePBByCondition(string carName, string trackKey, int lapMs, bool isWetEffective)
+        {
             if (string.IsNullOrWhiteSpace(carName) || string.IsNullOrWhiteSpace(trackKey))
             {
                 SimHub.Logging.Current.Debug("[LalaPlugin:Pace] Reject PB: missing car/track.");
@@ -71,15 +79,29 @@ namespace LaunchPlugin
                 ts = car.EnsureTrack(trackKey, trackKey);
             }
 
-            bool improved = !ts.BestLapMs.HasValue || lapMs <= ts.BestLapMs.Value - PB_IMPROVE_MS;
+            int? baselineMs = isWetEffective
+                ? ts.BestLapMsWet
+                : (ts.BestLapMsDry ?? ts.BestLapMs);
+
+            bool improved = !baselineMs.HasValue || lapMs <= baselineMs.Value - PB_IMPROVE_MS;
             if (!improved)
             {
-                SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Reject PB: not improved enough. old={ts.BestLapMs} new={lapMs} (≥{PB_IMPROVE_MS} ms required).");
+                SimHub.Logging.Current.Debug(
+                    $"[LalaPlugin:Pace] Reject PB ({(isWetEffective ? "wet" : "dry")}): not improved enough. " +
+                    $"old={baselineMs} new={lapMs} (≥{PB_IMPROVE_MS} ms required).");
                 return false;
             }
 
-            ts.BestLapMs = lapMs;
-            ts.BestLapMsText = ts.MillisecondsToLapTimeString(ts.BestLapMs);
+            if (isWetEffective)
+            {
+                ts.BestLapMsWet = lapMs;
+                ts.BestLapTimeWetText = ts.MillisecondsToLapTimeString(ts.BestLapMsWet);
+            }
+            else
+            {
+                ts.BestLapMsDry = lapMs;
+                ts.BestLapTimeDryText = ts.MillisecondsToLapTimeString(ts.BestLapMsDry);
+            }
             SaveProfiles();
 
             // If Profiles tab is on this car, refresh so the new PB shows immediately
@@ -87,7 +109,8 @@ namespace LaunchPlugin
             void DoUi() { if (SelectedProfile == car) RefreshTracksForSelectedProfile(); }
             if (disp == null || disp.CheckAccess()) DoUi(); else disp.BeginInvoke((Action)DoUi);
 
-            SimHub.Logging.Current.Info($"[LalaPlugin:Pace] PB Updated: {carName} @ '{ts.DisplayName}' -> {ts.BestLapMsText}");
+            var pbText = isWetEffective ? ts.BestLapTimeWetText : ts.BestLapTimeDryText;
+            SimHub.Logging.Current.Info($"[LalaPlugin:Pace] PB Updated ({(isWetEffective ? "wet" : "dry")}): {carName} @ '{ts.DisplayName}' -> {pbText}");
             return true;
         }
 
@@ -198,6 +221,8 @@ namespace LaunchPlugin
             // --- FIX: Manually initialize the text properties after creation ---
             // This is crucial because the UI now relies on them.
             ts.BestLapMsText = ts.MillisecondsToLapTimeString(ts.BestLapMs);
+            ts.BestLapTimeDryText = ts.MillisecondsToLapTimeString(ts.BestLapMsDry);
+            ts.BestLapTimeWetText = ts.MillisecondsToLapTimeString(ts.BestLapMsWet);
             ts.AvgLapTimeDryText = ts.MillisecondsToLapTimeString(ts.AvgLapTimeDry);
             ts.AvgLapTimeWetText = ts.MillisecondsToLapTimeString(ts.AvgLapTimeWet);
             ts.PitLaneLossSecondsText = ts.PitLaneLossSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -793,6 +818,8 @@ namespace LaunchPlugin
                     DisplayName = "Default",
                     Key = "default",
                     BestLapMs = null,
+                    BestLapMsDry = null,
+                    BestLapMsWet = null,
                     PitLaneLossSeconds = 25.0,
                     AvgFuelPerLapDry = 2.8,
                     DryFuelSampleCount = 0,

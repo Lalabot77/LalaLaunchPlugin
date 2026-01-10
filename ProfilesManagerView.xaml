@@ -268,7 +268,6 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn" MinWidth="170"/>
@@ -276,29 +275,19 @@
                                             <ColumnDefinition Width="*" SharedSizeGroup="InfoColumn" MinWidth="220"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- Best lap -->
-                                        <TextBlock Grid.Row="0" Grid.Column="0"
-                                           Text="Best Lap Time (m:ss.fff):"
-                                           Margin="0,0,10,0"
-                                           VerticalAlignment="Center"/>
-                                        <TextBox Grid.Row="0" Grid.Column="1"
-                                             TextAlignment="Right"
-                                             Text="{Binding BestLapMsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             />
-
                                         <!-- Pit loss -->
-                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                        <TextBlock Grid.Row="0" Grid.Column="0"
                                                Text="Pit Lane Loss (s):"
                                                Margin="0,6,10,0"
                                                VerticalAlignment="Center"/>
-                                        <TextBox Grid.Row="1" Grid.Column="1"
+                                        <TextBox Grid.Row="0" Grid.Column="1"
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
                                              Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              />
 
                                         <!-- Lock + messages -->
-                                        <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0">
+                                        <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,8,0,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
@@ -339,6 +328,7 @@
                                     <Grid Margin="8,6,8,8" Grid.IsSharedSizeScope="True">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
                                             <!-- Avg lap -->
                                             <RowDefinition Height="Auto"/>
                                             <!-- Fuel ECO -->
@@ -356,58 +346,68 @@
                                             <ColumnDefinition Width="*" SharedSizeGroup="InfoColumn" MinWidth="220"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- Avg lap time -->
+                                        <!-- Best lap time -->
                                         <TextBlock Grid.Row="0" Grid.Column="0"
-                                           Text="Avg Lap Time (m:ss.fff):"
+                                           Text="Best Lap Time (m:ss.fff):"
                                            Margin="0,0,10,0"
                                            VerticalAlignment="Center"/>
                                         <TextBox Grid.Row="0" Grid.Column="1"
                                              TextAlignment="Right"
+                                             Text="{Binding BestLapTimeDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                        <!-- Avg lap time -->
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                           Text="Avg Lap Time (m:ss.fff):"
+                                           Margin="0,6,10,0"
+                                           VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="1" Grid.Column="1"
+                                             Margin="0,6,0,0"
+                                             TextAlignment="Right"
                                              Text="{Binding AvgLapTimeDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="2"
-                                               Margin="12,0,0,0"
+                                        <TextBlock Grid.Row="1" Grid.Column="2"
+                                               Margin="12,6,0,0"
                                                VerticalAlignment="Center"
                                                Text="{Binding DryLapTimeSampleCount, StringFormat=Sample: {0}}"/>
 
                                         <!-- Fuel burn label (only once) -->
-                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
                                            Text="Fuel Burn (L/lap):"
                                            Margin="0,6,10,0"
                                            VerticalAlignment="Center"/>
 
                                         <!-- ECO -->
-                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
                                            Margin="120,6,10,0"
                                            Text="ECO"
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
-                                        <TextBox Grid.Row="1" Grid.Column="1"
+                                        <TextBox Grid.Row="2" Grid.Column="1"
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
                                              Text="{Binding MinFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
                                         <!-- AVG -->
-                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
                                            Margin="120,0,10,0"
                                            Text="AVG"
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
-                                        <TextBox Grid.Row="2" Grid.Column="1"
+                                        <TextBox Grid.Row="3" Grid.Column="1"
                                              TextAlignment="Right"
                                              Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
                                         <!-- MAX -->
-                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                        <TextBlock Grid.Row="4" Grid.Column="0"
                                            Margin="120,0,10,0"
                                            Text="MAX"
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
-                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                        <TextBox Grid.Row="4" Grid.Column="1"
                                              TextAlignment="Right"
                                              Text="{Binding MaxFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
                                         <!-- Fuel sample / updated -->
-                                        <StackPanel Grid.Row="1" Grid.Column="2" Grid.RowSpan="3" Margin="12,6,0,0" VerticalAlignment="Top">
+                                        <StackPanel Grid.Row="2" Grid.Column="2" Grid.RowSpan="3" Margin="12,6,0,0" VerticalAlignment="Top">
                                             <TextBlock Text="{Binding DryFuelSampleCount, StringFormat=Sample: {0}}"/>
                                             <TextBlock Text="{Binding FuelLastUpdatedText, Mode=OneWay}"
                                                FontStyle="Italic"
@@ -416,7 +416,7 @@
                                         </StackPanel>
 
                                         <!-- Placeholder lock -->
-                                        <CheckBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3"
+                                        <CheckBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
                                           Content="Locked"
                                           IsChecked="{Binding DryConditionsLocked, Mode=TwoWay}"
                                           Margin="0,8,0,0"/>
@@ -429,6 +429,7 @@
                                     <Grid Margin="8,6,8,8" Grid.IsSharedSizeScope="True">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
                                             <!-- Avg lap -->
                                             <RowDefinition Height="Auto"/>
                                             <!-- Fuel ECO -->
@@ -446,58 +447,68 @@
                                             <ColumnDefinition Width="*" SharedSizeGroup="InfoColumn" MinWidth="220"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <!-- Avg lap time -->
+                                        <!-- Best lap time -->
                                         <TextBlock Grid.Row="0" Grid.Column="0"
-                                           Text="Avg Lap Time (m:ss.fff):"
+                                           Text="Best Lap Time (m:ss.fff):"
                                            Margin="0,0,10,0"
                                            VerticalAlignment="Center"/>
                                         <TextBox Grid.Row="0" Grid.Column="1"
                                              TextAlignment="Right"
+                                             Text="{Binding BestLapTimeWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                        <!-- Avg lap time -->
+                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                           Text="Avg Lap Time (m:ss.fff):"
+                                           Margin="0,6,10,0"
+                                           VerticalAlignment="Center"/>
+                                        <TextBox Grid.Row="1" Grid.Column="1"
+                                             Margin="0,6,0,0"
+                                             TextAlignment="Right"
                                              Text="{Binding AvgLapTimeWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="2"
-                                           Margin="12,0,0,0"
+                                        <TextBlock Grid.Row="1" Grid.Column="2"
+                                           Margin="12,6,0,0"
                                            VerticalAlignment="Center"
                                            Text="{Binding WetLapTimeSampleCount, StringFormat=Sample: {0}}"/>
 
                                         <!-- Fuel burn label (only once) -->
-                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
                                            Text="Fuel Burn (L/lap):"
                                            Margin="0,6,10,0"
                                            VerticalAlignment="Center"/>
 
                                         <!-- ECO -->
-                                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                        <TextBlock Grid.Row="2" Grid.Column="0"
                                            Margin="120,6,10,0"
                                            Text="ECO"
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
-                                        <TextBox Grid.Row="1" Grid.Column="1"
+                                        <TextBox Grid.Row="2" Grid.Column="1"
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
                                              Text="{Binding MinFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
                                         <!-- AVG -->
-                                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                        <TextBlock Grid.Row="3" Grid.Column="0"
                                            Margin="120,0,10,0"
                                            Text="AVG"
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
-                                        <TextBox Grid.Row="2" Grid.Column="1"
+                                        <TextBox Grid.Row="3" Grid.Column="1"
                                              TextAlignment="Right"
                                              Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
                                         <!-- MAX -->
-                                        <TextBlock Grid.Row="3" Grid.Column="0"
+                                        <TextBlock Grid.Row="4" Grid.Column="0"
                                            Margin="120,0,10,0"
                                            Text="MAX"
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center"/>
-                                        <TextBox Grid.Row="3" Grid.Column="1"
+                                        <TextBox Grid.Row="4" Grid.Column="1"
                                              TextAlignment="Right"
                                              Text="{Binding MaxFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
                                         <!-- Fuel sample / updated -->
-                                        <StackPanel Grid.Row="1" Grid.Column="2" Grid.RowSpan="3" Margin="12,6,0,0" VerticalAlignment="Top">
+                                        <StackPanel Grid.Row="2" Grid.Column="2" Grid.RowSpan="3" Margin="12,6,0,0" VerticalAlignment="Top">
                                             <TextBlock Text="{Binding WetFuelSampleCount, StringFormat=Sample: {0}}"/>
                                             <TextBlock Text="{Binding FuelLastUpdatedText, Mode=OneWay}"
                                                FontStyle="Italic"
@@ -506,7 +517,7 @@
                                         </StackPanel>
 
                                         <!-- Placeholder lock -->
-                                        <CheckBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="3"
+                                        <CheckBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
                                           Content="Locked"
                                           IsChecked="{Binding WetConditionsLocked, Mode=TwoWay}"
                                           Margin="0,8,0,0"/>
