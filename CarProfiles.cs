@@ -642,6 +642,92 @@ namespace LaunchPlugin
             FuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
         }
 
+        public void RelearnPitLoss()
+        {
+            PitLaneLossSeconds = null;
+            PitLaneLossSource = null;
+            PitLaneLossUpdatedUtc = null;
+            PitLaneLossBlockedCandidateSeconds = 0;
+            PitLaneLossBlockedCandidateSource = null;
+            PitLaneLossBlockedCandidateUpdatedUtc = null;
+        }
+
+        public void RelearnDryConditions()
+        {
+            _suppressBestLapDrySync = true;
+            BestLapMsDry = 0;
+            _suppressBestLapDrySync = false;
+            _bestLapMsDryText = string.Empty;
+            OnPropertyChanged(nameof(BestLapTimeDryText));
+
+            _suppressAvgLapDrySync = true;
+            AvgLapTimeDry = 0;
+            _suppressAvgLapDrySync = false;
+            _avgLapTimeDryText = string.Empty;
+            OnPropertyChanged(nameof(AvgLapTimeDryText));
+
+            _suppressDryMinFuelSync = true;
+            MinFuelPerLapDry = null;
+            _suppressDryMinFuelSync = false;
+            _minFuelPerLapDryText = string.Empty;
+            OnPropertyChanged(nameof(MinFuelPerLapDryText));
+
+            _suppressDryFuelSync = true;
+            AvgFuelPerLapDry = null;
+            _suppressDryFuelSync = false;
+            _avgFuelPerLapDryText = string.Empty;
+            OnPropertyChanged(nameof(AvgFuelPerLapDryText));
+
+            _suppressDryMaxFuelSync = true;
+            MaxFuelPerLapDry = null;
+            _suppressDryMaxFuelSync = false;
+            _maxFuelPerLapDryText = string.Empty;
+            OnPropertyChanged(nameof(MaxFuelPerLapDryText));
+
+            DryLapTimeSampleCount = 0;
+            DryFuelSampleCount = 0;
+            FuelUpdatedSource = null;
+            FuelUpdatedUtc = null;
+        }
+
+        public void RelearnWetConditions()
+        {
+            _suppressBestLapWetSync = true;
+            BestLapMsWet = 0;
+            _suppressBestLapWetSync = false;
+            _bestLapMsWetText = string.Empty;
+            OnPropertyChanged(nameof(BestLapTimeWetText));
+
+            _suppressAvgLapWetSync = true;
+            AvgLapTimeWet = 0;
+            _suppressAvgLapWetSync = false;
+            _avgLapTimeWetText = string.Empty;
+            OnPropertyChanged(nameof(AvgLapTimeWetText));
+
+            _suppressWetMinFuelSync = true;
+            MinFuelPerLapWet = null;
+            _suppressWetMinFuelSync = false;
+            _minFuelPerLapWetText = string.Empty;
+            OnPropertyChanged(nameof(MinFuelPerLapWetText));
+
+            _suppressWetFuelSync = true;
+            AvgFuelPerLapWet = null;
+            _suppressWetFuelSync = false;
+            _avgFuelPerLapWetText = string.Empty;
+            OnPropertyChanged(nameof(AvgFuelPerLapWetText));
+
+            _suppressWetMaxFuelSync = true;
+            MaxFuelPerLapWet = null;
+            _suppressWetMaxFuelSync = false;
+            _maxFuelPerLapWetText = string.Empty;
+            OnPropertyChanged(nameof(MaxFuelPerLapWetText));
+
+            WetLapTimeSampleCount = 0;
+            WetFuelSampleCount = 0;
+            FuelUpdatedSource = null;
+            FuelUpdatedUtc = null;
+        }
+
 
         /// --- Dry Conditions Data ---
         private double? _avgFuelPerLapDry;

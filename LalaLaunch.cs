@@ -179,6 +179,12 @@ namespace LaunchPlugin
             ProfilesViewModel?.RefreshTrackMarkersSnapshotForSelectedTrack();
         }
 
+        public void ResetTrackMarkersForKey(string trackKey)
+        {
+            if (string.IsNullOrWhiteSpace(trackKey)) return;
+            _pit?.ResetTrackMarkersForKey(trackKey);
+        }
+
         private bool IsTrackMarkerPulseActive(DateTime utcTimestamp)
         {
             return utcTimestamp != DateTime.MinValue &&
@@ -2741,7 +2747,8 @@ namespace LaunchPlugin
                 () => this.CurrentTrackKey,
                 (trackKey) => GetTrackMarkersSnapshot(trackKey),
                 (trackKey, locked) => SetTrackMarkersLockedForKey(trackKey, locked),
-                () => ReloadTrackMarkersFromDisk()
+                () => ReloadTrackMarkersFromDisk(),
+                (trackKey) => ResetTrackMarkersForKey(trackKey)
             );
 
 
