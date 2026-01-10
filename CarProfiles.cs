@@ -234,6 +234,12 @@ namespace LaunchPlugin
         private int? _bestLapMs;
         private string _bestLapMsText;
         private bool _suppressBestLapSync = false;
+        private int? _bestLapMsDry;
+        private string _bestLapMsDryText;
+        private bool _suppressBestLapDrySync = false;
+        private int? _bestLapMsWet;
+        private string _bestLapMsWetText;
+        private bool _suppressBestLapWetSync = false;
 
         [JsonProperty]
         public int? BestLapMs
@@ -261,6 +267,7 @@ namespace LaunchPlugin
                     {
                         BestLapMsText = MillisecondsToLapTimeString(_bestLapMs);
                     }
+                    OnPropertyChanged(nameof(BestLapTimeDryText));
                 }
             }
         }
@@ -280,6 +287,122 @@ namespace LaunchPlugin
                     _suppressBestLapSync = false;
                 }
             }
+        }
+
+        [JsonProperty]
+        public int? BestLapMsDry
+        {
+            get => _bestLapMsDry;
+            set
+            {
+                if (_bestLapMsDry != value)
+                {
+                    var old = _bestLapMsDry;
+                    _bestLapMsDry = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(BestLapTimeDryText));
+
+                    try
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"[LalaPlugin:Profile/Pace] PB Dry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsDry)}'"
+                        );
+                    }
+                    catch { }
+
+                    if (!_suppressBestLapDrySync)
+                    {
+                        BestLapTimeDryText = MillisecondsToLapTimeString(_bestLapMsDry);
+                    }
+                }
+            }
+        }
+
+        public string BestLapTimeDryText
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(_bestLapMsDryText)
+                    && (!BestLapMsDry.HasValue || BestLapMsDry.Value <= 0)
+                    && BestLapMs.HasValue && BestLapMs.Value > 0)
+                {
+                    return MillisecondsToLapTimeString(BestLapMs);
+                }
+                return _bestLapMsDryText;
+            }
+            set
+            {
+                if (_bestLapMsDryText != value)
+                {
+                    _bestLapMsDryText = value;
+                    OnPropertyChanged();
+                    _suppressBestLapDrySync = true;
+                    BestLapMsDry = LapTimeStringToMilliseconds(value);
+                    _suppressBestLapDrySync = false;
+                }
+            }
+        }
+
+        [JsonProperty]
+        public int? BestLapMsWet
+        {
+            get => _bestLapMsWet;
+            set
+            {
+                if (_bestLapMsWet != value)
+                {
+                    var old = _bestLapMsWet;
+                    _bestLapMsWet = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(BestLapTimeWetText));
+
+                    try
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"[LalaPlugin:Profile/Pace] PB Wet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsWet)}'"
+                        );
+                    }
+                    catch { }
+
+                    if (!_suppressBestLapWetSync)
+                    {
+                        BestLapTimeWetText = MillisecondsToLapTimeString(_bestLapMsWet);
+                    }
+                }
+            }
+        }
+
+        public string BestLapTimeWetText
+        {
+            get => _bestLapMsWetText;
+            set
+            {
+                if (_bestLapMsWetText != value)
+                {
+                    _bestLapMsWetText = value;
+                    OnPropertyChanged();
+                    _suppressBestLapWetSync = true;
+                    BestLapMsWet = LapTimeStringToMilliseconds(value);
+                    _suppressBestLapWetSync = false;
+                }
+            }
+        }
+
+        public int? GetBestLapMsForCondition(bool isWetEffective)
+        {
+            if (isWetEffective)
+            {
+                if (BestLapMsWet.HasValue && BestLapMsWet.Value > 0) return BestLapMsWet;
+                if (BestLapMsDry.HasValue && BestLapMsDry.Value > 0) return BestLapMsDry;
+                if (BestLapMs.HasValue && BestLapMs.Value > 0) return BestLapMs;
+                return null;
+            }
+
+            if (BestLapMsDry.HasValue && BestLapMsDry.Value > 0) return BestLapMsDry;
+            if (BestLapMs.HasValue && BestLapMs.Value > 0) return BestLapMs;
+            return null;
         }
         private double? _pitLaneLossSeconds;
         [JsonProperty] public double? PitLaneLossSeconds { get => _pitLaneLossSeconds; set { if (_pitLaneLossSeconds != value) { _pitLaneLossSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PitLaneLossSecondsText)); } } }

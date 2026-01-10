@@ -3974,18 +3974,24 @@ namespace LaunchPlugin
                 UpdateLiveFuelCalcs(data, pluginManager);
 
                 var currentBestLap = data.NewData?.BestLapTime ?? TimeSpan.Zero;
+                bool isWetEffective = FuelCalculator?.IsWet ?? false;
                 if (currentBestLap > TimeSpan.Zero && currentBestLap != _lastSeenBestLap)
                 {
                     _lastSeenBestLap = currentBestLap;
-                    FuelCalculator?.SetPersonalBestSeconds(currentBestLap.TotalSeconds);
 
                     int lapMs = (int)currentBestLap.TotalMilliseconds;
-                    bool accepted = ProfilesViewModel.TryUpdatePB(CurrentCarModel, CurrentTrackKey, lapMs);
+                    bool accepted = ProfilesViewModel.TryUpdatePBByCondition(CurrentCarModel, CurrentTrackKey, lapMs, isWetEffective);
                     string pbLog = $"[LalaPlugin:Pace] candidate={lapMs}ms car='{CurrentCarModel}' trackKey='{CurrentTrackKey}' -> {(accepted ? "accepted" : "rejected")}";
                     if (accepted)
                         SimHub.Logging.Current.Info(pbLog);
                     else
                         SimHub.Logging.Current.Debug(pbLog);
+
+                    var activeTrackStats = ActiveProfile?.ResolveTrackByNameOrKey(CurrentTrackKey)
+                        ?? ActiveProfile?.ResolveTrackByNameOrKey(CurrentTrackName);
+                    int? selectedPbMs = activeTrackStats?.GetBestLapMsForCondition(isWetEffective);
+                    double selectedPbSeconds = selectedPbMs.HasValue ? selectedPbMs.Value / 1000.0 : 0.0;
+                    FuelCalculator?.SetPersonalBestSeconds(selectedPbSeconds);
                 }
 
                 // =========================================================================
