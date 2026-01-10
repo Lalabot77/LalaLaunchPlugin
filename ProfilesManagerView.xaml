@@ -389,14 +389,22 @@
                                                Text="{Binding TrackMarkersLastUpdatedText}"
                                                VerticalAlignment="Center"/>
 
-                                            <styles:SHButtonPrimary
+                                            <StackPanel
                                                 Grid.Row="3"
                                                 Grid.Column="0"
-                                                Content="Reload markers"
-                                                Command="{Binding ReloadTrackMarkersCommand}"
-                                                Margin="0,10,10,0"
-                                                HorizontalAlignment="Left"
-                                                ToolTip="Reload LalaLaunch.TrackMarkers.json from disk (for manual edits)."/>
+                                                Grid.ColumnSpan="3"
+                                                Orientation="Horizontal"
+                                                Margin="0,10,0,0"
+                                                HorizontalAlignment="Left">
+                                                <styles:SHButtonPrimary
+                                                    Content="Reload markers"
+                                                    Command="{Binding ReloadTrackMarkersCommand}"
+                                                    Margin="0,0,10,0"
+                                                    ToolTip="Reload LalaLaunch.TrackMarkers.json from disk (for manual edits)."/>
+                                                <styles:SHButtonPrimary
+                                                    Content="Relearn"
+                                                    Command="{Binding RelearnPitDataCommand}"/>
+                                            </StackPanel>
 
 
                                         </Grid>
@@ -507,10 +515,18 @@
                                         </StackPanel>
 
                                         <!-- Placeholder lock -->
-                                        <CheckBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
-                                          Content="Locked"
-                                          IsChecked="{Binding DryConditionsLocked, Mode=TwoWay}"
-                                          Margin="0,8,0,0"/>
+                                        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
+                                            Orientation="Horizontal"
+                                            Margin="0,8,0,0"
+                                            HorizontalAlignment="Left">
+                                            <CheckBox
+                                                Content="Locked"
+                                                IsChecked="{Binding DryConditionsLocked, Mode=TwoWay}"/>
+                                            <styles:SHButtonPrimary
+                                                Content="Relearn"
+                                                Command="{Binding DataContext.RelearnDryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Margin="10,0,0,0"/>
+                                        </StackPanel>
                                     </Grid>
                                 </GroupBox>
 
@@ -618,10 +634,18 @@
                                         </StackPanel>
 
                                         <!-- Placeholder lock -->
-                                        <CheckBox Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
-                                          Content="Locked"
-                                          IsChecked="{Binding WetConditionsLocked, Mode=TwoWay}"
-                                          Margin="0,8,0,0"/>
+                                        <StackPanel Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3"
+                                            Orientation="Horizontal"
+                                            Margin="0,8,0,0"
+                                            HorizontalAlignment="Left">
+                                            <CheckBox
+                                                Content="Locked"
+                                                IsChecked="{Binding WetConditionsLocked, Mode=TwoWay}"/>
+                                            <styles:SHButtonPrimary
+                                                Content="Relearn"
+                                                Command="{Binding DataContext.RelearnWetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Margin="10,0,0,0"/>
+                                        </StackPanel>
                                     </Grid>
                                 </GroupBox>
 
