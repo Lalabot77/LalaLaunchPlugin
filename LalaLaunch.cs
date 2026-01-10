@@ -3927,6 +3927,7 @@ namespace LaunchPlugin
                     _pitDbg_CandidateSavedSec = lossSec;
                     _pitDbg_CandidateSource = (src ?? "direct").ToLowerInvariant();
 
+                    // PitStopIndex is 1-based: increment once per completed pit cycle (first stop => 1).
                     _summaryPitStopIndex++;
 
                     Pit_OnValidPitStopTimeLossCalculated(lossSec, src);
