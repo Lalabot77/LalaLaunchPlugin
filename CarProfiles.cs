@@ -313,7 +313,9 @@ namespace LaunchPlugin
 
                     if (!_suppressBestLapDrySync)
                     {
+                        _suppressBestLapDrySync = true;
                         BestLapTimeDryText = MillisecondsToLapTimeString(_bestLapMsDry);
+                        _suppressBestLapDrySync = false;
                     }
                 }
             }
@@ -337,8 +339,13 @@ namespace LaunchPlugin
                 {
                     _bestLapMsDryText = value;
                     OnPropertyChanged();
+                    var parsed = LapTimeStringToMilliseconds(value);
+                    if (!_suppressBestLapDrySync && parsed.HasValue && BestLapMsDry != parsed)
+                    {
+                        MarkBestLapUpdatedDry("Manual");
+                    }
                     _suppressBestLapDrySync = true;
-                    BestLapMsDry = LapTimeStringToMilliseconds(value);
+                    BestLapMsDry = parsed;
                     _suppressBestLapDrySync = false;
                 }
             }
@@ -368,7 +375,9 @@ namespace LaunchPlugin
 
                     if (!_suppressBestLapWetSync)
                     {
+                        _suppressBestLapWetSync = true;
                         BestLapTimeWetText = MillisecondsToLapTimeString(_bestLapMsWet);
+                        _suppressBestLapWetSync = false;
                     }
                 }
             }
@@ -383,8 +392,13 @@ namespace LaunchPlugin
                 {
                     _bestLapMsWetText = value;
                     OnPropertyChanged();
+                    var parsed = LapTimeStringToMilliseconds(value);
+                    if (!_suppressBestLapWetSync && parsed.HasValue && BestLapMsWet != parsed)
+                    {
+                        MarkBestLapUpdatedWet("Manual");
+                    }
                     _suppressBestLapWetSync = true;
-                    BestLapMsWet = LapTimeStringToMilliseconds(value);
+                    BestLapMsWet = parsed;
                     _suppressBestLapWetSync = false;
                 }
             }
@@ -691,16 +705,160 @@ namespace LaunchPlugin
             }
         }
 
+        private string _dryBestLapUpdatedSource;
+        [JsonProperty]
+        public string DryBestLapUpdatedSource
+        {
+            get => _dryBestLapUpdatedSource;
+            set
+            {
+                if (_dryBestLapUpdatedSource != value)
+                {
+                    _dryBestLapUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryBestLapLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _dryBestLapUpdatedUtc;
+        [JsonProperty]
+        public DateTime? DryBestLapUpdatedUtc
+        {
+            get => _dryBestLapUpdatedUtc;
+            set
+            {
+                if (_dryBestLapUpdatedUtc != value)
+                {
+                    _dryBestLapUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryBestLapLastUpdatedText));
+                }
+            }
+        }
+
+        private string _wetBestLapUpdatedSource;
+        [JsonProperty]
+        public string WetBestLapUpdatedSource
+        {
+            get => _wetBestLapUpdatedSource;
+            set
+            {
+                if (_wetBestLapUpdatedSource != value)
+                {
+                    _wetBestLapUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetBestLapLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _wetBestLapUpdatedUtc;
+        [JsonProperty]
+        public DateTime? WetBestLapUpdatedUtc
+        {
+            get => _wetBestLapUpdatedUtc;
+            set
+            {
+                if (_wetBestLapUpdatedUtc != value)
+                {
+                    _wetBestLapUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetBestLapLastUpdatedText));
+                }
+            }
+        }
+
+        private string _dryAvgLapUpdatedSource;
+        [JsonProperty]
+        public string DryAvgLapUpdatedSource
+        {
+            get => _dryAvgLapUpdatedSource;
+            set
+            {
+                if (_dryAvgLapUpdatedSource != value)
+                {
+                    _dryAvgLapUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryAvgLapLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _dryAvgLapUpdatedUtc;
+        [JsonProperty]
+        public DateTime? DryAvgLapUpdatedUtc
+        {
+            get => _dryAvgLapUpdatedUtc;
+            set
+            {
+                if (_dryAvgLapUpdatedUtc != value)
+                {
+                    _dryAvgLapUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryAvgLapLastUpdatedText));
+                }
+            }
+        }
+
+        private string _wetAvgLapUpdatedSource;
+        [JsonProperty]
+        public string WetAvgLapUpdatedSource
+        {
+            get => _wetAvgLapUpdatedSource;
+            set
+            {
+                if (_wetAvgLapUpdatedSource != value)
+                {
+                    _wetAvgLapUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetAvgLapLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _wetAvgLapUpdatedUtc;
+        [JsonProperty]
+        public DateTime? WetAvgLapUpdatedUtc
+        {
+            get => _wetAvgLapUpdatedUtc;
+            set
+            {
+                if (_wetAvgLapUpdatedUtc != value)
+                {
+                    _wetAvgLapUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetAvgLapLastUpdatedText));
+                }
+            }
+        }
+
+        private static string NormalizeUpdateSource(string source)
+        {
+            if (string.IsNullOrWhiteSpace(source)) return string.Empty;
+            var trimmed = source.Trim();
+            if (string.Equals(trimmed, "Manual fuel edit", StringComparison.OrdinalIgnoreCase)) return "Manual";
+            if (string.Equals(trimmed, "Telemetry fuel", StringComparison.OrdinalIgnoreCase)) return "Telemetry";
+            if (string.Equals(trimmed, "manual", StringComparison.OrdinalIgnoreCase)) return "Manual";
+            if (string.Equals(trimmed, "telemetry", StringComparison.OrdinalIgnoreCase)) return "Telemetry";
+            return trimmed;
+        }
+
+        private string FormatUpdatedText(DateTime? updatedUtc, string source, bool requireSource)
+        {
+            if (!updatedUtc.HasValue) return string.Empty;
+            var normalized = NormalizeUpdateSource(source);
+            if (requireSource && string.IsNullOrWhiteSpace(normalized)) return string.Empty;
+            var label = string.IsNullOrWhiteSpace(normalized) ? "Last updated" : normalized;
+            return $"{label} {updatedUtc.Value:yyyy-MM-dd HH:mm}";
+        }
+
         [JsonIgnore]
         public string FuelLastUpdatedText
         {
             get
             {
-                if (!_fuelUpdatedUtc.HasValue) return string.Empty;
-                var sourceLabel = string.IsNullOrWhiteSpace(_fuelUpdatedSource)
-                    ? "Last updated"
-                    : _fuelUpdatedSource;
-                return $"{sourceLabel}: {_fuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
             }
         }
 
@@ -711,17 +869,10 @@ namespace LaunchPlugin
             {
                 if (_dryFuelUpdatedUtc.HasValue)
                 {
-                    var sourceLabel = string.IsNullOrWhiteSpace(_dryFuelUpdatedSource)
-                        ? "Last updated"
-                        : _dryFuelUpdatedSource;
-                    return $"{sourceLabel}: {_dryFuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+                    return FormatUpdatedText(_dryFuelUpdatedUtc, _dryFuelUpdatedSource, requireSource: false);
                 }
 
-                if (!_fuelUpdatedUtc.HasValue) return string.Empty;
-                var legacySourceLabel = string.IsNullOrWhiteSpace(_fuelUpdatedSource)
-                    ? "Last updated"
-                    : _fuelUpdatedSource;
-                return $"{legacySourceLabel}: {_fuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
             }
         }
 
@@ -732,19 +883,24 @@ namespace LaunchPlugin
             {
                 if (_wetFuelUpdatedUtc.HasValue)
                 {
-                    var sourceLabel = string.IsNullOrWhiteSpace(_wetFuelUpdatedSource)
-                        ? "Last updated"
-                        : _wetFuelUpdatedSource;
-                    return $"{sourceLabel}: {_wetFuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+                    return FormatUpdatedText(_wetFuelUpdatedUtc, _wetFuelUpdatedSource, requireSource: false);
                 }
 
-                if (!_fuelUpdatedUtc.HasValue) return string.Empty;
-                var legacySourceLabel = string.IsNullOrWhiteSpace(_fuelUpdatedSource)
-                    ? "Last updated"
-                    : _fuelUpdatedSource;
-                return $"{legacySourceLabel}: {_fuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
             }
         }
+
+        [JsonIgnore]
+        public string DryBestLapLastUpdatedText => FormatUpdatedText(_dryBestLapUpdatedUtc, _dryBestLapUpdatedSource, requireSource: true);
+
+        [JsonIgnore]
+        public string WetBestLapLastUpdatedText => FormatUpdatedText(_wetBestLapUpdatedUtc, _wetBestLapUpdatedSource, requireSource: true);
+
+        [JsonIgnore]
+        public string DryAvgLapLastUpdatedText => FormatUpdatedText(_dryAvgLapUpdatedUtc, _dryAvgLapUpdatedSource, requireSource: true);
+
+        [JsonIgnore]
+        public string WetAvgLapLastUpdatedText => FormatUpdatedText(_wetAvgLapUpdatedUtc, _wetAvgLapUpdatedSource, requireSource: true);
 
         public void MarkFuelUpdated(string source, DateTime? whenUtc = null)
         {
@@ -762,6 +918,30 @@ namespace LaunchPlugin
         {
             WetFuelUpdatedSource = source;
             WetFuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkBestLapUpdatedDry(string source, DateTime? whenUtc = null)
+        {
+            DryBestLapUpdatedSource = source;
+            DryBestLapUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkBestLapUpdatedWet(string source, DateTime? whenUtc = null)
+        {
+            WetBestLapUpdatedSource = source;
+            WetBestLapUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkAvgLapUpdatedDry(string source, DateTime? whenUtc = null)
+        {
+            DryAvgLapUpdatedSource = source;
+            DryAvgLapUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkAvgLapUpdatedWet(string source, DateTime? whenUtc = null)
+        {
+            WetAvgLapUpdatedSource = source;
+            WetAvgLapUpdatedUtc = whenUtc ?? DateTime.UtcNow;
         }
 
         public void RelearnPitLoss()
@@ -810,6 +990,10 @@ namespace LaunchPlugin
             DryFuelSampleCount = 0;
             DryFuelUpdatedSource = null;
             DryFuelUpdatedUtc = null;
+            DryBestLapUpdatedSource = null;
+            DryBestLapUpdatedUtc = null;
+            DryAvgLapUpdatedSource = null;
+            DryAvgLapUpdatedUtc = null;
         }
 
         public void RelearnWetConditions()
@@ -848,6 +1032,10 @@ namespace LaunchPlugin
             WetFuelSampleCount = 0;
             WetFuelUpdatedSource = null;
             WetFuelUpdatedUtc = null;
+            WetBestLapUpdatedSource = null;
+            WetBestLapUpdatedUtc = null;
+            WetAvgLapUpdatedSource = null;
+            WetAvgLapUpdatedUtc = null;
         }
 
 
@@ -899,7 +1087,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressDryFuelSync)
                         {
-                            MarkFuelUpdatedDry("Manual fuel edit");
+                            MarkFuelUpdatedDry("Manual");
                         }
                         _suppressDryFuelSync = true;
                         AvgFuelPerLapDry = parsedValue;
@@ -943,7 +1131,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressDryMinFuelSync)
                         {
-                            MarkFuelUpdatedDry("Manual fuel edit");
+                            MarkFuelUpdatedDry("Manual");
                         }
                         _suppressDryMinFuelSync = true;
                         MinFuelPerLapDry = parsedValue;
@@ -987,7 +1175,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressDryMaxFuelSync)
                         {
-                            MarkFuelUpdatedDry("Manual fuel edit");
+                            MarkFuelUpdatedDry("Manual");
                         }
                         _suppressDryMaxFuelSync = true;
                         MaxFuelPerLapDry = parsedValue;
@@ -1028,7 +1216,9 @@ namespace LaunchPlugin
 
                     if (!_suppressAvgLapDrySync)
                     {
+                        _suppressAvgLapDrySync = true;
                         AvgLapTimeDryText = MillisecondsToLapTimeString(_avgLapTimeDry);
+                        _suppressAvgLapDrySync = false;
                     }
                 }
             }
@@ -1044,8 +1234,13 @@ namespace LaunchPlugin
                 {
                     _avgLapTimeDryText = value;
                     OnPropertyChanged();
+                    var parsed = LapTimeStringToMilliseconds(value);
+                    if (!_suppressAvgLapDrySync && parsed.HasValue && AvgLapTimeDry != parsed)
+                    {
+                        MarkAvgLapUpdatedDry("Manual");
+                    }
                     _suppressAvgLapDrySync = true;
-                    AvgLapTimeDry = LapTimeStringToMilliseconds(value);
+                    AvgLapTimeDry = parsed;
                     _suppressAvgLapDrySync = false;
                 }
             }
@@ -1105,7 +1300,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressWetFuelSync)
                         {
-                            MarkFuelUpdatedWet("Manual fuel edit");
+                            MarkFuelUpdatedWet("Manual");
                         }
                         _suppressWetFuelSync = true;
                         AvgFuelPerLapWet = parsedValue;
@@ -1149,7 +1344,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressWetMinFuelSync)
                         {
-                            MarkFuelUpdatedWet("Manual fuel edit");
+                            MarkFuelUpdatedWet("Manual");
                         }
                         _suppressWetMinFuelSync = true;
                         MinFuelPerLapWet = parsedValue;
@@ -1193,7 +1388,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressWetMaxFuelSync)
                         {
-                            MarkFuelUpdatedWet("Manual fuel edit");
+                            MarkFuelUpdatedWet("Manual");
                         }
                         _suppressWetMaxFuelSync = true;
                         MaxFuelPerLapWet = parsedValue;
@@ -1234,7 +1429,9 @@ namespace LaunchPlugin
 
                     if (!_suppressAvgLapWetSync)
                     {
+                        _suppressAvgLapWetSync = true;
                         AvgLapTimeWetText = MillisecondsToLapTimeString(_avgLapTimeWet);
+                        _suppressAvgLapWetSync = false;
                     }
                 }
             }
@@ -1250,8 +1447,13 @@ namespace LaunchPlugin
                 {
                     _avgLapTimeWetText = value;
                     OnPropertyChanged();
+                    var parsed = LapTimeStringToMilliseconds(value);
+                    if (!_suppressAvgLapWetSync && parsed.HasValue && AvgLapTimeWet != parsed)
+                    {
+                        MarkAvgLapUpdatedWet("Manual");
+                    }
                     _suppressAvgLapWetSync = true;
-                    AvgLapTimeWet = LapTimeStringToMilliseconds(value);
+                    AvgLapTimeWet = parsed;
                     _suppressAvgLapWetSync = false;
                 }
             }

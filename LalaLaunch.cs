@@ -1899,7 +1899,7 @@ namespace LaunchPlugin
                                         if (_minWetFuelPerLap > 0) trackRecord.MinFuelPerLapWet = _minWetFuelPerLap;
                                         if (_avgWetFuelPerLap > 0) trackRecord.AvgFuelPerLapWet = _avgWetFuelPerLap;
                                         if (_maxWetFuelPerLap > 0) trackRecord.MaxFuelPerLapWet = _maxWetFuelPerLap;
-                                        trackRecord.MarkFuelUpdatedWet("Telemetry fuel");
+                                        trackRecord.MarkFuelUpdatedWet("Telemetry");
                                     }
                                 }
                                 else
@@ -1911,7 +1911,7 @@ namespace LaunchPlugin
                                         if (_minDryFuelPerLap > 0) trackRecord.MinFuelPerLapDry = _minDryFuelPerLap;
                                         if (_avgDryFuelPerLap > 0) trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
                                         if (_maxDryFuelPerLap > 0) trackRecord.MaxFuelPerLapDry = _maxDryFuelPerLap;
-                                        trackRecord.MarkFuelUpdatedDry("Telemetry fuel");
+                                        trackRecord.MarkFuelUpdatedDry("Telemetry");
                                     }
                                 }
 
@@ -1937,6 +1937,7 @@ namespace LaunchPlugin
                                             if (!trackRecord.WetConditionsLocked)
                                             {
                                                 trackRecord.AvgLapTimeWet = ms;
+                                                trackRecord.MarkAvgLapUpdatedWet("Telemetry");
                                                 persistedAvgLap = true;
                                                 persistedMs = ms;
                                             }
@@ -1946,6 +1947,7 @@ namespace LaunchPlugin
                                             if (!trackRecord.DryConditionsLocked)
                                             {
                                                 trackRecord.AvgLapTimeDry = ms;
+                                                trackRecord.MarkAvgLapUpdatedDry("Telemetry");
                                                 persistedAvgLap = true;
                                                 persistedMs = ms;
                                             }
