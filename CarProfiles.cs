@@ -877,7 +877,9 @@ namespace LaunchPlugin
                     NotifyWetVsDryDeltasChanged();
                     if (!_suppressDryFuelSync)
                     {
+                        _suppressDryFuelSync = true;
                         AvgFuelPerLapDryText = _avgFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressDryFuelSync = false;
                     }
                 }
             }
@@ -919,7 +921,9 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressDryMinFuelSync)
                     {
+                        _suppressDryMinFuelSync = true;
                         MinFuelPerLapDryText = _minFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressDryMinFuelSync = false;
                     }
                 }
             }
@@ -961,7 +965,9 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressDryMaxFuelSync)
                     {
+                        _suppressDryMaxFuelSync = true;
                         MaxFuelPerLapDryText = _maxFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressDryMaxFuelSync = false;
                     }
                 }
             }
@@ -1077,7 +1083,9 @@ namespace LaunchPlugin
                     NotifyWetVsDryDeltasChanged();
                     if (!_suppressWetFuelSync)
                     {
+                        _suppressWetFuelSync = true;
                         AvgFuelPerLapWetText = _avgFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressWetFuelSync = false;
                     }
                 }
             }
@@ -1119,7 +1127,9 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressWetMinFuelSync)
                     {
+                        _suppressWetMinFuelSync = true;
                         MinFuelPerLapWetText = _minFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressWetMinFuelSync = false;
                     }
                 }
             }
@@ -1161,7 +1171,9 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressWetMaxFuelSync)
                     {
+                        _suppressWetMaxFuelSync = true;
                         MaxFuelPerLapWetText = _maxFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressWetMaxFuelSync = false;
                     }
                 }
             }
