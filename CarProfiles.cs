@@ -186,6 +186,7 @@ namespace LaunchPlugin
             }
         }
     }
+    [JsonObject(MemberSerialization.OptIn)]
     public class TrackStats : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
@@ -231,63 +232,12 @@ namespace LaunchPlugin
         private string _key;
         [JsonProperty] public string Key { get => _key; set { if (_key != value) { _key = value; OnPropertyChanged(); } } }
 
-        private int? _bestLapMs;
-        private string _bestLapMsText;
-        private bool _suppressBestLapSync = false;
         private int? _bestLapMsDry;
         private string _bestLapMsDryText;
         private bool _suppressBestLapDrySync = false;
         private int? _bestLapMsWet;
         private string _bestLapMsWetText;
         private bool _suppressBestLapWetSync = false;
-
-        [JsonProperty]
-        public int? BestLapMs
-        {
-            get => _bestLapMs;
-            set
-            {
-                if (_bestLapMs != value)
-                {
-                    var old = _bestLapMs;
-                    _bestLapMs = value;
-                    OnPropertyChanged();
-
-                    // LOG: PB changed (covers live PB and manual text edits)
-                    try
-                    {
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Profile/Pace] PB updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMs)}'"
-                        );
-                    }
-                    catch { /* logging must never throw */ }
-
-                    if (!_suppressBestLapSync)
-                    {
-                        BestLapMsText = MillisecondsToLapTimeString(_bestLapMs);
-                    }
-                    OnPropertyChanged(nameof(BestLapTimeDryText));
-                }
-            }
-        }
-
-
-        public string BestLapMsText
-        {
-            get => _bestLapMsText;
-            set
-            {
-                if (_bestLapMsText != value)
-                {
-                    _bestLapMsText = value;
-                    OnPropertyChanged();
-                    _suppressBestLapSync = true;
-                    BestLapMs = LapTimeStringToMilliseconds(value);
-                    _suppressBestLapSync = false;
-                }
-            }
-        }
 
         [JsonProperty]
         public int? BestLapMsDry
@@ -325,12 +275,6 @@ namespace LaunchPlugin
         {
             get
             {
-                if (string.IsNullOrWhiteSpace(_bestLapMsDryText)
-                    && (!BestLapMsDry.HasValue || BestLapMsDry.Value <= 0)
-                    && BestLapMs.HasValue && BestLapMs.Value > 0)
-                {
-                    return MillisecondsToLapTimeString(BestLapMs);
-                }
                 return _bestLapMsDryText;
             }
             set
@@ -410,12 +354,10 @@ namespace LaunchPlugin
             {
                 if (BestLapMsWet.HasValue && BestLapMsWet.Value > 0) return BestLapMsWet;
                 if (BestLapMsDry.HasValue && BestLapMsDry.Value > 0) return BestLapMsDry;
-                if (BestLapMs.HasValue && BestLapMs.Value > 0) return BestLapMs;
                 return null;
             }
 
             if (BestLapMsDry.HasValue && BestLapMsDry.Value > 0) return BestLapMsDry;
-            if (BestLapMs.HasValue && BestLapMs.Value > 0) return BestLapMs;
             return null;
         }
         private double? _pitLaneLossSeconds;
@@ -603,42 +545,6 @@ namespace LaunchPlugin
         {
             get => _pitLaneLossUpdatedUtc;
             set { if (_pitLaneLossUpdatedUtc != value) { _pitLaneLossUpdatedUtc = value; OnPropertyChanged(); } }
-        }
-
-        private string _fuelUpdatedSource;
-        [JsonProperty]
-        public string FuelUpdatedSource
-        {
-            get => _fuelUpdatedSource;
-            set
-            {
-                if (_fuelUpdatedSource != value)
-                {
-                    _fuelUpdatedSource = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(FuelLastUpdatedText));
-                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
-                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
-                }
-            }
-        }
-
-        private DateTime? _fuelUpdatedUtc;
-        [JsonProperty]
-        public DateTime? FuelUpdatedUtc
-        {
-            get => _fuelUpdatedUtc;
-            set
-            {
-                if (_fuelUpdatedUtc != value)
-                {
-                    _fuelUpdatedUtc = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(FuelLastUpdatedText));
-                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
-                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
-                }
-            }
         }
 
         private string _dryFuelUpdatedSource;
@@ -858,7 +764,7 @@ namespace LaunchPlugin
         {
             get
             {
-                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
+                return string.Empty;
             }
         }
 
@@ -867,12 +773,7 @@ namespace LaunchPlugin
         {
             get
             {
-                if (_dryFuelUpdatedUtc.HasValue)
-                {
-                    return FormatUpdatedText(_dryFuelUpdatedUtc, _dryFuelUpdatedSource, requireSource: false);
-                }
-
-                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
+                return FormatUpdatedText(_dryFuelUpdatedUtc, _dryFuelUpdatedSource, requireSource: false);
             }
         }
 
@@ -881,12 +782,7 @@ namespace LaunchPlugin
         {
             get
             {
-                if (_wetFuelUpdatedUtc.HasValue)
-                {
-                    return FormatUpdatedText(_wetFuelUpdatedUtc, _wetFuelUpdatedSource, requireSource: false);
-                }
-
-                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
+                return FormatUpdatedText(_wetFuelUpdatedUtc, _wetFuelUpdatedSource, requireSource: false);
             }
         }
 
@@ -901,12 +797,6 @@ namespace LaunchPlugin
 
         [JsonIgnore]
         public string WetAvgLapLastUpdatedText => FormatUpdatedText(_wetAvgLapUpdatedUtc, _wetAvgLapUpdatedSource, requireSource: true);
-
-        public void MarkFuelUpdated(string source, DateTime? whenUtc = null)
-        {
-            FuelUpdatedSource = source;
-            FuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
-        }
 
         public void MarkFuelUpdatedDry(string source, DateTime? whenUtc = null)
         {
@@ -1249,7 +1139,7 @@ namespace LaunchPlugin
         [JsonProperty] public int? DryLapTimeSampleCount { get => _dryLapTimeSampleCount; set { if (_dryLapTimeSampleCount != value) { _dryLapTimeSampleCount = value; OnPropertyChanged(); } } }
 
         private double? _avgDryTrackTemp;
-        [JsonProperty] public double? AvgDryTrackTemp { get => _avgDryTrackTemp; set { if (_avgDryTrackTemp != value) { _avgDryTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgDryTrackTempText)); } } }
+        public double? AvgDryTrackTemp { get => _avgDryTrackTemp; set { if (_avgDryTrackTemp != value) { _avgDryTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgDryTrackTempText)); } } }
         public string AvgDryTrackTempText { get => _avgDryTrackTemp?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => AvgDryTrackTemp = StringToNullableDouble(value); }
 
         // --- Wet Conditions Data ---
@@ -1462,7 +1352,7 @@ namespace LaunchPlugin
         [JsonProperty] public int? WetLapTimeSampleCount { get => _wetLapTimeSampleCount; set { if (_wetLapTimeSampleCount != value) { _wetLapTimeSampleCount = value; OnPropertyChanged(); } } }
 
         private double? _avgWetTrackTemp;
-        [JsonProperty] public double? AvgWetTrackTemp { get => _avgWetTrackTemp; set { if (_avgWetTrackTemp != value) { _avgWetTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgWetTrackTempText)); } } }
+        public double? AvgWetTrackTemp { get => _avgWetTrackTemp; set { if (_avgWetTrackTemp != value) { _avgWetTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgWetTrackTempText)); } } }
         public string AvgWetTrackTempText { get => _avgWetTrackTemp?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => AvgWetTrackTemp = StringToNullableDouble(value); }
 
         private void NotifyWetVsDryDeltasChanged()
@@ -1556,6 +1446,7 @@ namespace LaunchPlugin
         }
     }
 
+    [JsonObject(MemberSerialization.OptIn)]
     public class ConditionMultipliers : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
