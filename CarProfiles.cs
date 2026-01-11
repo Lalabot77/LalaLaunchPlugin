@@ -1013,7 +1013,7 @@ namespace LaunchPlugin
                     // LOG: Avg dry lap changed
                     try
                     {
-                        SimHub.Logging.Current.Info(
+                        SimHub.Logging.Current.Debug(
                             $"[LalaPlugin:Profile/Pace] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
                             $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeDry)}'"
                         );
