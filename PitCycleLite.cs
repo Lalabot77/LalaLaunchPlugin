@@ -129,11 +129,19 @@ namespace LaunchPlugin
         /// <param name="completedLaps">Unused (kept for call-site compatibility).</param>
         /// <param name="lastLapSec">SimHub/iRacing LastLapTime.TotalSeconds.</param>
         /// <param name="avgLapSec">Baseline lap time used on the dash (0 if unknown).</param>
-        public void Update(bool isInPitLane, int completedLaps, double lastLapSec, double avgLapSec)
+        /// <param name="isInPitStall">True when car is in pit stall.</param>
+        /// <param name="speedKph">Current speed in kph.</param>
+        public void Update(bool isInPitLane, int completedLaps, double lastLapSec, double avgLapSec, bool isInPitStall, double speedKph)
         {
             // ---- 1) Edge detection FIRST (for the current, in-progress lap) ----
             if (isInPitLane && !_wasInLane)
             {
+                if (isInPitStall || speedKph <= 5.0)
+                {
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] block entry arm pitStall={isInPitStall} speed={speedKph:F1}kph");
+                }
+                else
+                {
                 // Pit ENTRY this lap
                 _entrySeenThisLap = true;
                 SimHub.Logging.Current.Info("[LalaPlugin:Pit Lite] Entry detected. Arming cycle and clearing previous pit figures.");
@@ -149,6 +157,7 @@ namespace LaunchPlugin
                 DTLSec = 0.0;
 
                 Status = StatusKind.Armed;
+                }
             }
             if (!isInPitLane && _wasInLane)
             {

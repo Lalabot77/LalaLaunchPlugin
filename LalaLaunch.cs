@@ -3839,7 +3839,10 @@ namespace LaunchPlugin
                 catch { /* keep avgUsed as 0.0 if anything goes wrong */ }
             }
 
-            _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
+            bool isInPitStall = Convert.ToBoolean(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerCarInPitStall") ?? false);
+            double speedKph = data.NewData?.SpeedKmh ?? 0.0;
+            _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed, isInPitStall, speedKph);
 
             bool pitEntryEdge = false;
             bool pitExitEdge = false;
