@@ -4344,8 +4344,6 @@ namespace LaunchPlugin
             {
                 bool captureOn = _pitScreenActive;
 
-                double speedKph = data.NewData?.SpeedKmh ?? 0.0;
-
                 // Throttle: your codebase treats it like 0..100, so normalise to 0..1
                 double throttleRaw = data.NewData?.Throttle ?? 0.0;
                 double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
