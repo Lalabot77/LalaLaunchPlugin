@@ -3243,6 +3243,17 @@ namespace LaunchPlugin
                 return;
             }
 
+            var trackStatsForLog = ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackKey);
+            string existingValue = trackStatsForLog?.PitLaneLossSeconds.HasValue == true
+                ? trackStatsForLog.PitLaneLossSeconds.Value.ToString("0.00")
+                : "null";
+            bool existingLocked = trackStatsForLog?.PitLaneLossLocked ?? false;
+            double lastDirect = _pit?.LastDirectTravelTime ?? 0.0;
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:Pit Cycle] Persist request: timeLoss={timeLossSeconds:F2} " +
+                $"src={sourceFromPublisher ?? "none"} lastDirect={lastDirect:F2} " +
+                $"existingLocked={existingLocked} existingValue={existingValue}");
+
             // If we've already saved this exact DTL value, ignore repeat callers.
             if (sourceFromPublisher != null
                 && sourceFromPublisher.Equals("dtl", StringComparison.OrdinalIgnoreCase)
@@ -3251,13 +3262,22 @@ namespace LaunchPlugin
                 return;
             }
 
-            // 1) Prefer the number passed in (PitLite’s one-shot). If zero/invalid, fall back to Direct.
+            // 1) Prefer the number passed in (PitLite’s one-shot). If zero/invalid, skip persist.
             double loss = Math.Max(0.0, timeLossSeconds);
             string src = (sourceFromPublisher ?? "").Trim().ToLowerInvariant();
+            if (double.IsNaN(timeLossSeconds) || double.IsNaN(loss))
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=nan_candidate " +
+                    $"timeLoss={timeLossSeconds:F2} src={src}");
+                return;
+            }
             if (loss <= 0.0)
             {
-                loss = Math.Max(0.0, _pit?.LastDirectTravelTime ?? 0.0);
-                src = "direct";
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=invalid_candidate " +
+                    $"timeLoss={timeLossSeconds:F2} src={src}");
+                return;
             }
 
             // Debounce / override rules (keep your current behavior)
@@ -3279,15 +3299,25 @@ namespace LaunchPlugin
                 && trackRecord.PitLaneLossSeconds.Value > 0.0
                 && !double.IsNaN(trackRecord.PitLaneLossSeconds.Value);
             bool candidateValid = rounded > 0.0 && !double.IsNaN(rounded);
+            if (!candidateValid)
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=candidate_invalid " +
+                    $"seconds={rounded:0.00} src={src}");
+                return;
+            }
 
-            if (candidateValid && !existingValid)
+            if (!existingValid)
             {
                 trackRecord.PitLaneLossSeconds = rounded;
                 trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
                 trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
                 ProfilesViewModel?.SaveProfiles();
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=WRITE " +
+                    $"seconds={rounded:0.00} src={src} locked={trackRecord.PitLaneLossLocked}");
             }
-            else if (candidateValid && existingValid && trackRecord.PitLaneLossLocked)
+            else if (existingValid && trackRecord.PitLaneLossLocked)
             {
 
                 trackRecord.PitLaneLossBlockedCandidateSeconds = rounded;
@@ -3295,7 +3325,9 @@ namespace LaunchPlugin
                 trackRecord.PitLaneLossBlockedCandidateUpdatedUtc = now;
 
                 ProfilesViewModel?.SaveProfiles();
-                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate {rounded:0.00}s source={src}");
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=BLOCKED_CANDIDATE " +
+                    $"seconds={rounded:0.00} src={src} locked={trackRecord.PitLaneLossLocked}");
                 _lastPitLossSaved = rounded;
                 _lastPitLossSavedAtUtc = now;
                 _lastPitLossSource = src;
@@ -3308,6 +3340,9 @@ namespace LaunchPlugin
                 trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
                 trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
                 ProfilesViewModel?.SaveProfiles();
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=WRITE " +
+                    $"seconds={rounded:0.00} src={src} locked={trackRecord.PitLaneLossLocked}");
             }
 
             // Publish to the live snapshot + Fuel tab immediately
@@ -3714,16 +3749,18 @@ namespace LaunchPlugin
                 _currentSessionToken = currentSessionToken;
                 SimHub.Logging.Current.Info($"[LalaPlugin:Session] token change old={oldToken} new={currentSessionToken} type={sessionTypeForLog}");
 
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] SessionChange: skipPitLossSave=true " +
+                    $"pitLiteStatus={_pitLite?.Status} " +
+                    $"candidateReady={_pitLite?.CandidateReady ?? false} " +
+                    $"lastDirect={_pit?.LastDirectTravelTime:F2} " +
+                    $"oldToken={oldToken} newToken={currentSessionToken}");
+
                 // If we exited lane and the session ended before S/F, finalize once with PitLite’s one-shot.
                 if (_pitLite != null && _pitLite.ConsumeCandidate(out var scLoss, out var scSrc))
                 {
                     Pit_OnValidPitStopTimeLossCalculated(scLoss, scSrc);
                     // nothing else: ConsumeCandidate cleared the latch, sink de-dupe will ignore repeats
-                }
-                // Optional: if nothing latched, fall back to direct once.
-                else if ((_pit?.LastDirectTravelTime ?? 0.0) > 0.0)
-                {
-                    Pit_OnValidPitStopTimeLossCalculated(_pit.LastDirectTravelTime, "direct");
                 }
 
                 _rejoinEngine.Reset();
