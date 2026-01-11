@@ -1914,6 +1914,59 @@ namespace LaunchPlugin
                                         trackRecord.MarkFuelUpdatedDry("Telemetry fuel");
                                     }
                                 }
+
+                                int paceSamples = _recentLapTimes.Count;
+                                if (_isWetMode)
+                                {
+                                    trackRecord.WetLapTimeSampleCount = paceSamples;
+                                }
+                                else
+                                {
+                                    trackRecord.DryLapTimeSampleCount = paceSamples;
+                                }
+
+                                bool persistedAvgLap = false;
+                                int persistedMs = 0;
+                                if (paceSamples >= FuelPersistMinLaps && Pace_StintAvgLapTimeSec > 0)
+                                {
+                                    int ms = (int)Math.Round(Pace_StintAvgLapTimeSec * 1000.0);
+                                    if (ms > 0)
+                                    {
+                                        if (_isWetMode)
+                                        {
+                                            if (!trackRecord.WetConditionsLocked)
+                                            {
+                                                trackRecord.AvgLapTimeWet = ms;
+                                                persistedAvgLap = true;
+                                                persistedMs = ms;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            if (!trackRecord.DryConditionsLocked)
+                                            {
+                                                trackRecord.AvgLapTimeDry = ms;
+                                                persistedAvgLap = true;
+                                                persistedMs = ms;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (persistedAvgLap)
+                                {
+                                    ProfilesViewModel?.SaveProfiles();
+                                    string trackLabel = !string.IsNullOrWhiteSpace(trackRecord.DisplayName)
+                                        ? trackRecord.DisplayName
+                                        : (!string.IsNullOrWhiteSpace(CurrentTrackName) ? CurrentTrackName : trackRecord.Key ?? "(unknown track)");
+                                    string carLabel = ActiveProfile?.ProfileName ?? "(unknown car)";
+                                    string modeLabel = _isWetMode ? "Wet" : "Dry";
+                                    bool locked = _isWetMode ? trackRecord.WetConditionsLocked : trackRecord.DryConditionsLocked;
+                                    string lapText = trackRecord.MillisecondsToLapTimeString(persistedMs);
+                                    SimHub.Logging.Current.Info(
+                                        $"[LalaPlugin:Profile/Pace] Persisted AvgLapTime{modeLabel} for {carLabel} @ {trackLabel}: " +
+                                        $"{lapText} ({persistedMs} ms), samples={paceSamples}, locked={locked}");
+                                }
                             }
                         }
 
