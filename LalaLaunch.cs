@@ -2095,6 +2095,14 @@ namespace LaunchPlugin
             }
             double pitWindowRequestedAdd = Math.Max(0, fuelToRequest);
             double maxTankCapacity = ResolveMaxTankCapacity();
+
+            // --- Always-on pit menu reality (NOT dependent on fuel-per-lap validity) ---
+            requestedAddLitresForSmooth = pitWindowRequestedAdd;
+
+            Pit_TankSpaceAvailable = Math.Max(0, maxTankCapacity - currentFuel);
+            Pit_WillAdd = Math.Min(pitWindowRequestedAdd, Pit_TankSpaceAvailable);
+            Pit_FuelOnExit = currentFuel + Pit_WillAdd;
+
             int strategyRequiredStops = FuelCalculator?.RequiredPitStops ?? 0;
 
             if (fuelPerLapForCalc <= 0)
@@ -2110,9 +2118,6 @@ namespace LaunchPlugin
 
                 Pit_TotalNeededToEnd = 0;
                 Pit_NeedToAdd = 0;
-                Pit_TankSpaceAvailable = 0;
-                Pit_WillAdd = 0;
-                Pit_FuelOnExit = 0;
                 Pit_DeltaAfterStop = 0;
                 Pit_FuelSaveDeltaAfterStop = 0;
                 Pit_PushDeltaAfterStop = 0;
