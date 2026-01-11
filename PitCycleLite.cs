@@ -138,13 +138,13 @@ namespace LaunchPlugin
             {
                 if (isInPitStall || speedKph <= 5.0)
                 {
-                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] block entry arm pitStall={isInPitStall} speed={speedKph:F1}kph");
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Lite] block entry arm pitStall={isInPitStall} speed={speedKph:F1}kph");
                 }
                 else
                 {
                 // Pit ENTRY this lap
                 _entrySeenThisLap = true;
-                SimHub.Logging.Current.Info("[LalaPlugin:Pit Lite] Entry detected. Arming cycle and clearing previous pit figures.");
+                SimHub.Logging.Current.Debug("[LalaPlugin:Pit Lite] Entry detected. Arming cycle and clearing previous pit figures.");
 
                 _armed = true;
 
@@ -163,7 +163,7 @@ namespace LaunchPlugin
             {
                 // Pit EXIT this lap
                 _exitSeenThisLap = true;
-                SimHub.Logging.Current.Info("[LalaPlugin:Pit Lite] Exit detected. Latching lane and box timers from PitEngine.");
+                SimHub.Logging.Current.Debug("[LalaPlugin:Pit Lite] Exit detected. Latching lane and box timers from PitEngine.");
 
                 // Latch timers immediately from PitEngine
                 double tPit = Math.Max(0.0, _pit?.TimeOnPitRoad.TotalSeconds ?? 0.0);
@@ -173,7 +173,7 @@ namespace LaunchPlugin
                 DirectSec = Math.Max(0.0, tPit - tStop);
                 const double stopDetectionThresholdSec = 1.0; // avoid classifying tiny hesitations as stops
                 Status = (tStop > stopDetectionThresholdSec) ? StatusKind.StopValid : StatusKind.DriveThrough;
-                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] Exit latched. Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Direct={DirectSec:F2}s, Status={Status}.");
+                SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Lite] Exit latched. Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Direct={DirectSec:F2}s, Status={Status}.");
             }
 
             // Instantaneous tag for the in-progress lap
@@ -193,14 +193,14 @@ namespace LaunchPlugin
                     // ---- S/F of OUT-LAP: one-shot latch for save ----
 
                     var chosenSrc = string.IsNullOrEmpty(TotalLossSource) ? "?" : TotalLossSource;
-                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] Out-lap complete. Out={OutLapSec:F2}s, In={InLapSec:F2}s, Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Saved={TotalLossSec:F2}s (source={chosenSrc}).");
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Lite] Out-lap complete. Out={OutLapSec:F2}s, In={InLapSec:F2}s, Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Saved={TotalLossSec:F2}s (source={chosenSrc}).");
 
                 }
                 else if (_entrySeenThisLap && InLapSec <= 0.0)
                 {
                     InLapSec = lastLapSec;
                     LastLapType = LapKind.InLap;
-                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] In-lap latched. In={InLapSec:F2}s.");
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Lite] In-lap latched. In={InLapSec:F2}s.");
 
                 }
                 else
@@ -216,16 +216,30 @@ namespace LaunchPlugin
                     double chosen = (DTLSec > 0.0) ? DTLSec : DirectSec;
                     _totalLossSec = Math.Max(0.0, chosen);
                     _totalLossSource = (DTLSec > 0.0) ? "dtl" : "direct";
+                    bool wasReady = _candidateReady;
                     _candidateReady = true;   // one-shot for LalaLaunch
-                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] Publishing loss. Source={_totalLossSource}, DTL={DTLSec:F2}s, Direct={DirectSec:F2}s, Avg={avgLapSec:F2}s.");
+                    if (!wasReady)
+                    {
+                        string dtlText = avgLapSec > 0.0 ? $"{DTLSec:F2}s" : "n/a";
+                        string avgText = avgLapSec > 0.0 ? $"{avgLapSec:F2}s" : "n/a";
+                        string reason = _totalLossSource == "dtl" ? "n/a" : "dtl<=0";
+                        SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] COMPLETE src={_totalLossSource} reason={reason} loss={_totalLossSec:F2}s dtl={dtlText} direct={DirectSec:F2}s lane={TimePitLaneSec:F2}s box={TimePitBoxSec:F2}s in={InLapSec:F2}s out={OutLapSec:F2}s avg={avgText}");
+                    }
                 }
                 else if (InLapSec > 0.0 && OutLapSec > 0.0 && TimePitLaneSec > 0.0)
                 {
                     // Baseline pace missing → still publish the direct lane loss so consumers don't stall
                     _totalLossSec = DirectSec;
                     _totalLossSource = "direct";
+                    bool wasReady = _candidateReady;
                     _candidateReady = true;
-                    SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] Publishing direct loss (avg pace missing). Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Direct={DirectSec:F2}s.");
+                    if (!wasReady)
+                    {
+                        string dtlText = "n/a";
+                        string avgText = "n/a";
+                        string reason = "avg_missing";
+                        SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] COMPLETE src={_totalLossSource} reason={reason} loss={_totalLossSec:F2}s dtl={dtlText} direct={DirectSec:F2}s lane={TimePitLaneSec:F2}s box={TimePitBoxSec:F2}s in={InLapSec:F2}s out={OutLapSec:F2}s avg={avgText}");
+                    }
 
                 }
 
