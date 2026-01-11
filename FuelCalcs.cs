@@ -2229,7 +2229,14 @@ namespace LaunchPlugin
         if (fuelStamped)
         {
             var source = isLiveSession ? "Telemetry fuel" : "Planner save";
-            trackRecord.MarkFuelUpdated(source);
+            if (saveWet)
+            {
+                trackRecord.MarkFuelUpdatedWet(source);
+            }
+            else
+            {
+                trackRecord.MarkFuelUpdatedDry(source);
+            }
         }
 
         trackRecord.PitLaneLossSeconds = this.PitLaneTimeLoss;

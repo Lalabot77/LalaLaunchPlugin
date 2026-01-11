@@ -603,6 +603,8 @@ namespace LaunchPlugin
                     _fuelUpdatedSource = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(FuelLastUpdatedText));
+                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
+                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
                 }
             }
         }
@@ -619,6 +621,72 @@ namespace LaunchPlugin
                     _fuelUpdatedUtc = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(FuelLastUpdatedText));
+                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
+                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
+                }
+            }
+        }
+
+        private string _dryFuelUpdatedSource;
+        [JsonProperty]
+        public string DryFuelUpdatedSource
+        {
+            get => _dryFuelUpdatedSource;
+            set
+            {
+                if (_dryFuelUpdatedSource != value)
+                {
+                    _dryFuelUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _dryFuelUpdatedUtc;
+        [JsonProperty]
+        public DateTime? DryFuelUpdatedUtc
+        {
+            get => _dryFuelUpdatedUtc;
+            set
+            {
+                if (_dryFuelUpdatedUtc != value)
+                {
+                    _dryFuelUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
+                }
+            }
+        }
+
+        private string _wetFuelUpdatedSource;
+        [JsonProperty]
+        public string WetFuelUpdatedSource
+        {
+            get => _wetFuelUpdatedSource;
+            set
+            {
+                if (_wetFuelUpdatedSource != value)
+                {
+                    _wetFuelUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _wetFuelUpdatedUtc;
+        [JsonProperty]
+        public DateTime? WetFuelUpdatedUtc
+        {
+            get => _wetFuelUpdatedUtc;
+            set
+            {
+                if (_wetFuelUpdatedUtc != value)
+                {
+                    _wetFuelUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
                 }
             }
         }
@@ -636,10 +704,64 @@ namespace LaunchPlugin
             }
         }
 
+        [JsonIgnore]
+        public string DryFuelLastUpdatedText
+        {
+            get
+            {
+                if (_dryFuelUpdatedUtc.HasValue)
+                {
+                    var sourceLabel = string.IsNullOrWhiteSpace(_dryFuelUpdatedSource)
+                        ? "Last updated"
+                        : _dryFuelUpdatedSource;
+                    return $"{sourceLabel}: {_dryFuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+                }
+
+                if (!_fuelUpdatedUtc.HasValue) return string.Empty;
+                var legacySourceLabel = string.IsNullOrWhiteSpace(_fuelUpdatedSource)
+                    ? "Last updated"
+                    : _fuelUpdatedSource;
+                return $"{legacySourceLabel}: {_fuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+            }
+        }
+
+        [JsonIgnore]
+        public string WetFuelLastUpdatedText
+        {
+            get
+            {
+                if (_wetFuelUpdatedUtc.HasValue)
+                {
+                    var sourceLabel = string.IsNullOrWhiteSpace(_wetFuelUpdatedSource)
+                        ? "Last updated"
+                        : _wetFuelUpdatedSource;
+                    return $"{sourceLabel}: {_wetFuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+                }
+
+                if (!_fuelUpdatedUtc.HasValue) return string.Empty;
+                var legacySourceLabel = string.IsNullOrWhiteSpace(_fuelUpdatedSource)
+                    ? "Last updated"
+                    : _fuelUpdatedSource;
+                return $"{legacySourceLabel}: {_fuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+            }
+        }
+
         public void MarkFuelUpdated(string source, DateTime? whenUtc = null)
         {
             FuelUpdatedSource = source;
             FuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkFuelUpdatedDry(string source, DateTime? whenUtc = null)
+        {
+            DryFuelUpdatedSource = source;
+            DryFuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkFuelUpdatedWet(string source, DateTime? whenUtc = null)
+        {
+            WetFuelUpdatedSource = source;
+            WetFuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
         }
 
         public void RelearnPitLoss()
@@ -686,8 +808,8 @@ namespace LaunchPlugin
 
             DryLapTimeSampleCount = 0;
             DryFuelSampleCount = 0;
-            FuelUpdatedSource = null;
-            FuelUpdatedUtc = null;
+            DryFuelUpdatedSource = null;
+            DryFuelUpdatedUtc = null;
         }
 
         public void RelearnWetConditions()
@@ -724,8 +846,8 @@ namespace LaunchPlugin
 
             WetLapTimeSampleCount = 0;
             WetFuelSampleCount = 0;
-            FuelUpdatedSource = null;
-            FuelUpdatedUtc = null;
+            WetFuelUpdatedSource = null;
+            WetFuelUpdatedUtc = null;
         }
 
 
@@ -775,7 +897,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressDryFuelSync)
                         {
-                            MarkFuelUpdated("Manual fuel edit");
+                            MarkFuelUpdatedDry("Manual fuel edit");
                         }
                         _suppressDryFuelSync = true;
                         AvgFuelPerLapDry = parsedValue;
@@ -967,7 +1089,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressWetFuelSync)
                         {
-                            MarkFuelUpdated("Manual fuel edit");
+                            MarkFuelUpdatedWet("Manual fuel edit");
                         }
                         _suppressWetFuelSync = true;
                         AvgFuelPerLapWet = parsedValue;

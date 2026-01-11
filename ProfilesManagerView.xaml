@@ -508,7 +508,7 @@
                                                 Margin="0,0,10,0"/>
 
                                             <TextBlock
-                                                Text="{Binding FuelLastUpdatedText, Mode=OneWay}"
+                                                Text="{Binding DryFuelLastUpdatedText, Mode=OneWay}"
                                                 FontStyle="Italic"
                                                 Foreground="#FF9AA0A6"
                                                 TextWrapping="Wrap"/>
@@ -627,7 +627,7 @@
                                                 Margin="0,0,10,0"/>
 
                                             <TextBlock
-                                                Text="{Binding FuelLastUpdatedText, Mode=OneWay}"
+                                                Text="{Binding WetFuelLastUpdatedText, Mode=OneWay}"
                                                 FontStyle="Italic"
                                                 Foreground="#FF9AA0A6"
                                                 TextWrapping="Wrap"/>
