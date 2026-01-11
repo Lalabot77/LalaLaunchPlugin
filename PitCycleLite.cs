@@ -210,32 +210,29 @@ namespace LaunchPlugin
                 {
                     DTLSec = (InLapSec + OutLapSec) - (2.0 * avgLapSec) - TimePitBoxSec;
 
-                    double chosen = (DTLSec > 0.0) ? DTLSec : DirectSec;
-                    _totalLossSec = Math.Max(0.0, chosen);
-                    _totalLossSource = (DTLSec > 0.0) ? "dtl" : "direct";
+                    bool useDtl = DTLSec > 0.0;
+                    _totalLossSec = Math.Max(0.0, useDtl ? DTLSec : DirectSec);
+                    _totalLossSource = useDtl ? "dtl" : "direct";
 
                     bool wasReady = _candidateReady;
-                    _candidateReady = true;   // one-shot for LalaLaunch
+                    _candidateReady = true;
 
-                    if (!wasReady)
+                    if (!wasReady && !useDtl)
                     {
-                        string reason = (_totalLossSource == "dtl") ? "n/a"
-                                      : (DTLSec <= 0.0) ? "dtl<=0"
-                                      : "n/a";
-
                         string inStr = TimeSpan.FromSeconds(InLapSec).ToString(@"m\:ss\.ff");
                         string outStr = TimeSpan.FromSeconds(OutLapSec).ToString(@"m\:ss\.ff");
                         string avgStr = TimeSpan.FromSeconds(avgLapSec).ToString(@"m\:ss\.ff");
 
                         SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Pit Lite] COMPLETE src={_totalLossSource} reason={reason} " +
-                            $"loss={_totalLossSec:F2}s dtl={DTLSec:F2}s direct={DirectSec:F2}s " +
-                            $"lane={TimePitLaneSec:F2}s box={TimePitBoxSec:F2}s in={inStr} out={outStr} avg={avgStr}");
+                            $"[LalaPlugin:Pit Lite] COMPLETE DIRECT (dtl<=0): " +
+                            $"in={inStr}, out={outStr}, avg={avgStr} → " +
+                            $"dtl={DTLSec:F2}s (rejected), direct={DirectSec:F2}s (used), " +
+                            $"lane={TimePitLaneSec:F2}s, box={TimePitBoxSec:F2}s");
                     }
                 }
                 else if (InLapSec > 0.0 && OutLapSec > 0.0 && TimePitLaneSec > 0.0)
                 {
-                    // Baseline pace missing → still publish the direct lane loss so consumers don't stall
+                    // Baseline pace missing → fall back to direct lane loss
                     _totalLossSec = DirectSec;
                     _totalLossSource = "direct";
 
@@ -248,12 +245,11 @@ namespace LaunchPlugin
                         string outStr = TimeSpan.FromSeconds(OutLapSec).ToString(@"m\:ss\.ff");
 
                         SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Pit Lite] COMPLETE src=direct reason=avg_missing " +
-                            $"loss={_totalLossSec:F2}s dtl=n/a direct={DirectSec:F2}s " +
-                            $"lane={TimePitLaneSec:F2}s box={TimePitBoxSec:F2}s in={inStr} out={outStr} avg=n/a");
+                            $"[LalaPlugin:Pit Lite] COMPLETE DIRECT (avg missing): " +
+                            $"in={inStr}, out={outStr} → " +
+                            $"direct={DirectSec:F2}s (used) = lane={TimePitLaneSec:F2}s − box={TimePitBoxSec:F2}s");
                     }
                 }
-
 
                 // New lap begins: clear per-lap flags and reset current-lap type
                 _entrySeenThisLap = false;
