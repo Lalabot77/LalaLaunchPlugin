@@ -412,7 +412,7 @@ namespace LaunchPlugin
         private readonly List<double> _recentDryFuelLaps = new List<double>();
         private readonly List<double> _recentWetFuelLaps = new List<double>();
         private const int FuelWindowSize = 5; // keep last N valid laps per mode
-        private const int FuelPersistMinLaps = 3; // guard against early garbage in live persistence
+        private const int FuelPersistMinLaps = 2; // guard against early garbage in live persistence
 
         private double _avgDryFuelPerLap = 0.0;
         private double _avgWetFuelPerLap = 0.0;
