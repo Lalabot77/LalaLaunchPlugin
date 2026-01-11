@@ -957,12 +957,13 @@ namespace LaunchPlugin
         private string GetTrackMarkersFolderPath()
         {
             var baseDir = AppDomain.CurrentDomain.BaseDirectory?.TrimEnd('\\', '/');
-            return Path.Combine(baseDir ?? "", "PluginsData", "Common", "LalaLaunch");
+            return Path.Combine(baseDir ?? "", "PluginsData", "Common", "LalaPlugin");
+
         }
 
         private string GetTrackMarkersFilePath()
         {
-            return Path.Combine(GetTrackMarkersFolderPath(), "LalaLaunch.TrackMarkers.json");
+            return Path.Combine(GetTrackMarkersFolderPath(), "LalaPlugin.TrackMarkers.json");
         }
 
         private bool TryLoadTrackMarkerStore(out Dictionary<string, TrackMarkerRecord> loadedStore)
