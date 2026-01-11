@@ -82,7 +82,7 @@ namespace LaunchPlugin
 
             int? baselineMs = isWetEffective
                 ? ts.BestLapMsWet
-                : (ts.BestLapMsDry ?? ts.BestLapMs);
+                : ts.BestLapMsDry;
 
             bool improved = !baselineMs.HasValue || lapMs <= baselineMs.Value - PB_IMPROVE_MS;
             if (!improved)
@@ -223,7 +223,6 @@ namespace LaunchPlugin
 
             // --- FIX: Manually initialize the text properties after creation ---
             // This is crucial because the UI now relies on them.
-            ts.BestLapMsText = ts.MillisecondsToLapTimeString(ts.BestLapMs);
             ts.BestLapTimeDryText = ts.MillisecondsToLapTimeString(ts.BestLapMsDry);
             ts.BestLapTimeWetText = ts.MillisecondsToLapTimeString(ts.BestLapMsWet);
             ts.AvgLapTimeDryText = ts.MillisecondsToLapTimeString(ts.AvgLapTimeDry);
@@ -827,7 +826,6 @@ namespace LaunchPlugin
                 {
                     DisplayName = "Default",
                     Key = "default",
-                    BestLapMs = null,
                     BestLapMsDry = null,
                     BestLapMsWet = null,
                     PitLaneLossSeconds = 25.0,
