@@ -443,6 +443,13 @@
                                         <TextBox Grid.Row="0" Grid.Column="1"
                                              TextAlignment="Right"
                                              Text="{Binding BestLapTimeDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2"
+                                               Margin="12,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Text="{Binding DryBestLapLastUpdatedText, Mode=OneWay}"
+                                               FontStyle="Italic"
+                                               Foreground="#FF9AA0A6"
+                                               TextWrapping="Wrap"/>
 
                                         <!-- Avg lap time -->
                                         <TextBlock Grid.Row="1" Grid.Column="0"
@@ -453,10 +460,23 @@
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
                                              Text="{Binding AvgLapTimeDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="2"
-                                               Margin="12,6,0,0"
-                                               VerticalAlignment="Center"
-                                               Text="{Binding DryLapTimeSampleCount, StringFormat=Sample: {0}}"/>
+                                        <StackPanel
+                                            Grid.Row="1"
+                                            Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            Margin="12,6,0,0"
+                                            VerticalAlignment="Center">
+
+                                            <TextBlock
+                                                Text="{Binding DryLapTimeSampleCount, StringFormat=Sample: {0}}"
+                                                Margin="0,0,10,0"/>
+
+                                            <TextBlock
+                                                Text="{Binding DryAvgLapLastUpdatedText, Mode=OneWay}"
+                                                FontStyle="Italic"
+                                                Foreground="#FF9AA0A6"
+                                                TextWrapping="Wrap"/>
+                                        </StackPanel>
 
                                         <!-- Fuel burn label (only once) -->
                                         <TextBlock Grid.Row="2" Grid.Column="0"
@@ -562,6 +582,13 @@
                                         <TextBox Grid.Row="0" Grid.Column="1"
                                              TextAlignment="Right"
                                              Text="{Binding BestLapTimeWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2"
+                                           Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Text="{Binding WetBestLapLastUpdatedText, Mode=OneWay}"
+                                           FontStyle="Italic"
+                                           Foreground="#FF9AA0A6"
+                                           TextWrapping="Wrap"/>
 
                                         <!-- Avg lap time -->
                                         <TextBlock Grid.Row="1" Grid.Column="0"
@@ -572,10 +599,23 @@
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
                                              Text="{Binding AvgLapTimeWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="2"
-                                           Margin="12,6,0,0"
-                                           VerticalAlignment="Center"
-                                           Text="{Binding WetLapTimeSampleCount, StringFormat=Sample: {0}}"/>
+                                        <StackPanel
+                                            Grid.Row="1"
+                                            Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            Margin="12,6,0,0"
+                                            VerticalAlignment="Center">
+
+                                            <TextBlock
+                                                Text="{Binding WetLapTimeSampleCount, StringFormat=Sample: {0}}"
+                                                Margin="0,0,10,0"/>
+
+                                            <TextBlock
+                                                Text="{Binding WetAvgLapLastUpdatedText, Mode=OneWay}"
+                                                FontStyle="Italic"
+                                                Foreground="#FF9AA0A6"
+                                                TextWrapping="Wrap"/>
+                                        </StackPanel>
 
                                         <!-- Fuel burn label (only once) -->
                                         <TextBlock Grid.Row="2" Grid.Column="0"

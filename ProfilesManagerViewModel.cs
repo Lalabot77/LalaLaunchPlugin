@@ -97,11 +97,13 @@ namespace LaunchPlugin
             {
                 ts.BestLapMsWet = lapMs;
                 ts.BestLapTimeWetText = ts.MillisecondsToLapTimeString(ts.BestLapMsWet);
+                ts.MarkBestLapUpdatedWet("Telemetry");
             }
             else
             {
                 ts.BestLapMsDry = lapMs;
                 ts.BestLapTimeDryText = ts.MillisecondsToLapTimeString(ts.BestLapMsDry);
+                ts.MarkBestLapUpdatedDry("Telemetry");
             }
             SaveProfiles();
 

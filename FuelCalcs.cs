@@ -2228,7 +2228,7 @@ namespace LaunchPlugin
 
         if (fuelStamped)
         {
-            var source = isLiveSession ? "Telemetry fuel" : "Planner save";
+            var source = isLiveSession ? "Telemetry" : "Planner save";
             if (saveWet)
             {
                 trackRecord.MarkFuelUpdatedWet(source);
