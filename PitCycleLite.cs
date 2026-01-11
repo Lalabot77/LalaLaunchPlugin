@@ -191,10 +191,7 @@ namespace LaunchPlugin
                     OutLapSec = lastLapSec;
                     LastLapType = LapKind.OutLap;
                     // ---- S/F of OUT-LAP: one-shot latch for save ----
-
-                    var chosenSrc = string.IsNullOrEmpty(TotalLossSource) ? "?" : TotalLossSource;
-                    SimHub.Logging.Current.Debug($"[LalaPlugin:Pit Lite] Out-lap complete. Out={OutLapSec:F2}s, In={InLapSec:F2}s, Lane={TimePitLaneSec:F2}s, Box={TimePitBoxSec:F2}s, Saved={TotalLossSec:F2}s (source={chosenSrc}).");
-
+                
                 }
                 else if (_entrySeenThisLap && InLapSec <= 0.0)
                 {
@@ -216,14 +213,24 @@ namespace LaunchPlugin
                     double chosen = (DTLSec > 0.0) ? DTLSec : DirectSec;
                     _totalLossSec = Math.Max(0.0, chosen);
                     _totalLossSource = (DTLSec > 0.0) ? "dtl" : "direct";
+
                     bool wasReady = _candidateReady;
                     _candidateReady = true;   // one-shot for LalaLaunch
+
                     if (!wasReady)
                     {
-                        string dtlText = avgLapSec > 0.0 ? $"{DTLSec:F2}s" : "n/a";
-                        string avgText = avgLapSec > 0.0 ? $"{avgLapSec:F2}s" : "n/a";
-                        string reason = _totalLossSource == "dtl" ? "n/a" : "dtl<=0";
-                        SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] COMPLETE src={_totalLossSource} reason={reason} loss={_totalLossSec:F2}s dtl={dtlText} direct={DirectSec:F2}s lane={TimePitLaneSec:F2}s box={TimePitBoxSec:F2}s in={InLapSec:F2}s out={OutLapSec:F2}s avg={avgText}");
+                        string reason = (_totalLossSource == "dtl") ? "n/a"
+                                      : (DTLSec <= 0.0) ? "dtl<=0"
+                                      : "n/a";
+
+                        string inStr = TimeSpan.FromSeconds(InLapSec).ToString(@"m\:ss\.ff");
+                        string outStr = TimeSpan.FromSeconds(OutLapSec).ToString(@"m\:ss\.ff");
+                        string avgStr = TimeSpan.FromSeconds(avgLapSec).ToString(@"m\:ss\.ff");
+
+                        SimHub.Logging.Current.Info(
+                            $"[LalaPlugin:Pit Lite] COMPLETE src={_totalLossSource} reason={reason} " +
+                            $"loss={_totalLossSec:F2}s dtl={DTLSec:F2}s direct={DirectSec:F2}s " +
+                            $"lane={TimePitLaneSec:F2}s box={TimePitBoxSec:F2}s in={inStr} out={outStr} avg={avgStr}");
                     }
                 }
                 else if (InLapSec > 0.0 && OutLapSec > 0.0 && TimePitLaneSec > 0.0)
@@ -231,17 +238,22 @@ namespace LaunchPlugin
                     // Baseline pace missing → still publish the direct lane loss so consumers don't stall
                     _totalLossSec = DirectSec;
                     _totalLossSource = "direct";
+
                     bool wasReady = _candidateReady;
                     _candidateReady = true;
+
                     if (!wasReady)
                     {
-                        string dtlText = "n/a";
-                        string avgText = "n/a";
-                        string reason = "avg_missing";
-                        SimHub.Logging.Current.Info($"[LalaPlugin:Pit Lite] COMPLETE src={_totalLossSource} reason={reason} loss={_totalLossSec:F2}s dtl={dtlText} direct={DirectSec:F2}s lane={TimePitLaneSec:F2}s box={TimePitBoxSec:F2}s in={InLapSec:F2}s out={OutLapSec:F2}s avg={avgText}");
-                    }
+                        string inStr = TimeSpan.FromSeconds(InLapSec).ToString(@"m\:ss\.ff");
+                        string outStr = TimeSpan.FromSeconds(OutLapSec).ToString(@"m\:ss\.ff");
 
+                        SimHub.Logging.Current.Info(
+                            $"[LalaPlugin:Pit Lite] COMPLETE src=direct reason=avg_missing " +
+                            $"loss={_totalLossSec:F2}s dtl=n/a direct={DirectSec:F2}s " +
+                            $"lane={TimePitLaneSec:F2}s box={TimePitBoxSec:F2}s in={inStr} out={outStr} avg=n/a");
+                    }
                 }
+
 
                 // New lap begins: clear per-lap flags and reset current-lap type
                 _entrySeenThisLap = false;
