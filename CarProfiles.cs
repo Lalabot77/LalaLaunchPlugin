@@ -130,13 +130,18 @@ namespace LaunchPlugin
         public double PitEntryBufferM { get => _pitEntryBufferM; set { if (_pitEntryBufferM != value) { _pitEntryBufferM = value; OnPropertyChanged(); } } }
 
         // --- Helper methods (unchanged and preserved) ---
+        private static string CanonicalizeTrackKey(string trackKey)
+        {
+            return (trackKey ?? string.Empty).Trim().ToLowerInvariant();
+        }
 
         public TrackStats FindTrack(string trackKey)
         {
-            if (string.IsNullOrWhiteSpace(trackKey) || TrackStats == null) return null;
+            var canonicalKey = CanonicalizeTrackKey(trackKey);
+            if (string.IsNullOrWhiteSpace(canonicalKey) || TrackStats == null) return null;
 
             // Simple, direct lookup using the TrackCode as the key.
-            TrackStats.TryGetValue(trackKey, out var trackRecord);
+            TrackStats.TryGetValue(canonicalKey, out var trackRecord);
             return trackRecord;
         }
 
@@ -157,7 +162,8 @@ namespace LaunchPlugin
 
         public TrackStats EnsureTrack(string trackKey, string trackDisplay)
         {
-            if (string.IsNullOrWhiteSpace(trackKey)) return null;
+            var canonicalKey = CanonicalizeTrackKey(trackKey);
+            if (string.IsNullOrWhiteSpace(canonicalKey)) return null;
 
             if (TrackStats == null)
             {
@@ -165,10 +171,26 @@ namespace LaunchPlugin
             }
 
             // Try to find an existing record using the reliable key.
-            if (TrackStats.TryGetValue(trackKey, out var existingRecord))
+            string existingKey = null;
+            foreach (var key in TrackStats.Keys)
             {
+                if (string.Equals(key, canonicalKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    existingKey = key;
+                    break;
+                }
+            }
+
+            if (existingKey != null && TrackStats.TryGetValue(existingKey, out var existingRecord))
+            {
+                if (!string.Equals(existingKey, canonicalKey, StringComparison.Ordinal))
+                {
+                    TrackStats.Remove(existingKey);
+                    TrackStats[canonicalKey] = existingRecord;
+                }
                 // Record found. Just update its DisplayName in case it has changed.
                 existingRecord.DisplayName = trackDisplay;
+                existingRecord.Key = canonicalKey;
                 return existingRecord;
             }
             else
@@ -176,12 +198,12 @@ namespace LaunchPlugin
                 // No record found. Create a new one.
                 var newRecord = new TrackStats
                 {
-                    Key = trackKey,
+                    Key = canonicalKey,
                     DisplayName = trackDisplay,
                     DryConditionMultipliers = ConditionMultipliers.CreateDefaultDry(),
                     WetConditionMultipliers = ConditionMultipliers.CreateDefaultWet()
                 };
-                TrackStats[trackKey] = newRecord;
+                TrackStats[canonicalKey] = newRecord;
                 return newRecord;
             }
         }
