@@ -234,6 +234,12 @@ namespace LaunchPlugin
         private int? _bestLapMs;
         private string _bestLapMsText;
         private bool _suppressBestLapSync = false;
+        private int? _bestLapMsDry;
+        private string _bestLapMsDryText;
+        private bool _suppressBestLapDrySync = false;
+        private int? _bestLapMsWet;
+        private string _bestLapMsWetText;
+        private bool _suppressBestLapWetSync = false;
 
         [JsonProperty]
         public int? BestLapMs
@@ -261,6 +267,7 @@ namespace LaunchPlugin
                     {
                         BestLapMsText = MillisecondsToLapTimeString(_bestLapMs);
                     }
+                    OnPropertyChanged(nameof(BestLapTimeDryText));
                 }
             }
         }
@@ -280,6 +287,136 @@ namespace LaunchPlugin
                     _suppressBestLapSync = false;
                 }
             }
+        }
+
+        [JsonProperty]
+        public int? BestLapMsDry
+        {
+            get => _bestLapMsDry;
+            set
+            {
+                if (_bestLapMsDry != value)
+                {
+                    var old = _bestLapMsDry;
+                    _bestLapMsDry = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(BestLapTimeDryText));
+
+                    try
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"[LalaPlugin:Profile/Pace] PB Dry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsDry)}'"
+                        );
+                    }
+                    catch { }
+
+                    if (!_suppressBestLapDrySync)
+                    {
+                        _suppressBestLapDrySync = true;
+                        BestLapTimeDryText = MillisecondsToLapTimeString(_bestLapMsDry);
+                        _suppressBestLapDrySync = false;
+                    }
+                }
+            }
+        }
+
+        public string BestLapTimeDryText
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(_bestLapMsDryText)
+                    && (!BestLapMsDry.HasValue || BestLapMsDry.Value <= 0)
+                    && BestLapMs.HasValue && BestLapMs.Value > 0)
+                {
+                    return MillisecondsToLapTimeString(BestLapMs);
+                }
+                return _bestLapMsDryText;
+            }
+            set
+            {
+                if (_bestLapMsDryText != value)
+                {
+                    _bestLapMsDryText = value;
+                    OnPropertyChanged();
+                    var parsed = LapTimeStringToMilliseconds(value);
+                    if (!_suppressBestLapDrySync && parsed.HasValue && BestLapMsDry != parsed)
+                    {
+                        MarkBestLapUpdatedDry("Manual");
+                    }
+                    _suppressBestLapDrySync = true;
+                    BestLapMsDry = parsed;
+                    _suppressBestLapDrySync = false;
+                }
+            }
+        }
+
+        [JsonProperty]
+        public int? BestLapMsWet
+        {
+            get => _bestLapMsWet;
+            set
+            {
+                if (_bestLapMsWet != value)
+                {
+                    var old = _bestLapMsWet;
+                    _bestLapMsWet = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(BestLapTimeWetText));
+
+                    try
+                    {
+                        SimHub.Logging.Current.Info(
+                            $"[LalaPlugin:Profile/Pace] PB Wet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsWet)}'"
+                        );
+                    }
+                    catch { }
+
+                    if (!_suppressBestLapWetSync)
+                    {
+                        _suppressBestLapWetSync = true;
+                        BestLapTimeWetText = MillisecondsToLapTimeString(_bestLapMsWet);
+                        _suppressBestLapWetSync = false;
+                    }
+                }
+            }
+        }
+
+        public string BestLapTimeWetText
+        {
+            get => _bestLapMsWetText;
+            set
+            {
+                if (_bestLapMsWetText != value)
+                {
+                    _bestLapMsWetText = value;
+                    OnPropertyChanged();
+                    var parsed = LapTimeStringToMilliseconds(value);
+                    if (!_suppressBestLapWetSync && parsed.HasValue && BestLapMsWet != parsed)
+                    {
+                        MarkBestLapUpdatedWet("Manual");
+                    }
+                    _suppressBestLapWetSync = true;
+                    BestLapMsWet = parsed;
+                    _suppressBestLapWetSync = false;
+                }
+            }
+        }
+
+        public int? GetBestLapMsForCondition(bool isWetEffective)
+        {
+            if (isWetEffective)
+            {
+                if (BestLapMsWet.HasValue && BestLapMsWet.Value > 0) return BestLapMsWet;
+                if (BestLapMsDry.HasValue && BestLapMsDry.Value > 0) return BestLapMsDry;
+                if (BestLapMs.HasValue && BestLapMs.Value > 0) return BestLapMs;
+                return null;
+            }
+
+            if (BestLapMsDry.HasValue && BestLapMsDry.Value > 0) return BestLapMsDry;
+            if (BestLapMs.HasValue && BestLapMs.Value > 0) return BestLapMs;
+            return null;
         }
         private double? _pitLaneLossSeconds;
         [JsonProperty] public double? PitLaneLossSeconds { get => _pitLaneLossSeconds; set { if (_pitLaneLossSeconds != value) { _pitLaneLossSeconds = value; OnPropertyChanged(); OnPropertyChanged(nameof(PitLaneLossSecondsText)); } } }
@@ -480,6 +617,8 @@ namespace LaunchPlugin
                     _fuelUpdatedSource = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(FuelLastUpdatedText));
+                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
+                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
                 }
             }
         }
@@ -496,8 +635,222 @@ namespace LaunchPlugin
                     _fuelUpdatedUtc = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(FuelLastUpdatedText));
+                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
+                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
                 }
             }
+        }
+
+        private string _dryFuelUpdatedSource;
+        [JsonProperty]
+        public string DryFuelUpdatedSource
+        {
+            get => _dryFuelUpdatedSource;
+            set
+            {
+                if (_dryFuelUpdatedSource != value)
+                {
+                    _dryFuelUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _dryFuelUpdatedUtc;
+        [JsonProperty]
+        public DateTime? DryFuelUpdatedUtc
+        {
+            get => _dryFuelUpdatedUtc;
+            set
+            {
+                if (_dryFuelUpdatedUtc != value)
+                {
+                    _dryFuelUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
+                }
+            }
+        }
+
+        private string _wetFuelUpdatedSource;
+        [JsonProperty]
+        public string WetFuelUpdatedSource
+        {
+            get => _wetFuelUpdatedSource;
+            set
+            {
+                if (_wetFuelUpdatedSource != value)
+                {
+                    _wetFuelUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _wetFuelUpdatedUtc;
+        [JsonProperty]
+        public DateTime? WetFuelUpdatedUtc
+        {
+            get => _wetFuelUpdatedUtc;
+            set
+            {
+                if (_wetFuelUpdatedUtc != value)
+                {
+                    _wetFuelUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
+                }
+            }
+        }
+
+        private string _dryBestLapUpdatedSource;
+        [JsonProperty]
+        public string DryBestLapUpdatedSource
+        {
+            get => _dryBestLapUpdatedSource;
+            set
+            {
+                if (_dryBestLapUpdatedSource != value)
+                {
+                    _dryBestLapUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryBestLapLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _dryBestLapUpdatedUtc;
+        [JsonProperty]
+        public DateTime? DryBestLapUpdatedUtc
+        {
+            get => _dryBestLapUpdatedUtc;
+            set
+            {
+                if (_dryBestLapUpdatedUtc != value)
+                {
+                    _dryBestLapUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryBestLapLastUpdatedText));
+                }
+            }
+        }
+
+        private string _wetBestLapUpdatedSource;
+        [JsonProperty]
+        public string WetBestLapUpdatedSource
+        {
+            get => _wetBestLapUpdatedSource;
+            set
+            {
+                if (_wetBestLapUpdatedSource != value)
+                {
+                    _wetBestLapUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetBestLapLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _wetBestLapUpdatedUtc;
+        [JsonProperty]
+        public DateTime? WetBestLapUpdatedUtc
+        {
+            get => _wetBestLapUpdatedUtc;
+            set
+            {
+                if (_wetBestLapUpdatedUtc != value)
+                {
+                    _wetBestLapUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetBestLapLastUpdatedText));
+                }
+            }
+        }
+
+        private string _dryAvgLapUpdatedSource;
+        [JsonProperty]
+        public string DryAvgLapUpdatedSource
+        {
+            get => _dryAvgLapUpdatedSource;
+            set
+            {
+                if (_dryAvgLapUpdatedSource != value)
+                {
+                    _dryAvgLapUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryAvgLapLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _dryAvgLapUpdatedUtc;
+        [JsonProperty]
+        public DateTime? DryAvgLapUpdatedUtc
+        {
+            get => _dryAvgLapUpdatedUtc;
+            set
+            {
+                if (_dryAvgLapUpdatedUtc != value)
+                {
+                    _dryAvgLapUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(DryAvgLapLastUpdatedText));
+                }
+            }
+        }
+
+        private string _wetAvgLapUpdatedSource;
+        [JsonProperty]
+        public string WetAvgLapUpdatedSource
+        {
+            get => _wetAvgLapUpdatedSource;
+            set
+            {
+                if (_wetAvgLapUpdatedSource != value)
+                {
+                    _wetAvgLapUpdatedSource = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetAvgLapLastUpdatedText));
+                }
+            }
+        }
+
+        private DateTime? _wetAvgLapUpdatedUtc;
+        [JsonProperty]
+        public DateTime? WetAvgLapUpdatedUtc
+        {
+            get => _wetAvgLapUpdatedUtc;
+            set
+            {
+                if (_wetAvgLapUpdatedUtc != value)
+                {
+                    _wetAvgLapUpdatedUtc = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WetAvgLapLastUpdatedText));
+                }
+            }
+        }
+
+        private static string NormalizeUpdateSource(string source)
+        {
+            if (string.IsNullOrWhiteSpace(source)) return string.Empty;
+            var trimmed = source.Trim();
+            if (string.Equals(trimmed, "Manual fuel edit", StringComparison.OrdinalIgnoreCase)) return "Manual";
+            if (string.Equals(trimmed, "Telemetry fuel", StringComparison.OrdinalIgnoreCase)) return "Telemetry";
+            if (string.Equals(trimmed, "manual", StringComparison.OrdinalIgnoreCase)) return "Manual";
+            if (string.Equals(trimmed, "telemetry", StringComparison.OrdinalIgnoreCase)) return "Telemetry";
+            return trimmed;
+        }
+
+        private string FormatUpdatedText(DateTime? updatedUtc, string source, bool requireSource)
+        {
+            if (!updatedUtc.HasValue) return string.Empty;
+            var normalized = NormalizeUpdateSource(source);
+            if (requireSource && string.IsNullOrWhiteSpace(normalized)) return string.Empty;
+            var label = string.IsNullOrWhiteSpace(normalized) ? "Last updated" : normalized;
+            return $"{label} {updatedUtc.Value:yyyy-MM-dd HH:mm}";
         }
 
         [JsonIgnore]
@@ -505,18 +858,184 @@ namespace LaunchPlugin
         {
             get
             {
-                if (!_fuelUpdatedUtc.HasValue) return string.Empty;
-                var sourceLabel = string.IsNullOrWhiteSpace(_fuelUpdatedSource)
-                    ? "Last updated"
-                    : _fuelUpdatedSource;
-                return $"{sourceLabel}: {_fuelUpdatedUtc.Value:yyyy-MM-dd HH:mm}";
+                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
             }
         }
+
+        [JsonIgnore]
+        public string DryFuelLastUpdatedText
+        {
+            get
+            {
+                if (_dryFuelUpdatedUtc.HasValue)
+                {
+                    return FormatUpdatedText(_dryFuelUpdatedUtc, _dryFuelUpdatedSource, requireSource: false);
+                }
+
+                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
+            }
+        }
+
+        [JsonIgnore]
+        public string WetFuelLastUpdatedText
+        {
+            get
+            {
+                if (_wetFuelUpdatedUtc.HasValue)
+                {
+                    return FormatUpdatedText(_wetFuelUpdatedUtc, _wetFuelUpdatedSource, requireSource: false);
+                }
+
+                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
+            }
+        }
+
+        [JsonIgnore]
+        public string DryBestLapLastUpdatedText => FormatUpdatedText(_dryBestLapUpdatedUtc, _dryBestLapUpdatedSource, requireSource: true);
+
+        [JsonIgnore]
+        public string WetBestLapLastUpdatedText => FormatUpdatedText(_wetBestLapUpdatedUtc, _wetBestLapUpdatedSource, requireSource: true);
+
+        [JsonIgnore]
+        public string DryAvgLapLastUpdatedText => FormatUpdatedText(_dryAvgLapUpdatedUtc, _dryAvgLapUpdatedSource, requireSource: true);
+
+        [JsonIgnore]
+        public string WetAvgLapLastUpdatedText => FormatUpdatedText(_wetAvgLapUpdatedUtc, _wetAvgLapUpdatedSource, requireSource: true);
 
         public void MarkFuelUpdated(string source, DateTime? whenUtc = null)
         {
             FuelUpdatedSource = source;
             FuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkFuelUpdatedDry(string source, DateTime? whenUtc = null)
+        {
+            DryFuelUpdatedSource = source;
+            DryFuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkFuelUpdatedWet(string source, DateTime? whenUtc = null)
+        {
+            WetFuelUpdatedSource = source;
+            WetFuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkBestLapUpdatedDry(string source, DateTime? whenUtc = null)
+        {
+            DryBestLapUpdatedSource = source;
+            DryBestLapUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkBestLapUpdatedWet(string source, DateTime? whenUtc = null)
+        {
+            WetBestLapUpdatedSource = source;
+            WetBestLapUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkAvgLapUpdatedDry(string source, DateTime? whenUtc = null)
+        {
+            DryAvgLapUpdatedSource = source;
+            DryAvgLapUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void MarkAvgLapUpdatedWet(string source, DateTime? whenUtc = null)
+        {
+            WetAvgLapUpdatedSource = source;
+            WetAvgLapUpdatedUtc = whenUtc ?? DateTime.UtcNow;
+        }
+
+        public void RelearnPitLoss()
+        {
+            PitLaneLossSeconds = null;
+            PitLaneLossSource = null;
+            PitLaneLossUpdatedUtc = null;
+            PitLaneLossBlockedCandidateSeconds = 0;
+            PitLaneLossBlockedCandidateSource = null;
+            PitLaneLossBlockedCandidateUpdatedUtc = null;
+        }
+
+        public void RelearnDryConditions()
+        {
+            _suppressBestLapDrySync = true;
+            BestLapMsDry = 0;
+            _suppressBestLapDrySync = false;
+            _bestLapMsDryText = string.Empty;
+            OnPropertyChanged(nameof(BestLapTimeDryText));
+
+            _suppressAvgLapDrySync = true;
+            AvgLapTimeDry = 0;
+            _suppressAvgLapDrySync = false;
+            _avgLapTimeDryText = string.Empty;
+            OnPropertyChanged(nameof(AvgLapTimeDryText));
+
+            _suppressDryMinFuelSync = true;
+            MinFuelPerLapDry = null;
+            _suppressDryMinFuelSync = false;
+            _minFuelPerLapDryText = string.Empty;
+            OnPropertyChanged(nameof(MinFuelPerLapDryText));
+
+            _suppressDryFuelSync = true;
+            AvgFuelPerLapDry = null;
+            _suppressDryFuelSync = false;
+            _avgFuelPerLapDryText = string.Empty;
+            OnPropertyChanged(nameof(AvgFuelPerLapDryText));
+
+            _suppressDryMaxFuelSync = true;
+            MaxFuelPerLapDry = null;
+            _suppressDryMaxFuelSync = false;
+            _maxFuelPerLapDryText = string.Empty;
+            OnPropertyChanged(nameof(MaxFuelPerLapDryText));
+
+            DryLapTimeSampleCount = 0;
+            DryFuelSampleCount = 0;
+            DryFuelUpdatedSource = null;
+            DryFuelUpdatedUtc = null;
+            DryBestLapUpdatedSource = null;
+            DryBestLapUpdatedUtc = null;
+            DryAvgLapUpdatedSource = null;
+            DryAvgLapUpdatedUtc = null;
+        }
+
+        public void RelearnWetConditions()
+        {
+            _suppressBestLapWetSync = true;
+            BestLapMsWet = 0;
+            _suppressBestLapWetSync = false;
+            _bestLapMsWetText = string.Empty;
+            OnPropertyChanged(nameof(BestLapTimeWetText));
+
+            _suppressAvgLapWetSync = true;
+            AvgLapTimeWet = 0;
+            _suppressAvgLapWetSync = false;
+            _avgLapTimeWetText = string.Empty;
+            OnPropertyChanged(nameof(AvgLapTimeWetText));
+
+            _suppressWetMinFuelSync = true;
+            MinFuelPerLapWet = null;
+            _suppressWetMinFuelSync = false;
+            _minFuelPerLapWetText = string.Empty;
+            OnPropertyChanged(nameof(MinFuelPerLapWetText));
+
+            _suppressWetFuelSync = true;
+            AvgFuelPerLapWet = null;
+            _suppressWetFuelSync = false;
+            _avgFuelPerLapWetText = string.Empty;
+            OnPropertyChanged(nameof(AvgFuelPerLapWetText));
+
+            _suppressWetMaxFuelSync = true;
+            MaxFuelPerLapWet = null;
+            _suppressWetMaxFuelSync = false;
+            _maxFuelPerLapWetText = string.Empty;
+            OnPropertyChanged(nameof(MaxFuelPerLapWetText));
+
+            WetLapTimeSampleCount = 0;
+            WetFuelSampleCount = 0;
+            WetFuelUpdatedSource = null;
+            WetFuelUpdatedUtc = null;
+            WetBestLapUpdatedSource = null;
+            WetBestLapUpdatedUtc = null;
+            WetAvgLapUpdatedSource = null;
+            WetAvgLapUpdatedUtc = null;
         }
 
 
@@ -546,7 +1065,9 @@ namespace LaunchPlugin
                     NotifyWetVsDryDeltasChanged();
                     if (!_suppressDryFuelSync)
                     {
+                        _suppressDryFuelSync = true;
                         AvgFuelPerLapDryText = _avgFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressDryFuelSync = false;
                     }
                 }
             }
@@ -566,7 +1087,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressDryFuelSync)
                         {
-                            MarkFuelUpdated("Manual fuel edit");
+                            MarkFuelUpdatedDry("Manual");
                         }
                         _suppressDryFuelSync = true;
                         AvgFuelPerLapDry = parsedValue;
@@ -588,7 +1109,9 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressDryMinFuelSync)
                     {
+                        _suppressDryMinFuelSync = true;
                         MinFuelPerLapDryText = _minFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressDryMinFuelSync = false;
                     }
                 }
             }
@@ -606,6 +1129,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressDryMinFuelSync)
+                        {
+                            MarkFuelUpdatedDry("Manual");
+                        }
                         _suppressDryMinFuelSync = true;
                         MinFuelPerLapDry = parsedValue;
                         _suppressDryMinFuelSync = false;
@@ -626,7 +1153,9 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressDryMaxFuelSync)
                     {
+                        _suppressDryMaxFuelSync = true;
                         MaxFuelPerLapDryText = _maxFuelPerLapDry?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressDryMaxFuelSync = false;
                     }
                 }
             }
@@ -644,6 +1173,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressDryMaxFuelSync)
+                        {
+                            MarkFuelUpdatedDry("Manual");
+                        }
                         _suppressDryMaxFuelSync = true;
                         MaxFuelPerLapDry = parsedValue;
                         _suppressDryMaxFuelSync = false;
@@ -674,7 +1207,7 @@ namespace LaunchPlugin
                     // LOG: Avg dry lap changed
                     try
                     {
-                        SimHub.Logging.Current.Info(
+                        SimHub.Logging.Current.Debug(
                             $"[LalaPlugin:Profile/Pace] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
                             $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeDry)}'"
                         );
@@ -683,7 +1216,9 @@ namespace LaunchPlugin
 
                     if (!_suppressAvgLapDrySync)
                     {
+                        _suppressAvgLapDrySync = true;
                         AvgLapTimeDryText = MillisecondsToLapTimeString(_avgLapTimeDry);
+                        _suppressAvgLapDrySync = false;
                     }
                 }
             }
@@ -699,8 +1234,13 @@ namespace LaunchPlugin
                 {
                     _avgLapTimeDryText = value;
                     OnPropertyChanged();
+                    var parsed = LapTimeStringToMilliseconds(value);
+                    if (!_suppressAvgLapDrySync && parsed.HasValue && AvgLapTimeDry != parsed)
+                    {
+                        MarkAvgLapUpdatedDry("Manual");
+                    }
                     _suppressAvgLapDrySync = true;
-                    AvgLapTimeDry = LapTimeStringToMilliseconds(value);
+                    AvgLapTimeDry = parsed;
                     _suppressAvgLapDrySync = false;
                 }
             }
@@ -738,7 +1278,9 @@ namespace LaunchPlugin
                     NotifyWetVsDryDeltasChanged();
                     if (!_suppressWetFuelSync)
                     {
+                        _suppressWetFuelSync = true;
                         AvgFuelPerLapWetText = _avgFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressWetFuelSync = false;
                     }
                 }
             }
@@ -758,7 +1300,7 @@ namespace LaunchPlugin
                     {
                         if (!_suppressWetFuelSync)
                         {
-                            MarkFuelUpdated("Manual fuel edit");
+                            MarkFuelUpdatedWet("Manual");
                         }
                         _suppressWetFuelSync = true;
                         AvgFuelPerLapWet = parsedValue;
@@ -780,7 +1322,9 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressWetMinFuelSync)
                     {
+                        _suppressWetMinFuelSync = true;
                         MinFuelPerLapWetText = _minFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressWetMinFuelSync = false;
                     }
                 }
             }
@@ -798,6 +1342,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressWetMinFuelSync)
+                        {
+                            MarkFuelUpdatedWet("Manual");
+                        }
                         _suppressWetMinFuelSync = true;
                         MinFuelPerLapWet = parsedValue;
                         _suppressWetMinFuelSync = false;
@@ -818,7 +1366,9 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     if (!_suppressWetMaxFuelSync)
                     {
+                        _suppressWetMaxFuelSync = true;
                         MaxFuelPerLapWetText = _maxFuelPerLapWet?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                        _suppressWetMaxFuelSync = false;
                     }
                 }
             }
@@ -836,6 +1386,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressWetMaxFuelSync)
+                        {
+                            MarkFuelUpdatedWet("Manual");
+                        }
                         _suppressWetMaxFuelSync = true;
                         MaxFuelPerLapWet = parsedValue;
                         _suppressWetMaxFuelSync = false;
@@ -875,7 +1429,9 @@ namespace LaunchPlugin
 
                     if (!_suppressAvgLapWetSync)
                     {
+                        _suppressAvgLapWetSync = true;
                         AvgLapTimeWetText = MillisecondsToLapTimeString(_avgLapTimeWet);
+                        _suppressAvgLapWetSync = false;
                     }
                 }
             }
@@ -891,8 +1447,13 @@ namespace LaunchPlugin
                 {
                     _avgLapTimeWetText = value;
                     OnPropertyChanged();
+                    var parsed = LapTimeStringToMilliseconds(value);
+                    if (!_suppressAvgLapWetSync && parsed.HasValue && AvgLapTimeWet != parsed)
+                    {
+                        MarkAvgLapUpdatedWet("Manual");
+                    }
                     _suppressAvgLapWetSync = true;
-                    AvgLapTimeWet = LapTimeStringToMilliseconds(value);
+                    AvgLapTimeWet = parsed;
                     _suppressAvgLapWetSync = false;
                 }
             }

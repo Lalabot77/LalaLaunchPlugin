@@ -635,6 +635,20 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] lock trackKey={key} locked={locked}");
         }
 
+        public void ResetTrackMarkersForKey(string trackKey)
+        {
+            EnsureTrackMarkerStoreLoaded();
+            string key = NormalizeTrackKey(trackKey);
+            if (string.Equals(key, "unknown", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var record = GetOrCreateTrackMarkerRecord(key);
+            record.PitEntryTrkPct = double.NaN;
+            record.PitExitTrkPct = double.NaN;
+            record.LastUpdatedUtc = DateTime.MinValue;
+            SaveTrackMarkers();
+        }
+
         private void UpdateTrackMarkers(string trackKey, double carPct, double trackLenM, bool isInPitLane, bool justExitedPits, bool isInPitStall, double speedKph)
         {
             EnsureTrackMarkerStoreLoaded();
@@ -943,12 +957,13 @@ namespace LaunchPlugin
         private string GetTrackMarkersFolderPath()
         {
             var baseDir = AppDomain.CurrentDomain.BaseDirectory?.TrimEnd('\\', '/');
-            return Path.Combine(baseDir ?? "", "PluginsData", "Common", "LalaLaunch");
+            return Path.Combine(baseDir ?? "", "PluginsData", "Common", "LalaPlugin");
+
         }
 
         private string GetTrackMarkersFilePath()
         {
-            return Path.Combine(GetTrackMarkersFolderPath(), "LalaLaunch.TrackMarkers.json");
+            return Path.Combine(GetTrackMarkersFolderPath(), "LalaPlugin.TrackMarkers.json");
         }
 
         private bool TryLoadTrackMarkerStore(out Dictionary<string, TrackMarkerRecord> loadedStore)

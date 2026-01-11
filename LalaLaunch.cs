@@ -179,6 +179,12 @@ namespace LaunchPlugin
             ProfilesViewModel?.RefreshTrackMarkersSnapshotForSelectedTrack();
         }
 
+        public void ResetTrackMarkersForKey(string trackKey)
+        {
+            if (string.IsNullOrWhiteSpace(trackKey)) return;
+            _pit?.ResetTrackMarkersForKey(trackKey);
+        }
+
         private bool IsTrackMarkerPulseActive(DateTime utcTimestamp)
         {
             return utcTimestamp != DateTime.MinValue &&
@@ -406,6 +412,7 @@ namespace LaunchPlugin
         private readonly List<double> _recentDryFuelLaps = new List<double>();
         private readonly List<double> _recentWetFuelLaps = new List<double>();
         private const int FuelWindowSize = 5; // keep last N valid laps per mode
+        private const int FuelPersistMinLaps = 2; // guard against early garbage in live persistence
 
         private double _avgDryFuelPerLap = 0.0;
         private double _avgWetFuelPerLap = 0.0;
@@ -1877,14 +1884,91 @@ namespace LaunchPlugin
                             _avgDryFuelPerLap, _minDryFuelPerLap, _maxDryFuelPerLap, _validDryLaps,
                             _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
 
-                        // Keep profile’s dry fuel updated from stable dry data only
-                        if (!_isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
+                        if (ActiveProfile != null)
                         {
-                            var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
+                            var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey)
+                                ?? ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackName);
                             if (trackRecord != null)
                             {
-                                trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
-                                trackRecord.MarkFuelUpdated("Telemetry fuel");
+                                if (_isWetMode)
+                                {
+                                    trackRecord.WetFuelSampleCount = _validWetLaps;
+
+                                    if (!trackRecord.WetConditionsLocked && _validWetLaps >= FuelPersistMinLaps)
+                                    {
+                                        if (_minWetFuelPerLap > 0) trackRecord.MinFuelPerLapWet = _minWetFuelPerLap;
+                                        if (_avgWetFuelPerLap > 0) trackRecord.AvgFuelPerLapWet = _avgWetFuelPerLap;
+                                        if (_maxWetFuelPerLap > 0) trackRecord.MaxFuelPerLapWet = _maxWetFuelPerLap;
+                                        trackRecord.MarkFuelUpdatedWet("Telemetry");
+                                    }
+                                }
+                                else
+                                {
+                                    trackRecord.DryFuelSampleCount = _validDryLaps;
+
+                                    if (!trackRecord.DryConditionsLocked && _validDryLaps >= FuelPersistMinLaps)
+                                    {
+                                        if (_minDryFuelPerLap > 0) trackRecord.MinFuelPerLapDry = _minDryFuelPerLap;
+                                        if (_avgDryFuelPerLap > 0) trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
+                                        if (_maxDryFuelPerLap > 0) trackRecord.MaxFuelPerLapDry = _maxDryFuelPerLap;
+                                        trackRecord.MarkFuelUpdatedDry("Telemetry");
+                                    }
+                                }
+
+                                int paceSamples = _recentLapTimes.Count;
+                                if (_isWetMode)
+                                {
+                                    trackRecord.WetLapTimeSampleCount = paceSamples;
+                                }
+                                else
+                                {
+                                    trackRecord.DryLapTimeSampleCount = paceSamples;
+                                }
+
+                                bool persistedAvgLap = false;
+                                int persistedMs = 0;
+                                if (paceSamples >= FuelPersistMinLaps && Pace_StintAvgLapTimeSec > 0)
+                                {
+                                    int ms = (int)Math.Round(Pace_StintAvgLapTimeSec * 1000.0);
+                                    if (ms > 0)
+                                    {
+                                        if (_isWetMode)
+                                        {
+                                            if (!trackRecord.WetConditionsLocked)
+                                            {
+                                                trackRecord.AvgLapTimeWet = ms;
+                                                trackRecord.MarkAvgLapUpdatedWet("Telemetry");
+                                                persistedAvgLap = true;
+                                                persistedMs = ms;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            if (!trackRecord.DryConditionsLocked)
+                                            {
+                                                trackRecord.AvgLapTimeDry = ms;
+                                                trackRecord.MarkAvgLapUpdatedDry("Telemetry");
+                                                persistedAvgLap = true;
+                                                persistedMs = ms;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (persistedAvgLap)
+                                {
+                                    ProfilesViewModel?.SaveProfiles();
+                                    string trackLabel = !string.IsNullOrWhiteSpace(trackRecord.DisplayName)
+                                        ? trackRecord.DisplayName
+                                        : (!string.IsNullOrWhiteSpace(CurrentTrackName) ? CurrentTrackName : trackRecord.Key ?? "(unknown track)");
+                                    string carLabel = ActiveProfile?.ProfileName ?? "(unknown car)";
+                                    string modeLabel = _isWetMode ? "Wet" : "Dry";
+                                    bool locked = _isWetMode ? trackRecord.WetConditionsLocked : trackRecord.DryConditionsLocked;
+                                    string lapText = trackRecord.MillisecondsToLapTimeString(persistedMs);
+                                    SimHub.Logging.Current.Info(
+                                        $"[LalaPlugin:Profile/Pace] Persisted AvgLapTime{modeLabel} for {carLabel} @ {trackLabel}: " +
+                                        $"{lapText} ({persistedMs} ms), samples={paceSamples}, locked={locked}");
+                                }
                             }
                         }
 
@@ -2011,6 +2095,14 @@ namespace LaunchPlugin
             }
             double pitWindowRequestedAdd = Math.Max(0, fuelToRequest);
             double maxTankCapacity = ResolveMaxTankCapacity();
+
+            // --- Always-on pit menu reality (NOT dependent on fuel-per-lap validity) ---
+            requestedAddLitresForSmooth = pitWindowRequestedAdd;
+
+            Pit_TankSpaceAvailable = Math.Max(0, maxTankCapacity - currentFuel);
+            Pit_WillAdd = Math.Min(pitWindowRequestedAdd, Pit_TankSpaceAvailable);
+            Pit_FuelOnExit = currentFuel + Pit_WillAdd;
+
             int strategyRequiredStops = FuelCalculator?.RequiredPitStops ?? 0;
 
             if (fuelPerLapForCalc <= 0)
@@ -2026,9 +2118,6 @@ namespace LaunchPlugin
 
                 Pit_TotalNeededToEnd = 0;
                 Pit_NeedToAdd = 0;
-                Pit_TankSpaceAvailable = 0;
-                Pit_WillAdd = 0;
-                Pit_FuelOnExit = 0;
                 Pit_DeltaAfterStop = 0;
                 Pit_FuelSaveDeltaAfterStop = 0;
                 Pit_PushDeltaAfterStop = 0;
@@ -2741,7 +2830,8 @@ namespace LaunchPlugin
                 () => this.CurrentTrackKey,
                 (trackKey) => GetTrackMarkersSnapshot(trackKey),
                 (trackKey, locked) => SetTrackMarkersLockedForKey(trackKey, locked),
-                () => ReloadTrackMarkersFromDisk()
+                () => ReloadTrackMarkersFromDisk(),
+                (trackKey) => ResetTrackMarkersForKey(trackKey)
             );
 
 
@@ -3158,6 +3248,17 @@ namespace LaunchPlugin
                 return;
             }
 
+            var trackStatsForLog = ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackKey);
+            string existingValue = trackStatsForLog?.PitLaneLossSeconds.HasValue == true
+                ? trackStatsForLog.PitLaneLossSeconds.Value.ToString("0.00")
+                : "null";
+            bool existingLocked = trackStatsForLog?.PitLaneLossLocked ?? false;
+            double lastDirect = _pit?.LastDirectTravelTime ?? 0.0;
+            SimHub.Logging.Current.Info(
+                $"[LalaPlugin:Pit Cycle] Persist request: timeLoss={timeLossSeconds:F2} " +
+                $"src={sourceFromPublisher ?? "none"} lastDirect={lastDirect:F2} " +
+                $"existingLocked={existingLocked} existingValue={existingValue}");
+
             // If we've already saved this exact DTL value, ignore repeat callers.
             if (sourceFromPublisher != null
                 && sourceFromPublisher.Equals("dtl", StringComparison.OrdinalIgnoreCase)
@@ -3166,13 +3267,22 @@ namespace LaunchPlugin
                 return;
             }
 
-            // 1) Prefer the number passed in (PitLite’s one-shot). If zero/invalid, fall back to Direct.
+            // 1) Prefer the number passed in (PitLite’s one-shot). If zero/invalid, skip persist.
             double loss = Math.Max(0.0, timeLossSeconds);
             string src = (sourceFromPublisher ?? "").Trim().ToLowerInvariant();
+            if (double.IsNaN(timeLossSeconds) || double.IsNaN(loss))
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=nan_candidate " +
+                    $"timeLoss={timeLossSeconds:F2} src={src}");
+                return;
+            }
             if (loss <= 0.0)
             {
-                loss = Math.Max(0.0, _pit?.LastDirectTravelTime ?? 0.0);
-                src = "direct";
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=invalid_candidate " +
+                    $"timeLoss={timeLossSeconds:F2} src={src}");
+                return;
             }
 
             // Debounce / override rules (keep your current behavior)
@@ -3194,15 +3304,25 @@ namespace LaunchPlugin
                 && trackRecord.PitLaneLossSeconds.Value > 0.0
                 && !double.IsNaN(trackRecord.PitLaneLossSeconds.Value);
             bool candidateValid = rounded > 0.0 && !double.IsNaN(rounded);
+            if (!candidateValid)
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=candidate_invalid " +
+                    $"seconds={rounded:0.00} src={src}");
+                return;
+            }
 
-            if (candidateValid && !existingValid)
+            if (!existingValid)
             {
                 trackRecord.PitLaneLossSeconds = rounded;
                 trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
                 trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
                 ProfilesViewModel?.SaveProfiles();
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=WRITE " +
+                    $"seconds={rounded:0.00} src={src} locked={trackRecord.PitLaneLossLocked}");
             }
-            else if (candidateValid && existingValid && trackRecord.PitLaneLossLocked)
+            else if (existingValid && trackRecord.PitLaneLossLocked)
             {
 
                 trackRecord.PitLaneLossBlockedCandidateSeconds = rounded;
@@ -3210,7 +3330,9 @@ namespace LaunchPlugin
                 trackRecord.PitLaneLossBlockedCandidateUpdatedUtc = now;
 
                 ProfilesViewModel?.SaveProfiles();
-                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate {rounded:0.00}s source={src}");
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=BLOCKED_CANDIDATE " +
+                    $"seconds={rounded:0.00} src={src} locked={trackRecord.PitLaneLossLocked}");
                 _lastPitLossSaved = rounded;
                 _lastPitLossSavedAtUtc = now;
                 _lastPitLossSource = src;
@@ -3223,6 +3345,9 @@ namespace LaunchPlugin
                 trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
                 trackRecord.PitLaneLossUpdatedUtc = now;              // DateTime.UtcNow above
                 ProfilesViewModel?.SaveProfiles();
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=WRITE " +
+                    $"seconds={rounded:0.00} src={src} locked={trackRecord.PitLaneLossLocked}");
             }
 
             // Publish to the live snapshot + Fuel tab immediately
@@ -3629,16 +3754,18 @@ namespace LaunchPlugin
                 _currentSessionToken = currentSessionToken;
                 SimHub.Logging.Current.Info($"[LalaPlugin:Session] token change old={oldToken} new={currentSessionToken} type={sessionTypeForLog}");
 
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] SessionChange: skipPitLossSave=true " +
+                    $"pitLiteStatus={_pitLite?.Status} " +
+                    $"candidateReady={_pitLite?.CandidateReady ?? false} " +
+                    $"lastDirect={_pit?.LastDirectTravelTime:F2} " +
+                    $"oldToken={oldToken} newToken={currentSessionToken}");
+
                 // If we exited lane and the session ended before S/F, finalize once with PitLite’s one-shot.
                 if (_pitLite != null && _pitLite.ConsumeCandidate(out var scLoss, out var scSrc))
                 {
                     Pit_OnValidPitStopTimeLossCalculated(scLoss, scSrc);
                     // nothing else: ConsumeCandidate cleared the latch, sink de-dupe will ignore repeats
-                }
-                // Optional: if nothing latched, fall back to direct once.
-                else if ((_pit?.LastDirectTravelTime ?? 0.0) > 0.0)
-                {
-                    Pit_OnValidPitStopTimeLossCalculated(_pit.LastDirectTravelTime, "direct");
                 }
 
                 _rejoinEngine.Reset();
@@ -3717,7 +3844,10 @@ namespace LaunchPlugin
                 catch { /* keep avgUsed as 0.0 if anything goes wrong */ }
             }
 
-            _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed);
+            bool isInPitStall = Convert.ToBoolean(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerCarInPitStall") ?? false);
+            double speedKph = data.NewData?.SpeedKmh ?? 0.0;
+            _pitLite?.Update(inLane, completedLaps, lastLapSec, avgUsed, isInPitStall, speedKph);
 
             bool pitEntryEdge = false;
             bool pitExitEdge = false;
@@ -3974,18 +4104,24 @@ namespace LaunchPlugin
                 UpdateLiveFuelCalcs(data, pluginManager);
 
                 var currentBestLap = data.NewData?.BestLapTime ?? TimeSpan.Zero;
+                bool isWetEffective = FuelCalculator?.IsWet ?? false;
                 if (currentBestLap > TimeSpan.Zero && currentBestLap != _lastSeenBestLap)
                 {
                     _lastSeenBestLap = currentBestLap;
-                    FuelCalculator?.SetPersonalBestSeconds(currentBestLap.TotalSeconds);
 
                     int lapMs = (int)currentBestLap.TotalMilliseconds;
-                    bool accepted = ProfilesViewModel.TryUpdatePB(CurrentCarModel, CurrentTrackKey, lapMs);
+                    bool accepted = ProfilesViewModel.TryUpdatePBByCondition(CurrentCarModel, CurrentTrackKey, lapMs, isWetEffective);
                     string pbLog = $"[LalaPlugin:Pace] candidate={lapMs}ms car='{CurrentCarModel}' trackKey='{CurrentTrackKey}' -> {(accepted ? "accepted" : "rejected")}";
                     if (accepted)
                         SimHub.Logging.Current.Info(pbLog);
                     else
                         SimHub.Logging.Current.Debug(pbLog);
+
+                    var activeTrackStats = ActiveProfile?.ResolveTrackByNameOrKey(CurrentTrackKey)
+                        ?? ActiveProfile?.ResolveTrackByNameOrKey(CurrentTrackName);
+                    int? selectedPbMs = activeTrackStats?.GetBestLapMsForCondition(isWetEffective);
+                    double selectedPbSeconds = selectedPbMs.HasValue ? selectedPbMs.Value / 1000.0 : 0.0;
+                    FuelCalculator?.SetPersonalBestSeconds(selectedPbSeconds);
                 }
 
                 // =========================================================================
@@ -4212,8 +4348,6 @@ namespace LaunchPlugin
             // --- Decel capture instrumentation (toggle = pit screen active) ---
             {
                 bool captureOn = _pitScreenActive;
-
-                double speedKph = data.NewData?.SpeedKmh ?? 0.0;
 
                 // Throttle: your codebase treats it like 0..100, so normalise to 0..1
                 double throttleRaw = data.NewData?.Throttle ?? 0.0;

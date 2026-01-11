@@ -1117,7 +1117,16 @@ namespace LaunchPlugin
 
     public void SetPersonalBestSeconds(double pbSeconds)
     {
-        if (pbSeconds <= 0) return;
+        if (pbSeconds <= 0)
+        {
+            _loadedBestLapTimeSeconds = 0;
+            IsPersonalBestAvailable = false;
+            HistoricalBestLapDisplay = "-";
+            LiveBestLapDisplay = "-";
+            OnPropertyChanged(nameof(IsPersonalBestAvailable));
+            OnPropertyChanged(nameof(HistoricalBestLapDisplay));
+            return;
+        }
 
         _loadedBestLapTimeSeconds = pbSeconds;
         IsPersonalBestAvailable = true;
@@ -1586,6 +1595,7 @@ namespace LaunchPlugin
                         LapTimeSourceInfo = FormatConditionSourceLabel("Profile avg");
                     }
                 }
+                UpdateProfileBestLapForCondition(ts);
                 UpdateProfileAverageDisplaysForCondition();
                 RefreshProfilePlanningData();
                 UpdateTrackDerivedSummaries();
@@ -1792,7 +1802,7 @@ namespace LaunchPlugin
             var ts = profile.ResolveTrackByNameOrKey(trackKey) ?? profile.ResolveTrackByNameOrKey(trackName);
             if (ts == null) return null;
 
-            int? ms = ts.BestLapMs;
+            int? ms = ts.GetBestLapMsForCondition(isWetEffective: false);
             if (!ms.HasValue || ms.Value <= 0) return null;
 
             return ms.Value / 1000.0;
@@ -2218,14 +2228,27 @@ namespace LaunchPlugin
 
         if (fuelStamped)
         {
-            var source = isLiveSession ? "Telemetry fuel" : "Planner save";
-            trackRecord.MarkFuelUpdated(source);
+            var source = isLiveSession ? "Telemetry" : "Planner save";
+            if (saveWet)
+            {
+                trackRecord.MarkFuelUpdatedWet(source);
+            }
+            else
+            {
+                trackRecord.MarkFuelUpdatedDry(source);
+            }
         }
 
         trackRecord.PitLaneLossSeconds = this.PitLaneTimeLoss;
 
         if (IsPersonalBestAvailable && _loadedBestLapTimeSeconds > 0)
-            trackRecord.BestLapMs = (int)(_loadedBestLapTimeSeconds * 1000);
+        {
+            int pbMs = (int)(_loadedBestLapTimeSeconds * 1000);
+            if (saveWet)
+                trackRecord.BestLapMsWet = pbMs;
+            else
+                trackRecord.BestLapMsDry = pbMs;
+        }
 
         var trackCondition = trackRecord.GetConditionMultipliers(saveWet);
         trackCondition.FormationLapBurnLiters = this.FormationLapFuelLiters;
@@ -3579,21 +3602,7 @@ namespace LaunchPlugin
                 this.WetFactorPercent = car.WetFuelMultiplier;
             }
 
-            if (ts?.BestLapMs is int ms && ms > 0)
-            {
-                _loadedBestLapTimeSeconds = ms / 1000.0;
-                IsPersonalBestAvailable = true;
-                HistoricalBestLapDisplay = TimeSpan.FromMilliseconds(ms).ToString(@"m\:ss\.fff");
-            }
-            else
-            {
-                _loadedBestLapTimeSeconds = 0;
-                IsPersonalBestAvailable = false;
-                HistoricalBestLapDisplay = "-";
-            }
-            // Manually notify the UI that these properties have changed
-            OnPropertyChanged(nameof(IsPersonalBestAvailable));
-            OnPropertyChanged(nameof(HistoricalBestLapDisplay));
+            UpdateProfileBestLapForCondition(ts);
 
 
             // --- Set the initial estimated lap time from the profile's condition average ---
@@ -3755,6 +3764,34 @@ namespace LaunchPlugin
     {
         if (IsWet) { FuelPerLap = _baseDryFuelPerLap * (WetFactorPercent / 100.0); }
         UpdateProfileFuelChoiceDisplays();
+    }
+
+    private void UpdateProfileBestLapForCondition(TrackStats ts = null)
+    {
+        if (ts == null)
+        {
+            ts = SelectedTrackStats ?? ResolveSelectedTrackStats();
+        }
+
+        int? ms = ts?.GetBestLapMsForCondition(IsWet);
+        if (ms.HasValue && ms.Value > 0)
+        {
+            _loadedBestLapTimeSeconds = ms.Value / 1000.0;
+            IsPersonalBestAvailable = true;
+            var formatted = TimeSpan.FromMilliseconds(ms.Value).ToString(@"m\:ss\.fff");
+            HistoricalBestLapDisplay = formatted;
+            LiveBestLapDisplay = formatted;
+        }
+        else
+        {
+            _loadedBestLapTimeSeconds = 0;
+            IsPersonalBestAvailable = false;
+            HistoricalBestLapDisplay = "-";
+            LiveBestLapDisplay = "-";
+        }
+
+        OnPropertyChanged(nameof(IsPersonalBestAvailable));
+        OnPropertyChanged(nameof(HistoricalBestLapDisplay));
     }
 
     private void UpdateProfileAverageDisplaysForCondition(TrackStats ts = null)
