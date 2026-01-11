@@ -3244,13 +3244,15 @@ namespace LaunchPlugin
             }
 
             var trackStatsForLog = ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackKey);
-            bool existingHasValue = trackStatsForLog?.PitLaneLossSeconds.HasValue ?? false;
+            string existingValue = trackStatsForLog?.PitLaneLossSeconds.HasValue == true
+                ? trackStatsForLog.PitLaneLossSeconds.Value.ToString("0.00")
+                : "null";
             bool existingLocked = trackStatsForLog?.PitLaneLossLocked ?? false;
             double lastDirect = _pit?.LastDirectTravelTime ?? 0.0;
             SimHub.Logging.Current.Info(
                 $"[LalaPlugin:Pit Cycle] Persist request: timeLoss={timeLossSeconds:F2} " +
                 $"src={sourceFromPublisher ?? "none"} lastDirect={lastDirect:F2} " +
-                $"lock={existingLocked} existingSaved={existingHasValue}");
+                $"existingLocked={existingLocked} existingValue={existingValue}");
 
             // If we've already saved this exact DTL value, ignore repeat callers.
             if (sourceFromPublisher != null
@@ -3263,6 +3265,13 @@ namespace LaunchPlugin
             // 1) Prefer the number passed in (PitLite’s one-shot). If zero/invalid, skip persist.
             double loss = Math.Max(0.0, timeLossSeconds);
             string src = (sourceFromPublisher ?? "").Trim().ToLowerInvariant();
+            if (double.IsNaN(timeLossSeconds) || double.IsNaN(loss))
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=nan_candidate " +
+                    $"timeLoss={timeLossSeconds:F2} src={src}");
+                return;
+            }
             if (loss <= 0.0)
             {
                 SimHub.Logging.Current.Info(
@@ -3290,8 +3299,15 @@ namespace LaunchPlugin
                 && trackRecord.PitLaneLossSeconds.Value > 0.0
                 && !double.IsNaN(trackRecord.PitLaneLossSeconds.Value);
             bool candidateValid = rounded > 0.0 && !double.IsNaN(rounded);
+            if (!candidateValid)
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=candidate_invalid " +
+                    $"seconds={rounded:0.00} src={src}");
+                return;
+            }
 
-            if (candidateValid && !existingValid)
+            if (!existingValid)
             {
                 trackRecord.PitLaneLossSeconds = rounded;
                 trackRecord.PitLaneLossSource = src;                  // "dtl" or "direct"
@@ -3301,7 +3317,7 @@ namespace LaunchPlugin
                     $"[LalaPlugin:Pit Cycle] Persist decision: action=WRITE " +
                     $"seconds={rounded:0.00} src={src} locked={trackRecord.PitLaneLossLocked}");
             }
-            else if (candidateValid && existingValid && trackRecord.PitLaneLossLocked)
+            else if (existingValid && trackRecord.PitLaneLossLocked)
             {
 
                 trackRecord.PitLaneLossBlockedCandidateSeconds = rounded;
@@ -3309,7 +3325,6 @@ namespace LaunchPlugin
                 trackRecord.PitLaneLossBlockedCandidateUpdatedUtc = now;
 
                 ProfilesViewModel?.SaveProfiles();
-                SimHub.Logging.Current.Info($"[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate {rounded:0.00}s source={src}");
                 SimHub.Logging.Current.Info(
                     $"[LalaPlugin:Pit Cycle] Persist decision: action=BLOCKED_CANDIDATE " +
                     $"seconds={rounded:0.00} src={src} locked={trackRecord.PitLaneLossLocked}");
