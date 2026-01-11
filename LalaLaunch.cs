@@ -412,6 +412,7 @@ namespace LaunchPlugin
         private readonly List<double> _recentDryFuelLaps = new List<double>();
         private readonly List<double> _recentWetFuelLaps = new List<double>();
         private const int FuelWindowSize = 5; // keep last N valid laps per mode
+        private const int FuelPersistMinLaps = 3; // guard against early garbage in live persistence
 
         private double _avgDryFuelPerLap = 0.0;
         private double _avgWetFuelPerLap = 0.0;
@@ -1883,14 +1884,36 @@ namespace LaunchPlugin
                             _avgDryFuelPerLap, _minDryFuelPerLap, _maxDryFuelPerLap, _validDryLaps,
                             _avgWetFuelPerLap, _minWetFuelPerLap, _maxWetFuelPerLap, _validWetLaps);
 
-                        // Keep profile’s dry fuel updated from stable dry data only
-                        if (!_isWetMode && _validDryLaps >= 3 && ActiveProfile != null)
+                        if (ActiveProfile != null)
                         {
-                            var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey);
+                            var trackRecord = ActiveProfile.FindTrack(CurrentTrackKey)
+                                ?? ActiveProfile.ResolveTrackByNameOrKey(CurrentTrackName);
                             if (trackRecord != null)
                             {
-                                trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
-                                trackRecord.MarkFuelUpdatedDry("Telemetry fuel");
+                                if (_isWetMode)
+                                {
+                                    trackRecord.WetFuelSampleCount = _validWetLaps;
+
+                                    if (!trackRecord.WetConditionsLocked && _validWetLaps >= FuelPersistMinLaps)
+                                    {
+                                        if (_minWetFuelPerLap > 0) trackRecord.MinFuelPerLapWet = _minWetFuelPerLap;
+                                        if (_avgWetFuelPerLap > 0) trackRecord.AvgFuelPerLapWet = _avgWetFuelPerLap;
+                                        if (_maxWetFuelPerLap > 0) trackRecord.MaxFuelPerLapWet = _maxWetFuelPerLap;
+                                        trackRecord.MarkFuelUpdatedWet("Telemetry fuel");
+                                    }
+                                }
+                                else
+                                {
+                                    trackRecord.DryFuelSampleCount = _validDryLaps;
+
+                                    if (!trackRecord.DryConditionsLocked && _validDryLaps >= FuelPersistMinLaps)
+                                    {
+                                        if (_minDryFuelPerLap > 0) trackRecord.MinFuelPerLapDry = _minDryFuelPerLap;
+                                        if (_avgDryFuelPerLap > 0) trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
+                                        if (_maxDryFuelPerLap > 0) trackRecord.MaxFuelPerLapDry = _maxDryFuelPerLap;
+                                        trackRecord.MarkFuelUpdatedDry("Telemetry fuel");
+                                    }
+                                }
                             }
                         }
 

@@ -937,6 +937,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressDryMinFuelSync)
+                        {
+                            MarkFuelUpdatedDry("Manual fuel edit");
+                        }
                         _suppressDryMinFuelSync = true;
                         MinFuelPerLapDry = parsedValue;
                         _suppressDryMinFuelSync = false;
@@ -975,6 +979,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressDryMaxFuelSync)
+                        {
+                            MarkFuelUpdatedDry("Manual fuel edit");
+                        }
                         _suppressDryMaxFuelSync = true;
                         MaxFuelPerLapDry = parsedValue;
                         _suppressDryMaxFuelSync = false;
@@ -1129,6 +1137,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressWetMinFuelSync)
+                        {
+                            MarkFuelUpdatedWet("Manual fuel edit");
+                        }
                         _suppressWetMinFuelSync = true;
                         MinFuelPerLapWet = parsedValue;
                         _suppressWetMinFuelSync = false;
@@ -1167,6 +1179,10 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
+                        if (!_suppressWetMaxFuelSync)
+                        {
+                            MarkFuelUpdatedWet("Manual fuel edit");
+                        }
                         _suppressWetMaxFuelSync = true;
                         MaxFuelPerLapWet = parsedValue;
                         _suppressWetMaxFuelSync = false;
