@@ -74,6 +74,21 @@ namespace LaunchPlugin
         private double _refuelRate = 2.7;
         public double RefuelRate { get => _refuelRate; set { if (_refuelRate != value) { _refuelRate = value; OnPropertyChanged(); } } }
 
+        private double? _baseTankLitres;
+        [JsonProperty]
+        public double? BaseTankLitres
+        {
+            get => _baseTankLitres;
+            set
+            {
+                if (_baseTankLitres != value)
+                {
+                    _baseTankLitres = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         private ConditionMultipliers _dryConditionMultipliers = ConditionMultipliers.CreateDefaultDry();
         private ConditionMultipliers _wetConditionMultipliers = ConditionMultipliers.CreateDefaultWet();
 
@@ -215,7 +230,7 @@ namespace LaunchPlugin
     public class CarProfilesStore
     {
         [JsonProperty]
-        public int SchemaVersion { get; set; } = 1;
+        public int SchemaVersion { get; set; } = 2;
 
         [JsonProperty]
         public ObservableCollection<CarProfile> Profiles { get; set; } = new ObservableCollection<CarProfile>();

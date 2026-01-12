@@ -183,6 +183,7 @@ namespace LaunchPlugin
                     car.TireChangeTime = defaultProfile.TireChangeTime;
                     car.RacePaceDeltaSeconds = defaultProfile.RacePaceDeltaSeconds;
                     car.RefuelRate = defaultProfile.RefuelRate;
+                    car.BaseTankLitres = defaultProfile.BaseTankLitres;
                     car.DryConditionMultipliers = defaultProfile.DryConditionMultipliers?.Clone() ?? ConditionMultipliers.CreateDefaultDry();
                     car.WetConditionMultipliers = defaultProfile.WetConditionMultipliers?.Clone() ?? ConditionMultipliers.CreateDefaultWet();
                     car.RejoinWarningLingerTime = defaultProfile.RejoinWarningLingerTime;
@@ -529,6 +530,7 @@ namespace LaunchPlugin
         public RelayCommand RelearnPitDataCommand { get; }
         public RelayCommand RelearnDryCommand { get; }
         public RelayCommand RelearnWetCommand { get; }
+        public RelayCommand LearnBaseTankCommand { get; }
 
 
         public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey)
@@ -558,6 +560,7 @@ namespace LaunchPlugin
             RelearnPitDataCommand = new RelayCommand(p => RelearnPitData(), p => SelectedTrack != null);
             RelearnDryCommand = new RelayCommand(p => RelearnDryConditions(), p => SelectedTrack != null);
             RelearnWetCommand = new RelayCommand(p => RelearnWetConditions(), p => SelectedTrack != null);
+            LearnBaseTankCommand = new RelayCommand(p => LearnBaseTankFromLive(), p => IsProfileSelected);
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
         }
@@ -592,6 +595,7 @@ namespace LaunchPlugin
                 newProfile.IsContingencyInLaps = defaultProfile.IsContingencyInLaps;
                 newProfile.WetFuelMultiplier = defaultProfile.WetFuelMultiplier;
                 newProfile.RefuelRate = defaultProfile.RefuelRate;
+                newProfile.BaseTankLitres = defaultProfile.BaseTankLitres;
                 newProfile.RejoinWarningLingerTime = defaultProfile.RejoinWarningLingerTime;
                 newProfile.RejoinWarningMinSpeed = defaultProfile.RejoinWarningMinSpeed;
                 newProfile.SpinYawRateThreshold = defaultProfile.SpinYawRateThreshold;
@@ -669,8 +673,25 @@ namespace LaunchPlugin
             destination.TrafficApproachWarnSeconds = source.TrafficApproachWarnSeconds;
             destination.RacePaceDeltaSeconds = source.RacePaceDeltaSeconds;
             destination.RefuelRate = source.RefuelRate;
+            destination.BaseTankLitres = source.BaseTankLitres;
             destination.PitEntryDecelMps2 = source.PitEntryDecelMps2;
             destination.PitEntryBufferM = source.PitEntryBufferM;
+        }
+
+        private void LearnBaseTankFromLive()
+        {
+            if (SelectedProfile == null) return;
+
+            double rawMaxFuel = Convert.ToDouble(_pluginManager?.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
+            if (double.IsNaN(rawMaxFuel) || double.IsInfinity(rawMaxFuel) || rawMaxFuel <= 0.0)
+            {
+                SimHub.Logging.Current.Debug("[LalaPlugin:Profiles] Learn Base Tank skipped: invalid MaxFuel from live data.");
+                return;
+            }
+
+            double learnedValue = Math.Round(rawMaxFuel, 1);
+            SelectedProfile.BaseTankLitres = learnedValue;
+            SimHub.Logging.Current.Debug($"[LalaPlugin:Profiles] Learned Base Tank for '{SelectedProfile.ProfileName}': {learnedValue:F1} L");
         }
 
         private void DeleteProfile()
@@ -766,10 +787,12 @@ namespace LaunchPlugin
                 {
                     string json = File.ReadAllText(_profilesFilePath);
                     ObservableCollection<CarProfile> loadedProfiles = null;
+                    int? schemaVersion = null;
                     try
                     {
                         var store = Newtonsoft.Json.JsonConvert.DeserializeObject<CarProfilesStore>(json);
                         loadedProfiles = store?.Profiles;
+                        schemaVersion = store?.SchemaVersion;
                     }
                     catch
                     {
@@ -782,6 +805,17 @@ namespace LaunchPlugin
                     }
                     if (loadedProfiles != null)
                     {
+                        foreach (var profile in loadedProfiles)
+                        {
+                            if (profile.BaseTankLitres.HasValue)
+                            {
+                                var value = profile.BaseTankLitres.Value;
+                                if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0)
+                                {
+                                    profile.BaseTankLitres = null;
+                                }
+                            }
+                        }
                         // Clear the existing collection and add the loaded items
                         // This ensures the SortedCarProfiles view is updated correctly.
                         CarProfiles.Clear();
@@ -826,6 +860,7 @@ namespace LaunchPlugin
                     TireChangeTime = 22,
                     RacePaceDeltaSeconds = 1.2,
                     RefuelRate = 3.7,
+                    BaseTankLitres = null,
                     PitEntryDecelMps2 = 13.5,
                     PitEntryBufferM = 15.0,
 
@@ -882,6 +917,7 @@ namespace LaunchPlugin
                 // First, save all profiles to the file as before.
                 var store = new CarProfilesStore
                 {
+                    SchemaVersion = 2,
                     Profiles = CarProfiles
                 };
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(store, Newtonsoft.Json.Formatting.Indented);

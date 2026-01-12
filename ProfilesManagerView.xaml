@@ -221,19 +221,41 @@
                         </Grid>
 
                         <Grid Margin="0,15,0,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Refuel Rate (L/s):" ToolTip="The average rate at which the car refuels."/>
-                            <Grid Grid.Row="1">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RefuelRate, Mode=TwoWay}" Minimum="1" Maximum="10" SmallChange="0.05" TickFrequency="0.05" IsSnapToTickEnabled="True" />
-                                <TextBlock Grid.Column="1" Text="{Binding RefuelRate, StringFormat=N2}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
-                            </Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Refuel Rate (L/s):" ToolTip="The average rate at which the car refuels."/>
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RefuelRate, Mode=TwoWay}" Minimum="1" Maximum="10" SmallChange="0.05" TickFrequency="0.05" IsSnapToTickEnabled="True" />
+                                    <TextBlock Grid.Column="1" Text="{Binding RefuelRate, StringFormat=N2}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Base Tank (L):" ToolTip="Unscaled base tank capacity for this car profile."/>
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Margin="0,0,0,0"
+                                             TextAlignment="Right"
+                                             Text="{Binding BaseTankLitres, Mode=TwoWay, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"/>
+                                    <styles:SHButtonSecondary Grid.Column="1"
+                                                              Content="Learn from Live"
+                                                              Margin="8,0,0,0"
+                                                              Command="{Binding DataContext.LearnBaseTankCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                </Grid>
+                            </StackPanel>
                         </Grid>
                     </StackPanel>
                 </styles:SHTabItem>
