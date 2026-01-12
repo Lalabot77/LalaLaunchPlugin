@@ -8,6 +8,16 @@ namespace LaunchPlugin.Messaging
 {
     public static class MessageDefinitionStore
     {
+        [JsonObject(MemberSerialization.OptIn)]
+        private class MessageDefinitionStoreRoot
+        {
+            [JsonProperty]
+            public int SchemaVersion { get; set; } = 1;
+
+            [JsonProperty]
+            public List<MessageDefinition> Messages { get; set; } = new List<MessageDefinition>();
+        }
+
         private const string NewFileName = "Messages.json";
         private const string LegacyFileName = "LalaLaunch.Messages.json";
         private static readonly HashSet<string> ExcludedMsgIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -41,7 +51,23 @@ namespace LaunchPlugin.Messaging
                 }
 
                 var json = File.ReadAllText(path);
-                var list = JsonConvert.DeserializeObject<List<MessageDefinition>>(json) ?? new List<MessageDefinition>();
+                List<MessageDefinition> list = null;
+                try
+                {
+                    var store = JsonConvert.DeserializeObject<MessageDefinitionStoreRoot>(json);
+                    list = store?.Messages;
+                }
+                catch
+                {
+                    list = null;
+                }
+
+                if (list == null)
+                {
+                    list = JsonConvert.DeserializeObject<List<MessageDefinition>>(json);
+                }
+
+                list ??= new List<MessageDefinition>();
                 foreach (var def in list)
                 {
                     ApplyDefaults(def);
@@ -70,7 +96,11 @@ namespace LaunchPlugin.Messaging
 
             var path = GetFilePath();
 
-            var json = JsonConvert.SerializeObject(definitions, Formatting.Indented);
+            var store = new MessageDefinitionStoreRoot
+            {
+                Messages = definitions
+            };
+            var json = JsonConvert.SerializeObject(store, Formatting.Indented);
             var tmp = path + ".tmp";
             File.WriteAllText(tmp, json);
             if (File.Exists(path))
