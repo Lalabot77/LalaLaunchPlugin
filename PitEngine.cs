@@ -1007,10 +1007,11 @@ namespace LaunchPlugin
 
                 if (loadedFromLegacy)
                 {
-                    var json = JsonConvert.SerializeObject(loadedStore, Formatting.Indented);
-                    File.WriteAllText(newPath, json);
+                    var newJson = JsonConvert.SerializeObject(loadedStore, Formatting.Indented);
+                    File.WriteAllText(newPath, newJson);
                     SimHub.Logging.Current.Info($"[LalaPlugin:Storage] migrated {legacyPath} -> {newPath}");
                 }
+
 
                 SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] load ok ({loadedStore.Count} track(s)) path='{path}'");
                 return true;
