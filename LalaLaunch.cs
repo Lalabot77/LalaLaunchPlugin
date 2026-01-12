@@ -14,6 +14,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Media;
+using Newtonsoft.Json;
 
 
 namespace LaunchPlugin
@@ -2797,6 +2798,9 @@ namespace LaunchPlugin
             public static bool VERBOSE = false;
         }
 
+        private const string GlobalSettingsFileName = "GlobalSettings.json";
+        private const string GlobalSettingsLegacyFileName = "LalaLaunch.GlobalSettings_V2.json";
+
         private void AttachCore(string name, Func<object> getter) => this.AttachDelegate(name, getter);
         private void AttachVerbose(string name, Func<object> getter)
         {
@@ -2807,7 +2811,8 @@ namespace LaunchPlugin
         {
             // --- INITIALIZATION ---
             this.PluginManager = pluginManager;
-            Settings = this.ReadCommonSettings<LaunchPluginSettings>("GlobalSettings_V2", () => new LaunchPluginSettings());
+            PluginStorage.Initialize(pluginManager);
+            Settings = LoadSettings();
             
 #if DEBUG
             FuelProjectionMath.RunSelfTests();
@@ -3456,9 +3461,67 @@ namespace LaunchPlugin
             // _telemetryTraceLogger?.DiscardCurrentTrace();
 
             // Persist settings
-            this.SaveCommonSettings("GlobalSettings_V2", Settings);
+            SaveSettings();
             ProfilesViewModel.SaveProfiles();
 
+        }
+
+        private LaunchPluginSettings LoadSettings()
+        {
+            var newPath = PluginStorage.GetPluginFilePath(GlobalSettingsFileName);
+            var legacyPath = PluginStorage.GetCommonFilePath(GlobalSettingsLegacyFileName);
+
+            try
+            {
+                if (File.Exists(newPath))
+                    return ReadSettingsFromPath(newPath);
+
+                if (File.Exists(legacyPath))
+                {
+                    var settings = ReadSettingsFromPath(legacyPath);
+                    SaveSettingsToPath(newPath, settings);
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Storage] migrated {legacyPath} -> {newPath}");
+                    return settings;
+                }
+
+                var defaults = new LaunchPluginSettings();
+                SaveSettingsToPath(newPath, defaults);
+                return defaults;
+            }
+            catch (Exception ex)
+            {
+                SimHub.Logging.Current.Warn($"[LalaPlugin:Storage] settings load failed; using defaults. {ex.Message}");
+                var defaults = new LaunchPluginSettings();
+                SafeTry(() => SaveSettingsToPath(newPath, defaults));
+                return defaults;
+            }
+        }
+
+        private LaunchPluginSettings ReadSettingsFromPath(string path)
+        {
+            var json = File.ReadAllText(path);
+            return JsonConvert.DeserializeObject<LaunchPluginSettings>(json) ?? new LaunchPluginSettings();
+        }
+
+        private void SaveSettings()
+        {
+            var path = PluginStorage.GetPluginFilePath(GlobalSettingsFileName);
+            SaveSettingsToPath(path, Settings);
+        }
+
+        private void SaveSettingsToPath(string path, LaunchPluginSettings settings)
+        {
+            var folder = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(folder))
+                Directory.CreateDirectory(folder);
+
+            var json = JsonConvert.SerializeObject(settings ?? new LaunchPluginSettings(), Formatting.Indented);
+            File.WriteAllText(path, json);
+        }
+
+        private static void SafeTry(Action action)
+        {
+            try { action(); } catch { /* ignore */ }
         }
 
         private void AbortLaunch()
@@ -6278,6 +6341,9 @@ namespace LaunchPlugin
 
     public class LaunchPluginSettings : INotifyPropertyChanged
     {
+        [JsonProperty]
+        public int SchemaVersion { get; set; } = 2;
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null) { PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName)); }
 

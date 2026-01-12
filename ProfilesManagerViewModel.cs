@@ -40,6 +40,7 @@ namespace LaunchPlugin
         private readonly Action _reloadTrackMarkersFromDisk;
         private readonly Action<string> _resetTrackMarkersForKey;
         private readonly string _profilesFilePath;
+        private readonly string _legacyProfilesFilePath;
         private bool _suppressTrackMarkersLockAction;
         // --- PB constants ---
         private const int PB_MIN_MS = 30000;     // >= 30s
@@ -543,9 +544,8 @@ namespace LaunchPlugin
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
-            string commonDataFolder = _pluginManager.GetCommonStoragePath();
-            Directory.CreateDirectory(commonDataFolder); // Ensure it exists
-            _profilesFilePath = Path.Combine(commonDataFolder, "LalaLaunch_CarProfiles.json");
+            _profilesFilePath = PluginStorage.GetPluginFilePath("CarProfiles.json");
+            _legacyProfilesFilePath = PluginStorage.GetCommonFilePath("LalaLaunch_CarProfiles.json");
 
             // Initialize Commands
             NewProfileCommand = new RelayCommand(p => NewProfile());
@@ -761,6 +761,7 @@ namespace LaunchPlugin
         {
             try
             {
+                PluginStorage.TryMigrate(_legacyProfilesFilePath, _profilesFilePath);
                 if (File.Exists(_profilesFilePath))
                 {
                     string json = File.ReadAllText(_profilesFilePath);
@@ -866,6 +867,9 @@ namespace LaunchPlugin
             {
                 // First, save all profiles to the file as before.
                 string json = Newtonsoft.Json.JsonConvert.SerializeObject(CarProfiles, Newtonsoft.Json.Formatting.Indented);
+                var folder = Path.GetDirectoryName(_profilesFilePath);
+                if (!string.IsNullOrWhiteSpace(folder))
+                    Directory.CreateDirectory(folder);
                 File.WriteAllText(_profilesFilePath, json);
                 SimHub.Logging.Current.Debug("[LalaPlugin:Profiles] Profiles saved to JSON.");
             }

@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using LaunchPlugin;
 using Newtonsoft.Json;
 
 namespace LaunchPlugin.Messaging
 {
     public static class MessageDefinitionStore
     {
-        private const string FileName = "LalaLaunch.Messages.json";
+        private const string NewFileName = "Messages.json";
+        private const string LegacyFileName = "LalaLaunch.Messages.json";
         private static readonly HashSet<string> ExcludedMsgIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "rejoin.threat_high",
@@ -16,21 +18,20 @@ namespace LaunchPlugin.Messaging
 
         public static string GetFolderPath()
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory?.TrimEnd('\\', '/');
-            return Path.Combine(baseDir ?? string.Empty, "PluginsData", "Common");
+            return PluginStorage.GetPluginFolder();
         }
 
-        public static string GetFilePath() => Path.Combine(GetFolderPath(), FileName);
+        public static string GetFilePath() => Path.Combine(GetFolderPath(), NewFileName);
+
+        private static string GetLegacyFilePath() => PluginStorage.GetCommonFilePath(LegacyFileName);
 
         public static List<MessageDefinition> LoadOrCreateDefault()
         {
             try
             {
-                var folder = GetFolderPath();
                 var path = GetFilePath();
-
-                if (!Directory.Exists(folder))
-                    Directory.CreateDirectory(folder);
+                var legacyPath = GetLegacyFilePath();
+                PluginStorage.TryMigrate(legacyPath, path);
 
                 if (!File.Exists(path))
                 {
@@ -67,10 +68,7 @@ namespace LaunchPlugin.Messaging
         {
             if (definitions == null) throw new ArgumentNullException(nameof(definitions));
 
-            var folder = GetFolderPath();
             var path = GetFilePath();
-            if (!Directory.Exists(folder))
-                Directory.CreateDirectory(folder);
 
             var json = JsonConvert.SerializeObject(definitions, Formatting.Indented);
             var tmp = path + ".tmp";
