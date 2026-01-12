@@ -65,7 +65,8 @@ namespace LaunchPlugin
                     list = JsonConvert.DeserializeObject<List<RacePreset>>(json);
                 }
 
-                list ??= new List<RacePreset>();
+                if (list == null) list = new List<RacePreset>();
+
                 if (list.Count == 0) { var d = DefaultPresets(); SaveAll(d); return d; }
                 return list;
             }

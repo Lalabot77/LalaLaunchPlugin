@@ -67,7 +67,8 @@ namespace LaunchPlugin.Messaging
                     list = JsonConvert.DeserializeObject<List<MessageDefinition>>(json);
                 }
 
-                list ??= new List<MessageDefinition>();
+                if (list == null) list = new List<MessageDefinition>();
+
                 foreach (var def in list)
                 {
                     ApplyDefaults(def);
