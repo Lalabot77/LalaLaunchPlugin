@@ -2,10 +2,12 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 
 namespace LaunchPlugin
 {
@@ -208,6 +210,17 @@ namespace LaunchPlugin
             }
         }
     }
+
+    [JsonObject(MemberSerialization.OptIn)]
+    public class CarProfilesStore
+    {
+        [JsonProperty]
+        public int SchemaVersion { get; set; } = 1;
+
+        [JsonProperty]
+        public ObservableCollection<CarProfile> Profiles { get; set; } = new ObservableCollection<CarProfile>();
+    }
+
     [JsonObject(MemberSerialization.OptIn)]
     public class TrackStats : INotifyPropertyChanged
     {
@@ -215,6 +228,21 @@ namespace LaunchPlugin
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        [JsonIgnore]
+        private bool _isHydrating;
+
+        [OnDeserializing]
+        private void OnDeserializing(StreamingContext context)
+        {
+            _isHydrating = true;
+        }
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            _isHydrating = false;
         }
 
         // --- Helper for String-to-Double/Int Conversion ---
@@ -274,14 +302,17 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(BestLapTimeDryText));
 
-                    try
+                    if (!_isHydrating)
                     {
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Profile/Pace] PB Dry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsDry)}'"
-                        );
+                        try
+                        {
+                            SimHub.Logging.Current.Info(
+                                $"[LalaPlugin:Profile/Pace] PB Dry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                                $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsDry)}'"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (!_suppressBestLapDrySync)
                     {
@@ -306,7 +337,7 @@ namespace LaunchPlugin
                     _bestLapMsDryText = value;
                     OnPropertyChanged();
                     var parsed = LapTimeStringToMilliseconds(value);
-                    if (!_suppressBestLapDrySync && parsed.HasValue && BestLapMsDry != parsed)
+                    if (!_isHydrating && !_suppressBestLapDrySync && parsed.HasValue && BestLapMsDry != parsed)
                     {
                         MarkBestLapUpdatedDry("Manual");
                     }
@@ -330,14 +361,17 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(BestLapTimeWetText));
 
-                    try
+                    if (!_isHydrating)
                     {
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Profile/Pace] PB Wet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsWet)}'"
-                        );
+                        try
+                        {
+                            SimHub.Logging.Current.Info(
+                                $"[LalaPlugin:Profile/Pace] PB Wet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                                $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsWet)}'"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (!_suppressBestLapWetSync)
                     {
@@ -359,7 +393,7 @@ namespace LaunchPlugin
                     _bestLapMsWetText = value;
                     OnPropertyChanged();
                     var parsed = LapTimeStringToMilliseconds(value);
-                    if (!_suppressBestLapWetSync && parsed.HasValue && BestLapMsWet != parsed)
+                    if (!_isHydrating && !_suppressBestLapWetSync && parsed.HasValue && BestLapMsWet != parsed)
                     {
                         MarkBestLapUpdatedWet("Manual");
                     }
@@ -397,7 +431,10 @@ namespace LaunchPlugin
                     PitLaneLossSeconds = rounded;
                     PitLaneLossSource = "manual";
                     PitLaneLossUpdatedUtc = DateTime.UtcNow;
-                    RequestSaveProfiles?.Invoke();
+                    if (!_isHydrating)
+                    {
+                        RequestSaveProfiles?.Invoke();
+                    }
                 }
             }
         }
@@ -429,7 +466,10 @@ namespace LaunchPlugin
                 {
                     _dryConditionsLocked = value;
                     OnPropertyChanged();
-                    RequestSaveProfiles?.Invoke();
+                    if (!_isHydrating)
+                    {
+                        RequestSaveProfiles?.Invoke();
+                    }
                 }
             }
         }
@@ -445,7 +485,10 @@ namespace LaunchPlugin
                 {
                     _wetConditionsLocked = value;
                     OnPropertyChanged();
-                    RequestSaveProfiles?.Invoke();
+                    if (!_isHydrating)
+                    {
+                        RequestSaveProfiles?.Invoke();
+                    }
                 }
             }
         }
@@ -997,7 +1040,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressDryFuelSync)
+                        if (!_isHydrating && !_suppressDryFuelSync)
                         {
                             MarkFuelUpdatedDry("Manual");
                         }
@@ -1041,7 +1084,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressDryMinFuelSync)
+                        if (!_isHydrating && !_suppressDryMinFuelSync)
                         {
                             MarkFuelUpdatedDry("Manual");
                         }
@@ -1085,7 +1128,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressDryMaxFuelSync)
+                        if (!_isHydrating && !_suppressDryMaxFuelSync)
                         {
                             MarkFuelUpdatedDry("Manual");
                         }
@@ -1117,14 +1160,17 @@ namespace LaunchPlugin
                     NotifyWetVsDryDeltasChanged();
 
                     // LOG: Avg dry lap changed
-                    try
+                    if (!_isHydrating)
                     {
-                        SimHub.Logging.Current.Debug(
-                            $"[LalaPlugin:Profile/Pace] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeDry)}'"
-                        );
+                        try
+                        {
+                            SimHub.Logging.Current.Debug(
+                                $"[LalaPlugin:Profile/Pace] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                                $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeDry)}'"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (!_suppressAvgLapDrySync)
                     {
@@ -1147,7 +1193,7 @@ namespace LaunchPlugin
                     _avgLapTimeDryText = value;
                     OnPropertyChanged();
                     var parsed = LapTimeStringToMilliseconds(value);
-                    if (!_suppressAvgLapDrySync && parsed.HasValue && AvgLapTimeDry != parsed)
+                    if (!_isHydrating && !_suppressAvgLapDrySync && parsed.HasValue && AvgLapTimeDry != parsed)
                     {
                         MarkAvgLapUpdatedDry("Manual");
                     }
@@ -1210,7 +1256,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressWetFuelSync)
+                        if (!_isHydrating && !_suppressWetFuelSync)
                         {
                             MarkFuelUpdatedWet("Manual");
                         }
@@ -1254,7 +1300,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressWetMinFuelSync)
+                        if (!_isHydrating && !_suppressWetMinFuelSync)
                         {
                             MarkFuelUpdatedWet("Manual");
                         }
@@ -1298,7 +1344,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressWetMaxFuelSync)
+                        if (!_isHydrating && !_suppressWetMaxFuelSync)
                         {
                             MarkFuelUpdatedWet("Manual");
                         }
@@ -1330,14 +1376,17 @@ namespace LaunchPlugin
                     NotifyWetVsDryDeltasChanged();
 
                     // LOG: Avg wet lap changed
-                    try
+                    if (!_isHydrating)
                     {
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Profile / Pace] AvgWet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeWet)}'"
-                        );
+                        try
+                        {
+                            SimHub.Logging.Current.Info(
+                                $"[LalaPlugin:Profile / Pace] AvgWet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                                $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeWet)}'"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (!_suppressAvgLapWetSync)
                     {
@@ -1360,7 +1409,7 @@ namespace LaunchPlugin
                     _avgLapTimeWetText = value;
                     OnPropertyChanged();
                     var parsed = LapTimeStringToMilliseconds(value);
-                    if (!_suppressAvgLapWetSync && parsed.HasValue && AvgLapTimeWet != parsed)
+                    if (!_isHydrating && !_suppressAvgLapWetSync && parsed.HasValue && AvgLapTimeWet != parsed)
                     {
                         MarkAvgLapUpdatedWet("Manual");
                     }

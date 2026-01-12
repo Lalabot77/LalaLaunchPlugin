@@ -12,6 +12,16 @@ namespace LaunchPlugin
 {
     public static class RacePresetStore
     {
+        [JsonObject(MemberSerialization.OptIn)]
+        private class RacePresetStoreRoot
+        {
+            [JsonProperty]
+            public int SchemaVersion { get; set; } = 1;
+
+            [JsonProperty]
+            public List<RacePreset> Presets { get; set; } = new List<RacePreset>();
+        }
+
         private const string NewFileName = "RacePresets.json";
         private const string LegacyFileName = "LalaLaunch.RacePresets.json";
 
@@ -39,7 +49,24 @@ namespace LaunchPlugin
                 if (!File.Exists(path)) { var d = DefaultPresets(); SaveAll(d); return d; }
 
                 var json = File.ReadAllText(path);
-                var list = JsonConvert.DeserializeObject<List<RacePreset>>(json) ?? new List<RacePreset>();
+                List<RacePreset> list = null;
+                try
+                {
+                    var store = JsonConvert.DeserializeObject<RacePresetStoreRoot>(json);
+                    list = store?.Presets;
+                }
+                catch
+                {
+                    list = null;
+                }
+
+                if (list == null)
+                {
+                    list = JsonConvert.DeserializeObject<List<RacePreset>>(json);
+                }
+
+                if (list == null) list = new List<RacePreset>();
+
                 if (list.Count == 0) { var d = DefaultPresets(); SaveAll(d); return d; }
                 return list;
             }
@@ -84,7 +111,11 @@ namespace LaunchPlugin
             if (!Directory.Exists(folder))
                 Directory.CreateDirectory(folder);
 
-            var json = JsonConvert.SerializeObject(presets, Formatting.Indented);
+            var store = new RacePresetStoreRoot
+            {
+                Presets = presets
+            };
+            var json = JsonConvert.SerializeObject(store, Formatting.Indented);
 
             var temp = path + ".tmp";
             File.WriteAllText(temp, json);

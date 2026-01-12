@@ -765,7 +765,21 @@ namespace LaunchPlugin
                 if (File.Exists(_profilesFilePath))
                 {
                     string json = File.ReadAllText(_profilesFilePath);
-                    var loadedProfiles = Newtonsoft.Json.JsonConvert.DeserializeObject<ObservableCollection<CarProfile>>(json);
+                    ObservableCollection<CarProfile> loadedProfiles = null;
+                    try
+                    {
+                        var store = Newtonsoft.Json.JsonConvert.DeserializeObject<CarProfilesStore>(json);
+                        loadedProfiles = store?.Profiles;
+                    }
+                    catch
+                    {
+                        loadedProfiles = null;
+                    }
+
+                    if (loadedProfiles == null)
+                    {
+                        loadedProfiles = Newtonsoft.Json.JsonConvert.DeserializeObject<ObservableCollection<CarProfile>>(json);
+                    }
                     if (loadedProfiles != null)
                     {
                         // Clear the existing collection and add the loaded items
@@ -866,7 +880,11 @@ namespace LaunchPlugin
             try
             {
                 // First, save all profiles to the file as before.
-                string json = Newtonsoft.Json.JsonConvert.SerializeObject(CarProfiles, Newtonsoft.Json.Formatting.Indented);
+                var store = new CarProfilesStore
+                {
+                    Profiles = CarProfiles
+                };
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(store, Newtonsoft.Json.Formatting.Indented);
                 var folder = Path.GetDirectoryName(_profilesFilePath);
                 if (!string.IsNullOrWhiteSpace(folder))
                     Directory.CreateDirectory(folder);
