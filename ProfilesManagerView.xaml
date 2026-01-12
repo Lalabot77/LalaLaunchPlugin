@@ -249,7 +249,7 @@
                                     <TextBox Grid.Column="0"
                                              Margin="0,0,0,0"
                                              TextAlignment="Right"
-                                             Text="{Binding BaseTankLitres, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}"/>
+                                             Text="{Binding BaseTankLitres, Mode=TwoWay, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"/>
                                     <styles:SHButtonSecondary Grid.Column="1"
                                                               Content="Learn from Live"
                                                               Margin="8,0,0,0"

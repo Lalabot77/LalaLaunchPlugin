@@ -75,6 +75,7 @@ namespace LaunchPlugin
         public double RefuelRate { get => _refuelRate; set { if (_refuelRate != value) { _refuelRate = value; OnPropertyChanged(); } } }
 
         private double? _baseTankLitres;
+        [JsonProperty]
         public double? BaseTankLitres
         {
             get => _baseTankLitres;

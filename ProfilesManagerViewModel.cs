@@ -805,17 +805,14 @@ namespace LaunchPlugin
                     }
                     if (loadedProfiles != null)
                     {
-                        if (schemaVersion.HasValue && schemaVersion.Value < 2)
+                        foreach (var profile in loadedProfiles)
                         {
-                            foreach (var profile in loadedProfiles)
+                            if (profile.BaseTankLitres.HasValue)
                             {
-                                if (profile.BaseTankLitres.HasValue)
+                                var value = profile.BaseTankLitres.Value;
+                                if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0)
                                 {
-                                    var value = profile.BaseTankLitres.Value;
-                                    if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0)
-                                    {
-                                        profile.BaseTankLitres = null;
-                                    }
+                                    profile.BaseTankLitres = null;
                                 }
                             }
                         }
