@@ -12,17 +12,15 @@ namespace LaunchPlugin
 {
     public static class RacePresetStore
     {
-        private const string FILE_NAME = "LalaLaunch.RacePresets.json";
+        private const string NewFileName = "RacePresets.json";
+        private const string LegacyFileName = "LalaLaunch.RacePresets.json";
 
         public static string GetFolderPath()
         {
-            // SimHub runs the plugin inside its install dir; BaseDirectory points to SimHub’s root
-            // e.g. C:\Program Files (x86)\SimHub\
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory?.TrimEnd('\\', '/');
-            return Path.Combine(baseDir ?? "", "PluginsData", "Common");
+            return PluginStorage.GetPluginFolder();
         }
 
-        public static string GetFilePath() => Path.Combine(GetFolderPath(), FILE_NAME);
+        public static string GetFilePath() => Path.Combine(GetFolderPath(), NewFileName);
 
         // --- keep DefaultPresets(), SaveAll(), etc. unchanged ---
 
@@ -35,8 +33,8 @@ namespace LaunchPlugin
                 var path = GetFilePath();
                 if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
 
-                // 2) One-time migration from the old Documents location if present
-                MigrateFromDocumentsIfPresent(path);
+                // 2) One-time migration from legacy locations if present
+                MigrateFromLegacyIfPresent(path);
 
                 if (!File.Exists(path)) { var d = DefaultPresets(); SaveAll(d); return d; }
 
@@ -55,20 +53,21 @@ namespace LaunchPlugin
         }
 
         // One-time migration helper
-        private static void MigrateFromDocumentsIfPresent(string destPath)
+        private static void MigrateFromLegacyIfPresent(string destPath)
         {
             try
             {
+                if (File.Exists(destPath))
+                    return;
+
+                var legacyCommonPath = PluginStorage.GetCommonFilePath(LegacyFileName);
+                if (PluginStorage.TryMigrate(legacyCommonPath, destPath))
+                    return;
+
                 var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 var oldFolder = Path.Combine(docs, "SimHub", "LalaLaunch");
-                var oldPath = Path.Combine(oldFolder, FILE_NAME);
-
-                if (File.Exists(oldPath) && !File.Exists(destPath))
-                {
-                    if (!Directory.Exists(GetFolderPath())) Directory.CreateDirectory(GetFolderPath());
-                    File.Copy(oldPath, destPath, overwrite: false);
-                    DebugWrite($"RacePresetStore: Migrated presets from '{oldPath}' -> '{destPath}'.");
-                }
+                var oldPath = Path.Combine(oldFolder, LegacyFileName);
+                PluginStorage.TryMigrate(oldPath, destPath);
             }
             catch { /* best-effort */ }
         }

@@ -956,12 +956,16 @@ namespace LaunchPlugin
 
         private string GetTrackMarkersFolderPath()
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory?.TrimEnd('\\', '/');
-            return Path.Combine(baseDir ?? "", "PluginsData", "Common", "LalaPlugin");
+            return PluginStorage.GetPluginFolder();
 
         }
 
         private string GetTrackMarkersFilePath()
+        {
+            return Path.Combine(GetTrackMarkersFolderPath(), "TrackMarkers.json");
+        }
+
+        private string GetLegacyTrackMarkersFilePath()
         {
             return Path.Combine(GetTrackMarkersFolderPath(), "LalaPlugin.TrackMarkers.json");
         }
@@ -969,13 +973,19 @@ namespace LaunchPlugin
         private bool TryLoadTrackMarkerStore(out Dictionary<string, TrackMarkerRecord> loadedStore)
         {
             loadedStore = new Dictionary<string, TrackMarkerRecord>(StringComparer.OrdinalIgnoreCase);
-            var path = GetTrackMarkersFilePath();
             var folder = GetTrackMarkersFolderPath();
+            var path = GetTrackMarkersFilePath();
+            var legacyPath = GetLegacyTrackMarkersFilePath();
 
             try
             {
                 if (!Directory.Exists(folder))
                     Directory.CreateDirectory(folder);
+
+                if (!File.Exists(path) && File.Exists(legacyPath))
+                {
+                    path = legacyPath;
+                }
 
                 if (!File.Exists(path))
                 {
@@ -990,6 +1000,14 @@ namespace LaunchPlugin
                 {
                     if (string.IsNullOrWhiteSpace(kvp.Key)) continue;
                     loadedStore[kvp.Key] = kvp.Value ?? new TrackMarkerRecord { Locked = true };
+                }
+
+                if (string.Equals(path, legacyPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    var newPath = GetTrackMarkersFilePath();
+                    var json = JsonConvert.SerializeObject(loadedStore, Formatting.Indented);
+                    File.WriteAllText(newPath, json);
+                    SimHub.Logging.Current.Info($"[LalaPlugin:Storage] migrated {legacyPath} -> {newPath}");
                 }
 
                 SimHub.Logging.Current.Info($"[LalaPlugin:TrackMarkers] load ok ({loadedStore.Count} track(s)) path='{path}'");
