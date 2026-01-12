@@ -6341,6 +6341,9 @@ namespace LaunchPlugin
 
     public class LaunchPluginSettings : INotifyPropertyChanged
     {
+        [JsonProperty]
+        public int SchemaVersion { get; set; } = 2;
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null) { PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName)); }
 

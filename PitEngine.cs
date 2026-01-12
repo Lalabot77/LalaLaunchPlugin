@@ -974,17 +974,20 @@ namespace LaunchPlugin
         {
             loadedStore = new Dictionary<string, TrackMarkerRecord>(StringComparer.OrdinalIgnoreCase);
             var folder = GetTrackMarkersFolderPath();
-            var path = GetTrackMarkersFilePath();
+            var newPath = GetTrackMarkersFilePath();
             var legacyPath = GetLegacyTrackMarkersFilePath();
+            var path = newPath;
+            var loadedFromLegacy = false;
 
             try
             {
                 if (!Directory.Exists(folder))
                     Directory.CreateDirectory(folder);
 
-                if (!File.Exists(path) && File.Exists(legacyPath))
+                if (!File.Exists(newPath) && File.Exists(legacyPath))
                 {
                     path = legacyPath;
+                    loadedFromLegacy = true;
                 }
 
                 if (!File.Exists(path))
@@ -1002,9 +1005,8 @@ namespace LaunchPlugin
                     loadedStore[kvp.Key] = kvp.Value ?? new TrackMarkerRecord { Locked = true };
                 }
 
-                if (string.Equals(path, legacyPath, StringComparison.OrdinalIgnoreCase))
+                if (loadedFromLegacy)
                 {
-                    var newPath = GetTrackMarkersFilePath();
                     var json = JsonConvert.SerializeObject(loadedStore, Formatting.Indented);
                     File.WriteAllText(newPath, json);
                     SimHub.Logging.Current.Info($"[LalaPlugin:Storage] migrated {legacyPath} -> {newPath}");
