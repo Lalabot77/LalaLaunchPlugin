@@ -1,18 +1,18 @@
 # Code Snapshot
 
 - Branch: work
-- Commit: (current HEAD) (Docs: document PitExit ahead/behind exports)
-- Date: 2026-02-08
+- Commit: 298accf (current HEAD)
+- Date: 2026-02-10
 
-## Architectural notes (pit markers, MSGV1, and host wiring)
-- `PitEngine` now owns pit entry/exit marker auto-learning, storage, and track-length change detection (threshold 50 m). It emits trigger events for first capture, length delta, line refresh, and locked mismatches, and persists markers immediately into `PluginsData/Common/LalaLaunch/LalaLaunch.TrackMarkers.json`. Lock/unlock semantics are enforced at capture time to keep stored markers authoritative unless refreshed or manually unlocked.【F:PitEngine.cs†L525-L769】【F:PitEngine.cs†L669-L714】【F:PitEngine.cs†L968-L1034】
-- `LalaLaunch` manages marker pulses, attaches marker exports (`TrackMarkers.*` stored/session/trigger fields), and exposes actions to lock/unlock markers plus a reload hook for manual JSON edits. Track marker trigger pulses are routed to MSGV1 via pulsed objects held for ~3 s to allow evaluators to consume them once.【F:LalaLaunch.cs†L134-L182】【F:LalaLaunch.cs†L3047-L3179】
-- `SignalProvider` extends MSGV1 signals with `TrackMarkers.Pulse.*` entries that return the most recent pulse payloads for evaluators; these are polled per evaluation tick and cleared on consumption.【F:Messaging/SignalProvider.cs†L86-L102】
-- `MessageDefinitionStore` registers new definition-driven MSGV1 messages for pit marker capture, track-length delta, and locked mismatch, each paired with dedicated evaluators that latch per-track tokens to avoid repeats. Messages live in `Messages.json` (definition store) and replace any legacy/adhoc messaging for this area.【F:Messaging/MessageDefinitionStore.cs†L393-L452】【F:Messaging/MessageEvaluators.cs†L401-L476】
-- `LalaLaunch` now publishes dash-facing pit exit distance and time outputs derived from stored pit exit track percentage, cached track length, live car track position, and speed; values wrap forward around S/F, clamp to integers, and fall back to zero when data is missing or speed is negligible. Updates are throttled to the 250 ms poll cadence and only run while the car is in pit lane, keeping the exports at zero on track.【F:LalaLaunch.cs†L3743-L3759】【F:LalaLaunch.cs†L4077-L4104】
+## Architectural notes (profiles, storage, fuel persistence)
+- **Standardized JSON storage** now resolves all plugin JSON data into `PluginsData/Common/LalaPlugin/` via `PluginStorage`, with built-in legacy migration helpers. Car profiles, race presets, message definitions, global settings, and track markers all use this storage helper for consistent locations and one-time migrations.【F:PluginStorage.cs†L1-L76】【F:ProfilesManagerViewModel.cs†L545-L936】【F:RacePresetStore.cs†L11-L140】【F:Messaging/MessageDefinitionStore.cs†L10-L120】【F:LalaLaunch.cs†L3469-L3510】
+- **Track markers** now load/save in `.../LalaPlugin/TrackMarkers.json` and migrate from legacy `LalaPlugin.TrackMarkers.json` if needed; the in-memory store only updates from disk once per session load (reload action forces refresh).【F:PitEngine.cs†L948-L1099】【F:ProfilesManagerViewModel.cs†L1008-L1089】
+- **Car profiles schema v2** wraps profiles in a `CarProfilesStore` (schema version 2) and opt-in serializes `TrackStats` fields only, while track keys are normalized to lowercase to prevent duplication. Legacy wrapper-less JSON still loads via a fallback path during load.【F:CarProfiles.cs†L152-L239】【F:ProfilesManagerViewModel.cs†L786-L936】
+- **Fuel + pace persistence** now writes dry/wet fuel windows and avg lap times into the active track record once sample thresholds are met and condition locks are not set; each condition records its own “last updated” metadata for UI labels and telemetry auditing.【F:LalaLaunch.cs†L1847-L2008】【F:CarProfiles.cs†L622-L889】
+- **Base tank capacity** is stored per car profile as an optional `BaseTankLitres` field and can be learned from live `MaxFuel` data through the Profiles UI command (sanitized on load if invalid).【F:CarProfiles.cs†L72-L141】【F:ProfilesManagerViewModel.cs†L658-L912】
 
 ## Included .cs Files
-- CarProfiles.cs — last modified 2025-12-27T12:32:10+00:00
+- CarProfiles.cs — last modified 2026-02-08T00:00:00+00:00
 - CopyProfileDialog.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - DashesTabView.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - EnumEqualsConverter.cs — last modified 2025-11-04T19:13:41-06:00
