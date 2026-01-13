@@ -4157,9 +4157,12 @@ namespace LaunchPlugin
                                fuelPerLap <= 0.0 || fuelPerLap > 50.0;
 
             bool liveCapMissing = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot && !liveCapLitres.HasValue;
+            double maxAllowed = SelectedPlanningSourceMode == PlanningSourceMode.Profile
+                ? MaxFuelOverrideMaximum
+                : 500.0;
             bool tankInvalid = liveCapMissing ||
                                double.IsNaN(maxFuelLimit) || double.IsInfinity(maxFuelLimit) ||
-                               maxFuelLimit <= 0.0 || maxFuelLimit > 500.0;
+                               maxFuelLimit <= 0.0 || maxFuelLimit > maxAllowed;
 
             if (lapInvalid)
             {
@@ -4177,7 +4180,7 @@ namespace LaunchPlugin
             {
                 ValidationMessage = liveCapMissing
                     ? "Error: Live max fuel cap unavailable."
-                    : "Error: Max Fuel Override must be between 0 and 500 litres.";
+                    : $"Error: Max Fuel Override must be between 0 and {maxAllowed:F1} litres.";
             }
             else
             {

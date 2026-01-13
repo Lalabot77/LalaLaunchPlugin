@@ -359,32 +359,7 @@
 
                         <StackPanel Grid.Row="6" Margin="0,15,0,0">
                             <Grid Margin="0,0,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
                                 <TextBlock Text="Max Fuel Override (litres):" VerticalAlignment="Center"/>
-
-                                <TextBlock Grid.Column="1" Text="{Binding DetectedMaxFuelDisplay}" FontStyle="Italic" Margin="10,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="{Binding IsPlanningSourceLiveSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="Gray"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsMaxFuelOverrideTooHigh}" Value="True">
-                                                    <Setter Property="Foreground" Value="#FFC43C"/>
-                                                    <Setter Property="FontWeight" Value="Bold"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <Button Grid.Column="2" Content="Set live" Margin="10,0,0,0" VerticalAlignment="Center"
-                                        Command="{Binding SetLiveMaxFuelOverrideCommand}"
-                                        Visibility="{Binding HasLiveMaxFuelSuggestion, Converter={StaticResource BoolToVisibilityConverter}}"
-                                        IsEnabled="{Binding IsPlanningSourceProfile}" />
                             </Grid>
 
                             <ui:TitledSlider Title="" Minimum="0" Maximum="{Binding MaxFuelOverrideMaximum}" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel." IsEnabled="{Binding IsPlanningSourceProfile}">
