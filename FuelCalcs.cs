@@ -150,6 +150,7 @@ namespace LaunchPlugin
     private double _conditionRefuelSecondsPerSquare = 0;
     private bool _isRefreshingConditionParameters = false;
     private string _lastTyreChangeDisplay = "-";
+    private double _lastProfileMaxFuelOverride;
 
     // --- Planner state tracking ---
     private bool _isPlannerDirty = false;
@@ -304,6 +305,7 @@ namespace LaunchPlugin
         {
             if (_planningSourceMode == value) return;
 
+            var previousMode = _planningSourceMode;
             _planningSourceMode = value;
 
             OnPropertyChanged();
@@ -334,12 +336,35 @@ namespace LaunchPlugin
 
             ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
 
-            if (value == PlanningSourceMode.Profile)
+            if (value == PlanningSourceMode.LiveSnapshot && IsLiveSessionActive)
             {
-                ClampMaxFuelOverrideToProfileBaseTank();
-                UpdateProfileAverageDisplaysForCondition();
+                _lastProfileMaxFuelOverride = MaxFuelOverride;
+                double? liveCap = GetLiveSessionCapLitresOrNull();
+                if (liveCap.HasValue)
+                {
+                    MaxFuelOverride = liveCap.Value;
+                }
+                else
+                {
+                    MaxFuelOverride = 0.0;
+                }
             }
 
+            if (value == PlanningSourceMode.Profile)
+            {
+                if (previousMode == PlanningSourceMode.LiveSnapshot)
+                {
+                    MaxFuelOverride = _lastProfileMaxFuelOverride;
+                }
+                ClampMaxFuelOverrideToProfileBaseTank();
+                UpdateProfileAverageDisplaysForCondition();
+                if (previousMode != PlanningSourceMode.Profile && SelectedPreset != null)
+                {
+                    ApplySelectedPreset();
+                }
+            }
+
+            CalculateStrategy();
         }
     }
 
@@ -413,10 +438,18 @@ namespace LaunchPlugin
             {
                 _isLiveSessionActive = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CanSelectLiveSnapshot));
                 UpdateSurfaceModeLabel();
+
+                if (!_isLiveSessionActive && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+                {
+                    SelectedPlanningSourceMode = PlanningSourceMode.Profile;
+                }
             }
         }
     }
+
+    public bool CanSelectLiveSnapshot => IsLiveSessionActive;
     public bool IsLiveSessionSnapshotExpanded
     {
         get => _isLiveSessionSnapshotExpanded;
@@ -759,6 +792,11 @@ namespace LaunchPlugin
 
         _appliedPreset = p;
         RaisePresetStateChanged();
+
+        if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
+        {
+            ClampMaxFuelOverrideToProfileBaseTank();
+        }
     }
 
     private void ApplySelectedPreset()
@@ -1698,10 +1736,10 @@ namespace LaunchPlugin
             return null;
         }
 
-        double bopPercent = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct", 1.0);
-        if (double.IsNaN(bopPercent) || double.IsInfinity(bopPercent))
+        double bopPercent = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct", double.NaN);
+        if (double.IsNaN(bopPercent) || double.IsInfinity(bopPercent) || bopPercent <= 0.0)
         {
-            bopPercent = 1.0;
+            return null;
         }
 
         bopPercent = Math.Min(1.0, Math.Max(0.01, bopPercent));

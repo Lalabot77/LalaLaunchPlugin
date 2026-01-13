@@ -123,7 +123,8 @@
                                          Margin="0,0,8,0"/>
                                     <RadioButton Content="Live snapshot"
                                          IsChecked="{Binding IsPlanningSourceLiveSnapshot, Mode=TwoWay}"
-                                         GroupName="PlanningSourceMode"/>
+                                         GroupName="PlanningSourceMode"
+                                         IsEnabled="{Binding CanSelectLiveSnapshot}"/>
                                 </StackPanel>
                             </Grid>
                             <!-- Live session telemetry, styled like LAUNCH SUMMARY on Post-Launch tab -->
@@ -488,8 +489,7 @@
                                 ItemsSource="{Binding AvailablePresets}"
                                 SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
                                 DisplayMemberPath="Name"
-                                ToolTip="Select a preset to apply."
-                                IsEnabled="{Binding IsPlanningSourceProfile}"/>
+                                ToolTip="Select a preset to apply."/>
 
                             <!-- Grey/italic right next to combo -->
                             <TextBlock Grid.Column="2"
