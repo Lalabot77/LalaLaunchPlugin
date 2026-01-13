@@ -691,10 +691,7 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(HasSelectedPreset));
 
                 // Auto-apply on selection change (removes need for an Apply button)
-                if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
-                {
-                    ApplySelectedPreset();
-                }
+                ApplySelectedPreset();
             }
         }
     }
@@ -753,9 +750,6 @@ namespace LaunchPlugin
 
     private void ApplyPresetValues(RacePreset preset)
     {
-        if (SelectedPlanningSourceMode != PlanningSourceMode.Profile)
-            return;
-
         if (preset == null) return;
 
         var p = preset;
@@ -782,7 +776,7 @@ namespace LaunchPlugin
             TireChangeTime = p.TireChangeTimeSec.Value;
 
         // Max fuel override: only when specified
-        if (p.MaxFuelLitres.HasValue)
+        if (p.MaxFuelLitres.HasValue && SelectedPlanningSourceMode == PlanningSourceMode.Profile)
             MaxFuelOverride = p.MaxFuelLitres.Value;
 
         // Contingency
@@ -797,6 +791,8 @@ namespace LaunchPlugin
         {
             ClampMaxFuelOverrideToProfileBaseTank();
         }
+
+        CalculateStrategy();
     }
 
     private void ApplySelectedPreset()
@@ -827,7 +823,8 @@ namespace LaunchPlugin
         bool tyreDiff = _appliedPreset.TireChangeTimeSec.HasValue &&
                         Math.Abs(_appliedPreset.TireChangeTimeSec.Value - TireChangeTime) > 0.05;
 
-        bool fuelDiff = _appliedPreset.MaxFuelLitres.HasValue &&
+        bool fuelDiff = SelectedPlanningSourceMode == PlanningSourceMode.Profile &&
+                        _appliedPreset.MaxFuelLitres.HasValue &&
                         Math.Abs(_appliedPreset.MaxFuelLitres.Value - MaxFuelOverride) > 0.05;
 
         bool contDiff =
@@ -1766,6 +1763,58 @@ namespace LaunchPlugin
         catch
         {
             return fallback;
+        }
+    }
+
+    private bool? GetGameConnectedOrNull()
+    {
+        var pluginManager = _plugin?.PluginManager;
+        if (pluginManager == null)
+        {
+            return null;
+        }
+
+        object raw = pluginManager.GetPropertyValue("DataCorePlugin.GameData.GameConnected");
+        if (raw == null)
+        {
+            return null;
+        }
+
+        if (raw is bool boolValue)
+        {
+            return boolValue;
+        }
+
+        if (raw is int intValue)
+        {
+            return intValue != 0;
+        }
+
+        if (raw is long longValue)
+        {
+            return longValue != 0;
+        }
+
+        if (raw is string text)
+        {
+            if (bool.TryParse(text, out bool parsedBool))
+            {
+                return parsedBool;
+            }
+
+            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedInt))
+            {
+                return parsedInt != 0;
+            }
+        }
+
+        try
+        {
+            return Convert.ToBoolean(raw, CultureInfo.InvariantCulture);
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -2766,7 +2815,7 @@ namespace LaunchPlugin
         ResetLeaderDeltaToLiveCommand = new RelayCommand(_ => ResetLeaderDeltaToLive());
         ApplySourceWetFactorCommand = new RelayCommand(_ => ApplySourceWetFactorFromSource(), _ => HasSourceWetFactor);
 
-        ApplyPresetCommand = new RelayCommand(o => ApplySelectedPreset(), o => HasSelectedPreset && IsPlanningSourceProfile);
+        ApplyPresetCommand = new RelayCommand(o => ApplySelectedPreset(), o => HasSelectedPreset);
         ClearPresetCommand = new RelayCommand(o => ClearAppliedPreset());
 
         InitPresets();  // populate AvailablePresets + default SelectedPreset
@@ -4125,6 +4174,13 @@ namespace LaunchPlugin
 
     public void UpdateLiveDisplay(double liveMaxFuel)
     {
+        bool? isConnected = GetGameConnectedOrNull();
+        if (isConnected.HasValue && !isConnected.Value)
+        {
+            ResetSnapshotDisplays();
+            return;
+        }
+
         RefreshLiveMaxFuelDisplays(liveMaxFuel);
     }
 
