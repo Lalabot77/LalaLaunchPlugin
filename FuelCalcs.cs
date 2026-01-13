@@ -304,6 +304,7 @@ namespace LaunchPlugin
         {
             if (_planningSourceMode == value) return;
 
+            var previousMode = _planningSourceMode;
             _planningSourceMode = value;
 
             OnPropertyChanged();
@@ -338,6 +339,10 @@ namespace LaunchPlugin
             {
                 ClampMaxFuelOverrideToProfileBaseTank();
                 UpdateProfileAverageDisplaysForCondition();
+                if (previousMode != PlanningSourceMode.Profile && SelectedPreset != null)
+                {
+                    ApplySelectedPreset();
+                }
             }
 
         }
@@ -413,10 +418,18 @@ namespace LaunchPlugin
             {
                 _isLiveSessionActive = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CanSelectLiveSnapshot));
                 UpdateSurfaceModeLabel();
+
+                if (!_isLiveSessionActive && SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+                {
+                    SelectedPlanningSourceMode = PlanningSourceMode.Profile;
+                }
             }
         }
     }
+
+    public bool CanSelectLiveSnapshot => IsLiveSessionActive;
     public bool IsLiveSessionSnapshotExpanded
     {
         get => _isLiveSessionSnapshotExpanded;
@@ -759,6 +772,11 @@ namespace LaunchPlugin
 
         _appliedPreset = p;
         RaisePresetStateChanged();
+
+        if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
+        {
+            ClampMaxFuelOverrideToProfileBaseTank();
+        }
     }
 
     private void ApplySelectedPreset()
@@ -1698,10 +1716,10 @@ namespace LaunchPlugin
             return null;
         }
 
-        double bopPercent = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct", 1.0);
-        if (double.IsNaN(bopPercent) || double.IsInfinity(bopPercent))
+        double bopPercent = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct", double.NaN);
+        if (double.IsNaN(bopPercent) || double.IsInfinity(bopPercent) || bopPercent <= 0.0)
         {
-            bopPercent = 1.0;
+            return null;
         }
 
         bopPercent = Math.Min(1.0, Math.Max(0.01, bopPercent));
