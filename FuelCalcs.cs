@@ -150,6 +150,7 @@ namespace LaunchPlugin
     private double _conditionRefuelSecondsPerSquare = 0;
     private bool _isRefreshingConditionParameters = false;
     private string _lastTyreChangeDisplay = "-";
+    private double _lastProfileMaxFuelOverride;
 
     // --- Planner state tracking ---
     private bool _isPlannerDirty = false;
@@ -335,8 +336,26 @@ namespace LaunchPlugin
 
             ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
 
+            if (value == PlanningSourceMode.LiveSnapshot && IsLiveSessionActive)
+            {
+                _lastProfileMaxFuelOverride = MaxFuelOverride;
+                double? liveCap = GetLiveSessionCapLitresOrNull();
+                if (liveCap.HasValue)
+                {
+                    MaxFuelOverride = liveCap.Value;
+                }
+                else
+                {
+                    MaxFuelOverride = 0.0;
+                }
+            }
+
             if (value == PlanningSourceMode.Profile)
             {
+                if (previousMode == PlanningSourceMode.LiveSnapshot)
+                {
+                    MaxFuelOverride = _lastProfileMaxFuelOverride;
+                }
                 ClampMaxFuelOverrideToProfileBaseTank();
                 UpdateProfileAverageDisplaysForCondition();
                 if (previousMode != PlanningSourceMode.Profile && SelectedPreset != null)
@@ -345,6 +364,7 @@ namespace LaunchPlugin
                 }
             }
 
+            CalculateStrategy();
         }
     }
 

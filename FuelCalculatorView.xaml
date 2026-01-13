@@ -489,8 +489,7 @@
                                 ItemsSource="{Binding AvailablePresets}"
                                 SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
                                 DisplayMemberPath="Name"
-                                ToolTip="Select a preset to apply."
-                                IsEnabled="{Binding IsPlanningSourceProfile}"/>
+                                ToolTip="Select a preset to apply."/>
 
                             <!-- Grey/italic right next to combo -->
                             <TextBlock Grid.Column="2"
