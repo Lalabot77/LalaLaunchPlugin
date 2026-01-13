@@ -3126,6 +3126,7 @@ namespace LaunchPlugin
             _msgSystem = new MessagingSystem();
             AttachCore("MSG.OvertakeApproachLine", () => _msgSystem.OvertakeApproachLine);
             AttachCore("MSG.OtherClassBehindGap", () => _msgSystem.OtherClassBehindGap);
+            AttachCore("MSGOtherClassBehindGap", () => _msgSystem.OtherClassBehindGap);
             AttachCore("MSG.OvertakeWarnSeconds", () => ActiveProfile.TrafficApproachWarnSeconds);
             AttachCore("MSG.MsgCxTimeMessage", () => _msgSystem.MsgCxTimeMessage);
             AttachCore("MSG.MsgCxTimeVisible", () => _msgSystem.IsMsgCxTimeActive);
