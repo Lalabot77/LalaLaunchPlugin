@@ -1739,7 +1739,7 @@ namespace LaunchPlugin
         double bopPercent = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarMaxFuelPct", double.NaN);
         if (double.IsNaN(bopPercent) || double.IsInfinity(bopPercent) || bopPercent <= 0.0)
         {
-            return null;
+            bopPercent = 1.0;
         }
 
         bopPercent = Math.Min(1.0, Math.Max(0.01, bopPercent));
