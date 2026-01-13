@@ -1,8 +1,8 @@
 # Fuel Planner Tab
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
-Last updated: 2025-12-28  
-Branch: docs/refresh-index-subsystems
+Validated against commit: 298accf  
+Last updated: 2026-02-10  
+Branch: work
 
 ## Purpose
 The Fuel Planner Tab is the **human-in-the-loop planning interface** that:
@@ -31,7 +31,7 @@ This doc covers:
 
 Out of scope:
 - Fuel burn acceptance, stability, and projection internals (see `Fuel_Model.md`).
-- Dash rendering or UI layout details (see `Dash_Integration.md`).
+- Dash rendering or UI layout details (see `Subsystems/Dash_Integration.md`).
 
 ---
 
@@ -257,4 +257,3 @@ Reset semantics are shared with the Fuel Model and documented centrally in:
 - TODO/VERIFY: Confirm exact confidence threshold used to set `IsFuelReady` and whether it differs for lap time vs fuel.  
 - TODO/VERIFY: Confirm whether planner pit loss always prefers DTL or falls back to direct lane loss when DTL unavailable.  
 - TODO/VERIFY: Confirm which planner outputs are exported as `_S` (smoothed) vs numeric only.
-

@@ -1,8 +1,8 @@
 # Pace and Projection
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
-Last updated: 2025-12-28  
-Branch: docs/refresh-index-subsystems
+Validated against commit: 298accf  
+Last updated: 2026-02-10  
+Branch: work
 
 ## Purpose
 The Pace & Projection subsystem provides a **stable, defensible lap-time reference** used to:
@@ -35,7 +35,7 @@ This doc covers:
 Out of scope:
 - Fuel burn modelling (see `Fuel_Model.md`).
 - Fuel planner UI behaviour (see `Fuel_Planner_Tab.md`).
-- Dash rendering logic (see `Dash_Integration.md`).
+- Dash rendering logic (see `Subsystems/Dash_Integration.md`).
 
 ---
 
@@ -269,4 +269,3 @@ Reset contract is defined in:
 - TODO/VERIFY: Confirm exact variance thresholds used to suppress live pace confidence.
 - TODO/VERIFY: Confirm leader pace parsing rules and when leader data is considered valid.
 - TODO/VERIFY: Confirm fallback estimator precedence when both profile and SimHub computed pace exist.
-

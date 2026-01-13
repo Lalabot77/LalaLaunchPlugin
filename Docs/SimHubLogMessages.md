@@ -1,7 +1,7 @@
 # SimHub Log Messages (CANONICAL)
 
-Validated against commit: da0639e  
-Last updated: 2026-02-09  
+Validated against commit: 298accf  
+Last updated: 2026-02-10  
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
@@ -66,6 +66,7 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 
 ## Pit, refuel, and PitLite
 - **`[LalaPlugin:Pit Cycle] Saved PitLaneLoss = Xs (src).`** — Persisted pit lane loss from PitLite/DTL (debounced).【F:LalaLaunch.cs†L2950-L3004】
+- **`[LalaPlugin:Pit Cycle] Persist decision: action=SKIP reason=...`** — Pit-loss candidate rejected (NaN/invalid or non-positive) before any write attempt.【F:LalaLaunch.cs†L3251-L3332】
 - **`[LalaPlugin:Pit Cycle] PitLoss locked, blocked candidate Xs source=...`** — Pit lane loss candidate was blocked due to a locked profile value; candidate details saved for UI display.【F:LalaLaunch.cs†L3201-L3212】
 - **`[LalaPlugin:Pit Cycle] Pit Lite Data used for DTL.`** — Consumed PitLite out-lap candidate to save pit loss.【F:LalaLaunch.cs†L3004-L3035】
 - **`[LalaPlugin:Refuel Rate] Learned refuel rate ... Cooldown until ...`** — Refuel EMA learning completed from detected fuel added/time. 【F:LalaLaunch.cs†L3488-L3507】
@@ -84,6 +85,11 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Profile/Pace] PB updated for track '...' (...) ...`** — CarProfiles PB change (live or manual).【F:CarProfiles.cs†L230-L251】
 - **`[LalaPlugin:Profile/Pace] AvgDry updated ...`** — Dry average lap time edited for a track.【F:CarProfiles.cs†L526-L547】
 - **`[LalaPlugin:Profile / Pace] AvgWet updated ...`** — Wet average lap time edited for a track.【F:CarProfiles.cs†L718-L740】
+- **`[LalaPlugin:Profile/Pace] Persisted AvgLapTimeDry for ...`** — Live dry average lap time persisted once sample threshold is met and dry condition is unlocked.【F:LalaLaunch.cs†L1944-L2007】
+- **`[LalaPlugin:Profile/Pace] Persisted AvgLapTimeWet for ...`** — Live wet average lap time persisted once sample threshold is met and wet condition is unlocked.【F:LalaLaunch.cs†L1944-L2007】
+- **`[LalaPlugin:Profiles] Relearn Pit Data for ...`** — Profiles UI command cleared pit-loss data and reset track markers for the selected track.【F:ProfilesManagerViewModel.cs†L1078-L1099】
+- **`[LalaPlugin:Profiles] Relearn Dry Conditions for ...`** — Profiles UI command cleared dry fuel/pace/PB fields and unlocked dry condition for the selected track.【F:ProfilesManagerViewModel.cs†L1101-L1113】
+- **`[LalaPlugin:Profiles] Relearn Wet Conditions for ...`** — Profiles UI command cleared wet fuel/pace/PB fields and unlocked wet condition for the selected track.【F:ProfilesManagerViewModel.cs†L1115-L1127】
 
 ## Dashboard and pit screen automation
 - **`[LalaPlugin:Dash] Ignition off detected – auto dash re-armed.`** — Auto dash will re-run on next ignition-on/engine-start.【F:LalaLaunch.cs†L3690-L3710】

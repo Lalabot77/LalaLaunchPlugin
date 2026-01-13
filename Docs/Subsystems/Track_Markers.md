@@ -1,14 +1,14 @@
 # Track Markers (Pit Entry/Exit) — Auto-Learn, Storage, MSGV1
 
-Validated against commit: 34433cf  
-Last updated: 2026-02-06  
+Validated against commit: 298accf  
+Last updated: 2026-02-10  
 Branch: work
 
 ## Purpose
 Capture pit entry/exit lines per track, keep them stable across sessions via persisted storage, and surface lifecycle notifications through MSGV1. The pattern is intentionally reusable: **auto-learn → lock → notify**.
 
 ## Source of truth and storage
-- **Source of truth:** Persisted markers in `PluginsData/Common/LalaLaunch/LalaLaunch.TrackMarkers.json` (`PitEngine` store). Live telemetry is only used to propose captures; stored values drive exports and UI snapshots.【F:PitEngine.cs†L525-L769】【F:PitEngine.cs†L905-L1034】
+- **Source of truth:** Persisted markers in `PluginsData/Common/LalaPlugin/TrackMarkers.json` (`PitEngine` store). Live telemetry is only used to propose captures; stored values drive exports and UI snapshots. Legacy `LalaPlugin.TrackMarkers.json` is migrated on load if present.【F:PitEngine.cs†L948-L1034】
 - **Keys:** Canonicalised track key from SimHub (`TrackCode`, then display/config/name fallbacks). Unknown/blank keys short-circuit all marker handling.【F:PitEngine.cs†L629-L676】【F:PitEngine.cs†L821-L878】
 - **Defaults:** New tracks start **locked = true** with empty percents. Lock can be toggled via UI or actions; lock state is persisted with the markers.【F:PitEngine.cs†L586-L600】【F:PitEngine.cs†L968-L1034】
 
@@ -42,7 +42,7 @@ Capture pit entry/exit lines per track, keep them stable across sessions via per
 ## UI behaviour (Profiles → Tracks panel)
 - **Snapshot fields:** Stored pit entry %, stored pit exit %, last-updated UTC, and lock checkbox. Values reflect the **selected track** snapshot and auto-refresh when the selection changes.【F:ProfilesManagerView.xaml†L450-L488】【F:ProfilesManagerViewModel.cs†L887-L927】
 - **Lock toggle:** Writes immediately to the store (debounced via `_suppressTrackMarkersLockAction` to avoid recursive refresh).【F:ProfilesManagerViewModel.cs†L425-L439】
-- **Reload button:** Forces `LalaLaunch.TrackMarkers.json` reload from disk (for manual edits), then rebinds the snapshot view.【F:ProfilesManagerView.xaml†L450-L488】【F:ProfilesManagerViewModel.cs†L927-L937】
+- **Reload button:** Forces `TrackMarkers.json` reload from disk (for manual edits), then rebinds the snapshot view.【F:ProfilesManagerView.xaml†L450-L488】【F:ProfilesManagerViewModel.cs†L927-L937】
 
 ## MSGV1 messaging behaviour
 - **Pulses produced by `PitEngine` → `LalaLaunch` → `SignalProvider`:**  
