@@ -384,10 +384,10 @@
                                 <Button Grid.Column="2" Content="Set live" Margin="10,0,0,0" VerticalAlignment="Center"
                                         Command="{Binding SetLiveMaxFuelOverrideCommand}"
                                         Visibility="{Binding HasLiveMaxFuelSuggestion, Converter={StaticResource BoolToVisibilityConverter}}"
-                                        IsEnabled="{Binding HasLiveMaxFuelSuggestion}" />
+                                        IsEnabled="{Binding IsPlanningSourceProfile}" />
                             </Grid>
 
-                            <ui:TitledSlider Title="" Minimum="1" Maximum="150" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel.">
+                            <ui:TitledSlider Title="" Minimum="0" Maximum="{Binding MaxFuelOverrideMaximum}" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel." IsEnabled="{Binding IsPlanningSourceProfile}">
                                 <ui:TitledSlider.Resources>
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>
@@ -398,6 +398,9 @@
                                     </Style>
                                 </ui:TitledSlider.Resources>
                             </ui:TitledSlider>
+                            <TextBlock Text="{Binding MaxFuelOverridePercentDisplay}" HorizontalAlignment="Right" Margin="0,4,0,0"
+                                       Visibility="{Binding IsPlanningSourceProfile, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                       FontStyle="Italic" Opacity="0.7"/>
                         </StackPanel>
 
                         <Grid Grid.Row="7" Margin="0,15,0,0" Grid.IsSharedSizeScope="True">
@@ -510,7 +513,8 @@
                                 ItemsSource="{Binding AvailablePresets}"
                                 SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
                                 DisplayMemberPath="Name"
-                                ToolTip="Select a preset to apply."/>
+                                ToolTip="Select a preset to apply."
+                                IsEnabled="{Binding IsPlanningSourceProfile}"/>
 
                             <!-- Grey/italic right next to combo -->
                             <TextBlock Grid.Column="2"
