@@ -128,6 +128,7 @@ Branch: Opponents-Module
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |
 | MSG.OvertakeApproachLine | double | Relative line metric for approaching traffic. | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
+| MSG.OtherClassBehindGap | double | Seconds behind for the selected different-class car (or -1 when none). | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
 | MSG.OvertakeWarnSeconds | double | Approach buffer seconds to warn (from profile). | Per tick. | `LalaLaunch.cs` — profile read + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
 | MSG.MsgCxTimeMessage / MsgCxStateMessage / MsgCxActionMessage | string | Message text for time/state/action lanes. | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
 | MSG.MsgCxTimeVisible / MsgCxStateVisible | bool | Visibility flags for respective lanes. | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
