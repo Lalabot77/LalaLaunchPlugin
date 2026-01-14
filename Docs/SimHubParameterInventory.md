@@ -1,6 +1,9 @@
-# SimHub Parameter Inventory (CANONICAL)
+# SimHub Parameter Inventory
 
-Validated against commit: 9f784a9  
+**CANONICAL CONTRACT**
+
+Validated against: 9f784a9  
+Last reviewed: 2026-01-14  
 Last updated: 2026-01-14  
 Branch: work
 

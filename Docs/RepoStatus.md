@@ -68,4 +68,9 @@
 - **Fuel planner max-fuel handling:** **COMPLETE** — profile-mode max fuel override is clamped to per-car base tank; Live Snapshot mode uses live session cap (MaxFuel × BoP, defaulting BoP to 1.0) and raises a clear error when live cap is unavailable. The Live Session panel clears max-fuel displays when the cap is missing.
 - **Live Snapshot + presets:** **COMPLETE** — changing car/track clears the Live Snapshot UI to avoid stale data; switching back to Profile mode restores the previous profile max-fuel override and re-applies the selected preset.
 - **Messaging signals:** **COMPLETE** — `MSG.OtherClassBehindGap` exported for multi-class approach messaging; no `MSGOtherClassBehindGap` alias remains.
-- **Known/accepted limitations:** Replay session identity quirks remain (see `Reset_And_Session_Identity.md`) and track-length deltas are informational only; both are understood/accepted for current shipping state.
+
+## Known/accepted limitations (intentional)
+- Replay session identity quirks can surface inconsistent session tokens in replays — accepted because replay identity data is unreliable (see `Reset_And_Session_Identity.md`).
+- Track-length delta messages are informational only and do not block use — accepted to avoid false lockouts while still surfacing drift.
+
+Items in this section should be mirrored (top 5–10 only) into Project_Index.md → Known Lies / Allowed Compromises.
