@@ -1,7 +1,7 @@
 # Profiles and Personal Bests
 
-Validated against commit: 298accf  
-Last updated: 2026-02-10  
+Validated against commit: 9f784a9  
+Last updated: 2026-01-14  
 Branch: work
 
 ## Purpose
@@ -87,6 +87,7 @@ Profiles UI exposes buttons to reset and relearn track data:
 - PB lap time (dry/wet)
 - Track condition locks + pit-loss lock
 - Per-condition “last updated” display strings used in the Profiles UI
+- Base tank capacity (`BaseTankLitres`) used to clamp max-fuel overrides in Profile planning mode.
 
 ---
 

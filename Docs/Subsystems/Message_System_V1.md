@@ -1,7 +1,7 @@
 # Message System V1
 
-Validated against commit: 298accf  
-Last updated: 2026-02-10  
+Validated against commit: 9f784a9  
+Last updated: 2026-01-14  
 Branch: work
 
 ## Purpose
@@ -14,6 +14,7 @@ Evaluate message definitions against telemetry and plugin signals, maintain an a
 - Message definitions (JSON) loaded at init.
 - MsgCx action pulses (driver cancel/override).
 - Pit marker pulses (`TrackMarkers.Pulse.*`) produced by `PitEngine`/`LalaLaunch`.
+- Legacy MSG lane signals from `MessagingSystem` (e.g., `MSG.OvertakeApproachLine`, `MSG.OtherClassBehindGap`) feeding catalog evaluators; there is no `MSGOtherClassBehindGap` alias.
 
 ---
 
