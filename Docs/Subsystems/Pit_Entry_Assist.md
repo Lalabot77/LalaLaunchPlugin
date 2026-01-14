@@ -1,7 +1,10 @@
 # Pit Entry Assist & Deceleration Capture
 
+**Subsystem doc**
+
 Validated against commit: 52bd57d7c618f4df094c68c4ea6f1e11cc5e328f  
 Last updated: 2026-02-06  
+Last reviewed: 2026-01-14  
 Branch: work
 
 ## Purpose
@@ -111,4 +114,3 @@ Three structured INFO logs (edge-triggered):
   - **GT3:** decel ≈ **14 m/s²**, buffer **≈15 m**.
   - **GTP:** similar decel, slightly **higher buffer** for hybrid regen variability.
 - Defaults auto-seed on profile creation/copy; adjust per track after reviewing `LINE` logs.【F:ProfilesManagerViewModel.cs†L645-L685】【F:ProfilesManagerViewModel.cs†L503-L505】
-

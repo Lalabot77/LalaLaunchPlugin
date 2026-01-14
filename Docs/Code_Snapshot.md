@@ -1,6 +1,15 @@
+# SNAPSHOT / GENERATED / NON-CANONICAL
+
 # Code Snapshot
 
+- Source commit/PR: 9f784a9 (current HEAD; PR unknown)
+- Generated date: 2026-01-14
+- Regeneration: manual snapshot; no regen pipeline defined
 - Branch: work
+
+If this conflicts with Project_Index.md or contract docs, treat this as stale.
+
+## Snapshot metadata (legacy)
 - Commit: 9f784a9 (current HEAD)
 - Date: 2026-01-14
 

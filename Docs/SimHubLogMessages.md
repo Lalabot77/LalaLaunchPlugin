@@ -1,6 +1,9 @@
-# SimHub Log Messages (CANONICAL)
+# SimHub Log Messages
 
-Validated against commit: 298accf  
+**CANONICAL OBSERVABILITY MAP**
+
+Validated against: 298accf  
+Last reviewed: 2026-01-14  
 Last updated: 2026-02-10  
 Branch: work
 
