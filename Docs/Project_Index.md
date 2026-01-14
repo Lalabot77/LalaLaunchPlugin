@@ -23,6 +23,18 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - [BranchWorkflow.md](BranchWorkflow.md) — branching policy.
 - [ConflictResolution.md](ConflictResolution.md) — merge/conflict process.
 
+## Known Lies / Allowed Compromises
+- Replay session identity: Session tokens can look inconsistent in replays — accepted because replay identity data is unreliable; resets are documented to tolerate this. (last reviewed: 2026-01-14)
+- Track-length delta alerts: Track-length delta messages are informational only and do not block usage — accepted to avoid false lockouts while still surfacing drift. (last reviewed: 2026-01-14)
+- Pit loss (DTL): DTL includes traffic impact, so “loss” can exceed idealized pit time — accepted because it reflects real race loss. (last reviewed: 2026-01-14)
+- Fuel planner separation: Planner-only values intentionally remain decoupled from live volatility — accepted to keep strategy settings stable. (last reviewed: 2026-01-14)
+- Rejoin alert linger: Dismissal requires both time + speed gates, so warnings can persist if speed stays low — accepted for safety gating. (last reviewed: 2026-01-14)
+
+## Doc Authority & Freshness
+- **CANONICAL contracts:** `SimHubParameterInventory.md`, `SimHubLogMessages.md`, `FuelProperties_Spec.md`, `FuelTab_SourceFlowNotes.md`, `Reset_And_Session_Identity.md`, and subsystem specs called out in Start Here are the source of truth.
+- **Snapshot/reference docs:** `Code_Snapshot.md`, ad-hoc analysis notes, and legacy spreadsheets are **non-canonical** and may be stale.
+- If any snapshot conflicts with canonical docs, treat the snapshot as stale. `Code_Snapshot.md` is not authoritative unless explicitly regenerated for the current commit.
+
 ## Doc inventory & canonicalisation
 - **Truth docs:** `SimHubParameterInventory.md`, `SimHubLogMessages.md`, `FuelProperties_Spec.md`, `FuelTab_SourceFlowNotes.md`, `Reset_And_Session_Identity.md`, `TimerZeroBehavior.md`, `CarProfiles-Legacy-Map.md` (schema + storage).
 - **Subsystem notes:** `Message_Catalog_v5_Signal_Mapping_Report.md`, `FuelTab_LeaderPaceFlow.md`, `FuelTabActionPlanOptions.md`, `FuelTabAnalysis.md`, `LALA-036-extra-time-sanity.md`, `LalaLaunch_Handover_Summary-20251130.docx`, `Subsystems/Pit_Entry_Assist.md`, `Subsystems/Track_Markers.md`, `Subsystems/Dash_Integration.md`, `Subsystems/MessageEngineV1_Notes.md`, `Profiles_And_PB.md`.
