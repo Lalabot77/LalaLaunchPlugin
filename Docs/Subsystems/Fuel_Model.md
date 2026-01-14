@@ -1,7 +1,7 @@
 # Fuel Model
 
-Validated against commit: 298accf  
-Last updated: 2026-02-10  
+Validated against commit: 9f784a9  
+Last updated: 2026-01-14  
 Branch: work
 
 ## Purpose
@@ -35,6 +35,7 @@ It does **not** re-document:
 - Pit lane status / pitting state.
 - Refuel request (MFD fuel to add), tyre selection state.
 - SimHub computed fallback fuel-per-lap (`DataCorePlugin.Computed.Fuel_LitersPerLap`) when no accepted laps exist.
+- Live max fuel inputs: `DataCorePlugin.GameData.MaxFuel` and `DriverCarMaxFuelPct` (BoP) for effective tank capacity.
 
 ### Profile baselines (on access)
 - Track/car profile fuel baselines (dry/wet averages) used for:
@@ -62,6 +63,11 @@ It does **not** re-document:
 ### Stable burn state (the number dashboards should trust)
 - `_stableFuelPerLap` + `Fuel.LiveFuelPerLap_StableSource` + `Fuel.LiveFuelPerLap_StableConfidence`.
 - Deadband hold: when the candidate is “close enough”, stable value holds while source/confidence can still evolve.
+
+### Live max tank tracking
+- Live max tank is computed as `MaxFuel × BoP` with BoP clamped to [0.01, 1.0] and defaulted to 1.0 when missing.
+- The last valid live max fuel is retained so tank-space calculations remain stable if telemetry temporarily drops.
+- Live Session UI displays are cleared to `—` when no valid cap exists, avoiding stale values during session transitions.
 
 ### Profile persistence (dry vs wet)
 - Once enough samples exist (≥2 valid laps), the model persists min/avg/max fuel burn, sample counts, and avg lap time into the active track profile.

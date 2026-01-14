@@ -1,8 +1,8 @@
 # SimHub Parameter Inventory (CANONICAL)
 
-Validated against commit: b31a0be584c2941a7d8d4d4c5dde2e852d7b32a2  
-Last updated: 2026-02-07  
-Branch: Opponents-Module
+Validated against commit: 9f784a9  
+Last updated: 2026-01-14  
+Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
 - Legacy spreadsheet `SimHub_Parameter_Inventory.xlsx` is reference-only; this file is canonical.
@@ -128,7 +128,7 @@ Branch: Opponents-Module
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |
 | MSG.OvertakeApproachLine | double | Relative line metric for approaching traffic. | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
-| MSG.OtherClassBehindGap | double | Seconds behind for the selected different-class car (or -1 when none). | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
+| MSG.OtherClassBehindGap | double | Seconds behind for the selected different-class car (or -1 when none); no `MSGOtherClassBehindGap` alias. | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
 | MSG.OvertakeWarnSeconds | double | Approach buffer seconds to warn (from profile). | Per tick. | `LalaLaunch.cs` — profile read + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
 | MSG.MsgCxTimeMessage / MsgCxStateMessage / MsgCxActionMessage | string | Message text for time/state/action lanes. | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
 | MSG.MsgCxTimeVisible / MsgCxStateVisible | bool | Visibility flags for respective lanes. | Per tick. | `LalaLaunch.cs` — `_msgSystem` outputs + `AttachCore`【F:LalaLaunch.cs†L2899-L2940】 |
