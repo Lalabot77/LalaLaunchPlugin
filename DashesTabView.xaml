@@ -63,6 +63,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -79,20 +80,25 @@
                         <TextBlock Text="" Grid.Row="0" Grid.Column="0" />
                         <TextBlock Text="MAIN DASH" FontSize="16" FontWeight="Bold" Margin="15,0,0,5" Grid.Row="0" Grid.Column="1" />
                         <TextBlock Text="MESSAGE DASH" FontSize="16" FontWeight="Bold" Margin="15,0,0,5" Grid.Row="0" Grid.Column="2" />
+                        <TextBlock Text="OVERLAY" FontSize="16" FontWeight="Bold" Margin="15,0,0,5" Grid.Row="0" Grid.Column="3" />
 
-                        <TextBlock Text="Show Launch Screen" Margin="0,5,0,0" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"
+                        <TextBlock Text="Launch Assist" Margin="0,5,0,0" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"
                                    ToolTip="Enable the Launch screen for this dash type." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowLaunchScreen, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="1" Grid.Column="1"
                                                  ToolTip="Show the Launch screen on the Main Dash." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowLaunchScreen, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="1" Grid.Column="2"
                                                  ToolTip="Show the Launch screen on the Message Dash." />
+                        <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.OverlayDashShowLaunchScreen, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="1" Grid.Column="3"
+                                                 ToolTip="Show the Launch screen on the Overlay." />
 
-                        <TextBlock Text="Show Pit Limiter Screen" Margin="0,5,0,0" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"
+                        <TextBlock Text="Pit Assists" Margin="0,5,0,0" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"
                                    ToolTip="Enable the Pit Limiter screen for this dash type." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowPitLimiter, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="2" Grid.Column="1"
                                                  ToolTip="Show the Pit Limiter screen on the Main Dash." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowPitLimiter, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="2" Grid.Column="2"
                                                  ToolTip="Show the Pit Limiter screen on the Message Dash." />
+                        <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.OverlayDashShowPitLimiter, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="2" Grid.Column="3"
+                                                 ToolTip="Show the Pit Limiter screen on the Overlay." />
 
                         <TextBlock Text="Show Automatic Pit Screen" Margin="0,5,0,0" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center"
                                    ToolTip="Enable the automatic pit screen for this dash type." />
@@ -100,34 +106,44 @@
                                                  ToolTip="Show the automatic pit screen on the Main Dash." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowPitScreen, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="3" Grid.Column="2"
                                                  ToolTip="Show the automatic pit screen on the Message Dash." />
+                        <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.OverlayDashShowPitScreen, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="3" Grid.Column="3"
+                                                 ToolTip="Show the automatic pit screen on the Overlay." />
 
-                        <TextBlock Text="Show Track Rejoin Assist" Margin="0,5,0,0" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center"
+                        <TextBlock Text="Rejoin Assist" Margin="0,5,0,0" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center"
                                    ToolTip="Enable track rejoin assist for this dash type." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowRejoinAssist, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="4" Grid.Column="1"
                                                  ToolTip="Show track rejoin assist on the Main Dash." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowRejoinAssist, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="4" Grid.Column="2"
                                                  ToolTip="Show track rejoin assist on the Message Dash." />
+                        <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.OverlayDashShowRejoinAssist, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="4" Grid.Column="3"
+                                                 ToolTip="Show track rejoin assist on the Overlay." />
 
-                        <TextBlock Text="Show Verbose Race Messages" Margin="0,5,0,0" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center"
+                        <TextBlock Text="Verbose Race Messages" Margin="0,5,0,0" Grid.Row="5" Grid.Column="0" VerticalAlignment="Center"
                                    ToolTip="Enable detailed race messages for this dash type." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowVerboseMessaging, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="5" Grid.Column="1"
                                                  ToolTip="Show verbose race messages on the Main Dash." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowVerboseMessaging, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="5" Grid.Column="2"
                                                  ToolTip="Show verbose race messages on the Message Dash." />
+                        <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.OverlayDashShowVerboseMessaging, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="5" Grid.Column="3"
+                                                 ToolTip="Show verbose race messages on the Overlay." />
 
-                        <TextBlock Text="Show Race Flags" Margin="0,5,0,0" Grid.Row="6" Grid.Column="0" VerticalAlignment="Center"
+                        <TextBlock Text="Race Flags" Margin="0,5,0,0" Grid.Row="6" Grid.Column="0" VerticalAlignment="Center"
                                    ToolTip="Enable race flag notifications for this dash type." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowRaceFlags, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="6" Grid.Column="1"
                                                  ToolTip="Show race flags on the Main Dash." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowRaceFlags, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="6" Grid.Column="2"
                                                  ToolTip="Show race flags on the Message Dash." />
+                        <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.OverlayDashShowRaceFlags, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="6" Grid.Column="3"
+                                                 ToolTip="Show race flags on the Overlay." />
 
-                        <TextBlock Text="Show Radio Messages" Margin="0,5,0,0" Grid.Row="7" Grid.Column="0" VerticalAlignment="Center"
+                        <TextBlock Text="Radio Messages" Margin="0,5,0,0" Grid.Row="7" Grid.Column="0" VerticalAlignment="Center"
                                    ToolTip="Enable radio message popups for this dash type." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.LalaDashShowRadioMessages, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="7" Grid.Column="1"
                                                  ToolTip="Show radio messages on the Main Dash." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowRadioMessages, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="7" Grid.Column="2"
                                                  ToolTip="Show radio messages on the Message Dash." />
+                        <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.OverlayDashShowRadioMessages, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="7" Grid.Column="3"
+                                                 ToolTip="Show radio messages on the Overlay." />
 
                         <TextBlock Text="Show Traffic Alerts" Margin="0,5,0,0" Grid.Row="8" Grid.Column="0" VerticalAlignment="Center"
                                    ToolTip="Enable traffic alert warnings for this dash type." />
@@ -135,6 +151,8 @@
                                                  ToolTip="Show traffic alerts on the Main Dash." />
                         <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.MsgDashShowTraffic, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="8" Grid.Column="2"
                                                  ToolTip="Show traffic alerts on the Message Dash." />
+                        <styles:SHToggleCheckbox Content="" IsChecked="{Binding Settings.OverlayDashShowTraffic, Mode=TwoWay}" Margin="15,5,0,0" Grid.Row="8" Grid.Column="3"
+                                                 ToolTip="Show traffic alerts on the Overlay." />
                     </Grid>
                 </Grid>
 
