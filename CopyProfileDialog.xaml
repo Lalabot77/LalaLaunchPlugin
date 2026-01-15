@@ -13,23 +13,31 @@
         ResizeMode="NoResize">
     <Border BorderBrush="#555" BorderThickness="1" Padding="15">
         <StackPanel MinWidth="350">
-            <TextBlock Text="Source Profile:" Margin="0,0,0,2"/>
+            <TextBlock Text="Source Profile:" Margin="0,0,0,2"
+                       ToolTip="Profile you are copying from."/>
             <TextBlock x:Name="SourceProfileNameTextBlock" FontWeight="Bold" FontSize="14" Margin="0,0,0,15" Text="[Source Profile]"/>
 
-            <TextBlock Text="Select Destination Option:" FontWeight="Bold" Margin="0,0,0,10"/>
+            <TextBlock Text="Select Destination Option:" FontWeight="Bold" Margin="0,0,0,10"
+                       ToolTip="Choose whether to create a new profile or overwrite an existing one."/>
 
-            <RadioButton x:Name="CreateNewRadioButton" Content="Create a new profile from source" IsChecked="True" GroupName="Destination" Margin="0,0,0,5"/>
+            <RadioButton x:Name="CreateNewRadioButton" Content="Create a new profile from source" IsChecked="True" GroupName="Destination" Margin="0,0,0,5"
+                         ToolTip="Create a new profile using the source settings."/>
             <TextBox x:Name="NewProfileNameTextBox" Margin="20,0,0,15"
-                     IsEnabled="{Binding IsChecked, ElementName=CreateNewRadioButton}"/>
+                     IsEnabled="{Binding IsChecked, ElementName=CreateNewRadioButton}"
+                     ToolTip="Name for the new profile."/>
 
-            <RadioButton x:Name="CopyToExistingRadioButton" Content="Copy settings to an existing profile" GroupName="Destination" Margin="0,0,0,5"/>
+            <RadioButton x:Name="CopyToExistingRadioButton" Content="Copy settings to an existing profile" GroupName="Destination" Margin="0,0,0,5"
+                         ToolTip="Overwrite the selected existing profile with the source settings."/>
             <ComboBox x:Name="ExistingProfilesComboBox" Margin="20,0,0,20"
                       DisplayMemberPath="ProfileName"
-                      IsEnabled="{Binding IsChecked, ElementName=CopyToExistingRadioButton}"/>
+                      IsEnabled="{Binding IsChecked, ElementName=CopyToExistingRadioButton}"
+                      ToolTip="Choose which existing profile to overwrite."/>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <styles:SHButtonPrimary Content="OK" Width="80" Height="30" Margin="0,0,10,0" Click="OkButton_Click"/>
-                <styles:SHButtonSecondary Content="Cancel" Width="80" Height="30" IsCancel="True"/>
+                <styles:SHButtonPrimary Content="OK" Width="80" Height="30" Margin="0,0,10,0" Click="OkButton_Click"
+                                        ToolTip="Confirm the copy action."/>
+                <styles:SHButtonSecondary Content="Cancel" Width="80" Height="30" IsCancel="True"
+                                          ToolTip="Close without copying."/>
             </StackPanel>
         </StackPanel>
     </Border>
