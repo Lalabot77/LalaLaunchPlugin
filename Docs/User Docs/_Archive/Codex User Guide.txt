@@ -1,0 +1,101 @@
+Codex User Guide:
+
+# Lala Plugin User Guide
+
+This guide walks through each major tab in the Lala plugin UI and explains what it does, how to use it, and which settings affect your on-track experience. Each section includes a screenshot of the corresponding tab.
+
+## Dash Control
+
+![Dash Control tab](assets/user-guide/dash-control.png)
+
+Use **Dash Control** to bind actions to hardware buttons and control which overlays appear on your main and message dashboards.
+
+- **Dash bindings** let you map actions such as **Cancel Msg Button**, **Toggle Pit Screen Popup**, **Launch Mode**, and the primary/secondary dash mode toggles to SimHub controls. This is how you arm/cancel launch mode or flip between dash layouts without touching the UI.【F:DashesTabView.xaml†L24-L52】
+- **Global dash functions** include auto screen selection on session start and two sliders: **Post-Launch Results Display Time** and **Fuel Ready Confidence**. The fuel confidence note explains that below 20% confidence the system may fall back to profile data, while above 20% it waits for live fuel data.【F:DashesTabView.xaml†L55-L74】
+- **Main Dash / Message Dash visibility** toggles decide whether each screen type (launch, pit limiter, pit screen, rejoin assist, verbose messages, race flags, radio messages, traffic alerts) shows on the main dash, the message dash, or both.【F:DashesTabView.xaml†L76-L130】
+- **User variables (per-profile)** are the quick-access sliders for the active car profile (rejoin assist timing/speed, spin yaw rate, overtake alert timing, pit entry decel/buffer). Use **Save to Profile** or **Return to Defaults** to persist or reset them.【F:DashesTabView.xaml†L134-L182】
+
+## Launch Settings
+
+![Launch Settings tab](assets/user-guide/launch-settings.png)
+
+Use **Launch Settings** to tune launch control behavior and configure telemetry logging.
+
+- **Launch parameters** control the target launch RPM/throttle, tolerances, bite point settings, bog-down detection, and anti-stall sensitivity for the active profile. The sliders include tooltips that describe how each setting is used during launch control and how warnings are triggered.【F:LaunchPluginSettingsUI.xaml†L17-L45】
+- **Telemetry logging settings** let you enable/disable summary CSV logging and detailed trace files, with browseable paths for each. These traces feed the Post Launch Analysis tab. You can also enable debug logging or additional pit-exit logging for troubleshooting.【F:LaunchPluginSettingsUI.xaml†L47-L95】
+
+## Post Launch Analysis
+
+![Post Launch Analysis tab](assets/user-guide/post-launch-analysis.png)
+
+Use **Post Launch Analysis** to review and visualize launch telemetry from recorded trace files.
+
+- **Trace file selection** lets you choose a trace, refresh the list, temporarily browse another folder, or delete a selected trace file.【F:LaunchAnalysisControl.xaml†L12-L44】
+- **Launch summary** expands to show a structured summary of the launch (car/track/session data, RPMs, throttle, traction loss, etc.), while **Raw telemetry data** opens a data grid for the full trace rows.【F:LaunchAnalysisControl.xaml†L47-L63】
+- **Launch performance graphs** allow two overlayed plots (Plot 1/Plot 2) and a toggle to normalize data to a 0–100% scale so shape comparisons are easier.【F:LaunchAnalysisControl.xaml†L66-L105】
+- The **time range slider** sets the time window of the plot so you can zoom into the most important launch moments.【F:LaunchAnalysisControl.xaml†L112-L132】
+
+## Fuel Planner (Live Snapshot)
+
+![Fuel tab live snapshot](assets/user-guide/fuel-live-snapshot.png)
+
+The **Fuel** tab is a pre-race planner that combines live telemetry snapshots with deterministic planning outputs. In **Live Snapshot** mode, you can review live session state and then choose what to apply to your plan.
+
+- The planner shows live session summaries (tank limit, track state, lap times, fuel burn, confidence) but does not overwrite your selected inputs unless you explicitly apply them.【F:FuelCalculatorView.xaml†L63-L176】【F:Docs/Subsystems/Fuel_Planner_Tab.md†L34-L108】
+- Fuel planning is deliberately **human-in-the-loop**: you choose authoritative lap time and fuel-per-lap sources (manual, PB, profile, or live), and the planner produces a stable pit strategy until you change it.【F:Docs/Subsystems/Fuel_Planner_Tab.md†L12-L120】
+- The planner outputs the **calculated strategy** (total fuel needed, first stint fuel, pit stop count, pit loss estimates) using your selected inputs rather than fluctuating live values.【F:Docs/Subsystems/Fuel_Planner_Tab.md†L131-L199】
+
+## Fuel Planner (Profile Mode)
+
+![Fuel tab profile mode](assets/user-guide/fuel-profile-mode.png)
+
+In **Profile** mode, the Fuel tab uses the stored car profile and track data to seed your plan, with controls for race setup.
+
+- **Car profile** and **track** selections drive the base pace/fuel values when you are not using live data, while track conditions (dry/wet) influence the calculated strategy.【F:FuelCalculatorView.xaml†L169-L256】
+- **Race strategy** controls include race type, race length, formation lap fuel, contingency type, pit stop requirements, pit drive-through loss, and tyre change time.【F:FuelCalculatorView.xaml†L255-L356】
+- Strategy output remains deterministic: live data can inform suggestions, but it does not replace your chosen plan unless applied by you.【F:Docs/Subsystems/Fuel_Planner_Tab.md†L109-L199】
+
+## Profiles: Dash
+
+![Profiles Dash tab](assets/user-guide/profiles-dash.png)
+
+The **Profiles** tab manages per-car configuration. The **Dash** sub-tab stores per-car values that affect dash logic.
+
+- Create, copy, or delete car profiles from the **Car Profiles Library** list. Use **Apply to Live Session** to push changes to the active session and **Save All Changes** to persist to disk.【F:ProfilesManagerView.xaml†L14-L52】
+- **Dash** settings include rejoin assist timing/speed, spin detection threshold, overtake alert timing, and pit entry braking parameters. These values are the per-car defaults used by Dash Control and related logic.【F:ProfilesManagerView.xaml†L54-L126】
+
+## Profiles: Launch
+
+![Profiles Launch tab](assets/user-guide/profiles-launch.png)
+
+The **Launch** sub-tab stores the per-car launch control defaults used by Launch Settings and launch analysis.
+
+- Target RPM/throttle, tolerances, bite point values, bog down factor, and anti-stall sensitivity are saved per car profile, letting you tune each vehicle independently.【F:ProfilesManagerView.xaml†L129-L220】
+
+## Profiles: Fuel
+
+![Profiles Fuel tab](assets/user-guide/profiles-fuel.png)
+
+The **Fuel** sub-tab stores per-car fuel planning parameters used by the Fuel planner.
+
+- Configure contingency buffers (laps or litres), wet fuel multipliers, race pace delta, refuel rate, and base tank capacity. You can also **Learn from Live** to populate base tank capacity using live data.【F:ProfilesManagerView.xaml†L223-L307】
+
+## Profiles: Tracks
+
+![Profiles Tracks tab](assets/user-guide/profiles-tracks.png)
+
+The **Tracks** sub-tab contains per-track data such as pit lane loss timing, pit entry/exit markers, and stored pace/fuel snapshots.
+
+- **Pit Data** contains pit lane loss time (with lock) and stored pit entry/exit percentages. You can lock markers, reload them from disk, or zero and relearn markers if the track layout changes.【F:ProfilesManagerView.xaml†L309-L411】【F:Docs/Subsystems/Track_Markers.md†L1-L99】
+- The track marker system is built around **auto-learn → lock → notify**. Locked markers stay authoritative unless you unlock or explicitly refresh, while auto-learned values persist to disk for future sessions.【F:Docs/Subsystems/Track_Markers.md†L1-L123】
+- **Dry/Wet Conditions Data** store best/average lap times and fuel burn samples with lock/relearn controls so that the planner has stable per-track defaults.【F:ProfilesManagerView.xaml†L413-L619】
+
+## Presets
+
+![Race presets tab](assets/user-guide/presets.png)
+
+Use **Presets** to save reusable race strategies for the Fuel tab.
+
+- The preset editor supports **time-limited** or **lap-limited** races, mandatory pit stop flags, tyre change time, max fuel override, and contingency buffers in laps or litres.【F:PresetsManagerView.xaml†L84-L200】【F:RacePreset.cs†L1-L44】
+- **Save Fuel Tab Data as Preset** captures the current Fuel tab strategy into a new preset, and **Rename Selected** updates a preset name. Use **Save Changes** or **Discard Changes** to commit or reset edits.【F:PresetsManagerView.xaml†L200-L262】
+- Presets are stored as JSON (`RacePresets.json`) and loaded on startup, including a migration path from legacy filenames if needed.【F:RacePresetStore.cs†L10-L151】
