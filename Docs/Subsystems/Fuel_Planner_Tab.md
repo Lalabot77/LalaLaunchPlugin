@@ -1,8 +1,8 @@
 # Fuel Planner Tab
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1  
-Last updated: 2025-12-28  
-Branch: docs/refresh-index-subsystems
+Validated against commit: 9f784a9  
+Last updated: 2026-01-14  
+Branch: work
 
 ## Purpose
 The Fuel Planner Tab is the **human-in-the-loop planning interface** that:
@@ -31,7 +31,7 @@ This doc covers:
 
 Out of scope:
 - Fuel burn acceptance, stability, and projection internals (see `Fuel_Model.md`).
-- Dash rendering or UI layout details (see `Dash_Integration.md`).
+- Dash rendering or UI layout details (see `Subsystems/Dash_Integration.md`).
 
 ---
 
@@ -65,7 +65,7 @@ From the Fuel Model and Pace subsystem:
 - Live fuel-per-lap (raw + stable).
 - Fuel confidence.
 - Live projection lap time.
-- Tank capacity detection.
+- Tank capacity detection (live cap = MaxFuel × BoP, with BoP defaulting to 1.0).
 - Pit loss estimates (lane + stop).
 - Session context (race vs non-race).
 
@@ -84,6 +84,12 @@ The planner tracks *what source is currently active* for each input:
   - manual / PB / profile / live
 - `FuelPerLapSourceInfo`
   - manual / profile / live / max
+
+### Max fuel override handling (profile vs live)
+- **Profile mode:** `MaxFuelOverride` is clamped to the profile base tank (`BaseTankLitres`), and the UI shows a percent-of-base-tank badge.
+- **Live Snapshot mode:** `MaxFuelOverride` is set from the live session cap (MaxFuel × BoP), or `0` if the live cap is unavailable.
+- **Mode transitions:** switching into Live Snapshot stores the previous profile override; switching back to Profile restores it and re-applies the selected preset (if any).
+- **Validation:** if the live cap is missing in Live Snapshot mode, the planner surfaces an explicit “Live max fuel cap unavailable” error and blocks strategy outputs.
 
 These are exposed to the UI so the driver can see **why** a number changed.
 
@@ -152,6 +158,10 @@ Live snapshot values update continuously, but planner-selected values:
 
 This ensures that the planner remains **predictable mid-race**.
 
+Additional Live Session rules:
+- The Live Session panel is **live-only**. When no live samples exist, summaries render `-` rather than falling back to profile values.
+- When the car/track combination changes, the live snapshot is cleared immediately to prevent stale values (including max-fuel displays).
+
 ---
 
 ## Outputs (exports + UI bindings)
@@ -199,6 +209,7 @@ On reset:
 - Planner-selected sources revert to profile defaults.
 - Manual overrides are cleared.
 - Live snapshot is rehydrated but not applied.
+- Live Snapshot UI fields clear to `-` until live samples populate.
 
 Reset semantics are shared with the Fuel Model and documented centrally in:
 `Docs/Reset_And_Session_Identity.md`.
@@ -257,4 +268,3 @@ Reset semantics are shared with the Fuel Model and documented centrally in:
 - TODO/VERIFY: Confirm exact confidence threshold used to set `IsFuelReady` and whether it differs for lap time vs fuel.  
 - TODO/VERIFY: Confirm whether planner pit loss always prefers DTL or falls back to direct lane loss when DTL unavailable.  
 - TODO/VERIFY: Confirm which planner outputs are exported as `_S` (smoothed) vs numeric only.
-

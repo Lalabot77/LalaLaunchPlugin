@@ -1,68 +1,43 @@
 # Dash Integration
 
-Validated against commit: 8618f167efb6ed4f89b7fe60b69a25dd4da53fd1
-Last updated: 2025-12-28
-Branch: docs/refresh-index-subsystems
+Validated against commit: 298accf  
+Last updated: 2026-02-10  
+Branch: work
 
 ## Purpose
-Dash Integration defines the **contract between LalaLaunch and dashboards**:
-- What properties exist
-- When they are valid
-- How they should be interpreted
+Define how SimHub exports from LalaLaunch should be consumed by dashboards with emphasis on the **Pit Entry Assist** surface. This document complements the subsystem specs and focuses on binding, gating, and rendering guidance.
 
-Dash logic must be defensive and null-safe.
+## Core principles
+- **Defensive consumption:** All properties may be `null`/zero on session start; gate on readiness flags when present.
+- **Prefer stable variants:** Use `_Stable` when available for UI text; use numeric forms for gauges.
+- **Visibility gating:** Use explicit visibility flags (e.g., `Pit.EntryAssistActive`) to avoid SimHub suppression.
+- **No renormalisation:** Preserve plugin-provided units; avoid cue-driven remapping that hides continuous metrics.
 
----
+## Pit Entry Assist binding
+- **Properties:** `Pit.EntryAssistActive`, `Pit.EntryDistanceToLine_m`, `Pit.EntryRequiredDistance_m`, `Pit.EntryMargin_m`, `Pit.EntryCue`, `Pit.EntryCueText`, `Pit.EntrySpeedDelta_kph`, `Pit.EntryDecelProfile_mps2`, `Pit.EntryBuffer_m`.
+- **Validity window:** Only render while `Pit.EntryAssistActive == true`; the assist clears itself when distance >500 m or inputs are invalid.
+- **Primary signal:** `Pit.EntryMargin_m` (metres). Use cues only as secondary state indicators.
+- **Cue mapping (0–4):** OFF / OK / BRAKE SOON / BRAKE NOW / LATE; derived from margin vs. buffer.
 
-## Inputs (from plugin)
-All exported SimHub properties defined in:
-- SimHubParameterInventory.md
+### Recommended visualisation
+- **Layout:** Vertical slider or marker with fixed ±150 m scale; centre = 0 m (ideal brake point).
+- **Direction:** Marker up = early; marker down = late.
+- **Secondary labels:** Show `Pit.EntryCueText` beside the marker; keep colours neutral to avoid masking small movements.
+- **Expression hygiene:** Force floating-point math in SimHub expressions (e.g., `150.0`) to prevent integer truncation; avoid nested `if` blocks that cause stepped movement.
 
----
+## Reset behaviour
+- Hide or clear Pit Entry Assist visuals when:
+  - Session identity changes,
+  - `Pit.EntryAssistActive` is false,
+  - SimHub reports `IsInPitLane` true and the line transition already fired (assist logs `END`).
 
-## Contracts
+## Logging alignment
+- Dash developers can cross-check live visuals with logs:
+  - `ACTIVATE` confirms input resolution (distance, pit speed, decel/buffer).
+  - `LINE` provides `firstOK`/`okBefore` for post-run tuning.
+  - `END` confirms teardown; visuals should already be hidden when this appears.
 
-- Properties may be null or zero early in session
-- `_Stable` variants are preferred for display
-- `_S` string variants are preferred for UI text
-- Readiness flags must gate behaviour
-
----
-
-## Recommended Dash Patterns
-
-- Never assume non-null numeric values
-- Use `IsFuelReady` and confidence flags
-- Avoid arithmetic on raw properties without null guards
-- Use visibility gating to avoid SimHub suppression
-
----
-
-## Common Errors
-
-- Null-to-value conversions
-- Comparing uninitialised values
-- Ignoring session context
-
----
-
-## Reset Behaviour
-
-Dash state should reset or hide on:
-- Session identity change
-- Session end
-- Replay transitions
-
----
-
-## Test Checklist
-
-- Dash loads without errors at session start
-- No expression suppression in logs
-- Values transition smoothly
-
----
-
-## TODO / VERIFY
-
-- TODO/VERIFY: Confirm which dash-facing flags are guaranteed boolean vs nullable.
+## Non-Pit Entry guidance (summary)
+- Use `_Stable` pace/fuel properties for any text labels.
+- Gate launch UI on `LaunchModeActive`; gate rejoin displays on `RejoinIsExitingPits`.
+- Keep visibility toggles (`LalaDashShow...`) respected to avoid fighting user preferences.

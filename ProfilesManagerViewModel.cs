@@ -40,6 +40,7 @@ namespace LaunchPlugin
         private readonly Action _reloadTrackMarkersFromDisk;
         private readonly Action<string> _resetTrackMarkersForKey;
         private readonly string _profilesFilePath;
+        private readonly string _legacyProfilesFilePath;
         private bool _suppressTrackMarkersLockAction;
         // --- PB constants ---
         private const int PB_MIN_MS = 30000;     // >= 30s
@@ -82,7 +83,7 @@ namespace LaunchPlugin
 
             int? baselineMs = isWetEffective
                 ? ts.BestLapMsWet
-                : (ts.BestLapMsDry ?? ts.BestLapMs);
+                : ts.BestLapMsDry;
 
             bool improved = !baselineMs.HasValue || lapMs <= baselineMs.Value - PB_IMPROVE_MS;
             if (!improved)
@@ -182,6 +183,7 @@ namespace LaunchPlugin
                     car.TireChangeTime = defaultProfile.TireChangeTime;
                     car.RacePaceDeltaSeconds = defaultProfile.RacePaceDeltaSeconds;
                     car.RefuelRate = defaultProfile.RefuelRate;
+                    car.BaseTankLitres = defaultProfile.BaseTankLitres;
                     car.DryConditionMultipliers = defaultProfile.DryConditionMultipliers?.Clone() ?? ConditionMultipliers.CreateDefaultDry();
                     car.WetConditionMultipliers = defaultProfile.WetConditionMultipliers?.Clone() ?? ConditionMultipliers.CreateDefaultWet();
                     car.RejoinWarningLingerTime = defaultProfile.RejoinWarningLingerTime;
@@ -223,7 +225,6 @@ namespace LaunchPlugin
 
             // --- FIX: Manually initialize the text properties after creation ---
             // This is crucial because the UI now relies on them.
-            ts.BestLapMsText = ts.MillisecondsToLapTimeString(ts.BestLapMs);
             ts.BestLapTimeDryText = ts.MillisecondsToLapTimeString(ts.BestLapMsDry);
             ts.BestLapTimeWetText = ts.MillisecondsToLapTimeString(ts.BestLapMsWet);
             ts.AvgLapTimeDryText = ts.MillisecondsToLapTimeString(ts.AvgLapTimeDry);
@@ -529,6 +530,7 @@ namespace LaunchPlugin
         public RelayCommand RelearnPitDataCommand { get; }
         public RelayCommand RelearnDryCommand { get; }
         public RelayCommand RelearnWetCommand { get; }
+        public RelayCommand LearnBaseTankCommand { get; }
 
 
         public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey)
@@ -544,9 +546,8 @@ namespace LaunchPlugin
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
-            string commonDataFolder = _pluginManager.GetCommonStoragePath();
-            Directory.CreateDirectory(commonDataFolder); // Ensure it exists
-            _profilesFilePath = Path.Combine(commonDataFolder, "LalaLaunch_CarProfiles.json");
+            _profilesFilePath = PluginStorage.GetPluginFilePath("CarProfiles.json");
+            _legacyProfilesFilePath = PluginStorage.GetCommonFilePath("LalaLaunch_CarProfiles.json");
 
             // Initialize Commands
             NewProfileCommand = new RelayCommand(p => NewProfile());
@@ -559,6 +560,7 @@ namespace LaunchPlugin
             RelearnPitDataCommand = new RelayCommand(p => RelearnPitData(), p => SelectedTrack != null);
             RelearnDryCommand = new RelayCommand(p => RelearnDryConditions(), p => SelectedTrack != null);
             RelearnWetCommand = new RelayCommand(p => RelearnWetConditions(), p => SelectedTrack != null);
+            LearnBaseTankCommand = new RelayCommand(p => LearnBaseTankFromLive(), p => IsProfileSelected);
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
         }
@@ -593,6 +595,7 @@ namespace LaunchPlugin
                 newProfile.IsContingencyInLaps = defaultProfile.IsContingencyInLaps;
                 newProfile.WetFuelMultiplier = defaultProfile.WetFuelMultiplier;
                 newProfile.RefuelRate = defaultProfile.RefuelRate;
+                newProfile.BaseTankLitres = defaultProfile.BaseTankLitres;
                 newProfile.RejoinWarningLingerTime = defaultProfile.RejoinWarningLingerTime;
                 newProfile.RejoinWarningMinSpeed = defaultProfile.RejoinWarningMinSpeed;
                 newProfile.SpinYawRateThreshold = defaultProfile.SpinYawRateThreshold;
@@ -670,8 +673,25 @@ namespace LaunchPlugin
             destination.TrafficApproachWarnSeconds = source.TrafficApproachWarnSeconds;
             destination.RacePaceDeltaSeconds = source.RacePaceDeltaSeconds;
             destination.RefuelRate = source.RefuelRate;
+            destination.BaseTankLitres = source.BaseTankLitres;
             destination.PitEntryDecelMps2 = source.PitEntryDecelMps2;
             destination.PitEntryBufferM = source.PitEntryBufferM;
+        }
+
+        private void LearnBaseTankFromLive()
+        {
+            if (SelectedProfile == null) return;
+
+            double rawMaxFuel = Convert.ToDouble(_pluginManager?.GetPropertyValue("DataCorePlugin.GameData.MaxFuel") ?? 0.0);
+            if (double.IsNaN(rawMaxFuel) || double.IsInfinity(rawMaxFuel) || rawMaxFuel <= 0.0)
+            {
+                SimHub.Logging.Current.Debug("[LalaPlugin:Profiles] Learn Base Tank skipped: invalid MaxFuel from live data.");
+                return;
+            }
+
+            double learnedValue = Math.Round(rawMaxFuel, 1);
+            SelectedProfile.BaseTankLitres = learnedValue;
+            SimHub.Logging.Current.Debug($"[LalaPlugin:Profiles] Learned Base Tank for '{SelectedProfile.ProfileName}': {learnedValue:F1} L");
         }
 
         private void DeleteProfile()
@@ -762,12 +782,40 @@ namespace LaunchPlugin
         {
             try
             {
+                PluginStorage.TryMigrate(_legacyProfilesFilePath, _profilesFilePath);
                 if (File.Exists(_profilesFilePath))
                 {
                     string json = File.ReadAllText(_profilesFilePath);
-                    var loadedProfiles = Newtonsoft.Json.JsonConvert.DeserializeObject<ObservableCollection<CarProfile>>(json);
+                    ObservableCollection<CarProfile> loadedProfiles = null;
+                    int? schemaVersion = null;
+                    try
+                    {
+                        var store = Newtonsoft.Json.JsonConvert.DeserializeObject<CarProfilesStore>(json);
+                        loadedProfiles = store?.Profiles;
+                        schemaVersion = store?.SchemaVersion;
+                    }
+                    catch
+                    {
+                        loadedProfiles = null;
+                    }
+
+                    if (loadedProfiles == null)
+                    {
+                        loadedProfiles = Newtonsoft.Json.JsonConvert.DeserializeObject<ObservableCollection<CarProfile>>(json);
+                    }
                     if (loadedProfiles != null)
                     {
+                        foreach (var profile in loadedProfiles)
+                        {
+                            if (profile.BaseTankLitres.HasValue)
+                            {
+                                var value = profile.BaseTankLitres.Value;
+                                if (double.IsNaN(value) || double.IsInfinity(value) || value <= 0)
+                                {
+                                    profile.BaseTankLitres = null;
+                                }
+                            }
+                        }
                         // Clear the existing collection and add the loaded items
                         // This ensures the SortedCarProfiles view is updated correctly.
                         CarProfiles.Clear();
@@ -812,6 +860,7 @@ namespace LaunchPlugin
                     TireChangeTime = 22,
                     RacePaceDeltaSeconds = 1.2,
                     RefuelRate = 3.7,
+                    BaseTankLitres = null,
                     PitEntryDecelMps2 = 13.5,
                     PitEntryBufferM = 15.0,
 
@@ -827,7 +876,6 @@ namespace LaunchPlugin
                 {
                     DisplayName = "Default",
                     Key = "default",
-                    BestLapMs = null,
                     BestLapMsDry = null,
                     BestLapMsWet = null,
                     PitLaneLossSeconds = 25.0,
@@ -867,7 +915,15 @@ namespace LaunchPlugin
             try
             {
                 // First, save all profiles to the file as before.
-                string json = Newtonsoft.Json.JsonConvert.SerializeObject(CarProfiles, Newtonsoft.Json.Formatting.Indented);
+                var store = new CarProfilesStore
+                {
+                    SchemaVersion = 2,
+                    Profiles = CarProfiles
+                };
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(store, Newtonsoft.Json.Formatting.Indented);
+                var folder = Path.GetDirectoryName(_profilesFilePath);
+                if (!string.IsNullOrWhiteSpace(folder))
+                    Directory.CreateDirectory(folder);
                 File.WriteAllText(_profilesFilePath, json);
                 SimHub.Logging.Current.Debug("[LalaPlugin:Profiles] Profiles saved to JSON.");
             }

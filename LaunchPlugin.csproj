@@ -140,6 +140,7 @@
     <Compile Include="LalaLaunch.cs" />
     <Compile Include="PitCycleLite.cs" />
     <Compile Include="PitEngine.cs" />
+    <Compile Include="PluginStorage.cs" />
     <Compile Include="PresetsManagerView.xaml.cs">
       <DependentUpon>PresetsManagerView.xaml</DependentUpon>
     </Compile>

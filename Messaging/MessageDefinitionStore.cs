@@ -1,13 +1,25 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using LaunchPlugin;
 using Newtonsoft.Json;
 
 namespace LaunchPlugin.Messaging
 {
     public static class MessageDefinitionStore
     {
-        private const string FileName = "LalaLaunch.Messages.json";
+        [JsonObject(MemberSerialization.OptIn)]
+        private class MessageDefinitionStoreRoot
+        {
+            [JsonProperty]
+            public int SchemaVersion { get; set; } = 1;
+
+            [JsonProperty]
+            public List<MessageDefinition> Messages { get; set; } = new List<MessageDefinition>();
+        }
+
+        private const string NewFileName = "Messages.json";
+        private const string LegacyFileName = "LalaLaunch.Messages.json";
         private static readonly HashSet<string> ExcludedMsgIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "rejoin.threat_high",
@@ -16,21 +28,20 @@ namespace LaunchPlugin.Messaging
 
         public static string GetFolderPath()
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory?.TrimEnd('\\', '/');
-            return Path.Combine(baseDir ?? string.Empty, "PluginsData", "Common");
+            return PluginStorage.GetPluginFolder();
         }
 
-        public static string GetFilePath() => Path.Combine(GetFolderPath(), FileName);
+        public static string GetFilePath() => Path.Combine(GetFolderPath(), NewFileName);
+
+        private static string GetLegacyFilePath() => PluginStorage.GetCommonFilePath(LegacyFileName);
 
         public static List<MessageDefinition> LoadOrCreateDefault()
         {
             try
             {
-                var folder = GetFolderPath();
                 var path = GetFilePath();
-
-                if (!Directory.Exists(folder))
-                    Directory.CreateDirectory(folder);
+                var legacyPath = GetLegacyFilePath();
+                PluginStorage.TryMigrate(legacyPath, path);
 
                 if (!File.Exists(path))
                 {
@@ -40,7 +51,24 @@ namespace LaunchPlugin.Messaging
                 }
 
                 var json = File.ReadAllText(path);
-                var list = JsonConvert.DeserializeObject<List<MessageDefinition>>(json) ?? new List<MessageDefinition>();
+                List<MessageDefinition> list = null;
+                try
+                {
+                    var store = JsonConvert.DeserializeObject<MessageDefinitionStoreRoot>(json);
+                    list = store?.Messages;
+                }
+                catch
+                {
+                    list = null;
+                }
+
+                if (list == null)
+                {
+                    list = JsonConvert.DeserializeObject<List<MessageDefinition>>(json);
+                }
+
+                if (list == null) list = new List<MessageDefinition>();
+
                 foreach (var def in list)
                 {
                     ApplyDefaults(def);
@@ -67,12 +95,13 @@ namespace LaunchPlugin.Messaging
         {
             if (definitions == null) throw new ArgumentNullException(nameof(definitions));
 
-            var folder = GetFolderPath();
             var path = GetFilePath();
-            if (!Directory.Exists(folder))
-                Directory.CreateDirectory(folder);
 
-            var json = JsonConvert.SerializeObject(definitions, Formatting.Indented);
+            var store = new MessageDefinitionStoreRoot
+            {
+                Messages = definitions
+            };
+            var json = JsonConvert.SerializeObject(store, Formatting.Indented);
             var tmp = path + ".tmp";
             File.WriteAllText(tmp, json);
             if (File.Exists(path))

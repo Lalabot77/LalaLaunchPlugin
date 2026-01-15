@@ -110,7 +110,8 @@
 
                                 <TextBlock Grid.Column="0"
                                    Text="Car and Track Parameters"
-                                   FontWeight="Bold"/>
+                                   FontWeight="Bold"
+                                   ToolTip="Inputs used to calculate the pre-race fuel plan."/>
 
                                 <!-- Planning source selector (Profile / Live) -->
                                 <StackPanel Grid.Column="1"
@@ -120,17 +121,21 @@
                                     <RadioButton Content="Profile"
                                          IsChecked="{Binding IsPlanningSourceProfile, Mode=TwoWay}"
                                          GroupName="PlanningSourceMode"
-                                         Margin="0,0,8,0"/>
+                                         Margin="0,0,8,0"
+                                         ToolTip="Use saved profile/track data for planning."/>
                                     <RadioButton Content="Live snapshot"
                                          IsChecked="{Binding IsPlanningSourceLiveSnapshot, Mode=TwoWay}"
-                                         GroupName="PlanningSourceMode"/>
+                                         GroupName="PlanningSourceMode"
+                                         IsEnabled="{Binding CanSelectLiveSnapshot}"
+                                         ToolTip="Use live session data once confidence builds (may take a few laps)."/>
                                 </StackPanel>
                             </Grid>
                             <!-- Live session telemetry, styled like LAUNCH SUMMARY on Post-Launch tab -->
                             <styles:SHExpander Grid.Row="1"
                                Header="{Binding LiveSessionHeader}"
                                IsExpanded="{Binding IsLiveSessionSnapshotExpanded}"
-                               Margin="0,0,0,10">
+                               Margin="0,0,0,10"
+                               ToolTip="Live session snapshot used for planning when available. Confidence improves with more laps.">
 
                                 <Grid Margin="5">
                                     <Grid.ColumnDefinitions>
@@ -181,11 +186,13 @@
                                        Style="{StaticResource SnapshotValueStyle}" />
                                     <TextBlock Grid.Row="5" Grid.Column="0"
                                        Text="Data Confidence"
-                                       Style="{StaticResource SnapshotLabelStyle}" />
+                                       Style="{StaticResource SnapshotLabelStyle}"
+                                       ToolTip="Confidence in the live fuel/pace data. Low confidence may use profile estimates." />
                                     <TextBlock Grid.Row="5" Grid.Column="1"
                                        Text="{Binding LiveConfidenceSummary}"
                                        Style="{StaticResource SnapshotValueStyle}"
-                                       TextWrapping="Wrap" />
+                                       TextWrapping="Wrap"
+                                       ToolTip="Confidence builds with more clean laps; some fields stay locked until confident." />
                                     <TextBlock Grid.Row="6" Grid.Column="0"
                                        Text="Wet Lap Times"
                                        Style="{StaticResource SnapshotLabelStyle}"
@@ -236,14 +243,16 @@
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="Car Profile:"
-                                        VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
+                                        VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"
+                                        ToolTip="Choose which car profile to use for planning."/>
                                     <ComboBox  Grid.Row="0" Grid.Column="1" Width="300" Margin="0,0,0,6"
                                          ItemsSource="{Binding AvailableCarProfiles}"
                                          SelectedItem="{Binding SelectedCarProfile, Mode=TwoWay}"
                                          DisplayMemberPath="ProfileName"
                                          ToolTip="Select a car profile to plan a strategy for."/>
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Track:"
-                                        VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"/>
+                                        VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="Bold"
+                                        ToolTip="Choose the track and layout for planning."/>
                                     <ComboBox  Grid.Row="1" Grid.Column="1" Width="Auto"
                                          ItemsSource="{Binding AvailableTrackStats}"
                                          DisplayMemberPath="DisplayName"
@@ -255,15 +264,20 @@
                             <!-- Track condition (Profile planning only) -->
                             <StackPanel Grid.Row="3" Margin="0,5,0,5">
                                 <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                                    <TextBlock Text="Track Condition:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <RadioButton Content="Dry" IsChecked="{Binding IsDry, Mode=TwoWay}" GroupName="TrackCondition"/>
-                                    <RadioButton Content="Wet" IsChecked="{Binding IsWet, Mode=TwoWay}" GroupName="TrackCondition" Margin="10,0,0,0"/>
+                                    <TextBlock Text="Track Condition:" VerticalAlignment="Center" Margin="0,0,10,0"
+                                               ToolTip="Select dry or wet planning mode for this track."/>
+                                    <RadioButton Content="Dry" IsChecked="{Binding IsDry, Mode=TwoWay}" GroupName="TrackCondition"
+                                                 ToolTip="Plan using dry track data."/>
+                                    <RadioButton Content="Wet" IsChecked="{Binding IsWet, Mode=TwoWay}" GroupName="TrackCondition" Margin="10,0,0,0"
+                                                 ToolTip="Plan using wet track data and the wet factor."/>
                                 </StackPanel>
                                 <TextBlock Text="{Binding TrackConditionModeLabel}" Style="{StaticResource UnitHint}" Margin="2,2,0,0" />
-                                <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"/>
+                                <ui:TitledSlider Title="Wet Factor (%):" Minimum="70" Maximum="130" Value="{Binding WetFactorPercent, Mode=TwoWay}" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}" Margin="0,5,0,0"
+                                                 ToolTip="Scale fuel burn for wet running (%). Higher = higher burn."/>
                                 <StackPanel Orientation="Horizontal" Margin="0,4,0,0" Visibility="{Binding IsWet, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <TextBlock Text="{Binding SourceWetFactorDisplay}" Style="{StaticResource UnitHint}" VerticalAlignment="Center" Visibility="{Binding HasSourceWetFactor, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                    <Button Content="Use source" Command="{Binding ApplySourceWetFactorCommand}" Margin="10,0,0,0" Visibility="{Binding HasSourceWetFactor, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <Button Content="Use source" Command="{Binding ApplySourceWetFactorCommand}" Margin="10,0,0,0" Visibility="{Binding HasSourceWetFactor, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                            ToolTip="Apply the suggested wet factor from saved or live data."/>
                                 </StackPanel>
                             </StackPanel>
 
@@ -275,9 +289,11 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="Avg Lap Time:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock Grid.Column="0" Text="Avg Lap Time:" VerticalAlignment="Center" Margin="0,0,10,0"
+                                           ToolTip="Average lap time used for strategy (m:ss.fff)." />
 
-                                <TextBox Grid.Column="1" VerticalAlignment="Center" Width="60" HorizontalAlignment="Left">
+                                <TextBox Grid.Column="1" VerticalAlignment="Center" Width="60" HorizontalAlignment="Left"
+                                         ToolTip="Edit average lap time in m:ss.fff (used for strategy calculations).">
                                     <TextBox.Text>
                                         <Binding Path="EstimatedLapTime" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged">
                                             <Binding.ValidationRules>
@@ -287,7 +303,8 @@
                                     </TextBox.Text>
                                 </TextBox>
 
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0"
+                                            ToolTip="Data source hint for the lap time estimate.">
                                     <TextBlock Text="{Binding LapTimeSourceInfo}" VerticalAlignment="Center"/>
                                     <TextBlock Text="{Binding LiveLapPaceInfo, StringFormat=Live avg: {0}}"
                                        Foreground="Gray"
@@ -338,7 +355,8 @@
               Margin="0,2,0,0"
               Minimum="0" Maximum="5"
               SmallChange="0.1" TickFrequency="0.1"
-              IsSnapToTickEnabled="True" />
+              IsSnapToTickEnabled="True"
+              ToolTip="Adjust the pace delta to the leader (sec) used in the plan." />
 
                                     <TextBlock Grid.Column="1"
                 Text="{Binding LeaderDeltaSeconds, StringFormat=N1}"
@@ -351,6 +369,7 @@
                         Content="Reset to live"
                         Command="{Binding ResetLeaderDeltaToLiveCommand}"
                         Margin="8,0,0,0"
+                        ToolTip="Replace the manual pace delta with the current live average."
                         Visibility="{Binding IsLeaderDeltaManual, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 </Grid>
                             </Grid>
@@ -359,35 +378,11 @@
 
                         <StackPanel Grid.Row="6" Margin="0,15,0,0">
                             <Grid Margin="0,0,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Text="Max Fuel Override (litres):" VerticalAlignment="Center"/>
-
-                                <TextBlock Grid.Column="1" Text="{Binding DetectedMaxFuelDisplay}" FontStyle="Italic" Margin="10,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="{Binding IsPlanningSourceLiveSnapshot, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="Gray"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsMaxFuelOverrideTooHigh}" Value="True">
-                                                    <Setter Property="Foreground" Value="#FFC43C"/>
-                                                    <Setter Property="FontWeight" Value="Bold"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <Button Grid.Column="2" Content="Set live" Margin="10,0,0,0" VerticalAlignment="Center"
-                                        Command="{Binding SetLiveMaxFuelOverrideCommand}"
-                                        Visibility="{Binding HasLiveMaxFuelSuggestion, Converter={StaticResource BoolToVisibilityConverter}}"
-                                        IsEnabled="{Binding HasLiveMaxFuelSuggestion}" />
+                                <TextBlock Text="Max Fuel Override (litres):" VerticalAlignment="Center"
+                                           ToolTip="Limit the usable tank size for restricted fuel races (L)." />
                             </Grid>
 
-                            <ui:TitledSlider Title="" Minimum="1" Maximum="150" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel.">
+                            <ui:TitledSlider Title="" Minimum="0" Maximum="{Binding MaxFuelOverrideMaximum}" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel." IsEnabled="{Binding IsPlanningSourceProfile}">
                                 <ui:TitledSlider.Resources>
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>
@@ -398,6 +393,9 @@
                                     </Style>
                                 </ui:TitledSlider.Resources>
                             </ui:TitledSlider>
+                            <TextBlock Text="{Binding MaxFuelOverridePercentDisplay}" HorizontalAlignment="Right" Margin="0,4,0,0"
+                                       Visibility="{Binding IsPlanningSourceProfile, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                       FontStyle="Italic" Opacity="0.7"/>
                         </StackPanel>
 
                         <Grid Grid.Row="7" Margin="0,15,0,0" Grid.IsSharedSizeScope="True">
@@ -412,9 +410,11 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel per Lap:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Fuel per Lap:" VerticalAlignment="Center" Margin="0,0,10,0"
+                                       ToolTip="Fuel burn per lap used for strategy (L/lap)." />
 
-                            <TextBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Width="50" HorizontalAlignment="Left" Text="{Binding FuelPerLapText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBox Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Width="50" HorizontalAlignment="Left" Text="{Binding FuelPerLapText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Fuel burn per lap (L/lap). Edit to override the suggested value." />
 
                             <TextBlock Grid.Row="0" Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center">
                                 <TextBlock.Style>
@@ -529,24 +529,35 @@
 
 
                         <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                            <TextBlock Text="Race Type:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <RadioButton Content="Lap-Limited" IsChecked="{Binding IsLapLimitedRace, Mode=TwoWay}" GroupName="RaceType"/>
-                            <RadioButton Content="Time-Limited" IsChecked="{Binding IsTimeLimitedRace, Mode=TwoWay}" GroupName="RaceType" Margin="10,0,0,0"/>
+                            <TextBlock Text="Race Type:" VerticalAlignment="Center" Margin="0,0,10,0"
+                                       ToolTip="Choose whether the race is limited by laps or time."/>
+                            <RadioButton Content="Lap-Limited" IsChecked="{Binding IsLapLimitedRace, Mode=TwoWay}" GroupName="RaceType"
+                                         ToolTip="Plan for a fixed number of laps."/>
+                            <RadioButton Content="Time-Limited" IsChecked="{Binding IsTimeLimitedRace, Mode=TwoWay}" GroupName="RaceType" Margin="10,0,0,0"
+                                         ToolTip="Plan for a fixed race duration (minutes)."/>
                         </StackPanel>
 
-                        <ui:TitledSlider Title="Race Laps:" Minimum="1" Maximum="500" Value="{Binding RaceLaps, Mode=TwoWay}" Visibility="{Binding IsLapLimitedRace, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"/>
-                        <ui:TitledSlider Title="Race Minutes:" Minimum="10" Maximum="1440" Value="{Binding RaceMinutes, Mode=TwoWay}" Visibility="{Binding IsTimeLimitedRace, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"/>
+                        <ui:TitledSlider Title="Race Laps:" Minimum="1" Maximum="500" Value="{Binding RaceLaps, Mode=TwoWay}" Visibility="{Binding IsLapLimitedRace, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"
+                                         ToolTip="Total race distance in laps."/>
+                        <ui:TitledSlider Title="Race Minutes:" Minimum="10" Maximum="1440" Value="{Binding RaceMinutes, Mode=TwoWay}" Visibility="{Binding IsTimeLimitedRace, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"
+                                         ToolTip="Total race duration in minutes."/>
 
-                        <ui:TitledSlider Title="Formation Lap Fuel (liters):" Minimum="0" Maximum="10" Value="{Binding FormationLapFuelLiters, Mode=TwoWay}" Margin="0,10,0,0"/>
+                        <ui:TitledSlider Title="Formation Lap Fuel (liters):" Minimum="0" Maximum="10" Value="{Binding FormationLapFuelLiters, Mode=TwoWay}" Margin="0,10,0,0"
+                                         ToolTip="Fuel to reserve for formation or pace laps (L)." />
 
                         <StackPanel Margin="0,10,0,0">
                             <StackPanel Orientation="Horizontal" Margin="0,5,0,10">
-                                <TextBlock Text="Contingency Type:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <RadioButton Content="Extra Laps" IsChecked="{Binding IsContingencyInLaps, Mode=TwoWay}" GroupName="ContingencyType"/>
-                                <RadioButton Content="Extra Litres" IsChecked="{Binding IsContingencyLitres, Mode=TwoWay}" GroupName="ContingencyType" Margin="10,0,0,0"/>
+                                <TextBlock Text="Contingency Type:" VerticalAlignment="Center" Margin="0,0,10,0"
+                                           ToolTip="Choose whether contingency is in laps or litres."/>
+                                <RadioButton Content="Extra Laps" IsChecked="{Binding IsContingencyInLaps, Mode=TwoWay}" GroupName="ContingencyType"
+                                             ToolTip="Add extra laps of fuel as a safety margin."/>
+                                <RadioButton Content="Extra Litres" IsChecked="{Binding IsContingencyLitres, Mode=TwoWay}" GroupName="ContingencyType" Margin="10,0,0,0"
+                                             ToolTip="Add extra litres as a safety margin."/>
                             </StackPanel>
-                            <ui:TitledSlider Title="Contingency Laps:" Minimum="0" Maximum="5" Value="{Binding ContingencyValue, Mode=TwoWay}" Visibility="{Binding IsContingencyInLaps, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"/>
-                            <ui:TitledSlider Title="Contingency Litres:" Minimum="0" Maximum="20" Value="{Binding ContingencyValue, Mode=TwoWay}" Visibility="{Binding IsContingencyLitres, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"/>
+                            <ui:TitledSlider Title="Contingency Laps:" Minimum="0" Maximum="5" Value="{Binding ContingencyValue, Mode=TwoWay}" Visibility="{Binding IsContingencyInLaps, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"
+                                             ToolTip="Number of extra laps of fuel to add."/>
+                            <ui:TitledSlider Title="Contingency Litres:" Minimum="0" Maximum="20" Value="{Binding ContingencyValue, Mode=TwoWay}" Visibility="{Binding IsContingencyLitres, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"
+                                             ToolTip="Extra fuel to add as a safety margin (L)." />
                         </StackPanel>
                         <!-- Pit Strategy: header + checkbox on one line -->
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,6">
@@ -566,7 +577,7 @@
                             Margin="0,0,0,6">
                             <ui:TitledSlider.ToolTip>
                                 <ToolTip>
-                                    <TextBlock Text="Total pit lane delta per stop (In Lap and Out Lap deltas to Average Lap.)."
+                                    <TextBlock Text="Estimated pit lane loss per stop. Auto selection uses: drive-through loss, then direct pit entry-to-exit time, then the default."
                                         TextWrapping="Wrap" Width="260"/>
                                 </ToolTip>
                             </ui:TitledSlider.ToolTip>
@@ -578,7 +589,7 @@
                             Value="{Binding TireChangeTime, Mode=TwoWay}">
                             <ui:TitledSlider.ToolTip>
                                 <ToolTip>
-                                    <TextBlock Text="Additional time if tyres are changed. Set to 0s for a drive-through-only stop."
+                                    <TextBlock Text="Additional stationary time if tyres are changed. Set to 0s for a drive-through-only stop."
                                         TextWrapping="Wrap" Width="260"/>
                                 </ToolTip>
                             </ui:TitledSlider.ToolTip>
@@ -682,11 +693,13 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="Fuel Save Target (L/Lap):" VerticalAlignment="Center" Margin="0,0,10,0" Grid.Column="0"/>
-                                <Slider Grid.Column="1" VerticalAlignment="Center" Value="{Binding FuelSaveTarget, Mode=TwoWay}" Minimum="0" Maximum="1.0" SmallChange="0.05" TickFrequency="0.05" IsSnapToTickEnabled="True" />
+                                <Slider Grid.Column="1" VerticalAlignment="Center" Value="{Binding FuelSaveTarget, Mode=TwoWay}" Minimum="0" Maximum="1.0" SmallChange="0.05" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                        ToolTip="Fuel to save per lap (L/lap) for the simulator." />
                                 <TextBlock Grid.Column="2" Text="{Binding FuelSaveTarget, StringFormat=N2}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
                             </Grid>
                             <TextBlock Text="Est. Time Loss per Lap (m:ss.fff):" Margin="0,10,0,2"/>
-                            <TextBox Text="{Binding TimeLossPerLapOfFuelSave, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding TimeLossPerLapOfFuelSave, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="Estimated time lost per lap when saving fuel (m:ss.fff)." />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="15,0,0,0" VerticalAlignment="Center">
                             <TextBlock FontSize="14" Margin="0,0,0,5"><Run Text="Pit Stops Saved: "/><Run Text="{Binding StopsSaved, Mode=OneWay}" FontWeight="Bold"/></TextBlock>

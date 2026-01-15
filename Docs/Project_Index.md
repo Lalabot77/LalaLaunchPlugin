@@ -1,7 +1,7 @@
 # Project Index
 
-Validated against commit: da0639e  
-Last updated: 2026-02-09  
+Validated against commit: 9f784a9  
+Last updated: 2026-01-14  
 Branch: work
 
 ## What this repo is
@@ -13,18 +13,31 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - [FuelProperties_Spec.md](FuelProperties_Spec.md) — canonical fuel model behaviour.
 - [FuelTab_SourceFlowNotes.md](FuelTab_SourceFlowNotes.md) — canonical Fuel tab source flow.
 - [Reset_And_Session_Identity.md](Reset_And_Session_Identity.md) — canonical reset/session rules.
-- [Pit_Entry_Assist.md](Pit_Entry_Assist.md) — driver/dash/log spec for pit entry braking cues.
-- [Dash_Integration.md](Dash_Integration.md) — dash consumption and visualisation contracts (Pit Entry Assist included).
+- [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) — driver/dash/log spec for pit entry braking cues.
+- [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) — dash consumption and visualisation contracts (Pit Entry Assist included).
 - [Subsystems/Track_Markers.md](Subsystems/Track_Markers.md) — pit entry/exit marker auto-learn, storage, locking, and MSGV1 notifications.
 - [Subsystems/Opponents.md](Subsystems/Opponents.md) — nearby pace/fight and pit-exit prediction (Race-only gate, lap ≥1).
 - [Subsystems/Message_System_V1.md](Subsystems/Message_System_V1.md) — notification layer for pit markers and other signals (definition-driven, no legacy messages).
+- [Subsystems/MessageEngineV1_Notes.md](Subsystems/MessageEngineV1_Notes.md) — SimHub export list + migration notes for MSGV1 and legacy MSG lanes.
 - [Subsystems/Trace_Logging.md](Subsystems/Trace_Logging.md) — session summary CSV + per-lap trace schema and lifecycle.
 - [BranchWorkflow.md](BranchWorkflow.md) — branching policy.
 - [ConflictResolution.md](ConflictResolution.md) — merge/conflict process.
 
+## Known Lies / Allowed Compromises
+- Replay session identity: Session tokens can look inconsistent in replays — accepted because replay identity data is unreliable; resets are documented to tolerate this. (last reviewed: 2026-01-14)
+- Track-length delta alerts: Track-length delta messages are informational only and do not block usage — accepted to avoid false lockouts while still surfacing drift. (last reviewed: 2026-01-14)
+- Pit loss (DTL): DTL includes traffic impact, so “loss” can exceed idealized pit time — accepted because it reflects real race loss. (last reviewed: 2026-01-14)
+- Fuel planner separation: Planner-only values intentionally remain decoupled from live volatility — accepted to keep strategy settings stable. (last reviewed: 2026-01-14)
+- Rejoin alert linger: Dismissal requires both time + speed gates, so warnings can persist if speed stays low — accepted for safety gating. (last reviewed: 2026-01-14)
+
+## Doc Authority & Freshness
+- **CANONICAL contracts:** `SimHubParameterInventory.md`, `SimHubLogMessages.md`, `FuelProperties_Spec.md`, `FuelTab_SourceFlowNotes.md`, `Reset_And_Session_Identity.md`, and subsystem specs called out in Start Here are the source of truth.
+- **Snapshot/reference docs:** `Code_Snapshot.md`, ad-hoc analysis notes, and legacy spreadsheets are **non-canonical** and may be stale.
+- If any snapshot conflicts with canonical docs, treat the snapshot as stale. `Code_Snapshot.md` is not authoritative unless explicitly regenerated for the current commit.
+
 ## Doc inventory & canonicalisation
-- **Truth docs:** `SimHubParameterInventory.md`, `SimHubLogMessages.md`, `FuelProperties_Spec.md`, `FuelTab_SourceFlowNotes.md`, `Reset_And_Session_Identity.md`, `TimerZeroBehavior.md`.
-- **Subsystem notes:** `Message_Catalog_v5_Signal_Mapping_Report.md`, `FuelTab_LeaderPaceFlow.md`, `FuelTabActionPlanOptions.md`, `FuelTabAnalysis.md`, `LALA-036-extra-time-sanity.md`, `LalaLaunch_Handover_Summary-20251130.docx`, `Pit_Entry_Assist.md`, `Subsystems/Track_Markers.md`, `Dash_Integration.md`, `Profiles_And_PB.md`.
+- **Truth docs:** `SimHubParameterInventory.md`, `SimHubLogMessages.md`, `FuelProperties_Spec.md`, `FuelTab_SourceFlowNotes.md`, `Reset_And_Session_Identity.md`, `TimerZeroBehavior.md`, `CarProfiles-Legacy-Map.md` (schema + storage).
+- **Subsystem notes:** `Message_Catalog_v5_Signal_Mapping_Report.md`, `FuelTab_LeaderPaceFlow.md`, `FuelTabActionPlanOptions.md`, `FuelTabAnalysis.md`, `LALA-036-extra-time-sanity.md`, `LalaLaunch_Handover_Summary-20251130.docx`, `Subsystems/Pit_Entry_Assist.md`, `Subsystems/Track_Markers.md`, `Subsystems/Dash_Integration.md`, `Subsystems/MessageEngineV1_Notes.md`, `Profiles_And_PB.md`.
 - **Workflow/process:** `BranchWorkflow.md`, `ConflictResolution.md`, `RepoStatus.md`.
 - **Legacy / reference-only:** `SimHub_Parameter_Inventory.xlsx`, `FuelProperties_Spec.xlsx`, `FuelProperties_Spec (version 1).xlsx`, `Message_Catalog_v5.xlsx`, `Message_Catalog_v5_MessageToSignal_Map.csv`, `Message_Catalog_v5_Signals.csv`, `CarInfo_AllCars.xlsx`, `Codex_Task_Backlog-20251215.xlsx`, `Dahl Design → Lala Launch Mapping (lala Dash).docx`, `Dahl Design → Lala Launch Message Properties Mapping.docx`, `Dash Design.pptx`, `Dual Clutch Logic.docx`, `Phase 1 and 2 Test Script-20251202.docx`, `SessionResetIssues.docx`, `SimHub_DualClutch_Paddle_Guide.docx`, `TestingData.djson`, `UI Work.pptx`. Keep for reference; they are superseded by the canonical files above unless explicitly cited.
 - **Archived:** leave everything under `/Docs/Archived` untouched.
@@ -37,13 +50,13 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 | Pit timing & pit-loss | PitEngine DTL/direct capture, pit-lite surface exports | [Subsystems/Pit_Timing_And_PitLoss.md](Subsystems/Pit_Timing_And_PitLoss.md) |
 | Pace & projection | Pace windows, projection lap selection, after-zero handling | [Subsystems/Pace_And_Projection.md](Subsystems/Pace_And_Projection.md) |
 | Launch mode | Launch state machine, trace logging, anti-stall/bog detection | [Subsystems/Launch_Mode.md](Subsystems/Launch_Mode.md) |
-| Message system v1 | Evaluator-driven stack, outputs, and signal registry | [Subsystems/Message_System_V1.md](Subsystems/Message_System_V1.md) |
+| Message system v1 | Evaluator-driven stack, outputs, and signal registry | [Subsystems/Message_System_V1.md](Subsystems/Message_System_V1.md) / [Subsystems/MessageEngineV1_Notes.md](Subsystems/MessageEngineV1_Notes.md) |
 | Profiles & PB | Profile resolution, PB updates, and identity snapshots | [Subsystems/Profiles_And_PB.md](Subsystems/Profiles_And_PB.md) |
 | Trace logging | Telemetry trace lifecycle and launch trace handling | [Subsystems/Trace_Logging.md](Subsystems/Trace_Logging.md) |
-| Pit Entry Assist | Pit entry braking cues, margin/cue maths, decel capture instrumentation | [Pit_Entry_Assist.md](Pit_Entry_Assist.md) (driver/dash) / [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) (engine) |
+| Pit Entry Assist | Pit entry braking cues, margin/cue maths, decel capture instrumentation | [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) (driver/dash/engine) |
 | Track markers | Auto-learned pit entry/exit markers (per track), locking, track-length change detection, MSGV1 notifications | [Subsystems/Track_Markers.md](Subsystems/Track_Markers.md) |
 | Opponents | Nearby pace/fight prediction and pit-exit class position forecasting (Race-only, lap gate ≥1, gaps absolute) | [Subsystems/Opponents.md](Subsystems/Opponents.md) |
-| Dash integration | Screen manager modes, pit screen, dash visibility toggles, and Pit Entry Assist visual guidance | [Dash_Integration.md](Dash_Integration.md) / [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
+| Dash integration | Screen manager modes, pit screen, dash visibility toggles, and Pit Entry Assist visual guidance | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Canonical docs map
 | Topic | Canonical file | Notes |
@@ -65,6 +78,6 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - Fuel tab/UI source or planner changes → update `FuelTab_SourceFlowNotes.md`.
 
 ## Freshness
-- Validated against commit: da0639e  
-- Date: 2026-02-09  
+- Validated against commit: 9f784a9  
+- Date: 2026-01-14  
 - Branch: work

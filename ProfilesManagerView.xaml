@@ -18,21 +18,28 @@
         </Grid.ColumnDefinitions>
 
         <DockPanel Grid.Column="0">
-            <TextBlock DockPanel.Dock="Top" Text="Car Profiles Library" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+            <TextBlock DockPanel.Dock="Top" Text="Car Profiles Library" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"
+                       ToolTip="Manage car profiles stored on disk."/>
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
-                <styles:SHButtonPrimary Content="New" Width="70" Margin="2" Command="{Binding NewProfileCommand}"/>
-                <styles:SHButtonPrimary Content="Copy To..." Width="80" Margin="2" Command="{Binding CopySettingsCommand}"/>
-                <styles:SHButtonSecondary Content="Delete" Width="70" Margin="2" Command="{Binding DeleteProfileCommand}" Background="#C82333" Foreground="White"/>
+                <styles:SHButtonPrimary Content="New" Width="70" Margin="2" Command="{Binding NewProfileCommand}"
+                                        ToolTip="Create a new empty car profile."/>
+                <styles:SHButtonPrimary Content="Copy To..." Width="80" Margin="2" Command="{Binding CopySettingsCommand}"
+                                        ToolTip="Copy the selected profile into another profile."/>
+                <styles:SHButtonSecondary Content="Delete" Width="70" Margin="2" Command="{Binding DeleteProfileCommand}" Background="#C82333" Foreground="White"
+                                          ToolTip="Delete the selected profile from disk."/>
             </StackPanel>
-            <ListBox ItemsSource="{Binding SortedCarProfiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" DisplayMemberPath="ProfileName" BorderThickness="1" BorderBrush="Gray"/>
+            <ListBox ItemsSource="{Binding SortedCarProfiles}" SelectedItem="{Binding SelectedProfile, Mode=TwoWay}" DisplayMemberPath="ProfileName" BorderThickness="1" BorderBrush="Gray"
+                     ToolTip="Select the car profile to edit."/>
         </DockPanel>
 
         <DockPanel Grid.Column="2" IsEnabled="{Binding IsProfileSelected}">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                <TextBlock Text="Editing Profile:" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="Editing Profile:" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
+                           ToolTip="Edit settings for the selected car profile."/>
                 <TextBox Text="{Binding SelectedProfile.ProfileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
                          FontSize="16" FontWeight="Normal" Margin="10,0,0,0" MinWidth="200"
-                         BorderThickness="0" Background="Transparent"/>
+                         BorderThickness="0" Background="Transparent"
+                         ToolTip="Rename the selected profile."/>
             </StackPanel>
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                 <styles:SHButtonPrimary Content="Apply to Live Session" Width="150" Margin="0,0,10,0" Command="{Binding ApplyToLiveCommand}" Height="30"
@@ -200,9 +207,12 @@
 
                 <styles:SHTabItem Header="FUEL">
                     <StackPanel Margin="10" DataContext="{Binding SelectedProfile}">
-                        <ui:TitledSlider Title="Contingency Laps/Litres" Minimum="0" Maximum="10" Value="{Binding FuelContingencyValue, Mode=TwoWay}" />
-                        <styles:SHToggleCheckbox Content="Contingency is in Laps (otherwise Litres)" IsChecked="{Binding IsContingencyInLaps, Mode=TwoWay}" Margin="5,10,0,0"/>
-                        <ui:TitledSlider Title="Wet Fuel Multiplier (%)" Minimum="70" Maximum="130" Value="{Binding WetFuelMultiplier, Mode=TwoWay}" Margin="0,15,0,0"/>
+                        <ui:TitledSlider Title="Contingency Laps/Litres" Minimum="0" Maximum="10" Value="{Binding FuelContingencyValue, Mode=TwoWay}"
+                                         ToolTip="Default contingency amount added to fuel plans." />
+                        <styles:SHToggleCheckbox Content="Contingency is in Laps (otherwise Litres)" IsChecked="{Binding IsContingencyInLaps, Mode=TwoWay}" Margin="5,10,0,0"
+                                                 ToolTip="Toggle whether the contingency value represents laps or litres."/>
+                        <ui:TitledSlider Title="Wet Fuel Multiplier (%)" Minimum="70" Maximum="130" Value="{Binding WetFuelMultiplier, Mode=TwoWay}" Margin="0,15,0,0"
+                                         ToolTip="Fuel burn multiplier for wet conditions (%)."/>
 
                         <Grid Margin="0,15,0,0">
                             <Grid.RowDefinitions>
@@ -215,25 +225,51 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RacePaceDeltaSeconds, Mode=TwoWay}" Minimum="0" Maximum="5" SmallChange="0.1" TickFrequency="0.1" IsSnapToTickEnabled="True" />
+                                <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RacePaceDeltaSeconds, Mode=TwoWay}" Minimum="0" Maximum="5" SmallChange="0.1" TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                        ToolTip="Adjust the race pace delta used for planning (sec)."/>
                                 <TextBlock Grid.Column="1" Text="{Binding RacePaceDeltaSeconds, StringFormat=N1}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
                             </Grid>
                         </Grid>
 
                         <Grid Margin="0,15,0,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Refuel Rate (L/s):" ToolTip="The average rate at which the car refuels."/>
-                            <Grid Grid.Row="1">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RefuelRate, Mode=TwoWay}" Minimum="1" Maximum="10" SmallChange="0.05" TickFrequency="0.05" IsSnapToTickEnabled="True" />
-                                <TextBlock Grid.Column="1" Text="{Binding RefuelRate, StringFormat=N2}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
-                            </Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Refuel Rate (L/s):" ToolTip="Average refuel rate (L/s). Updates after a live refuel event if available."/>
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0" VerticalAlignment="Center" Value="{Binding RefuelRate, Mode=TwoWay}" Minimum="1" Maximum="10" SmallChange="0.05" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                            ToolTip="Set the refuel rate (L/s). Live refuel events can update this value."/>
+                                    <TextBlock Grid.Column="1" Text="{Binding RefuelRate, StringFormat=N2}" VerticalAlignment="Center" Margin="10,0,0,0" MinWidth="35" TextAlignment="Right"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Base Tank (L):" ToolTip="Base tank capacity for this car. Use Learn from Live to pull from live max fuel."/>
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Margin="0,0,0,0"
+                                             TextAlignment="Right"
+                                             Text="{Binding BaseTankLitres, Mode=TwoWay, UpdateSourceTrigger=LostFocus, TargetNullValue=''}"
+                                             ToolTip="Base tank size (L). Leave blank to use the default."/>
+                                    <styles:SHButtonSecondary Grid.Column="1"
+                                                              Content="Learn from Live"
+                                                              Margin="8,0,0,0"
+                                                              Command="{Binding DataContext.LearnBaseTankCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                              ToolTip="Capture the current live max fuel as the base tank size."/>
+                                </Grid>
+                            </StackPanel>
                         </Grid>
                     </StackPanel>
                 </styles:SHTabItem>
@@ -247,23 +283,28 @@
                         </Grid.ColumnDefinitions>
 
                         <DockPanel Grid.Column="0">
-                            <TextBlock DockPanel.Dock="Top" Text="Recorded Tracks" FontWeight="Bold" Margin="0,0,0,10"/>
+                            <TextBlock DockPanel.Dock="Top" Text="Recorded Tracks" FontWeight="Bold" Margin="0,0,0,10"
+                                       ToolTip="Tracks with saved data for this profile."/>
                             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
-                                <styles:SHButtonSecondary Content="Delete" Width="80" Command="{Binding DeleteTrackCommand}" Background="#C82333" Foreground="White"/>
+                                <styles:SHButtonSecondary Content="Delete" Width="80" Command="{Binding DeleteTrackCommand}" Background="#C82333" Foreground="White"
+                                                          ToolTip="Delete the selected track data from this profile."/>
                             </StackPanel>
-                            <ListBox ItemsSource="{Binding TracksForSelectedProfile}" SelectedItem="{Binding SelectedTrack, Mode=TwoWay}" DisplayMemberPath="DisplayName" BorderThickness="1" BorderBrush="Gray"/>
+                            <ListBox ItemsSource="{Binding TracksForSelectedProfile}" SelectedItem="{Binding SelectedTrack, Mode=TwoWay}" DisplayMemberPath="DisplayName" BorderThickness="1" BorderBrush="Gray"
+                                     ToolTip="Select a track to edit its saved data."/>
                         </DockPanel>
 
                         <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel DataContext="{Binding SelectedTrack}" Grid.IsSharedSizeScope="True" IsEnabled="{Binding DataContext.IsTrackSelected, RelativeSource={RelativeSource AncestorType=UserControl}}">
-                                <TextBlock FontWeight="Bold">
+                                <TextBlock FontWeight="Bold"
+                                           ToolTip="Edit saved data for the selected track.">
                                     <Run Text="Editing Data for: "/>
                                     <Run Text="{Binding DisplayName}"/>
                                 </TextBlock>
                                 <Border Height="1" Background="#444" Margin="0,5,0,10"/>
 
                                 <!-- PIT DATA (Pit Loss + Track Markers) -->
-                                <GroupBox Header="Pit Data" Margin="0,0,0,10">
+                                <GroupBox Header="Pit Data" Margin="0,0,0,10"
+                                          ToolTip="Pit lane loss and pit entry/exit markers for this track.">
                                     <Grid Margin="8,6,8,8" Grid.IsSharedSizeScope="True">
                                         <Grid.RowDefinitions>
                                             <!-- Pit loss line -->
@@ -297,18 +338,21 @@
                                         <TextBlock Grid.Row="0" Grid.Column="0"
                    Text="Pit Lane Loss (s):"
                    Margin="0,6,10,0"
-                   VerticalAlignment="Center"/>
+                   VerticalAlignment="Center"
+                   ToolTip="Estimated pit lane loss per stop (sec). Updates from live pits when unlocked."/>
 
                                         <TextBox Grid.Row="0" Grid.Column="1"
                  Margin="0,6,0,0"
                  TextAlignment="Right"
-                 Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                 Text="{Binding PitLaneLossSecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 ToolTip="Manual override for pit lane loss (sec)."/>
 
                                         <CheckBox Grid.Row="0" Grid.Column="2"
                   Margin="12,6,0,0"
                   VerticalAlignment="Center"
                   Content="Locked"
-                  IsChecked="{Binding PitLaneLossLocked, Mode=TwoWay}"/>
+                  IsChecked="{Binding PitLaneLossLocked, Mode=TwoWay}"
+                  ToolTip="Lock to prevent live pit samples from overwriting this value."/>
 
                                         <!-- Pit loss info lines -->
                                         <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,6,0,0">
@@ -359,7 +403,8 @@
 
                                             <TextBlock Grid.Row="0" Grid.Column="0"
                                                Text="Stored Pit Entry %:"
-                                               VerticalAlignment="Center"/>
+                                               VerticalAlignment="Center"
+                                               ToolTip="Saved pit entry marker as % of lap distance."/>
                                             <TextBlock Grid.Row="0" Grid.Column="1"
                                                Text="{Binding StoredPitEntryPctText}"
                                                TextAlignment="Right"
@@ -368,12 +413,14 @@
                                               Margin="12,0,0,0"
                                               VerticalAlignment="Center"
                                               Content="Locked"
-                                              IsChecked="{Binding TrackMarkersLocked, Mode=TwoWay}"/>
+                                              IsChecked="{Binding TrackMarkersLocked, Mode=TwoWay}"
+                                              ToolTip="Lock to prevent live marker updates from overwriting pit entry/exit values."/>
 
                                             <TextBlock Grid.Row="1" Grid.Column="0"
                                                Margin="0,6,0,0"
                                                Text="Stored Pit Exit %:"
-                                               VerticalAlignment="Center"/>
+                                               VerticalAlignment="Center"
+                                               ToolTip="Saved pit exit marker as % of lap distance."/>
                                             <TextBlock Grid.Row="1" Grid.Column="1"
                                                Margin="0,6,0,0"
                                                Text="{Binding StoredPitExitPctText}"
@@ -383,7 +430,8 @@
                                             <TextBlock Grid.Row="2" Grid.Column="0"
                                                Margin="0,6,0,0" FontStyle="Italic" Foreground="#FF9AA0A6"
                                                Text="Last Updated (UTC):"
-                                               VerticalAlignment="Center"/>
+                                               VerticalAlignment="Center"
+                                               ToolTip="Last time these pit markers were updated."/>
                                             <TextBlock Grid.Row="2" Grid.Column="1"
                                                Margin="0,6,0,0" FontStyle="Italic" Foreground="#FF9AA0A6"
                                                Text="{Binding TrackMarkersLastUpdatedText}"
@@ -403,7 +451,8 @@
                                                     ToolTip="Reload LalaLaunch.TrackMarkers.json from disk (for manual edits)."/>
                                                 <styles:SHButtonPrimary
                                                     Content="Zero and Relearn"
-                                                    Command="{Binding RelearnPitDataCommand}" Click="SHButtonPrimary_Click"/>
+                                                    Command="{Binding RelearnPitDataCommand}" Click="SHButtonPrimary_Click"
+                                                    ToolTip="Clear pit markers and relearn them from the next live pit cycle."/>
                                             </StackPanel>
 
 
@@ -413,7 +462,8 @@
                                 </GroupBox>
 
                                 <!-- DRY CONDITIONS -->
-                                <GroupBox Header="Dry Conditions Data" Margin="0,0,0,10">
+                                <GroupBox Header="Dry Conditions Data" Margin="0,0,0,10"
+                                          ToolTip="Dry-condition pace and fuel data for this track.">
                                     <Grid Margin="8,6,8,8" Grid.IsSharedSizeScope="True">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -439,10 +489,12 @@
                                         <TextBlock Grid.Row="0" Grid.Column="0"
                                            Text="Best Lap Time (m:ss.fff):"
                                            Margin="0,0,10,0"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Best dry lap time stored for this track."/>
                                         <TextBox Grid.Row="0" Grid.Column="1"
                                              TextAlignment="Right"
-                                             Text="{Binding BestLapTimeDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding BestLapTimeDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for best dry lap time (m:ss.fff)."/>
                                         <TextBlock Grid.Row="0" Grid.Column="2"
                                                Margin="12,0,0,0"
                                                VerticalAlignment="Center"
@@ -455,11 +507,13 @@
                                         <TextBlock Grid.Row="1" Grid.Column="0"
                                            Text="Avg Lap Time (m:ss.fff):"
                                            Margin="0,6,10,0"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Average dry lap time used for planning (m:ss.fff)."/>
                                         <TextBox Grid.Row="1" Grid.Column="1"
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
-                                             Text="{Binding AvgLapTimeDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding AvgLapTimeDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for average dry lap time (m:ss.fff)."/>
                                         <StackPanel
                                             Grid.Row="1"
                                             Grid.Column="2"
@@ -482,38 +536,45 @@
                                         <TextBlock Grid.Row="2" Grid.Column="0"
                                            Text="Fuel Burn (L/lap):"
                                            Margin="0,6,10,0"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Dry fuel burn values used for planning (L/lap)."/>
 
                                         <!-- ECO -->
                                         <TextBlock Grid.Row="2" Grid.Column="0"
                                            Margin="120,6,10,0"
                                            Text="ECO"
                                            FontWeight="SemiBold"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Lowest observed dry fuel burn (L/lap)."/>
                                         <TextBox Grid.Row="2" Grid.Column="1"
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
-                                             Text="{Binding MinFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding MinFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for dry ECO fuel burn (L/lap)."/>
 
                                         <!-- AVG -->
                                         <TextBlock Grid.Row="3" Grid.Column="0"
                                            Margin="120,0,10,0"
                                            Text="AVG"
                                            FontWeight="SemiBold"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Average observed dry fuel burn (L/lap)."/>
                                         <TextBox Grid.Row="3" Grid.Column="1"
                                              TextAlignment="Right"
-                                             Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding AvgFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for dry AVG fuel burn (L/lap)."/>
 
                                         <!-- MAX -->
                                         <TextBlock Grid.Row="4" Grid.Column="0"
                                            Margin="120,0,10,0"
                                            Text="MAX"
                                            FontWeight="SemiBold"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Highest observed dry fuel burn (L/lap)."/>
                                         <TextBox Grid.Row="4" Grid.Column="1"
                                              TextAlignment="Right"
-                                             Text="{Binding MaxFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding MaxFuelPerLapDryText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for dry MAX fuel burn (L/lap)."/>
 
                                         <!-- Fuel sample / updated -->
                                         <StackPanel
@@ -525,13 +586,15 @@
 
                                             <TextBlock
                                                 Text="{Binding DryFuelSampleCount, StringFormat=Sample: {0}}"
-                                                Margin="0,0,10,0"/>
+                                                Margin="0,0,10,0"
+                                                ToolTip="Number of dry fuel samples collected for this track."/>
 
                                             <TextBlock
                                                 Text="{Binding DryFuelLastUpdatedText, Mode=OneWay}"
                                                 FontStyle="Italic"
                                                 Foreground="#FF9AA0A6"
-                                                TextWrapping="Wrap"/>
+                                                TextWrapping="Wrap"
+                                                ToolTip="Last time dry fuel data was updated."/>
                                         </StackPanel>
 
                                         <!-- Placeholder lock -->
@@ -541,18 +604,21 @@
                                             HorizontalAlignment="Left">
                                             <CheckBox
                                                 Content="Locked"
-                                                IsChecked="{Binding DryConditionsLocked, Mode=TwoWay}"/>
+                                                IsChecked="{Binding DryConditionsLocked, Mode=TwoWay}"
+                                                ToolTip="Lock to prevent live dry data from overwriting these values."/>
                                             <styles:SHButtonPrimary
                                                 Content="Zero and Relearn"
                                                 Command="{Binding DataContext.RelearnDryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                Margin="10,0,0,0"/>
+                                                Margin="10,0,0,0"
+                                                ToolTip="Clear dry data and relearn from new live laps (while unlocked)."/>
                                         </StackPanel>
                                     </Grid>
                                 </GroupBox>
 
 
                                 <!-- WET CONDITIONS -->
-                                <GroupBox Header="Wet Conditions Data" Margin="0,0,0,10">
+                                <GroupBox Header="Wet Conditions Data" Margin="0,0,0,10"
+                                          ToolTip="Wet-condition pace and fuel data for this track.">
                                     <Grid Margin="8,6,8,8" Grid.IsSharedSizeScope="True">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -578,10 +644,12 @@
                                         <TextBlock Grid.Row="0" Grid.Column="0"
                                            Text="Best Lap Time (m:ss.fff):"
                                            Margin="0,0,10,0"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Best wet lap time stored for this track."/>
                                         <TextBox Grid.Row="0" Grid.Column="1"
                                              TextAlignment="Right"
-                                             Text="{Binding BestLapTimeWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding BestLapTimeWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for best wet lap time (m:ss.fff)."/>
                                         <TextBlock Grid.Row="0" Grid.Column="2"
                                            Margin="12,0,0,0"
                                            VerticalAlignment="Center"
@@ -594,11 +662,13 @@
                                         <TextBlock Grid.Row="1" Grid.Column="0"
                                            Text="Avg Lap Time (m:ss.fff):"
                                            Margin="0,6,10,0"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Average wet lap time used for planning (m:ss.fff)."/>
                                         <TextBox Grid.Row="1" Grid.Column="1"
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
-                                             Text="{Binding AvgLapTimeWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding AvgLapTimeWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for average wet lap time (m:ss.fff)."/>
                                         <StackPanel
                                             Grid.Row="1"
                                             Grid.Column="2"
@@ -621,38 +691,45 @@
                                         <TextBlock Grid.Row="2" Grid.Column="0"
                                            Text="Fuel Burn (L/lap):"
                                            Margin="0,6,10,0"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Wet fuel burn values used for planning (L/lap)."/>
 
                                         <!-- ECO -->
                                         <TextBlock Grid.Row="2" Grid.Column="0"
                                            Margin="120,6,10,0"
                                            Text="ECO"
                                            FontWeight="SemiBold"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Lowest observed wet fuel burn (L/lap)."/>
                                         <TextBox Grid.Row="2" Grid.Column="1"
                                              Margin="0,6,0,0"
                                              TextAlignment="Right"
-                                             Text="{Binding MinFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding MinFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for wet ECO fuel burn (L/lap)."/>
 
                                         <!-- AVG -->
                                         <TextBlock Grid.Row="3" Grid.Column="0"
                                            Margin="120,0,10,0"
                                            Text="AVG"
                                            FontWeight="SemiBold"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Average observed wet fuel burn (L/lap)."/>
                                         <TextBox Grid.Row="3" Grid.Column="1"
                                              TextAlignment="Right"
-                                             Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding AvgFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for wet AVG fuel burn (L/lap)."/>
 
                                         <!-- MAX -->
                                         <TextBlock Grid.Row="4" Grid.Column="0"
                                            Margin="120,0,10,0"
                                            Text="MAX"
                                            FontWeight="SemiBold"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           ToolTip="Highest observed wet fuel burn (L/lap)."/>
                                         <TextBox Grid.Row="4" Grid.Column="1"
                                              TextAlignment="Right"
-                                             Text="{Binding MaxFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding MaxFuelPerLapWetText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Manual override for wet MAX fuel burn (L/lap)."/>
 
                                         <!-- Fuel sample / updated -->
                                         <StackPanel
@@ -664,13 +741,15 @@
 
                                             <TextBlock
                                                 Text="{Binding WetFuelSampleCount, StringFormat=Sample: {0}}"
-                                                Margin="0,0,10,0"/>
+                                                Margin="0,0,10,0"
+                                                ToolTip="Number of wet fuel samples collected for this track."/>
 
                                             <TextBlock
                                                 Text="{Binding WetFuelLastUpdatedText, Mode=OneWay}"
                                                 FontStyle="Italic"
                                                 Foreground="#FF9AA0A6"
-                                                TextWrapping="Wrap"/>
+                                                TextWrapping="Wrap"
+                                                ToolTip="Last time wet fuel data was updated."/>
                                         </StackPanel>
 
                                         <!-- Placeholder lock -->
@@ -680,17 +759,20 @@
                                             HorizontalAlignment="Left">
                                             <CheckBox
                                                 Content="Locked"
-                                                IsChecked="{Binding WetConditionsLocked, Mode=TwoWay}"/>
+                                                IsChecked="{Binding WetConditionsLocked, Mode=TwoWay}"
+                                                ToolTip="Lock to prevent live wet data from overwriting these values."/>
                                             <styles:SHButtonPrimary
                                                 Content="Zero and Relearn"
                                                 Command="{Binding DataContext.RelearnWetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                Margin="10,0,0,0"/>
+                                                Margin="10,0,0,0"
+                                                ToolTip="Clear wet data and relearn from new live laps (while unlocked)."/>
                                         </StackPanel>
                                     </Grid>
                                 </GroupBox>
 
                                 <!-- WET VS DRY AVG DELTAS -->
-                                <GroupBox Header="Wet vs Dry Avg Deltas" Margin="0,0,0,10">
+                                <GroupBox Header="Wet vs Dry Avg Deltas" Margin="0,0,0,10"
+                                          ToolTip="Computed deltas between wet and dry averages for this track.">
                                     <Grid Margin="8,6,8,8">
                                         <TextBlock TextWrapping="Wrap">
                                             <Run Text="{Binding WetVsDryAvgLapDeltaText, Mode=OneWay}" />

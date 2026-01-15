@@ -2,10 +2,12 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 
 namespace LaunchPlugin
 {
@@ -72,6 +74,21 @@ namespace LaunchPlugin
         private double _refuelRate = 2.7;
         public double RefuelRate { get => _refuelRate; set { if (_refuelRate != value) { _refuelRate = value; OnPropertyChanged(); } } }
 
+        private double? _baseTankLitres;
+        [JsonProperty]
+        public double? BaseTankLitres
+        {
+            get => _baseTankLitres;
+            set
+            {
+                if (_baseTankLitres != value)
+                {
+                    _baseTankLitres = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         private ConditionMultipliers _dryConditionMultipliers = ConditionMultipliers.CreateDefaultDry();
         private ConditionMultipliers _wetConditionMultipliers = ConditionMultipliers.CreateDefaultWet();
 
@@ -130,13 +147,18 @@ namespace LaunchPlugin
         public double PitEntryBufferM { get => _pitEntryBufferM; set { if (_pitEntryBufferM != value) { _pitEntryBufferM = value; OnPropertyChanged(); } } }
 
         // --- Helper methods (unchanged and preserved) ---
+        private static string CanonicalizeTrackKey(string trackKey)
+        {
+            return (trackKey ?? string.Empty).Trim().ToLowerInvariant();
+        }
 
         public TrackStats FindTrack(string trackKey)
         {
-            if (string.IsNullOrWhiteSpace(trackKey) || TrackStats == null) return null;
+            var canonicalKey = CanonicalizeTrackKey(trackKey);
+            if (string.IsNullOrWhiteSpace(canonicalKey) || TrackStats == null) return null;
 
             // Simple, direct lookup using the TrackCode as the key.
-            TrackStats.TryGetValue(trackKey, out var trackRecord);
+            TrackStats.TryGetValue(canonicalKey, out var trackRecord);
             return trackRecord;
         }
 
@@ -157,7 +179,8 @@ namespace LaunchPlugin
 
         public TrackStats EnsureTrack(string trackKey, string trackDisplay)
         {
-            if (string.IsNullOrWhiteSpace(trackKey)) return null;
+            var canonicalKey = CanonicalizeTrackKey(trackKey);
+            if (string.IsNullOrWhiteSpace(canonicalKey)) return null;
 
             if (TrackStats == null)
             {
@@ -165,10 +188,26 @@ namespace LaunchPlugin
             }
 
             // Try to find an existing record using the reliable key.
-            if (TrackStats.TryGetValue(trackKey, out var existingRecord))
+            string existingKey = null;
+            foreach (var key in TrackStats.Keys)
             {
+                if (string.Equals(key, canonicalKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    existingKey = key;
+                    break;
+                }
+            }
+
+            if (existingKey != null && TrackStats.TryGetValue(existingKey, out var existingRecord))
+            {
+                if (!string.Equals(existingKey, canonicalKey, StringComparison.Ordinal))
+                {
+                    TrackStats.Remove(existingKey);
+                    TrackStats[canonicalKey] = existingRecord;
+                }
                 // Record found. Just update its DisplayName in case it has changed.
                 existingRecord.DisplayName = trackDisplay;
+                existingRecord.Key = canonicalKey;
                 return existingRecord;
             }
             else
@@ -176,22 +215,49 @@ namespace LaunchPlugin
                 // No record found. Create a new one.
                 var newRecord = new TrackStats
                 {
-                    Key = trackKey,
+                    Key = canonicalKey,
                     DisplayName = trackDisplay,
                     DryConditionMultipliers = ConditionMultipliers.CreateDefaultDry(),
                     WetConditionMultipliers = ConditionMultipliers.CreateDefaultWet()
                 };
-                TrackStats[trackKey] = newRecord;
+                TrackStats[canonicalKey] = newRecord;
                 return newRecord;
             }
         }
     }
+
+    [JsonObject(MemberSerialization.OptIn)]
+    public class CarProfilesStore
+    {
+        [JsonProperty]
+        public int SchemaVersion { get; set; } = 2;
+
+        [JsonProperty]
+        public ObservableCollection<CarProfile> Profiles { get; set; } = new ObservableCollection<CarProfile>();
+    }
+
+    [JsonObject(MemberSerialization.OptIn)]
     public class TrackStats : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        [JsonIgnore]
+        private bool _isHydrating;
+
+        [OnDeserializing]
+        private void OnDeserializing(StreamingContext context)
+        {
+            _isHydrating = true;
+        }
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            _isHydrating = false;
         }
 
         // --- Helper for String-to-Double/Int Conversion ---
@@ -231,63 +297,12 @@ namespace LaunchPlugin
         private string _key;
         [JsonProperty] public string Key { get => _key; set { if (_key != value) { _key = value; OnPropertyChanged(); } } }
 
-        private int? _bestLapMs;
-        private string _bestLapMsText;
-        private bool _suppressBestLapSync = false;
         private int? _bestLapMsDry;
         private string _bestLapMsDryText;
         private bool _suppressBestLapDrySync = false;
         private int? _bestLapMsWet;
         private string _bestLapMsWetText;
         private bool _suppressBestLapWetSync = false;
-
-        [JsonProperty]
-        public int? BestLapMs
-        {
-            get => _bestLapMs;
-            set
-            {
-                if (_bestLapMs != value)
-                {
-                    var old = _bestLapMs;
-                    _bestLapMs = value;
-                    OnPropertyChanged();
-
-                    // LOG: PB changed (covers live PB and manual text edits)
-                    try
-                    {
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Profile/Pace] PB updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMs)}'"
-                        );
-                    }
-                    catch { /* logging must never throw */ }
-
-                    if (!_suppressBestLapSync)
-                    {
-                        BestLapMsText = MillisecondsToLapTimeString(_bestLapMs);
-                    }
-                    OnPropertyChanged(nameof(BestLapTimeDryText));
-                }
-            }
-        }
-
-
-        public string BestLapMsText
-        {
-            get => _bestLapMsText;
-            set
-            {
-                if (_bestLapMsText != value)
-                {
-                    _bestLapMsText = value;
-                    OnPropertyChanged();
-                    _suppressBestLapSync = true;
-                    BestLapMs = LapTimeStringToMilliseconds(value);
-                    _suppressBestLapSync = false;
-                }
-            }
-        }
 
         [JsonProperty]
         public int? BestLapMsDry
@@ -302,14 +317,17 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(BestLapTimeDryText));
 
-                    try
+                    if (!_isHydrating)
                     {
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Profile/Pace] PB Dry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsDry)}'"
-                        );
+                        try
+                        {
+                            SimHub.Logging.Current.Info(
+                                $"[LalaPlugin:Profile/Pace] PB Dry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                                $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsDry)}'"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (!_suppressBestLapDrySync)
                     {
@@ -325,12 +343,6 @@ namespace LaunchPlugin
         {
             get
             {
-                if (string.IsNullOrWhiteSpace(_bestLapMsDryText)
-                    && (!BestLapMsDry.HasValue || BestLapMsDry.Value <= 0)
-                    && BestLapMs.HasValue && BestLapMs.Value > 0)
-                {
-                    return MillisecondsToLapTimeString(BestLapMs);
-                }
                 return _bestLapMsDryText;
             }
             set
@@ -340,7 +352,7 @@ namespace LaunchPlugin
                     _bestLapMsDryText = value;
                     OnPropertyChanged();
                     var parsed = LapTimeStringToMilliseconds(value);
-                    if (!_suppressBestLapDrySync && parsed.HasValue && BestLapMsDry != parsed)
+                    if (!_isHydrating && !_suppressBestLapDrySync && parsed.HasValue && BestLapMsDry != parsed)
                     {
                         MarkBestLapUpdatedDry("Manual");
                     }
@@ -364,14 +376,17 @@ namespace LaunchPlugin
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(BestLapTimeWetText));
 
-                    try
+                    if (!_isHydrating)
                     {
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Profile/Pace] PB Wet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsWet)}'"
-                        );
+                        try
+                        {
+                            SimHub.Logging.Current.Info(
+                                $"[LalaPlugin:Profile/Pace] PB Wet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                                $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_bestLapMsWet)}'"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (!_suppressBestLapWetSync)
                     {
@@ -393,7 +408,7 @@ namespace LaunchPlugin
                     _bestLapMsWetText = value;
                     OnPropertyChanged();
                     var parsed = LapTimeStringToMilliseconds(value);
-                    if (!_suppressBestLapWetSync && parsed.HasValue && BestLapMsWet != parsed)
+                    if (!_isHydrating && !_suppressBestLapWetSync && parsed.HasValue && BestLapMsWet != parsed)
                     {
                         MarkBestLapUpdatedWet("Manual");
                     }
@@ -410,12 +425,10 @@ namespace LaunchPlugin
             {
                 if (BestLapMsWet.HasValue && BestLapMsWet.Value > 0) return BestLapMsWet;
                 if (BestLapMsDry.HasValue && BestLapMsDry.Value > 0) return BestLapMsDry;
-                if (BestLapMs.HasValue && BestLapMs.Value > 0) return BestLapMs;
                 return null;
             }
 
             if (BestLapMsDry.HasValue && BestLapMsDry.Value > 0) return BestLapMsDry;
-            if (BestLapMs.HasValue && BestLapMs.Value > 0) return BestLapMs;
             return null;
         }
         private double? _pitLaneLossSeconds;
@@ -433,7 +446,10 @@ namespace LaunchPlugin
                     PitLaneLossSeconds = rounded;
                     PitLaneLossSource = "manual";
                     PitLaneLossUpdatedUtc = DateTime.UtcNow;
-                    RequestSaveProfiles?.Invoke();
+                    if (!_isHydrating)
+                    {
+                        RequestSaveProfiles?.Invoke();
+                    }
                 }
             }
         }
@@ -465,7 +481,10 @@ namespace LaunchPlugin
                 {
                     _dryConditionsLocked = value;
                     OnPropertyChanged();
-                    RequestSaveProfiles?.Invoke();
+                    if (!_isHydrating)
+                    {
+                        RequestSaveProfiles?.Invoke();
+                    }
                 }
             }
         }
@@ -481,7 +500,10 @@ namespace LaunchPlugin
                 {
                     _wetConditionsLocked = value;
                     OnPropertyChanged();
-                    RequestSaveProfiles?.Invoke();
+                    if (!_isHydrating)
+                    {
+                        RequestSaveProfiles?.Invoke();
+                    }
                 }
             }
         }
@@ -603,42 +625,6 @@ namespace LaunchPlugin
         {
             get => _pitLaneLossUpdatedUtc;
             set { if (_pitLaneLossUpdatedUtc != value) { _pitLaneLossUpdatedUtc = value; OnPropertyChanged(); } }
-        }
-
-        private string _fuelUpdatedSource;
-        [JsonProperty]
-        public string FuelUpdatedSource
-        {
-            get => _fuelUpdatedSource;
-            set
-            {
-                if (_fuelUpdatedSource != value)
-                {
-                    _fuelUpdatedSource = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(FuelLastUpdatedText));
-                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
-                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
-                }
-            }
-        }
-
-        private DateTime? _fuelUpdatedUtc;
-        [JsonProperty]
-        public DateTime? FuelUpdatedUtc
-        {
-            get => _fuelUpdatedUtc;
-            set
-            {
-                if (_fuelUpdatedUtc != value)
-                {
-                    _fuelUpdatedUtc = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(FuelLastUpdatedText));
-                    OnPropertyChanged(nameof(DryFuelLastUpdatedText));
-                    OnPropertyChanged(nameof(WetFuelLastUpdatedText));
-                }
-            }
         }
 
         private string _dryFuelUpdatedSource;
@@ -858,7 +844,7 @@ namespace LaunchPlugin
         {
             get
             {
-                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
+                return string.Empty;
             }
         }
 
@@ -867,12 +853,7 @@ namespace LaunchPlugin
         {
             get
             {
-                if (_dryFuelUpdatedUtc.HasValue)
-                {
-                    return FormatUpdatedText(_dryFuelUpdatedUtc, _dryFuelUpdatedSource, requireSource: false);
-                }
-
-                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
+                return FormatUpdatedText(_dryFuelUpdatedUtc, _dryFuelUpdatedSource, requireSource: false);
             }
         }
 
@@ -881,12 +862,7 @@ namespace LaunchPlugin
         {
             get
             {
-                if (_wetFuelUpdatedUtc.HasValue)
-                {
-                    return FormatUpdatedText(_wetFuelUpdatedUtc, _wetFuelUpdatedSource, requireSource: false);
-                }
-
-                return FormatUpdatedText(_fuelUpdatedUtc, _fuelUpdatedSource, requireSource: false);
+                return FormatUpdatedText(_wetFuelUpdatedUtc, _wetFuelUpdatedSource, requireSource: false);
             }
         }
 
@@ -901,12 +877,6 @@ namespace LaunchPlugin
 
         [JsonIgnore]
         public string WetAvgLapLastUpdatedText => FormatUpdatedText(_wetAvgLapUpdatedUtc, _wetAvgLapUpdatedSource, requireSource: true);
-
-        public void MarkFuelUpdated(string source, DateTime? whenUtc = null)
-        {
-            FuelUpdatedSource = source;
-            FuelUpdatedUtc = whenUtc ?? DateTime.UtcNow;
-        }
 
         public void MarkFuelUpdatedDry(string source, DateTime? whenUtc = null)
         {
@@ -1085,7 +1055,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressDryFuelSync)
+                        if (!_isHydrating && !_suppressDryFuelSync)
                         {
                             MarkFuelUpdatedDry("Manual");
                         }
@@ -1129,7 +1099,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressDryMinFuelSync)
+                        if (!_isHydrating && !_suppressDryMinFuelSync)
                         {
                             MarkFuelUpdatedDry("Manual");
                         }
@@ -1173,7 +1143,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressDryMaxFuelSync)
+                        if (!_isHydrating && !_suppressDryMaxFuelSync)
                         {
                             MarkFuelUpdatedDry("Manual");
                         }
@@ -1205,14 +1175,17 @@ namespace LaunchPlugin
                     NotifyWetVsDryDeltasChanged();
 
                     // LOG: Avg dry lap changed
-                    try
+                    if (!_isHydrating)
                     {
-                        SimHub.Logging.Current.Debug(
-                            $"[LalaPlugin:Profile/Pace] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeDry)}'"
-                        );
+                        try
+                        {
+                            SimHub.Logging.Current.Debug(
+                                $"[LalaPlugin:Profile/Pace] AvgDry updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                                $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeDry)}'"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (!_suppressAvgLapDrySync)
                     {
@@ -1235,7 +1208,7 @@ namespace LaunchPlugin
                     _avgLapTimeDryText = value;
                     OnPropertyChanged();
                     var parsed = LapTimeStringToMilliseconds(value);
-                    if (!_suppressAvgLapDrySync && parsed.HasValue && AvgLapTimeDry != parsed)
+                    if (!_isHydrating && !_suppressAvgLapDrySync && parsed.HasValue && AvgLapTimeDry != parsed)
                     {
                         MarkAvgLapUpdatedDry("Manual");
                     }
@@ -1249,7 +1222,7 @@ namespace LaunchPlugin
         [JsonProperty] public int? DryLapTimeSampleCount { get => _dryLapTimeSampleCount; set { if (_dryLapTimeSampleCount != value) { _dryLapTimeSampleCount = value; OnPropertyChanged(); } } }
 
         private double? _avgDryTrackTemp;
-        [JsonProperty] public double? AvgDryTrackTemp { get => _avgDryTrackTemp; set { if (_avgDryTrackTemp != value) { _avgDryTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgDryTrackTempText)); } } }
+        public double? AvgDryTrackTemp { get => _avgDryTrackTemp; set { if (_avgDryTrackTemp != value) { _avgDryTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgDryTrackTempText)); } } }
         public string AvgDryTrackTempText { get => _avgDryTrackTemp?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => AvgDryTrackTemp = StringToNullableDouble(value); }
 
         // --- Wet Conditions Data ---
@@ -1298,7 +1271,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressWetFuelSync)
+                        if (!_isHydrating && !_suppressWetFuelSync)
                         {
                             MarkFuelUpdatedWet("Manual");
                         }
@@ -1342,7 +1315,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressWetMinFuelSync)
+                        if (!_isHydrating && !_suppressWetMinFuelSync)
                         {
                             MarkFuelUpdatedWet("Manual");
                         }
@@ -1386,7 +1359,7 @@ namespace LaunchPlugin
                     var parsedValue = StringToNullableDouble(value);
                     if (parsedValue.HasValue)
                     {
-                        if (!_suppressWetMaxFuelSync)
+                        if (!_isHydrating && !_suppressWetMaxFuelSync)
                         {
                             MarkFuelUpdatedWet("Manual");
                         }
@@ -1418,14 +1391,17 @@ namespace LaunchPlugin
                     NotifyWetVsDryDeltasChanged();
 
                     // LOG: Avg wet lap changed
-                    try
+                    if (!_isHydrating)
                     {
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Profile / Pace] AvgWet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
-                            $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeWet)}'"
-                        );
+                        try
+                        {
+                            SimHub.Logging.Current.Info(
+                                $"[LalaPlugin:Profile / Pace] AvgWet updated for track '{DisplayName ?? "(null)"}' ({Key ?? "(null)"}): " +
+                                $"'{MillisecondsToLapTimeString(old)}' -> '{MillisecondsToLapTimeString(_avgLapTimeWet)}'"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     if (!_suppressAvgLapWetSync)
                     {
@@ -1448,7 +1424,7 @@ namespace LaunchPlugin
                     _avgLapTimeWetText = value;
                     OnPropertyChanged();
                     var parsed = LapTimeStringToMilliseconds(value);
-                    if (!_suppressAvgLapWetSync && parsed.HasValue && AvgLapTimeWet != parsed)
+                    if (!_isHydrating && !_suppressAvgLapWetSync && parsed.HasValue && AvgLapTimeWet != parsed)
                     {
                         MarkAvgLapUpdatedWet("Manual");
                     }
@@ -1462,7 +1438,7 @@ namespace LaunchPlugin
         [JsonProperty] public int? WetLapTimeSampleCount { get => _wetLapTimeSampleCount; set { if (_wetLapTimeSampleCount != value) { _wetLapTimeSampleCount = value; OnPropertyChanged(); } } }
 
         private double? _avgWetTrackTemp;
-        [JsonProperty] public double? AvgWetTrackTemp { get => _avgWetTrackTemp; set { if (_avgWetTrackTemp != value) { _avgWetTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgWetTrackTempText)); } } }
+        public double? AvgWetTrackTemp { get => _avgWetTrackTemp; set { if (_avgWetTrackTemp != value) { _avgWetTrackTemp = value; OnPropertyChanged(); OnPropertyChanged(nameof(AvgWetTrackTempText)); } } }
         public string AvgWetTrackTempText { get => _avgWetTrackTemp?.ToString(System.Globalization.CultureInfo.InvariantCulture); set => AvgWetTrackTemp = StringToNullableDouble(value); }
 
         private void NotifyWetVsDryDeltasChanged()
@@ -1556,6 +1532,7 @@ namespace LaunchPlugin
         }
     }
 
+    [JsonObject(MemberSerialization.OptIn)]
     public class ConditionMultipliers : INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler PropertyChanged;

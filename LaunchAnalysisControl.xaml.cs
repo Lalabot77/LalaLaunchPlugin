@@ -185,6 +185,10 @@ namespace LaunchPlugin
         public LaunchAnalysisControl()
         {
             InitializeComponent();
+
+            // DESIGNER GUARD — must be right here
+            if (DesignerProperties.GetIsInDesignMode(this))
+                return;
             // --- Set the DataContext to this class instance so bindings work ---
             this.DataContext = this;
 

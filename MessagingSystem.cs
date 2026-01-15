@@ -20,6 +20,7 @@ namespace LaunchPlugin
         public double WarnSeconds { get; set; } = 5.0;       // Overwritten from per-car setting
         public int MaxScanBehind { get; set; } = 5;          // Fallback scans
         public string OvertakeApproachLine { get; private set; } = string.Empty;
+        public double OtherClassBehindGap { get; private set; } = -1.0;
 
         // --- MsgCx placeholders (dash-controlled messaging lanes) ---
 
@@ -73,6 +74,7 @@ namespace LaunchPlugin
             if (!Enabled || data?.NewData == null || pm == null || data.GameName != "IRacing")
             {
                 OvertakeApproachLine = string.Empty;
+                OtherClassBehindGap = -1.0;
                 MaintainMsgCxTimers();
                 return;
             }
@@ -97,6 +99,7 @@ namespace LaunchPlugin
             {
                 // Good to publish straight away
                 OvertakeApproachLine = $"P{Math.Max(0, oppPosClassRsc)} {oppClassRsc} {etaRsc:0.0}s";
+                OtherClassBehindGap = etaRsc;
                 _lastHitUtc = DateTime.UtcNow;
                 return;
             }
@@ -140,6 +143,7 @@ namespace LaunchPlugin
                 if (bestClass != null)
                 {
                     OvertakeApproachLine = $"P{bestPos} {bestClass} {bestEta:0.0}s";
+                    OtherClassBehindGap = bestEta;
                     _lastHitUtc = DateTime.UtcNow;
                     return;
                 }
@@ -187,6 +191,7 @@ namespace LaunchPlugin
                 if (bestClass != null)
                 {
                     OvertakeApproachLine = $"P{bestPos} {bestClass} {bestEta:0.0}s";
+                    OtherClassBehindGap = bestEta;
                     _lastHitUtc = DateTime.UtcNow;
                     MaintainMsgCxTimers();
                     return;
@@ -201,7 +206,10 @@ namespace LaunchPlugin
         private void ClearWithTinyHold()
         {
             if ((DateTime.UtcNow - _lastHitUtc).TotalSeconds >= HoldAfterMissSec)
+            {
                 OvertakeApproachLine = string.Empty;
+                OtherClassBehindGap = -1.0;
+            }
         }
 
         // --- MsgCx helpers ----------------------------------------------------

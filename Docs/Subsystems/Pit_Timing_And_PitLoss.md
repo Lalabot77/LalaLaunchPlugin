@@ -1,7 +1,7 @@
 # Pit Timing and Pit Loss
 
-Validated against commit: f542ae2  
-Last updated: 2026-02-08  
+Validated against commit: 298accf  
+Last updated: 2026-02-10  
 Branch: work
 
 ## Purpose
@@ -30,7 +30,7 @@ This doc covers:
 Out of scope:
 - Fuel-to-add logic (see `Fuel_Model.md`).
 - Planner usage of pit loss (see `Fuel_Planner_Tab.md`).
-- Dash presentation logic (see `Dash_Integration.md`).
+- Dash presentation logic (see `Subsystems/Dash_Integration.md`).
 
 ---
 
@@ -83,6 +83,7 @@ These values are frozen once latched to avoid post-hoc drift.
 Pit entry is detected using:
 - Pit lane flag transitions.
 - Edge detection to avoid re-arming mid-lane.
+- PitLite entry arming is guarded against pit-stall state or very low entry speed (≤5 kph) to avoid false arming during pit service or reset edge cases.
 
 On entry:
 - Previous pit metrics are cleared.
@@ -197,6 +198,7 @@ The subsystem emits structured INFO logs for:
 - DTL computation and fallback usage.
 - Publication decision (DTL vs direct).
 - Locking blocks (candidate blocked + logged) when the profile pit loss is locked.
+- NaN, infinite, or non-positive pit-loss candidates are skipped and logged before any persistence attempt.
 
 Log semantics are canonical in `SimHubLogMessages.md`.
 
@@ -275,5 +277,3 @@ Reset semantics are centralised in:
 - TODO/VERIFY: Confirm exact speed threshold and dwell time used to classify “box stop” vs drive-through.
 - TODO/VERIFY: Confirm whether DTL uses session-average or stint-average pace as baseline.
 - TODO/VERIFY: Confirm pit loss publication gating for non-race sessions (practice/qualifying).
-
-

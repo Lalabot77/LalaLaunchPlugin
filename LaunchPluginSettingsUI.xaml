@@ -23,6 +23,7 @@
 
                         <styles:SHButtonPrimary Content="Save to Profile" Margin="15,0,0,0"
                                                 Command="{Binding SaveActiveProfileCommand}"
+                                                ToolTip="Save the current launch settings to this profile."
                                                 Visibility="{Binding IsActiveProfileDirty, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
                         <styles:SHButtonPrimary Content="Return to Defaults" Margin="5,0,0,0"
@@ -31,11 +32,14 @@
                                                 Visibility="{Binding CanReturnToDefaults, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                     </StackPanel>
                     <ui:TitledSlider Title="Target Launch RPM" Minimum="1000" Maximum="10000" Value="{Binding ActiveProfile.TargetLaunchRPM, Mode=TwoWay}" ToolTip="Set your ideal engine speed for the moment the clutch bites."/>
-                    <ui:TitledSlider Title="Optimal RPM Tolerance" Minimum="100" Maximum="2000" Value="{Binding ActiveProfile.OptimalRPMTolerance, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Optimal RPM Tolerance" Minimum="100" Maximum="2000" Value="{Binding ActiveProfile.OptimalRPMTolerance, Mode=TwoWay}"
+                                     ToolTip="Allowed deviation (±RPM) from the target launch RPM before it is flagged." />
                     <ui:TitledSlider Title="Target Launch Throttle (%)" Minimum="1" Maximum="100" Value="{Binding ActiveProfile.TargetLaunchThrottle, Mode=TwoWay}" ToolTip="Set your ideal throttle for the moment the clutch bites."/>
-                    <ui:TitledSlider Title="Optimal Throttle Tolerance (%)" Minimum="0" Maximum="20" Value="{Binding ActiveProfile.OptimalThrottleTolerance, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Optimal Throttle Tolerance (%)" Minimum="0" Maximum="20" Value="{Binding ActiveProfile.OptimalThrottleTolerance, Mode=TwoWay}"
+                                     ToolTip="Allowed deviation (±%) from the target launch throttle before it is flagged." />
                     <ui:TitledSlider Title="Target Bite Point (%)" Minimum="0" Maximum="100" Value="{Binding ActiveProfile.TargetBitePoint, Mode=TwoWay}" ToolTip="Set this to match your wheel setting for bite point."/>
-                    <ui:TitledSlider Title="Bite Point Tolerance (%)" Minimum="1" Maximum="10" Value="{Binding ActiveProfile.BitePointTolerance, Mode=TwoWay}" />
+                    <ui:TitledSlider Title="Bite Point Tolerance (%)" Minimum="1" Maximum="10" Value="{Binding ActiveProfile.BitePointTolerance, Mode=TwoWay}"
+                                     ToolTip="Allowed deviation (±%) around the bite point target." />
                     <ui:TitledSlider Title="Bog Down Factor (%)" Minimum="0" Maximum="100" Value="{Binding ActiveProfile.BogDownFactorPercent, Mode=TwoWay}" ToolTip="If the engine RPM drops below this percentage of the initial Launch RPM, the run will be flagged as 'Bogged'."/>
                     <ui:TitledSlider Title="Anti-Stall Alert Threshold (%)" Minimum="0" Maximum="100" Value="{Binding ActiveProfile.AntiStallThreshold, Mode=TwoWay}" ToolTip="Sets the sensitivity for detecting game-assisted anti-stall. % is delta between paddle and in game clutch."/>
                 </StackPanel>
@@ -43,7 +47,8 @@
 
             <styles:SHSection Title="TELEMETRY LOGGING SETTINGS" ShowSeparator="True">
                 <StackPanel>
-                    <TextBlock Margin="0,5,0,2" Foreground="LightGray">
+                    <TextBlock Margin="0,5,0,2" Foreground="LightGray"
+                               ToolTip="Location for the one-line launch summary CSV. Leave blank to use the default path shown.">
                         <TextBlock.Text>
                             <MultiBinding StringFormat="{}Main Summary CSV Path (Leave blank for default: {0})">
                                 <Binding ElementName="SettingsPage" Path="DefaultSummaryLogPath" Mode="OneWay"/>
@@ -61,11 +66,14 @@
                                                  ToolTip="Enable or disable writing the one-line summary of each launch."/>
                         <TextBox Grid.Column="1" x:Name="CsvPathTextBox" 
                                  Text="{Binding Settings.CsvLogPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                 VerticalAlignment="Center" />
+                                 VerticalAlignment="Center"
+                                 ToolTip="Custom path for the summary CSV. Leave blank to use the default path." />
                         <styles:SHButtonPrimary Grid.Column="2" Content="Browse..." Margin="5,0,0,0"
-                                                Tag="{Binding ElementName=CsvPathTextBox}" Click="BrowseButton_Click"/>
+                                                Tag="{Binding ElementName=CsvPathTextBox}" Click="BrowseButton_Click"
+                                                ToolTip="Browse for a summary CSV location."/>
                     </Grid>
-                    <TextBlock Margin="0,15,0,2" Foreground="LightGray">
+                    <TextBlock Margin="0,15,0,2" Foreground="LightGray"
+                               ToolTip="Location for detailed launch trace files used by the Launch Analysis tab. Leave blank to use the default path shown.">
                         <TextBlock.Text>
                             <MultiBinding StringFormat="{}Detailed Trace Files Path (Leave blank for default: {0})">
                                 <Binding ElementName="SettingsPage" Path="DefaultTraceLogPath" Mode="OneWay"/>
@@ -83,9 +91,11 @@
                                                  ToolTip="Enable or disable creating detailed trace files for the 'LAUNCH ANALYSIS' tab."/>
                         <TextBox Grid.Column="1" x:Name="TracePathTextBox" 
                                  Text="{Binding Settings.TraceLogPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                                 VerticalAlignment="Center" />
+                                 VerticalAlignment="Center"
+                                 ToolTip="Custom path for launch trace files. Leave blank to use the default path." />
                         <styles:SHButtonPrimary Grid.Column="2" Content="Browse..." Margin="5,0,0,0" 
-                                                Tag="{Binding ElementName=TracePathTextBox}" Click="BrowseButton_Click"/>
+                                                Tag="{Binding ElementName=TracePathTextBox}" Click="BrowseButton_Click"
+                                                ToolTip="Browse for a launch trace folder."/>
                     </Grid>
                     <styles:SHToggleCheckbox Content="Enable Debug Logging" Margin="0,20,0,0"
                                              IsChecked="{Binding Settings.EnableDebugLogging, Mode=TwoWay}" 

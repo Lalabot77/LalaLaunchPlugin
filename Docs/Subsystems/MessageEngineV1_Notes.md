@@ -1,5 +1,9 @@
 # Message Engine v1 (SimHub exports)
 
+Validated against commit: 9f784a9  
+Last updated: 2026-01-14  
+Branch: work
+
 This plugin now exposes a v1 message engine driven by the v5 message catalog and signal mappings. Dashboards can bind to the following SimHub properties:
 
 | Property | Description |
@@ -33,7 +37,7 @@ Migration tips
 --------------
 - Point existing dashboard “active message” labels at `MSGV1.ActiveText_Lala` (Lala dash) or `MSGV1.ActiveText_Msg` (Msg dash) to pick up the new stack-based selection.
 - Bind any cancel/clear button to the existing `MsgCxPressed` trigger; no new inputs are required.
-- Keep legacy `MSG.*` lanes intact for now; they remain exported but are no longer required for the new engine.
+- Keep legacy `MSG.*` lanes intact for now; they remain exported but are no longer required for the new engine. (`MSG.OtherClassBehindGap` is available; there is no `MSGOtherClassBehindGap` alias.)
 - Fuel “push OK” now fires once per session (race only) when no further fuel stops are required.
 - Pit messages are mutually exclusive: `PIT_NOW` (<=0 laps) overrides `PIT_SOON` (<2 laps) in races and neither loops while their state holds.
 - Style fields in JSON (MessageDefinition): `TextColor`, `BgColor`, `OutlineColor` (format `#AARRGGBB`, empty = use defaults) and `FontSize` (absolute, default 24).
