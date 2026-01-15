@@ -63,6 +63,7 @@ namespace LaunchPlugin
         private bool _pitEntryFirstCompliantCaptured;
         private double _pitEntryFirstCompliantDToLine_m;
         private bool _pitEntryAssistManualIntent;
+        private double _pitEntryLastDistanceRaw_m = double.NaN;
 
 
         // --- State management for the Pace Delta calculation ---
@@ -115,6 +116,7 @@ namespace LaunchPlugin
             _trackMarkerSessionState.Clear();
             _trackMarkerTriggers.Clear();
             _pitEntryAssistManualIntent = false;
+            _pitEntryLastDistanceRaw_m = double.NaN;
         }
 
         public string PitEntryCueText
@@ -300,6 +302,7 @@ namespace LaunchPlugin
 
             if (double.IsNaN(pitLimitKph) || pitLimitKph <= 0.1)
             {
+                _pitEntryAssistManualIntent = false;
                 ResetPitEntryAssistOutputs();
                 return;
             }
@@ -349,6 +352,7 @@ namespace LaunchPlugin
                     if (double.IsNaN(carPct) || double.IsNaN(pitEntryPct) ||
                         double.IsNaN(sessionTrackLenM) || sessionTrackLenM < MinTrackLengthM || sessionTrackLenM > MaxTrackLengthM)
                     {
+                        _pitEntryAssistManualIntent = false;
                         ResetPitEntryAssistOutputs();
                         return;
                     }
@@ -361,6 +365,19 @@ namespace LaunchPlugin
             }
 
             double dToEntryRaw_m = dToEntry_m;
+            if (double.IsNaN(dToEntryRaw_m))
+            {
+                _pitEntryAssistManualIntent = false;
+                ResetPitEntryAssistOutputs();
+                return;
+            }
+
+            if (!double.IsNaN(_pitEntryLastDistanceRaw_m) && dToEntryRaw_m > _pitEntryLastDistanceRaw_m + 1.0 && !crossedPitLineThisTick)
+            {
+                ResetPitEntryAssistOutputs();
+                _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
+                return;
+            }
 
             // Window clamp (your spec)
             dToEntry_m = Math.Max(0.0, Math.Min(500.0, dToEntry_m));
@@ -379,6 +396,7 @@ namespace LaunchPlugin
             if (!armed && !crossedPitLineThisTick)
             {
                 ResetPitEntryAssistOutputs();
+                _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
                 return;
             }
 
@@ -387,6 +405,7 @@ namespace LaunchPlugin
             if (dToEntry_m >= 500.0 && !crossedPitLineThisTick)
             {
                 ResetPitEntryAssistOutputs();
+                _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
                 return;
             }
 
@@ -462,6 +481,7 @@ namespace LaunchPlugin
                 );
             }
 
+            _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
             _pitEntryAssistWasActive = PitEntryAssistActive;
         }
 
