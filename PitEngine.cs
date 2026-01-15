@@ -62,6 +62,7 @@ namespace LaunchPlugin
         private bool _pitEntryAssistWasActive;
         private bool _pitEntryFirstCompliantCaptured;
         private double _pitEntryFirstCompliantDToLine_m;
+        private bool _pitEntryAssistManualIntent;
 
 
         // --- State management for the Pace Delta calculation ---
@@ -113,6 +114,7 @@ namespace LaunchPlugin
             _trackMarkersLastKey = "unknown";
             _trackMarkerSessionState.Clear();
             _trackMarkerTriggers.Clear();
+            _pitEntryAssistManualIntent = false;
         }
 
         public string PitEntryCueText
@@ -263,6 +265,16 @@ namespace LaunchPlugin
             _wasInPitStall = isInPitStall;
         }
 
+        public void ArmPitEntryAssistManualIntent()
+        {
+            _pitEntryAssistManualIntent = true;
+        }
+
+        public void ClearPitEntryAssistManualIntent()
+        {
+            _pitEntryAssistManualIntent = false;
+        }
+
         private void UpdatePitEntryAssist(GameData data, PluginManager pluginManager, double profileDecel_mps2, double profileBuffer_m)
         {
             // Clamp profile values to sane range
@@ -296,14 +308,7 @@ namespace LaunchPlugin
 
             // Arming (EnteringPits OR limiter ON and overspeed > +2kph)
             bool limiterOn = (data?.NewData?.PitLimiterOn ?? 0) != 0;
-            bool armed = (CurrentPitPhase == PitPhase.EnteringPits) || (limiterOn && PitEntrySpeedDelta_kph > 2.0);
-
-            // If we are NOT armed and did NOT cross the line this tick -> fully reset and exit
-            if (!armed && !crossedPitLineThisTick)
-            {
-                ResetPitEntryAssistOutputs();
-                return;
-            }
+            bool autoArmed = (CurrentPitPhase == PitPhase.EnteringPits) || (limiterOn && PitEntrySpeedDelta_kph > 2.0);
 
             // Distance to pit entry (PREFERRED: stored markers; FALLBACK: iRacingExtra)
             double dToEntry_m = double.NaN;
@@ -355,9 +360,27 @@ namespace LaunchPlugin
                 }
             }
 
+            double dToEntryRaw_m = dToEntry_m;
 
             // Window clamp (your spec)
             dToEntry_m = Math.Max(0.0, Math.Min(500.0, dToEntry_m));
+
+            bool manualEligible = _pitEntryAssistManualIntent &&
+                                  !double.IsNaN(dToEntryRaw_m) &&
+                                  dToEntryRaw_m <= 500.0;
+            bool armed = autoArmed || manualEligible;
+
+            if (_pitEntryAssistManualIntent && !double.IsNaN(dToEntryRaw_m) && dToEntryRaw_m > 500.0 && !crossedPitLineThisTick)
+            {
+                _pitEntryAssistManualIntent = false;
+            }
+
+            // If we are NOT armed and did NOT cross the line this tick -> fully reset and exit
+            if (!armed && !crossedPitLineThisTick)
+            {
+                ResetPitEntryAssistOutputs();
+                return;
+            }
 
             // If we’re armed: keep the 500m inhibit behaviour.
             // If we crossed the line: DO NOT early-return; we want LINE to log.
@@ -418,6 +441,9 @@ namespace LaunchPlugin
             // LINE log (exactly once on pit-lane entry)
             if (crossedPitLineThisTick)
             {
+                if (_pitEntryAssistManualIntent)
+                    _pitEntryAssistManualIntent = false;
+
                 string firstOkText = _pitEntryFirstCompliantCaptured
                     ? (_pitEntryFirstCompliantDToLine_m.ToString("F1") + "m")
                     : "n/a";

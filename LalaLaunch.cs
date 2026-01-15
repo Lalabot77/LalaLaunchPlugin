@@ -128,6 +128,15 @@ namespace LaunchPlugin
                 // On track: toggle the manual force-on
                 _pitScreenManualEnabled = !_pitScreenManualEnabled;
 
+                if (_pitScreenManualEnabled)
+                {
+                    _pit?.ArmPitEntryAssistManualIntent();
+                }
+                else
+                {
+                    _pit?.ClearPitEntryAssistManualIntent();
+                }
+
                 SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Toggle pressed ON TRACK -> manual={_pitScreenManualEnabled}");
             }
         }
