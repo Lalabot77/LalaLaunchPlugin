@@ -1,0 +1,255 @@
+# Plugin UI Tooltips
+
+## CopyProfileDialog.xaml
+- L17: Profile you are copying from.
+- L21: Choose whether to create a new profile or overwrite an existing one.
+- L24: Create a new profile using the source settings.
+- L27: Name for the new profile.
+- L30: Overwrite the selected existing profile with the source settings.
+- L34: Choose which existing profile to overwrite.
+- L38: Confirm the copy action.
+- L40: Close without copying.
+
+## DashesTabView.xaml
+- L26: Assign a button to cancel the current popup message.
+- L27: Assign a button to show or hide the pit screen popup.
+- L29: Manual prime/abort launch mode (useful for testing and non-standing-start sessions).
+- L33: Assign a button to cycle primary dash modes (main screen views).
+- L34: Assign a button to cycle secondary dash modes (widgets/aux views).
+- L48: Automatically switch dash screens when a session starts based on context.
+- L50: How long the post-launch results screen stays visible (sec).
+- L52: Minimum confidence (%) before pit strategy uses live fuel. Below this, profile estimates may be used.
+- L84: Enable the Launch screen for this dash type.
+- L86: Show the Launch screen on the Main Dash.
+- L88: Show the Launch screen on the Message Dash.
+- L91: Enable the Pit Limiter screen for this dash type.
+- L93: Show the Pit Limiter screen on the Main Dash.
+- L95: Show the Pit Limiter screen on the Message Dash.
+- L98: Enable the automatic pit screen for this dash type.
+- L100: Show the automatic pit screen on the Main Dash.
+- L102: Show the automatic pit screen on the Message Dash.
+- L105: Enable track rejoin assist for this dash type.
+- L107: Show track rejoin assist on the Main Dash.
+- L109: Show track rejoin assist on the Message Dash.
+- L112: Enable detailed race messages for this dash type.
+- L114: Show verbose race messages on the Main Dash.
+- L116: Show verbose race messages on the Message Dash.
+- L119: Enable race flag notifications for this dash type.
+- L121: Show race flags on the Main Dash.
+- L123: Show race flags on the Message Dash.
+- L126: Enable radio message popups for this dash type.
+- L128: Show radio messages on the Main Dash.
+- L130: Show radio messages on the Message Dash.
+- L133: Enable traffic alert warnings for this dash type.
+- L135: Show traffic alerts on the Main Dash.
+- L137: Show traffic alerts on the Message Dash.
+- L150: Save the current dash user variables to this profile.
+- L155: Resets the view to the 'Default Settings' profile.
+- L166: How long the rejoin warning remains after you return to the track (sec).
+- L168: Speed (kph) above which the rejoin warning clears automatically.
+- L170: Yaw rate (deg/s) above which a spin is detected.
+- L172: Seconds to impact for an approaching car before an overtake alert triggers.
+- L174: Target braking deceleration for pit entry assist (m/s²).
+- L176: Distance before pit entry to start the braking assist (m).
+
+## FuelCalculatorView.xaml
+- L114: Inputs used to calculate the pre-race fuel plan.
+- L125: Use saved profile/track data for planning.
+- L130: Use live session data once confidence builds (may take a few laps).
+- L138: Live session snapshot used for planning when available. Confidence improves with more laps.
+- L190: Confidence in the live fuel/pace data. Low confidence may use profile estimates.
+- L195: Confidence builds with more clean laps; some fields stay locked until confident.
+- L247: Choose which car profile to use for planning.
+- L252: Select a car profile to plan a strategy for.
+- L255: Choose the track and layout for planning.
+- L260: Select the track and layout.
+- L268: Select dry or wet planning mode for this track.
+- L270: Plan using dry track data.
+- L272: Plan using wet track data and the wet factor.
+- L276: Scale fuel burn for wet running (%). Higher = higher burn.
+- L280: Apply the suggested wet factor from saved or live data.
+- L293: Average lap time used for strategy (m:ss.fff).
+- L296: Edit average lap time in m:ss.fff (used for strategy calculations).
+- L307: Data source hint for the lap time estimate.
+- L314: Live rolling average lap time.
+- L321: Saved average lap time from profile (condition aware).
+- L337: How many seconds slower your average lap time is compared to the race leader.
+- L359: Adjust the pace delta to the leader (sec) used in the plan.
+- L372: Replace the manual pace delta with the current live average.
+- L382: Limit the usable tank size for restricted fuel races (L).
+- L385: Limit the car's tank size for races with restricted fuel.
+- L414: Fuel burn per lap used for strategy (L/lap).
+- L417: Fuel burn per lap (L/lap). Edit to override the suggested value.
+- L452: Use the average fuel per lap saved in the selected profile.
+- L453: Use the most fuel-efficient lap stored in the selected profile.
+- L454: Use the highest recorded fuel per lap stored in the selected profile.
+- L474: Use the live rolling average fuel per lap.
+- L475: Use the most fuel-efficient lap observed in the current live session.
+- L476: Use the highest valid fuel per lap observed in the current live session.
+- L485: Live rolling average fuel per lap.
+- L486: Most efficient lap recorded in this session.
+- L487: Highest valid fuel per lap recorded in this session.
+- L513: Select a preset to apply.
+- L533: Choose whether the race is limited by laps or time.
+- L535: Plan for a fixed number of laps.
+- L537: Plan for a fixed race duration (minutes).
+- L541: Total race distance in laps.
+- L543: Total race duration in minutes.
+- L546: Fuel to reserve for formation or pace laps (L).
+- L551: Choose whether contingency is in laps or litres.
+- L553: Add extra laps of fuel as a safety margin.
+- L555: Add extra litres as a safety margin.
+- L558: Number of extra laps of fuel to add.
+- L560: Extra fuel to add as a safety margin (L).
+- L569: Force at least one pit stop. Stop time = Drive-Through Loss + Tyre Change Time (if any).
+- L580: Estimated pit lane loss per stop. Auto selection uses: drive-through loss, then direct pit entry-to-exit time, then the default.
+- L592: Additional stationary time if tyres are changed. Set to 0s for a drive-through-only stop.
+- L606: Reload the planner from the active profile and live session without clearing live samples.
+- L612: Save the current Race and Strategy parameters to the selected car/track profile.
+- L697: Fuel to save per lap (L/lap) for the simulator.
+- L702: Estimated time lost per lap when saving fuel (m:ss.fff).
+
+## LaunchAnalysisControl.xaml
+- L27: Select a launch trace file to review in this tab.
+- L33: Pick a trace file captured from a launch session.
+- L37: Reloads the list of files from the path specified in the Settings tab.
+- L41: Temporarily browse a different folder for launch trace files.
+- L46: WARNING: Permanently deletes the selected trace file from your disk.
+- L55: Auto-generated summary for the selected trace file.
+- L60: Raw telemetry samples for the selected trace file.
+- L78: Pick telemetry channels to plot below.
+- L89: Select the first telemetry channel to plot.
+- L94: Pick the telemetry channel for Plot 1.
+- L99: Select the second telemetry channel to plot.
+- L104: Pick the telemetry channel for Plot 2.
+- L114: When checked, scales each graph's Y-axis from its own min to max value (or 0-Max for RPM), making it easier to see the shape of the data. Uncheck to see the true values.
+- L154: Zoom the time window (sec) shown in the graphs.
+
+## LaunchPluginSettingsUI.xaml
+- L26: Save the current launch settings to this profile.
+- L31: Resets the view to the 'Default Settings' profile.
+- L34: Set your ideal engine speed for the moment the clutch bites.
+- L36: Allowed deviation (±RPM) from the target launch RPM before it is flagged.
+- L37: Set your ideal throttle for the moment the clutch bites.
+- L39: Allowed deviation (±%) from the target launch throttle before it is flagged.
+- L40: Set this to match your wheel setting for bite point.
+- L42: Allowed deviation (±%) around the bite point target.
+- L43: If the engine RPM drops below this percentage of the initial Launch RPM, the run will be flagged as 'Bogged'.
+- L44: Sets the sensitivity for detecting game-assisted anti-stall. % is delta between paddle and in game clutch.
+- L51: Location for the one-line launch summary CSV. Leave blank to use the default path shown.
+- L66: Enable or disable writing the one-line summary of each launch.
+- L70: Custom path for the summary CSV. Leave blank to use the default path.
+- L73: Browse for a summary CSV location.
+- L76: Location for detailed launch trace files used by the Launch Analysis tab. Leave blank to use the default path shown.
+- L91: Enable or disable creating detailed trace files for the 'LAUNCH ANALYSIS' tab.
+- L95: Custom path for launch trace files. Leave blank to use the default path.
+- L98: Browse for a launch trace folder.
+- L102: Enables verbose logging for troubleshooting the plugin.
+- L105: Adds PitExit math audit details to pit-in snapshots for troubleshooting.
+
+## PresetsManagerView.xaml
+- L34: Manage reusable race strategy presets.
+- L42: Create a new preset with default values.
+- L48: Delete the selected preset from disk.
+- L55: Select a preset to edit.
+- L112: Name shown in the preset list.
+- L137: Choose whether the race is limited by laps or time.
+- L143: Plan for a fixed number of laps.
+- L149: Plan for a fixed race duration (minutes).
+- L156: Total race duration in minutes.
+- L176: Total race distance in laps.
+- L199: Include at least one pit stop in the plan.
+- L206: Additional stop time when changing tyres (sec).
+- L212: Limit usable tank size for the preset (L).
+- L218: Choose whether contingency is in laps or litres.
+- L222: Add extra laps of fuel as a safety margin.
+- L226: Add extra litres as a safety margin.
+- L233: Number of extra laps of fuel to add.
+- L250: Extra fuel to add as a safety margin (L).
+- L276: Enter a preset name: use for Save Current or Rename
+- L283: Save current Fuel tab settings into a new preset name.
+- L289: Rename the selected preset using the name box.
+- L301: Revert edits to the last saved preset values.
+- L303: Save edits to the selected preset.
+
+## ProfilesManagerView.xaml
+- L22: Manage car profiles stored on disk.
+- L25: Create a new empty car profile.
+- L27: Copy the selected profile into another profile.
+- L29: Delete the selected profile from disk.
+- L32: Select the car profile to edit.
+- L38: Edit settings for the selected car profile.
+- L42: Rename the selected profile.
+- L46: Instantly copies these settings to the active car for this session.
+- L48: Saves all profiles to the JSON file.
+- L60: How long the rejoin warning remains visible after returning to the track (in seconds).
+- L70: The minimum speed (in km/h) above which the rejoin warning automatically clears.
+- L80: Yaw rate (degrees per second) above which a spin event is detected and triggers rejoin assist.
+- L90: How many seconds behind an approaching car must be projected to trigger the overtake alert.
+- L100: Target deceleration for pit entry braking assist (m/s²).
+- L110: Distance before the pit entry trigger point to start the braking assist.
+- L128: The target engine RPM to hold during launch control activation.
+- L138: Allowed deviation (±RPM) from the target launch RPM before the system flags it as out of range.
+- L148: Throttle percentage to apply when holding the launch RPM target.
+- L158: Accepted throttle percentage deviation from target before launch control gives a warning.
+- L168: Clutch engagement percentage considered the ideal bite point for launch.
+- L178: Allowed deviation (±%) around the target bite point during launch setup.
+- L188: Launch performance reduction factor to simulate clutch bog or wheel slip.
+- L198: Throttle or clutch percentage threshold below which an anti-stall warning is triggered.
+- L211: Default contingency amount added to fuel plans.
+- L213: Toggle whether the contingency value represents laps or litres.
+- L215: Fuel burn multiplier for wet conditions (%).
+- L222: How many seconds slower your average race pace is compared to your personal best lap (e.g., 1.2).
+- L229: Adjust the race pace delta used for planning (sec).
+- L242: Average refuel rate (L/s). Updates after a live refuel event if available.
+- L249: Set the refuel rate (L/s). Live refuel events can update this value.
+- L255: Base tank capacity for this car. Use Learn from Live to pull from live max fuel.
+- L265: Base tank size (L). Leave blank to use the default.
+- L270: Capture the current live max fuel as the base tank size.
+- L287: Tracks with saved data for this profile.
+- L290: Delete the selected track data from this profile.
+- L293: Select a track to edit its saved data.
+- L299: Edit saved data for the selected track.
+- L307: Pit lane loss and pit entry/exit markers for this track.
+- L342: Estimated pit lane loss per stop (sec). Updates from live pits when unlocked.
+- L348: Manual override for pit lane loss (sec).
+- L355: Lock to prevent live pit samples from overwriting this value.
+- L407: Saved pit entry marker as % of lap distance.
+- L417: Lock to prevent live marker updates from overwriting pit entry/exit values.
+- L423: Saved pit exit marker as % of lap distance.
+- L434: Last time these pit markers were updated.
+- L451: Reload LalaLaunch.TrackMarkers.json from disk (for manual edits).
+- L455: Clear pit markers and relearn them from the next live pit cycle.
+- L466: Dry-condition pace and fuel data for this track.
+- L493: Best dry lap time stored for this track.
+- L497: Manual override for best dry lap time (m:ss.fff).
+- L511: Average dry lap time used for planning (m:ss.fff).
+- L516: Manual override for average dry lap time (m:ss.fff).
+- L540: Dry fuel burn values used for planning (L/lap).
+- L548: Lowest observed dry fuel burn (L/lap).
+- L553: Manual override for dry ECO fuel burn (L/lap).
+- L561: Average observed dry fuel burn (L/lap).
+- L565: Manual override for dry AVG fuel burn (L/lap).
+- L573: Highest observed dry fuel burn (L/lap).
+- L577: Manual override for dry MAX fuel burn (L/lap).
+- L590: Number of dry fuel samples collected for this track.
+- L597: Last time dry fuel data was updated.
+- L608: Lock to prevent live dry data from overwriting these values.
+- L613: Clear dry data and relearn from new live laps (while unlocked).
+- L621: Wet-condition pace and fuel data for this track.
+- L648: Best wet lap time stored for this track.
+- L652: Manual override for best wet lap time (m:ss.fff).
+- L666: Average wet lap time used for planning (m:ss.fff).
+- L671: Manual override for average wet lap time (m:ss.fff).
+- L695: Wet fuel burn values used for planning (L/lap).
+- L703: Lowest observed wet fuel burn (L/lap).
+- L708: Manual override for wet ECO fuel burn (L/lap).
+- L716: Average observed wet fuel burn (L/lap).
+- L720: Manual override for wet AVG fuel burn (L/lap).
+- L728: Highest observed wet fuel burn (L/lap).
+- L732: Manual override for wet MAX fuel burn (L/lap).
+- L745: Number of wet fuel samples collected for this track.
+- L752: Last time wet fuel data was updated.
+- L763: Lock to prevent live wet data from overwriting these values.
+- L768: Clear wet data and relearn from new live laps (while unlocked).
+- L775: Computed deltas between wet and dry averages for this track.

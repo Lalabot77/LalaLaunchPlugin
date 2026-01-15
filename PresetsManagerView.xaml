@@ -30,25 +30,29 @@
             <TextBlock DockPanel.Dock="Top"
              Text="Race Presets"
              FontSize="16" FontWeight="Bold"
-             Margin="0,0,0,10"/>
+             Margin="0,0,0,10"
+             ToolTip="Manage reusable race strategy presets."/>
 
             <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
                 <styles:SHButtonPrimary Content="Create New Preset"
                             Height="30"
                             Click="OnCreateNewPreset"
                             Background="#28A745" Foreground="White"
-                            HorizontalAlignment="Stretch" Margin="0,0,0,6"/>
+                            HorizontalAlignment="Stretch" Margin="0,0,0,6"
+                            ToolTip="Create a new preset with default values."/>
                 <styles:SHButtonSecondary Content="Delete Current Preset"
                               Height="30"
                               Click="OnDeletePreset"
                               Background="#C82333" Foreground="White"
-                              HorizontalAlignment="Stretch"/>
+                              HorizontalAlignment="Stretch"
+                              ToolTip="Delete the selected preset from disk."/>
             </StackPanel>
 
             <ListBox ItemsSource="{Binding AvailablePresets}"
                  SelectedItem="{Binding EditorSelection, ElementName=Root, Mode=TwoWay}"
                  DisplayMemberPath="Name"
-                 BorderThickness="1" BorderBrush="Gray"/>
+                 BorderThickness="1" BorderBrush="Gray"
+                 ToolTip="Select a preset to edit."/>
         </DockPanel>
 
         <!-- RIGHT: split into scrollable editor (row 0) and sticky footer (row 1) -->
@@ -104,7 +108,8 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Preset Name:" VerticalAlignment="Center" FontWeight="Bold"/>
                         <TextBox Grid.Column="1"
-                     Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                     Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="Name shown in the preset list."/>
                         <TextBlock Grid.Column="2"
                                    Text="{Binding ActivePresetHelperText, ElementName=Root}"
                                    VerticalAlignment="Center"
@@ -128,23 +133,27 @@
 
                     <!-- Race Type -->
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                        <TextBlock Text="Race Type:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBlock Text="Race Type:" VerticalAlignment="Center" Margin="0,0,10,0"
+                                   ToolTip="Choose whether the race is limited by laps or time."/>
                         <RadioButton Content="Lap-Limited"
                          IsChecked="{Binding EditingPreset.Type, ElementName=Root,
                                              Converter={StaticResource EnumEqualsConverter},
                                              ConverterParameter=LapLimited, Mode=TwoWay}"
-                         GroupName="RaceType"/>
+                         GroupName="RaceType"
+                         ToolTip="Plan for a fixed number of laps."/>
                         <RadioButton Content="Time-Limited" Margin="10,0,0,0"
                          IsChecked="{Binding EditingPreset.Type, ElementName=Root,
                                              Converter={StaticResource EnumEqualsConverter},
                                              ConverterParameter=TimeLimited, Mode=TwoWay}"
-                         GroupName="RaceType"/>
+                         GroupName="RaceType"
+                         ToolTip="Plan for a fixed race duration (minutes)."/>
                     </StackPanel>
 
                     <!-- Race Minutes (only when Time-Limited) -->
                     <ui:TitledSlider Title="Race Minutes:"
                            Minimum="1" Maximum="1440"
-                           Value="{Binding RaceMinutes, Mode=TwoWay}">
+                           Value="{Binding RaceMinutes, Mode=TwoWay}"
+                           ToolTip="Total race duration in minutes.">
                         <ui:TitledSlider.Style>
                             <Style TargetType="{x:Type ui:TitledSlider}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -163,7 +172,8 @@
                     <!-- Race Laps (only when Lap-Limited) -->
                     <ui:TitledSlider Title="Race Laps:"
                            Minimum="1" Maximum="1000"
-                           Value="{Binding RaceLaps, Mode=TwoWay}">
+                           Value="{Binding RaceLaps, Mode=TwoWay}"
+                           ToolTip="Total race distance in laps.">
                         <ui:TitledSlider.Style>
                             <Style TargetType="{x:Type ui:TitledSlider}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -185,35 +195,42 @@
                         <CheckBox Content="Mandatory pit stop required"
                       Margin="16,0,0,0"
                       VerticalAlignment="Center"
-                      IsChecked="{Binding MandatoryStopRequired, Mode=TwoWay}"/>
+                      IsChecked="{Binding MandatoryStopRequired, Mode=TwoWay}"
+                      ToolTip="Include at least one pit stop in the plan."/>
                     </StackPanel>
 
                     <!-- Tyre Change Time (s) -->
                     <ui:TitledSlider Title="Tyre Change Time (s):"
                            Minimum="0" Maximum="60"
-                           Value="{Binding TireChangeTimeSec, Mode=TwoWay}"/>
+                           Value="{Binding TireChangeTimeSec, Mode=TwoWay}"
+                           ToolTip="Additional stop time when changing tyres (sec)."/>
 
                     <!-- Max Fuel Override (litres) -->
                     <ui:TitledSlider Title="Max Fuel Override (litres):"
                            Minimum="0" Maximum="150"
-                           Value="{Binding MaxFuelLitres, Mode=TwoWay}"/>
+                           Value="{Binding MaxFuelLitres, Mode=TwoWay}"
+                           ToolTip="Limit usable tank size for the preset (L)."/>
 
                     <!-- Contingency -->
                     <StackPanel Margin="0,10,0,0">
                         <StackPanel Orientation="Horizontal" Margin="0,5,0,6">
-                            <TextBlock Text="Contingency Type:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Text="Contingency Type:" VerticalAlignment="Center" Margin="0,0,10,0"
+                                       ToolTip="Choose whether contingency is in laps or litres."/>
                             <RadioButton Content="Extra Laps"
                            IsChecked="{Binding ContingencyInLaps, Mode=TwoWay}"
-                           GroupName="ContingencyType"/>
+                           GroupName="ContingencyType"
+                           ToolTip="Add extra laps of fuel as a safety margin."/>
                             <RadioButton Content="Extra Litres" Margin="10,0,0,0"
                            IsChecked="{Binding ContingencyInLaps, Converter={StaticResource NotBoolConverter}, Mode=TwoWay}"
-                           GroupName="ContingencyType"/>
+                           GroupName="ContingencyType"
+                           ToolTip="Add extra litres as a safety margin."/>
                         </StackPanel>
 
                         <!-- Laps variant -->
                         <ui:TitledSlider Title="Contingency Laps:"
                              Minimum="0" Maximum="5"
-                             Value="{Binding ContingencyValue, Mode=TwoWay}">
+                             Value="{Binding ContingencyValue, Mode=TwoWay}"
+                             ToolTip="Number of extra laps of fuel to add.">
                             <ui:TitledSlider.Style>
                                 <Style TargetType="{x:Type ui:TitledSlider}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -229,7 +246,8 @@
                         <!-- Litres variant -->
                         <ui:TitledSlider Title="Contingency Litres:"
                              Minimum="0" Maximum="20"
-                             Value="{Binding ContingencyValue, Mode=TwoWay}">
+                             Value="{Binding ContingencyValue, Mode=TwoWay}"
+                             ToolTip="Extra fuel to add as a safety margin (L).">
                             <ui:TitledSlider.Style>
                                 <Style TargetType="{x:Type ui:TitledSlider}">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -261,12 +279,14 @@
                         <styles:SHButtonPrimary Grid.Column="1"
                                     Content="Save Fuel Tab Data as Preset"
                                     Width="220" Height="30" Margin="8,0,0,0"
-                                    Click="OnSaveCurrentAsPreset"/>
+                                    Click="OnSaveCurrentAsPreset"
+                                    ToolTip="Save current Fuel tab settings into a new preset name."/>
 
                         <styles:SHButtonSecondary Grid.Column="2"
                                       Content="Rename Selected"
                                       Width="150" Height="30" Margin="8,0,0,0"
-                                      Click="OnRenamePreset"/>
+                                      Click="OnRenamePreset"
+                                      ToolTip="Rename the selected preset using the name box."/>
                     </Grid>
 
                 </StackPanel>
@@ -277,8 +297,10 @@
                   Orientation="Horizontal"
                   HorizontalAlignment="Right"
                   Margin="0,10,0,0">
-                <styles:SHButtonSecondary Content="Discard Changes" Width="140" Height="30" Click="OnDiscardChanges"/>
-                <styles:SHButtonPrimary   Content="Save Changes"    Width="140" Height="30" Click="OnSaveEdits"/>
+                <styles:SHButtonSecondary Content="Discard Changes" Width="140" Height="30" Click="OnDiscardChanges"
+                                          ToolTip="Revert edits to the last saved preset values."/>
+                <styles:SHButtonPrimary   Content="Save Changes"    Width="140" Height="30" Click="OnSaveEdits"
+                                          ToolTip="Save edits to the selected preset."/>
             </StackPanel>
         </Grid>
     </Grid>
