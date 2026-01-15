@@ -3067,6 +3067,16 @@ namespace LaunchPlugin
             AttachCore("MsgDashShowRadioMessages", () => Settings.MsgDashShowRadioMessages);
             AttachCore("MsgDashShowTraffic", () => Settings.MsgDashShowTraffic);
 
+            // --- Overlay Options (CORE) ---
+            AttachCore("OverlayDashShowLaunchScreen", () => Settings.OverlayDashShowLaunchScreen);
+            AttachCore("OverlayDashShowPitLimiter", () => Settings.OverlayDashShowPitLimiter);
+            AttachCore("OverlayDashShowPitScreen", () => Settings.OverlayDashShowPitScreen);
+            AttachCore("OverlayDashShowRejoinAssist", () => Settings.OverlayDashShowRejoinAssist);
+            AttachCore("OverlayDashShowVerboseMessaging", () => Settings.OverlayDashShowVerboseMessaging);
+            AttachCore("OverlayDashShowRaceFlags", () => Settings.OverlayDashShowRaceFlags);
+            AttachCore("OverlayDashShowRadioMessages", () => Settings.OverlayDashShowRadioMessages);
+            AttachCore("OverlayDashShowTraffic", () => Settings.OverlayDashShowTraffic);
+
             // --- Manual Timeout (CORE) ---
             AttachCore("ManualTimeoutRemaining", () =>
             {
@@ -4136,7 +4146,7 @@ namespace LaunchPlugin
             {
                 _poll250ms.Restart();
                 UpdateLiveMaxFuel(pluginManager);
-                _msgSystem.Enabled = Settings.MsgDashShowTraffic || Settings.LalaDashShowTraffic;
+                _msgSystem.Enabled = Settings.MsgDashShowTraffic || Settings.LalaDashShowTraffic || Settings.OverlayDashShowTraffic;
                 double warn = ActiveProfile.TrafficApproachWarnSeconds;
                 if (!(warn > 0)) warn = 5.0;
                 _msgSystem.WarnSeconds = warn;
@@ -6378,6 +6388,16 @@ namespace LaunchPlugin
         public bool MsgDashShowRaceFlags { get; set; } = true;
         public bool MsgDashShowRadioMessages { get; set; } = true;
         public bool MsgDashShowTraffic { get; set; } = true;
+
+        // --- Overlay Toggles (Default ON) ---
+        public bool OverlayDashShowLaunchScreen { get; set; } = true;
+        public bool OverlayDashShowPitLimiter { get; set; } = true;
+        public bool OverlayDashShowPitScreen { get; set; } = true;
+        public bool OverlayDashShowRejoinAssist { get; set; } = true;
+        public bool OverlayDashShowVerboseMessaging { get; set; } = true;
+        public bool OverlayDashShowRaceFlags { get; set; } = true;
+        public bool OverlayDashShowRadioMessages { get; set; } = true;
+        public bool OverlayDashShowTraffic { get; set; } = true;
     }
     /// <summary>
     /// Helper class for continuous telemetry data logging, now specifically focused on per-launch traces.
