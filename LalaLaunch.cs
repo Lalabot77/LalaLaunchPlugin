@@ -2622,6 +2622,7 @@ namespace LaunchPlugin
         private bool _pitScreenActive = false;
         private bool _pitScreenDismissed = false;
         private bool _pitScreenManualEnabled = false;
+        private string _pitScreenMode = "auto";
         private bool _rpmInTargetRange = false;
         private bool _throttleInTargetRange = false;
         private bool _waitingForClutchRelease = false;
@@ -3042,6 +3043,7 @@ namespace LaunchPlugin
             AttachCore("Race.LeaderHasFinished", () => LeaderHasFinished);
             AttachCore("MsgCxPressed", () => _msgCxPressed);
             AttachCore("PitScreenActive", () => _pitScreenActive);
+            AttachCore("PitScreenMode", () => _pitScreenMode);
 
             AttachCore("RejoinAlertReasonCode", () => (int)_rejoinEngine.CurrentLogicCode);
             AttachCore("RejoinAlertReasonName", () => _rejoinEngine.CurrentLogicCode.ToString());
@@ -4399,9 +4401,11 @@ namespace LaunchPlugin
             }
 
             bool newPitScreenActive = _pitScreenActive; // default
+            string newPitScreenMode = _pitScreenMode;
 
             if (isOnPitRoad)
             {
+                newPitScreenMode = "auto";
                 if (!_pittingTimer.IsRunning)
                     _pittingTimer.Restart();
 
@@ -4412,6 +4416,7 @@ namespace LaunchPlugin
             }
             else
             {
+                newPitScreenMode = "manual";
                 newPitScreenActive = _pitScreenManualEnabled;
                 _pitScreenDismissed = false;
 
@@ -4426,6 +4431,12 @@ namespace LaunchPlugin
             {
                 _pitScreenActive = newPitScreenActive;
                 SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Active -> {_pitScreenActive} (onPitRoad={isOnPitRoad}, dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled})");
+            }
+
+            if (!string.Equals(newPitScreenMode, _pitScreenMode, StringComparison.Ordinal))
+            {
+                _pitScreenMode = newPitScreenMode;
+                SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Mode -> {_pitScreenMode} (onPitRoad={isOnPitRoad}, dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled})");
             }
 
             // --- Decel capture instrumentation (toggle = pit screen active) ---
