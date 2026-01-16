@@ -366,6 +366,7 @@ namespace LaunchPlugin
 
             // Window clamp (your spec)
             dToEntry_m = Math.Max(0.0, Math.Min(500.0, dToEntry_m));
+            double dToEntryGuided_m = Math.Max(0.0, dToEntry_m - buffer);
 
             bool pitScreenEligible = pitScreenActive && !isInPitLane && dToEntryRaw_m <= 500.0;
             bool armed = autoArmed || pitScreenEligible;
@@ -402,11 +403,11 @@ namespace LaunchPlugin
             if (v > vT + 0.05)
                 dReq = (v * v - vT * vT) / (2.0 * a);
 
-            double margin = dToEntry_m - dReq;
+            double margin = dToEntryGuided_m - dReq;
 
             // Publish
             PitEntryAssistActive = true;
-            PitEntryDistanceToLine_m = dToEntry_m;
+            PitEntryDistanceToLine_m = dToEntryGuided_m;
             PitEntryRequiredDistance_m = dReq;
             PitEntryMargin_m = margin;
 
