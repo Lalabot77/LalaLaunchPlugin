@@ -62,7 +62,6 @@ namespace LaunchPlugin
         private bool _pitEntryAssistWasActive;
         private bool _pitEntryFirstCompliantCaptured;
         private double _pitEntryFirstCompliantDToLine_m;
-        private bool _pitEntryAssistManualIntent;
         private double _pitEntryLastDistanceRaw_m = double.NaN;
 
 
@@ -115,7 +114,6 @@ namespace LaunchPlugin
             _trackMarkersLastKey = "unknown";
             _trackMarkerSessionState.Clear();
             _trackMarkerTriggers.Clear();
-            _pitEntryAssistManualIntent = false;
             _pitEntryLastDistanceRaw_m = double.NaN;
         }
 
@@ -134,7 +132,7 @@ namespace LaunchPlugin
             }
         }
 
-        public void Update(GameData data, PluginManager pluginManager)
+        public void Update(GameData data, PluginManager pluginManager, bool pitScreenActive)
         {
             bool isInPitLane = data.NewData.IsInPitLane != 0;
             bool isInPitStall = Convert.ToBoolean(
@@ -240,7 +238,7 @@ namespace LaunchPlugin
             //var previousPhase = CurrentPitPhase;
             UpdatePitPhase(data, pluginManager);
            
-            UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM);
+            UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM, pitScreenActive);
             UpdateTrackMarkers(trackKey, carPct, trackLenM, isInPitLane, justExitedPits, isInPitStall, speedKph);
 
             // If we have just left the pits, start waiting for the out-lap.
@@ -267,17 +265,7 @@ namespace LaunchPlugin
             _wasInPitStall = isInPitStall;
         }
 
-        public void ArmPitEntryAssistManualIntent()
-        {
-            _pitEntryAssistManualIntent = true;
-        }
-
-        public void ClearPitEntryAssistManualIntent()
-        {
-            _pitEntryAssistManualIntent = false;
-        }
-
-        private void UpdatePitEntryAssist(GameData data, PluginManager pluginManager, double profileDecel_mps2, double profileBuffer_m)
+        private void UpdatePitEntryAssist(GameData data, PluginManager pluginManager, double profileDecel_mps2, double profileBuffer_m, bool pitScreenActive)
         {
             // Clamp profile values to sane range
             double a = Math.Max(5.0, Math.Min(25.0, profileDecel_mps2));
@@ -302,7 +290,6 @@ namespace LaunchPlugin
 
             if (double.IsNaN(pitLimitKph) || pitLimitKph <= 0.1)
             {
-                _pitEntryAssistManualIntent = false;
                 ResetPitEntryAssistOutputs();
                 return;
             }
@@ -352,7 +339,6 @@ namespace LaunchPlugin
                     if (double.IsNaN(carPct) || double.IsNaN(pitEntryPct) ||
                         double.IsNaN(sessionTrackLenM) || sessionTrackLenM < MinTrackLengthM || sessionTrackLenM > MaxTrackLengthM)
                     {
-                        _pitEntryAssistManualIntent = false;
                         ResetPitEntryAssistOutputs();
                         return;
                     }
@@ -367,7 +353,6 @@ namespace LaunchPlugin
             double dToEntryRaw_m = dToEntry_m;
             if (double.IsNaN(dToEntryRaw_m))
             {
-                _pitEntryAssistManualIntent = false;
                 ResetPitEntryAssistOutputs();
                 return;
             }
@@ -382,15 +367,8 @@ namespace LaunchPlugin
             // Window clamp (your spec)
             dToEntry_m = Math.Max(0.0, Math.Min(500.0, dToEntry_m));
 
-            bool manualEligible = _pitEntryAssistManualIntent &&
-                                  !double.IsNaN(dToEntryRaw_m) &&
-                                  dToEntryRaw_m <= 500.0;
-            bool armed = autoArmed || manualEligible;
-
-            if (_pitEntryAssistManualIntent && !double.IsNaN(dToEntryRaw_m) && dToEntryRaw_m > 500.0 && !crossedPitLineThisTick)
-            {
-                _pitEntryAssistManualIntent = false;
-            }
+            bool pitScreenEligible = pitScreenActive && !isInPitLane && dToEntryRaw_m <= 500.0;
+            bool armed = autoArmed || pitScreenEligible;
 
             // If we are NOT armed and did NOT cross the line this tick -> fully reset and exit
             if (!armed && !crossedPitLineThisTick)
@@ -403,6 +381,13 @@ namespace LaunchPlugin
             // If we’re armed: keep the 500m inhibit behaviour.
             // If we crossed the line: DO NOT early-return; we want LINE to log.
             if (dToEntry_m >= 500.0 && !crossedPitLineThisTick)
+            {
+                ResetPitEntryAssistOutputs();
+                _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
+                return;
+            }
+
+            if (isInPitLane && !crossedPitLineThisTick)
             {
                 ResetPitEntryAssistOutputs();
                 _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
@@ -460,9 +445,6 @@ namespace LaunchPlugin
             // LINE log (exactly once on pit-lane entry)
             if (crossedPitLineThisTick)
             {
-                if (_pitEntryAssistManualIntent)
-                    _pitEntryAssistManualIntent = false;
-
                 string firstOkText = _pitEntryFirstCompliantCaptured
                     ? (_pitEntryFirstCompliantDToLine_m.ToString("F1") + "m")
                     : "n/a";
