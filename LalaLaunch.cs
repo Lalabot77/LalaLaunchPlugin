@@ -3702,6 +3702,7 @@ namespace LaunchPlugin
             if (isOnPitRoad)
             {
                 newPitScreenMode = "auto";
+                _pitScreenManualEnabled = false;
                 if (!_pittingTimer.IsRunning)
                     _pittingTimer.Restart();
 

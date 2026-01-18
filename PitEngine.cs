@@ -426,7 +426,8 @@ namespace LaunchPlugin
 
                 SimHub.Logging.Current.Info(
                     $"[LalaPlugin:PitEntryAssist] ACTIVATE " +
-                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
+                    $"dToLineRaw={dToEntryRaw_m:F1}m " +
+                    $"dToLineGuided={PitEntryDistanceToLine_m:F1}m " +
                     $"dReq={PitEntryRequiredDistance_m:F1}m " +
                     $"margin={PitEntryMargin_m:F1}m " +
                     $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
@@ -452,7 +453,8 @@ namespace LaunchPlugin
 
                 SimHub.Logging.Current.Info(
                     $"[LalaPlugin:PitEntryAssist] LINE " +
-                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
+                    $"dToLineRaw={dToEntryRaw_m:F1}m " +
+                    $"dToLineGuided={PitEntryDistanceToLine_m:F1}m " +
                     $"dReq={PitEntryRequiredDistance_m:F1}m " +
                     $"margin={PitEntryMargin_m:F1}m " +
                     $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
