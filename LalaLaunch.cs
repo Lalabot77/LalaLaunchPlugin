@@ -2370,7 +2370,8 @@ namespace LaunchPlugin
                     }
                     else if (Math.Floor(lapsPossibleEco + lapEpsilon) > stableFloor)
                     {
-                        StintBurnTarget = usableFuel / Math.Max(1.0, stableCeil);
+                        double targetLaps = Math.Max(1.0, stableFloor + 1.0);
+                        StintBurnTarget = usableFuel / targetLaps;
                         StintBurnTargetBand = "eco";
                     }
                     else if (Math.Floor(lapsPossiblePush + lapEpsilon) == stableFloor)
