@@ -2363,15 +2363,17 @@ namespace LaunchPlugin
                     double stableFloor = Math.Floor(lapsPossibleStable + lapEpsilon);
                     double stableCeil = Math.Ceiling(lapsPossibleStable - lapEpsilon);
 
-                    bool extraLapAchievable = Math.Floor(lapsPossibleEco + lapEpsilon) > stableFloor;
-                    bool pushSafe = Math.Floor(lapsPossiblePush + lapEpsilon) == stableFloor;
-
-                    if (extraLapAchievable)
+                    if (stableFloor < 1.0)
+                    {
+                        StintBurnTarget = stableBurn;
+                        StintBurnTargetBand = "current";
+                    }
+                    else if (Math.Floor(lapsPossibleEco + lapEpsilon) > stableFloor)
                     {
                         StintBurnTarget = usableFuel / Math.Max(1.0, stableCeil);
                         StintBurnTargetBand = "eco";
                     }
-                    else if (pushSafe)
+                    else if (Math.Floor(lapsPossiblePush + lapEpsilon) == stableFloor)
                     {
                         StintBurnTarget = usableFuel / Math.Max(1.0, stableFloor);
                         StintBurnTargetBand = "push";
@@ -2379,6 +2381,12 @@ namespace LaunchPlugin
                     else
                     {
                         StintBurnTarget = stableBurn;
+                        StintBurnTargetBand = "current";
+                    }
+
+                    double deadband = stableBurn * 0.02;
+                    if (Math.Abs(StintBurnTarget - stableBurn) <= deadband)
+                    {
                         StintBurnTargetBand = "current";
                     }
                 }
