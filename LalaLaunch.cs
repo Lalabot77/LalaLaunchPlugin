@@ -498,6 +498,8 @@ namespace LaunchPlugin
         private double _lastValidLiveMaxFuel = 0.0;
 
         public double FuelSaveFuelPerLap { get; private set; }
+        public double StintBurnTarget { get; private set; }
+        public string StintBurnTargetBand { get; private set; } = "current";
 
         public double LiveProjectedDriveTimeAfterZero { get; private set; }
         public double LiveProjectedDriveSecondsRemaining { get; private set; }
@@ -616,6 +618,7 @@ namespace LaunchPlugin
         private bool _pendingSmoothingReset = true;
         private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
         internal const double FuelReadyConfidenceDefault = 60.0;
+        internal const double StintFuelMarginDefault = 1.0;
         private const int LapTimeConfidenceSwitchOn = 50;
         private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
         private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
@@ -650,6 +653,13 @@ namespace LaunchPlugin
         {
             double value = Settings?.FuelReadyConfidence ?? FuelReadyConfidenceDefault;
             value = ClampToRange(value, 0.0, 100.0, FuelReadyConfidenceDefault);
+            return value;
+        }
+
+        private double GetStintFuelMarginLitres()
+        {
+            double value = Settings?.StintFuelMarginLitres ?? StintFuelMarginDefault;
+            value = ClampToRange(value, 0.0, 5.0, StintFuelMarginDefault);
             return value;
         }
 
@@ -2141,6 +2151,8 @@ namespace LaunchPlugin
                 CanAffordToPush = false;
 
                 FuelSaveFuelPerLap = 0;
+                StintBurnTarget = 0;
+                StintBurnTargetBand = "current";
                 LiveProjectedDriveTimeAfterZero = 0;
                 LiveProjectedDriveSecondsRemaining = 0;
 
@@ -2328,6 +2340,47 @@ namespace LaunchPlugin
                     DeltaLapsIfPush = 0.0;
                     CanAffordToPush = false;
                     Pit_PushDeltaAfterStop = 0.0;
+                }
+
+                // --- Stint burn target: live guidance for the current tank only (no strategy intent) ---
+                double stableBurn = fuelPerLapForCalc;
+                double ecoBurn = FuelSaveFuelPerLap;
+                double pushBurn = PushFuelPerLap;
+                double usableFuel = Math.Max(0.0, currentFuel - GetStintFuelMarginLitres());
+
+                if (usableFuel <= 0.0 || stableBurn <= 0.0 || ecoBurn <= 0.0 || pushBurn <= 0.0)
+                {
+                    StintBurnTarget = 0.0;
+                    StintBurnTargetBand = "current";
+                }
+                else
+                {
+                    const double lapEpsilon = 1e-6;
+                    double lapsPossibleStable = usableFuel / stableBurn;
+                    double lapsPossibleEco = usableFuel / ecoBurn;
+                    double lapsPossiblePush = usableFuel / pushBurn;
+
+                    double stableFloor = Math.Floor(lapsPossibleStable + lapEpsilon);
+                    double stableCeil = Math.Ceiling(lapsPossibleStable - lapEpsilon);
+
+                    bool extraLapAchievable = Math.Floor(lapsPossibleEco + lapEpsilon) > stableFloor;
+                    bool pushSafe = Math.Floor(lapsPossiblePush + lapEpsilon) == stableFloor;
+
+                    if (extraLapAchievable)
+                    {
+                        StintBurnTarget = usableFuel / Math.Max(1.0, stableCeil);
+                        StintBurnTargetBand = "eco";
+                    }
+                    else if (pushSafe)
+                    {
+                        StintBurnTarget = usableFuel / Math.Max(1.0, stableFloor);
+                        StintBurnTargetBand = "push";
+                    }
+                    else
+                    {
+                        StintBurnTarget = stableBurn;
+                        StintBurnTargetBand = "current";
+                    }
                 }
 
                 double fuelPlanExit = currentFuel + requestedAddLitres;
@@ -2895,6 +2948,8 @@ namespace LaunchPlugin
             AttachCore("Fuel.Confidence", () => Confidence);
             AttachCore("Fuel.PushFuelPerLap", () => PushFuelPerLap);
             AttachCore("Fuel.FuelSavePerLap", () => FuelSaveFuelPerLap);
+            AttachCore("Fuel.StintBurnTarget", () => StintBurnTarget);
+            AttachCore("Fuel.StintBurnTargetBand", () => StintBurnTargetBand);
             AttachCore("Fuel.DeltaLapsIfPush", () => DeltaLapsIfPush);
             AttachCore("Fuel.CanAffordToPush", () => CanAffordToPush);
             AttachCore("Fuel.Delta.LitresCurrent", () => Math.Round(Fuel_Delta_LitresCurrent, 1));
@@ -6363,6 +6418,7 @@ namespace LaunchPlugin
         public bool PitExitVerboseLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
         public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
+        public double StintFuelMarginLitres { get; set; } = LalaLaunch.StintFuelMarginDefault;
         public bool EnableAutoDashSwitch { get; set; } = true;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
