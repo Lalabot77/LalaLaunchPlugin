@@ -59,9 +59,12 @@ namespace LaunchPlugin
         public double PitEntrySpeedDelta_kph { get; private set; } = 0.0;
         public double PitEntryDecelProfile_mps2 { get; private set; } = 0.0;
         public double PitEntryBuffer_m { get; private set; } = 0.0;
+        public string PitEntryLineDebrief { get; private set; } = "normal";
+        public string PitEntryLineDebriefText { get; private set; } = string.Empty;
         private bool _pitEntryAssistWasActive;
         private bool _pitEntryFirstCompliantCaptured;
         private double _pitEntryFirstCompliantDToLine_m;
+        private double _pitEntryFirstCompliantRawDToLine_m;
         private double _pitEntryLastDistanceRaw_m = double.NaN;
 
 
@@ -115,6 +118,8 @@ namespace LaunchPlugin
             _trackMarkerSessionState.Clear();
             _trackMarkerTriggers.Clear();
             _pitEntryLastDistanceRaw_m = double.NaN;
+            PitEntryLineDebrief = "normal";
+            PitEntryLineDebriefText = string.Empty;
         }
 
         public string PitEntryCueText
@@ -423,6 +428,7 @@ namespace LaunchPlugin
                 // Reset firstOK tracking at activation start
                 _pitEntryFirstCompliantCaptured = false;
                 _pitEntryFirstCompliantDToLine_m = double.NaN;
+                _pitEntryFirstCompliantRawDToLine_m = double.NaN;
 
                 SimHub.Logging.Current.Info(
                     $"[LalaPlugin:PitEntryAssist] ACTIVATE " +
@@ -442,28 +448,51 @@ namespace LaunchPlugin
             {
                 _pitEntryFirstCompliantCaptured = true;
                 _pitEntryFirstCompliantDToLine_m = PitEntryDistanceToLine_m;
+                _pitEntryFirstCompliantRawDToLine_m = dToEntryRaw_m;
             }
 
             // LINE log (exactly once on pit-lane entry)
             if (crossedPitLineThisTick)
             {
-                string firstOkText = _pitEntryFirstCompliantCaptured
-                    ? (_pitEntryFirstCompliantDToLine_m.ToString("F1") + "m")
+                bool entrySafe = PitEntrySpeedDelta_kph <= 0.0;
+                bool hitLimiter = _pitEntryFirstCompliantCaptured && !double.IsNaN(_pitEntryFirstCompliantRawDToLine_m);
+                string firstOkText = hitLimiter
+                    ? (_pitEntryFirstCompliantRawDToLine_m.ToString("F1") + "m")
                     : "n/a";
 
-                SimHub.Logging.Current.Info(
-                    $"[LalaPlugin:PitEntryAssist] LINE " +
-                    $"dToLineRaw={dToEntryRaw_m:F1}m " +
-                    $"dToLineGuided={PitEntryDistanceToLine_m:F1}m " +
-                    $"dReq={PitEntryRequiredDistance_m:F1}m " +
-                    $"margin={PitEntryMargin_m:F1}m " +
-                    $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
-                    $"firstOK={firstOkText} " +
-                    $"okBefore={firstOkText} " +
-                    $"decel={PitEntryDecelProfile_mps2:F1} " +
-                    $"buffer={PitEntryBuffer_m:F1} " +
-                    $"cue={PitEntryCue}"
-                );
+                double lineSpeedMps = Math.Max(0.1, speedKph / 3.6);
+                double timeMarginSec = hitLimiter
+                    ? Math.Max(0.0, _pitEntryFirstCompliantRawDToLine_m / lineSpeedMps)
+                    : 0.0;
+
+                if (entrySafe)
+                {
+                    bool entrySafeEarly = hitLimiter && _pitEntryFirstCompliantRawDToLine_m >= PitEntryBuffer_m;
+                    PitEntryLineDebrief = entrySafeEarly ? "safe" : "normal";
+                    PitEntryLineDebriefText = hitLimiter
+                        ? $"{PitEntryLineDebrief.ToUpperInvariant()} entry: below limiter {firstOkText} before line, time margin {timeMarginSec:F2}s."
+                        : $"{PitEntryLineDebrief.ToUpperInvariant()} entry: below limiter n/a before line.";
+
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:PitEntryAssist] ENTRY LINE {PitEntryLineDebrief.ToUpperInvariant()}: " +
+                        $"Speed Δ at Line {PitEntrySpeedDelta_kph:F1}kph, " +
+                        $"Below Limiter at {firstOkText}, " +
+                        $"Time margin {timeMarginSec:F2}s"
+                    );
+                }
+                else
+                {
+                    PitEntryLineDebrief = "bad";
+                    double lateByM = Math.Max(0.0, -PitEntryMargin_m);
+                    PitEntryLineDebriefText =
+                        $"BAD entry: Speed Δ at line {PitEntrySpeedDelta_kph:F1}kph, braked {lateByM:F1}m too late.";
+
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:PitEntryAssist] ENTRY LINE BAD: " +
+                        $"Speed Δ at Line {PitEntrySpeedDelta_kph:F1}kph, " +
+                        $"Braked {lateByM:F1}m too late"
+                    );
+                }
             }
 
             _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
@@ -514,6 +543,7 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info("[LalaPlugin:PitEntryAssist] END");
                 _pitEntryFirstCompliantCaptured = false;
                 _pitEntryFirstCompliantDToLine_m = double.NaN;
+                _pitEntryFirstCompliantRawDToLine_m = double.NaN;
                 _pitEntryAssistWasActive = false;
             }
 

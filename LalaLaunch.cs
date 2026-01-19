@@ -3035,6 +3035,8 @@ namespace LaunchPlugin
             AttachCore("MsgCxPressed", () => _msgCxPressed);
             AttachCore("PitScreenActive", () => _pitScreenActive);
             AttachCore("PitScreenMode", () => _pitScreenMode);
+            AttachCore("Pit.EntryLineDebrief", () => _pit.PitEntryLineDebrief);
+            AttachCore("Pit.EntryLineDebriefText", () => _pit.PitEntryLineDebriefText);
 
             AttachCore("RejoinAlertReasonCode", () => (int)_rejoinEngine.CurrentLogicCode);
             AttachCore("RejoinAlertReasonName", () => _rejoinEngine.CurrentLogicCode.ToString());
