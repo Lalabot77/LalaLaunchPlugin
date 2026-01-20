@@ -618,7 +618,7 @@ namespace LaunchPlugin
         private bool _pendingSmoothingReset = true;
         private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
         internal const double FuelReadyConfidenceDefault = 60.0;
-        internal const double StintFuelMarginDefault = 1.0;
+        internal const int StintFuelMarginPctDefault = 10;
         private const int LapTimeConfidenceSwitchOn = 50;
         private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
         private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
@@ -656,11 +656,11 @@ namespace LaunchPlugin
             return value;
         }
 
-        private double GetStintFuelMarginLitres()
+        private double GetStintFuelMarginFraction()
         {
-            double value = Settings?.StintFuelMarginLitres ?? StintFuelMarginDefault;
-            value = ClampToRange(value, 0.0, 5.0, StintFuelMarginDefault);
-            return value;
+            double value = Settings?.StintFuelMarginPct ?? StintFuelMarginPctDefault;
+            value = ClampToRange(value, 0.0, 30.0, StintFuelMarginPctDefault);
+            return value / 100.0;
         }
 
         private static double ComputeStableMedian(List<double> samples)
@@ -2346,7 +2346,8 @@ namespace LaunchPlugin
                 double stableBurn = fuelPerLapForCalc;
                 double ecoBurn = FuelSaveFuelPerLap;
                 double pushBurn = PushFuelPerLap;
-                double usableFuel = Math.Max(0.0, currentFuel - GetStintFuelMarginLitres());
+                double marginLitres = stableBurn * GetStintFuelMarginFraction();
+                double usableFuel = Math.Max(0.0, currentFuel - marginLitres);
 
                 if (usableFuel <= 0.0 || stableBurn <= 0.0 || ecoBurn <= 0.0 || pushBurn <= 0.0)
                 {
@@ -6476,7 +6477,7 @@ namespace LaunchPlugin
         public bool PitExitVerboseLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
         public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
-        public double StintFuelMarginLitres { get; set; } = LalaLaunch.StintFuelMarginDefault;
+        public int StintFuelMarginPct { get; set; } = LalaLaunch.StintFuelMarginPctDefault;
         public bool EnableAutoDashSwitch { get; set; } = true;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
