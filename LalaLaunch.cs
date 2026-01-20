@@ -3130,6 +3130,7 @@ namespace LaunchPlugin
             AttachCore("PitScreenMode", () => _pitScreenMode);
             AttachCore("Pit.EntryLineDebrief", () => _pit.PitEntryLineDebrief);
             AttachCore("Pit.EntryLineDebriefText", () => _pit.PitEntryLineDebriefText);
+            AttachCore("Pit.EntryLineTimeLoss_s", () => _pit.PitEntryLineTimeLoss_s);
 
             AttachCore("RejoinAlertReasonCode", () => (int)_rejoinEngine.CurrentLogicCode);
             AttachCore("RejoinAlertReasonName", () => _rejoinEngine.CurrentLogicCode.ToString());
@@ -3787,6 +3788,23 @@ namespace LaunchPlugin
             _leaderFinishLatchedByFlag = false;
         }
 
+        private void ResetPitScreenToAuto(string reason)
+        {
+            bool wasManualEnabled = _pitScreenManualEnabled;
+            bool wasDismissed = _pitScreenDismissed;
+            string previousMode = _pitScreenMode;
+
+            _pitScreenManualEnabled = false;
+            _pitScreenDismissed = false;
+            _pitScreenMode = "auto";
+
+            if (wasManualEnabled || wasDismissed || !string.Equals(previousMode, _pitScreenMode, StringComparison.Ordinal))
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:PitScreen] Reset to auto ({reason}) -> mode={_pitScreenMode}, manual={_pitScreenManualEnabled}, dismissed={_pitScreenDismissed}");
+            }
+        }
+
         private void UpdatePitScreenState(PluginManager pluginManager)
         {
             bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false);
@@ -3808,7 +3826,7 @@ namespace LaunchPlugin
             }
             else
             {
-                newPitScreenMode = "manual";
+                newPitScreenMode = _pitScreenManualEnabled ? "manual" : "auto";
                 newPitScreenActive = _pitScreenManualEnabled;
                 _pitScreenDismissed = false;
 
@@ -4011,6 +4029,7 @@ namespace LaunchPlugin
                 _trackMarkerCapturedPulse.Reset();
                 _trackMarkerLengthDeltaPulse.Reset();
                 _trackMarkerLockedMismatchPulse.Reset();
+                ResetPitScreenToAuto("session-change");
 
                 SimHub.Logging.Current.Info($"[LalaPlugin:Profile] Session start snapshot: Car='{CurrentCarModel}'  Track='{CurrentTrackName}'");
             }
@@ -4365,6 +4384,7 @@ namespace LaunchPlugin
                     _lastSeenTrack = trackIdentity; // track key preferred, fall back to display name
                     ResetSmoothedOutputs();
                     _pendingSmoothingReset = true;
+                    ResetPitScreenToAuto("combo-change");
 
                     // Dispatch UI updates to the main thread.
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
