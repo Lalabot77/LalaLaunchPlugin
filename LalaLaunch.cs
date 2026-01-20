@@ -2360,23 +2360,52 @@ namespace LaunchPlugin
                     double lapsPossibleEco = usableFuel / ecoBurn;
                     double lapsPossiblePush = usableFuel / pushBurn;
 
-                    double stableFloor = Math.Floor(lapsPossibleStable + lapEpsilon);
-                    double stableCeil = Math.Ceiling(lapsPossibleStable - lapEpsilon);
+                    double lapPos = SafeReadDouble(PluginManager, "DataCorePlugin.GameRawData.Telemetry.LapDistPct", double.NaN);
+                    double pitPos = SafeReadDouble(PluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverPitTrkPct", double.NaN);
+                    bool posValid = !double.IsNaN(lapPos) && lapPos >= 0.0 && lapPos <= 1.0;
+                    bool pitValid = !double.IsNaN(pitPos) && pitPos >= 0.0 && pitPos <= 1.0;
 
-                    if (stableFloor < 1.0)
+                    double fracToPit = 0.0;
+                    if (posValid)
+                    {
+                        if (pitValid)
+                        {
+                            fracToPit = pitPos >= lapPos
+                                ? pitPos - lapPos
+                                : (1.0 - lapPos) + pitPos;
+                        }
+                        else
+                        {
+                            fracToPit = 1.0 - lapPos;
+                        }
+                    }
+                    else
+                    {
+                        // LapDistPct invalid: disable position correction and fall back to legacy behavior.
+                        fracToPit = 0.0;
+                    }
+
+                    fracToPit = Math.Max(0.0, Math.Min(0.999999, fracToPit));
+
+                    double stableWhole = Math.Floor((lapsPossibleStable - fracToPit) + lapEpsilon);
+                    double ecoWhole = Math.Floor((lapsPossibleEco - fracToPit) + lapEpsilon);
+                    double pushWhole = Math.Floor((lapsPossiblePush - fracToPit) + lapEpsilon);
+
+                    if (stableWhole < 1.0)
                     {
                         StintBurnTarget = stableBurn;
                         StintBurnTargetBand = "current";
                     }
-                    else if (Math.Floor(lapsPossibleEco + lapEpsilon) > stableFloor)
+                    else if (ecoWhole > stableWhole)
                     {
-                        double targetLaps = Math.Max(1.0, stableFloor + 1.0);
-                        StintBurnTarget = usableFuel / targetLaps;
+                        double desiredWhole = stableWhole + 1.0;
+                        StintBurnTarget = usableFuel / Math.Max(1.0, desiredWhole + fracToPit);
                         StintBurnTargetBand = "eco";
                     }
-                    else if (Math.Floor(lapsPossiblePush + lapEpsilon) == stableFloor)
+                    else if (pushWhole == stableWhole)
                     {
-                        StintBurnTarget = usableFuel / Math.Max(1.0, stableFloor);
+                        double desiredWhole = stableWhole;
+                        StintBurnTarget = usableFuel / Math.Max(1.0, desiredWhole + fracToPit);
                         StintBurnTargetBand = "push";
                     }
                     else
