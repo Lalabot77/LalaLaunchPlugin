@@ -206,7 +206,7 @@
                            ToolTip="Additional stop time when changing tyres (sec)."/>
 
                     <!-- Max Fuel Override (litres) -->
-                    <ui:TitledSlider Title="Max Fuel Override (litres):"
+                    <ui:TitledSlider Title="Max Fuel Override (% of max tank):"
                            Minimum="0" Maximum="150"
                            Value="{Binding MaxFuelLitres, Mode=TwoWay}"
                            ToolTip="Limit usable tank size for the preset (L)."/>
