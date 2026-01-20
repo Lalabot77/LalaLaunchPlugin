@@ -2351,7 +2351,7 @@ namespace LaunchPlugin
                 if (usableFuel <= 0.0 || stableBurn <= 0.0 || ecoBurn <= 0.0 || pushBurn <= 0.0)
                 {
                     StintBurnTarget = 0.0;
-                    StintBurnTargetBand = "current";
+                    StintBurnTargetBand = "NORM";
                 }
                 else
                 {
