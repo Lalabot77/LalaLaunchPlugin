@@ -2394,30 +2394,30 @@ namespace LaunchPlugin
                     if (stableWhole < 1.0)
                     {
                         StintBurnTarget = stableBurn;
-                        StintBurnTargetBand = "current";
+                        StintBurnTargetBand = "NORM";
                     }
                     else if (ecoWhole > stableWhole)
                     {
                         double desiredWhole = stableWhole + 1.0;
                         StintBurnTarget = usableFuel / Math.Max(1.0, desiredWhole + fracToPit);
-                        StintBurnTargetBand = "eco";
+                        StintBurnTargetBand = "SAVE";
                     }
                     else if (pushWhole == stableWhole)
                     {
                         double desiredWhole = stableWhole;
                         StintBurnTarget = usableFuel / Math.Max(1.0, desiredWhole + fracToPit);
-                        StintBurnTargetBand = "push";
+                        StintBurnTargetBand = "PUSH";
                     }
                     else
                     {
                         StintBurnTarget = stableBurn;
-                        StintBurnTargetBand = "current";
+                        StintBurnTargetBand = "NORM";
                     }
 
                     double deadband = stableBurn * 0.01; // change to adapt driver behavior and accuracy of advice. Example 3.10 burn with 3.04 target would not trigger if at 2% deadband
                     if (Math.Abs(StintBurnTarget - stableBurn) <= deadband)
                     {
-                        StintBurnTargetBand = "current";
+                        StintBurnTargetBand = "OKAY";
                     }
                 }
 
