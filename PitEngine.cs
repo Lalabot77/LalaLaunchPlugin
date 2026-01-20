@@ -431,6 +431,7 @@ namespace LaunchPlugin
                 _pitEntryFirstCompliantCaptured = false;
                 _pitEntryFirstCompliantDToLine_m = double.NaN;
                 _pitEntryFirstCompliantRawDToLine_m = double.NaN;
+                PitEntryLineTimeLoss_s = 0.0;
 
                 SimHub.Logging.Current.Info(
                     $"[LalaPlugin:PitEntryAssist] ACTIVATE " +
@@ -564,7 +565,6 @@ namespace LaunchPlugin
             PitEntryMargin_m = 0.0;
             PitEntryCue = 0;
             PitEntrySpeedDelta_kph = 0.0;
-            PitEntryLineTimeLoss_s = 0.0;
             // keep PitEntryDecelProfile_mps2 / PitEntryBuffer_m as last-used (useful for debugging)
         }
 
