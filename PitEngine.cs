@@ -59,9 +59,13 @@ namespace LaunchPlugin
         public double PitEntrySpeedDelta_kph { get; private set; } = 0.0;
         public double PitEntryDecelProfile_mps2 { get; private set; } = 0.0;
         public double PitEntryBuffer_m { get; private set; } = 0.0;
+        public string PitEntryLineDebrief { get; private set; } = "normal";
+        public string PitEntryLineDebriefText { get; private set; } = string.Empty;
         private bool _pitEntryAssistWasActive;
         private bool _pitEntryFirstCompliantCaptured;
         private double _pitEntryFirstCompliantDToLine_m;
+        private double _pitEntryFirstCompliantRawDToLine_m;
+        private double _pitEntryLastDistanceRaw_m = double.NaN;
 
 
         // --- State management for the Pace Delta calculation ---
@@ -113,6 +117,9 @@ namespace LaunchPlugin
             _trackMarkersLastKey = "unknown";
             _trackMarkerSessionState.Clear();
             _trackMarkerTriggers.Clear();
+            _pitEntryLastDistanceRaw_m = double.NaN;
+            PitEntryLineDebrief = "normal";
+            PitEntryLineDebriefText = string.Empty;
         }
 
         public string PitEntryCueText
@@ -130,7 +137,7 @@ namespace LaunchPlugin
             }
         }
 
-        public void Update(GameData data, PluginManager pluginManager)
+        public void Update(GameData data, PluginManager pluginManager, bool pitScreenActive)
         {
             bool isInPitLane = data.NewData.IsInPitLane != 0;
             bool isInPitStall = Convert.ToBoolean(
@@ -236,7 +243,7 @@ namespace LaunchPlugin
             //var previousPhase = CurrentPitPhase;
             UpdatePitPhase(data, pluginManager);
            
-            UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM);
+            UpdatePitEntryAssist(data, pluginManager, ConfigPitEntryDecelMps2, ConfigPitEntryBufferM, pitScreenActive);
             UpdateTrackMarkers(trackKey, carPct, trackLenM, isInPitLane, justExitedPits, isInPitStall, speedKph);
 
             // If we have just left the pits, start waiting for the out-lap.
@@ -263,7 +270,7 @@ namespace LaunchPlugin
             _wasInPitStall = isInPitStall;
         }
 
-        private void UpdatePitEntryAssist(GameData data, PluginManager pluginManager, double profileDecel_mps2, double profileBuffer_m)
+        private void UpdatePitEntryAssist(GameData data, PluginManager pluginManager, double profileDecel_mps2, double profileBuffer_m, bool pitScreenActive)
         {
             // Clamp profile values to sane range
             double a = Math.Max(5.0, Math.Min(25.0, profileDecel_mps2));
@@ -296,14 +303,7 @@ namespace LaunchPlugin
 
             // Arming (EnteringPits OR limiter ON and overspeed > +2kph)
             bool limiterOn = (data?.NewData?.PitLimiterOn ?? 0) != 0;
-            bool armed = (CurrentPitPhase == PitPhase.EnteringPits) || (limiterOn && PitEntrySpeedDelta_kph > 2.0);
-
-            // If we are NOT armed and did NOT cross the line this tick -> fully reset and exit
-            if (!armed && !crossedPitLineThisTick)
-            {
-                ResetPitEntryAssistOutputs();
-                return;
-            }
+            bool autoArmed = (CurrentPitPhase == PitPhase.EnteringPits) || (limiterOn && PitEntrySpeedDelta_kph > 2.0);
 
             // Distance to pit entry (PREFERRED: stored markers; FALLBACK: iRacingExtra)
             double dToEntry_m = double.NaN;
@@ -355,15 +355,48 @@ namespace LaunchPlugin
                 }
             }
 
+            double dToEntryRaw_m = dToEntry_m;
+            if (double.IsNaN(dToEntryRaw_m))
+            {
+                ResetPitEntryAssistOutputs();
+                return;
+            }
+
+            if (!double.IsNaN(_pitEntryLastDistanceRaw_m) && dToEntryRaw_m > _pitEntryLastDistanceRaw_m + 1.0 && !crossedPitLineThisTick)
+            {
+                ResetPitEntryAssistOutputs();
+                _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
+                return;
+            }
 
             // Window clamp (your spec)
             dToEntry_m = Math.Max(0.0, Math.Min(500.0, dToEntry_m));
+            double dToEntryGuided_m = Math.Max(0.0, dToEntry_m - buffer);
+
+            bool pitScreenEligible = pitScreenActive && !isInPitLane && dToEntryRaw_m <= 500.0;
+            bool armed = autoArmed || pitScreenEligible;
+
+            // If we are NOT armed and did NOT cross the line this tick -> fully reset and exit
+            if (!armed && !crossedPitLineThisTick)
+            {
+                ResetPitEntryAssistOutputs();
+                _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
+                return;
+            }
 
             // If we’re armed: keep the 500m inhibit behaviour.
             // If we crossed the line: DO NOT early-return; we want LINE to log.
             if (dToEntry_m >= 500.0 && !crossedPitLineThisTick)
             {
                 ResetPitEntryAssistOutputs();
+                _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
+                return;
+            }
+
+            if (isInPitLane && !crossedPitLineThisTick)
+            {
+                ResetPitEntryAssistOutputs();
+                _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
                 return;
             }
 
@@ -375,11 +408,11 @@ namespace LaunchPlugin
             if (v > vT + 0.05)
                 dReq = (v * v - vT * vT) / (2.0 * a);
 
-            double margin = dToEntry_m - dReq;
+            double margin = dToEntryGuided_m - dReq;
 
             // Publish
             PitEntryAssistActive = true;
-            PitEntryDistanceToLine_m = dToEntry_m;
+            PitEntryDistanceToLine_m = dToEntryGuided_m;
             PitEntryRequiredDistance_m = dReq;
             PitEntryMargin_m = margin;
 
@@ -395,10 +428,12 @@ namespace LaunchPlugin
                 // Reset firstOK tracking at activation start
                 _pitEntryFirstCompliantCaptured = false;
                 _pitEntryFirstCompliantDToLine_m = double.NaN;
+                _pitEntryFirstCompliantRawDToLine_m = double.NaN;
 
                 SimHub.Logging.Current.Info(
                     $"[LalaPlugin:PitEntryAssist] ACTIVATE " +
-                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
+                    $"dToLineRaw={dToEntryRaw_m:F1}m " +
+                    $"dToLineGuided={PitEntryDistanceToLine_m:F1}m " +
                     $"dReq={PitEntryRequiredDistance_m:F1}m " +
                     $"margin={PitEntryMargin_m:F1}m " +
                     $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
@@ -413,29 +448,54 @@ namespace LaunchPlugin
             {
                 _pitEntryFirstCompliantCaptured = true;
                 _pitEntryFirstCompliantDToLine_m = PitEntryDistanceToLine_m;
+                _pitEntryFirstCompliantRawDToLine_m = dToEntryRaw_m;
             }
 
             // LINE log (exactly once on pit-lane entry)
             if (crossedPitLineThisTick)
             {
-                string firstOkText = _pitEntryFirstCompliantCaptured
-                    ? (_pitEntryFirstCompliantDToLine_m.ToString("F1") + "m")
+                bool entrySafe = PitEntrySpeedDelta_kph <= 0.0;
+                bool hitLimiter = _pitEntryFirstCompliantCaptured && !double.IsNaN(_pitEntryFirstCompliantRawDToLine_m);
+                string firstOkText = hitLimiter
+                    ? (_pitEntryFirstCompliantRawDToLine_m.ToString("F1") + "m")
                     : "n/a";
 
-                SimHub.Logging.Current.Info(
-                    $"[LalaPlugin:PitEntryAssist] LINE " +
-                    $"dToLine={PitEntryDistanceToLine_m:F1}m " +
-                    $"dReq={PitEntryRequiredDistance_m:F1}m " +
-                    $"margin={PitEntryMargin_m:F1}m " +
-                    $"spdΔ={PitEntrySpeedDelta_kph:F1}kph " +
-                    $"firstOK={firstOkText} " +
-                    $"okBefore={firstOkText} " +
-                    $"decel={PitEntryDecelProfile_mps2:F1} " +
-                    $"buffer={PitEntryBuffer_m:F1} " +
-                    $"cue={PitEntryCue}"
-                );
+                double lineSpeedMps = Math.Max(0.1, speedKph / 3.6);
+                double timeMarginSec = hitLimiter
+                    ? Math.Max(0.0, _pitEntryFirstCompliantRawDToLine_m / lineSpeedMps)
+                    : 0.0;
+
+                if (entrySafe)
+                {
+                    bool entrySafeEarly = hitLimiter && _pitEntryFirstCompliantRawDToLine_m >= PitEntryBuffer_m;
+                    PitEntryLineDebrief = entrySafeEarly ? "safe" : "normal";
+                    PitEntryLineDebriefText = hitLimiter
+                        ? $"{PitEntryLineDebrief.ToUpperInvariant()} entry: below limiter {firstOkText} before line, time margin {timeMarginSec:F2}s."
+                        : $"{PitEntryLineDebrief.ToUpperInvariant()} entry: below limiter n/a before line.";
+
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:PitEntryAssist] ENTRY LINE {PitEntryLineDebrief.ToUpperInvariant()}: " +
+                        $"Speed Δ at Line {PitEntrySpeedDelta_kph:F1}kph, " +
+                        $"Below Limiter at {firstOkText}, " +
+                        $"Time margin {timeMarginSec:F2}s"
+                    );
+                }
+                else
+                {
+                    PitEntryLineDebrief = "bad";
+                    double lateByM = Math.Max(0.0, -PitEntryMargin_m);
+                    PitEntryLineDebriefText =
+                        $"BAD entry: Speed Δ at line {PitEntrySpeedDelta_kph:F1}kph, braked {lateByM:F1}m too late.";
+
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:PitEntryAssist] ENTRY LINE BAD: " +
+                        $"Speed Δ at Line {PitEntrySpeedDelta_kph:F1}kph, " +
+                        $"Braked {lateByM:F1}m too late"
+                    );
+                }
             }
 
+            _pitEntryLastDistanceRaw_m = dToEntryRaw_m;
             _pitEntryAssistWasActive = PitEntryAssistActive;
         }
 
@@ -483,6 +543,7 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info("[LalaPlugin:PitEntryAssist] END");
                 _pitEntryFirstCompliantCaptured = false;
                 _pitEntryFirstCompliantDToLine_m = double.NaN;
+                _pitEntryFirstCompliantRawDToLine_m = double.NaN;
                 _pitEntryAssistWasActive = false;
             }
 

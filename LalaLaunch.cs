@@ -2704,6 +2704,7 @@ namespace LaunchPlugin
         private bool _pitScreenActive = false;
         private bool _pitScreenDismissed = false;
         private bool _pitScreenManualEnabled = false;
+        private string _pitScreenMode = "auto";
         private bool _rpmInTargetRange = false;
         private bool _throttleInTargetRange = false;
         private bool _waitingForClutchRelease = false;
@@ -3126,6 +3127,9 @@ namespace LaunchPlugin
             AttachCore("Race.LeaderHasFinished", () => LeaderHasFinished);
             AttachCore("MsgCxPressed", () => _msgCxPressed);
             AttachCore("PitScreenActive", () => _pitScreenActive);
+            AttachCore("PitScreenMode", () => _pitScreenMode);
+            AttachCore("Pit.EntryLineDebrief", () => _pit.PitEntryLineDebrief);
+            AttachCore("Pit.EntryLineDebriefText", () => _pit.PitEntryLineDebriefText);
 
             AttachCore("RejoinAlertReasonCode", () => (int)_rejoinEngine.CurrentLogicCode);
             AttachCore("RejoinAlertReasonName", () => _rejoinEngine.CurrentLogicCode.ToString());
@@ -3783,6 +3787,51 @@ namespace LaunchPlugin
             _leaderFinishLatchedByFlag = false;
         }
 
+        private void UpdatePitScreenState(PluginManager pluginManager)
+        {
+            bool isOnPitRoad = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false);
+
+            bool newPitScreenActive = _pitScreenActive; // default
+            string newPitScreenMode = _pitScreenMode;
+
+            if (isOnPitRoad)
+            {
+                newPitScreenMode = "auto";
+                _pitScreenManualEnabled = false;
+                if (!_pittingTimer.IsRunning)
+                    _pittingTimer.Restart();
+
+                if (_pittingTimer.Elapsed.TotalMilliseconds > 200)
+                    newPitScreenActive = !_pitScreenDismissed;
+                else
+                    newPitScreenActive = false;
+            }
+            else
+            {
+                newPitScreenMode = "manual";
+                newPitScreenActive = _pitScreenManualEnabled;
+                _pitScreenDismissed = false;
+
+                if (_pittingTimer.IsRunning)
+                {
+                    _pittingTimer.Stop();
+                    _pittingTimer.Reset();
+                }
+            }
+
+            if (newPitScreenActive != _pitScreenActive)
+            {
+                _pitScreenActive = newPitScreenActive;
+                SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Active -> {_pitScreenActive} (onPitRoad={isOnPitRoad}, dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled})");
+            }
+
+            if (!string.Equals(newPitScreenMode, _pitScreenMode, StringComparison.Ordinal))
+            {
+                _pitScreenMode = newPitScreenMode;
+                SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Mode -> {_pitScreenMode} (onPitRoad={isOnPitRoad}, dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled})");
+            }
+        }
+
 
         #region Core Update Method
 
@@ -3976,7 +4025,8 @@ namespace LaunchPlugin
             }
 
             // --- Pit System Monitoring (needs tick granularity for phase detection) ---
-            _pit.Update(data, pluginManager);
+            UpdatePitScreenState(pluginManager);
+            _pit.Update(data, pluginManager, _pitScreenActive);
             ProcessTrackMarkerTriggers();
             // --- PitLite tick: after PitEngine update and baseline selection ---
             bool inLane = _pit?.IsOnPitRoad ?? (data.NewData.IsInPitLane != 0);
@@ -4480,36 +4530,6 @@ namespace LaunchPlugin
             if (pitRoadChanged)
             {
                 UpdateOpponentsAndPitExit(data, pluginManager, completedLaps, currentSessionTypeForConfidence);
-            }
-
-            bool newPitScreenActive = _pitScreenActive; // default
-
-            if (isOnPitRoad)
-            {
-                if (!_pittingTimer.IsRunning)
-                    _pittingTimer.Restart();
-
-                if (_pittingTimer.Elapsed.TotalMilliseconds > 200)
-                    newPitScreenActive = !_pitScreenDismissed;
-                else
-                    newPitScreenActive = false;
-            }
-            else
-            {
-                newPitScreenActive = _pitScreenManualEnabled;
-                _pitScreenDismissed = false;
-
-                if (_pittingTimer.IsRunning)
-                {
-                    _pittingTimer.Stop();
-                    _pittingTimer.Reset();
-                }
-            }
-
-            if (newPitScreenActive != _pitScreenActive)
-            {
-                _pitScreenActive = newPitScreenActive;
-                SimHub.Logging.Current.Info($"[LalaPlugin:PitScreen] Active -> {_pitScreenActive} (onPitRoad={isOnPitRoad}, dismissed={_pitScreenDismissed}, manual={_pitScreenManualEnabled})");
             }
 
             // --- Decel capture instrumentation (toggle = pit screen active) ---
