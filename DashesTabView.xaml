@@ -56,8 +56,8 @@
                             Opacity="0.7"
                             TextWrapping="Wrap"
                             Margin="0,2,0,0"/>
-                        <ui:TitledSlider Title="Stint Fuel Margin (L): " Minimum="0" Maximum="5" Value="{Binding Settings.StintFuelMarginLitres, Mode=TwoWay}"
-                                         ToolTip="Fuel buffer to keep in the tank before pit-in when calculating stint burn targets." />
+                        <ui:TitledSlider Title="Pit-in Fuel Reserve (% lap): " Minimum="0" Maximum="30" Value="{Binding Settings.StintFuelMarginPct, Mode=TwoWay}"
+                                         ToolTip="Reserve fuel as a percentage of one lap (based on stable fuel burn) when calculating stint burn targets." />
                     </StackPanel>
 
                     <Grid Grid.Column="1" HorizontalAlignment="Right">
