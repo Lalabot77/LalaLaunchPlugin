@@ -2351,7 +2351,7 @@ namespace LaunchPlugin
                 if (usableFuel <= 0.0 || stableBurn <= 0.0 || ecoBurn <= 0.0 || pushBurn <= 0.0)
                 {
                     StintBurnTarget = 0.0;
-                    StintBurnTargetBand = "NORM";
+                    StintBurnTargetBand = "HOLD";
                 }
                 else
                 {
@@ -2394,7 +2394,7 @@ namespace LaunchPlugin
                     if (stableWhole < 1.0)
                     {
                         StintBurnTarget = stableBurn;
-                        StintBurnTargetBand = "NORM";
+                        StintBurnTargetBand = "HOLD";
                     }
                     else if (ecoWhole > stableWhole)
                     {
@@ -2411,7 +2411,7 @@ namespace LaunchPlugin
                     else
                     {
                         StintBurnTarget = stableBurn;
-                        StintBurnTargetBand = "NORM";
+                        StintBurnTargetBand = "HOLD";
                     }
 
                     double deadband = stableBurn * 0.01; // change to adapt driver behavior and accuracy of advice. Example 3.10 burn with 3.04 target would not trigger if at 2% deadband
