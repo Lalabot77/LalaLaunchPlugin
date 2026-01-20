@@ -1,8 +1,8 @@
 ﻿// --- Using Directives ---
 using GameReaderCommon;
 using LaunchPlugin.Messaging;
+using Newtonsoft.Json;
 using SimHub.Plugins;
-using SimHub.Plugins.DataPlugins.DataCore;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -14,7 +14,6 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Media;
-using Newtonsoft.Json;
 
 
 namespace LaunchPlugin
@@ -888,9 +887,9 @@ namespace LaunchPlugin
                     _seedWetSampleCount = 0;
                 }
 
-                        SimHub.Logging.Current.Info(
-                            $"[LalaPlugin:Fuel Burn] Captured seed from session '{fromSessionType}' for car='{_seedCarModel}', track='{_seedTrackKey}': " +
-                            $"dry={_seedDryFuelPerLap:F3} (n={_seedDrySampleCount}), wet={_seedWetFuelPerLap:F3} (n={_seedWetSampleCount}).");
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Fuel Burn] Captured seed from session '{fromSessionType}' for car='{_seedCarModel}', track='{_seedTrackKey}': " +
+                    $"dry={_seedDryFuelPerLap:F3} (n={_seedDrySampleCount}), wet={_seedWetFuelPerLap:F3} (n={_seedWetSampleCount}).");
             }
             catch (Exception ex)
             {
@@ -2225,15 +2224,15 @@ namespace LaunchPlugin
 
                     if (ShouldLogProjection(simLapsRemaining, projectedLapsRemaining))
                     {
-                          LogProjectionDifference(
-                              simLapsRemaining,
-                              projectedLapsRemaining,
-                              projectionLapSeconds,
-                              LiveProjectedDriveSecondsRemaining,
-                              _afterZeroSourceUsed,
-                              sessionTimeRemain);
-                      }
-                  }
+                        LogProjectionDifference(
+                            simLapsRemaining,
+                            projectedLapsRemaining,
+                            projectionLapSeconds,
+                            LiveProjectedDriveSecondsRemaining,
+                            _afterZeroSourceUsed,
+                            sessionTimeRemain);
+                    }
+                }
                 else
                 {
                     LiveLapsRemainingInRace = simLapsRemaining;
@@ -2414,7 +2413,7 @@ namespace LaunchPlugin
                         StintBurnTargetBand = "current";
                     }
 
-                    double deadband = stableBurn * 0.02;
+                    double deadband = stableBurn * 0.01; // change to adapt driver behavior and accuracy of advice. Example 3.10 burn with 3.04 target would not trigger if at 2% deadband
                     if (Math.Abs(StintBurnTarget - stableBurn) <= deadband)
                     {
                         StintBurnTargetBand = "current";
@@ -2441,177 +2440,177 @@ namespace LaunchPlugin
                 Fuel_Delta_LitresPlanPush = ComputeDeltaLitres(fuelPlanExit, requiredLitresPush, hasPushRequirement);
                 Fuel_Delta_LitresWillAddPush = ComputeDeltaLitres(fuelWillAddExit, requiredLitresPush, hasPushRequirement);
 
-                  bool hasSaveRequirement = FuelSaveFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
-                  double requiredLitresSave = hasSaveRequirement ? stableLapsRemaining * FuelSaveFuelPerLap : 0.0;
-                  Fuel_Delta_LitresCurrentSave = ComputeDeltaLitres(currentFuel, requiredLitresSave, hasSaveRequirement);
-                  Fuel_Delta_LitresPlanSave = ComputeDeltaLitres(fuelPlanExit, requiredLitresSave, hasSaveRequirement);
-                  Fuel_Delta_LitresWillAddSave = ComputeDeltaLitres(fuelWillAddExit, requiredLitresSave, hasSaveRequirement);
-                }
+                bool hasSaveRequirement = FuelSaveFuelPerLap > 0.0 && stableLapsRemaining > 0.0;
+                double requiredLitresSave = hasSaveRequirement ? stableLapsRemaining * FuelSaveFuelPerLap : 0.0;
+                Fuel_Delta_LitresCurrentSave = ComputeDeltaLitres(currentFuel, requiredLitresSave, hasSaveRequirement);
+                Fuel_Delta_LitresPlanSave = ComputeDeltaLitres(fuelPlanExit, requiredLitresSave, hasSaveRequirement);
+                Fuel_Delta_LitresWillAddSave = ComputeDeltaLitres(fuelWillAddExit, requiredLitresSave, hasSaveRequirement);
+            }
 
-                // --- Pit window state exports ---
-                int pitWindowState;
-                string pitWindowLabel;
-                int pitWindowOpeningLap = 0;
-                double tankSpace = Math.Max(0, maxTankCapacity - currentFuel);
-                double completedLaps = Convert.ToDouble(data.NewData?.CompletedLaps ?? 0m);
-                int currentLapNumber = (int)Math.Max(1, Math.Floor(completedLaps) + 1);
-                string sessionStateToken = ReadLapDetectorSessionState();
-                bool sessionRunning = IsSessionRunningForLapDetector(sessionStateToken);
-                bool isRaceSession = string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase);
-                double fuelPerLapForPitWindow = LiveFuelPerLap_Stable > 0.0 ? LiveFuelPerLap_Stable : fuelPerLapForCalc;
-                int pitWindowClosingLap = 0;
-                double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
+            // --- Pit window state exports ---
+            int pitWindowState;
+            string pitWindowLabel;
+            int pitWindowOpeningLap = 0;
+            double tankSpace = Math.Max(0, maxTankCapacity - currentFuel);
+            double completedLaps = Convert.ToDouble(data.NewData?.CompletedLaps ?? 0m);
+            int currentLapNumber = (int)Math.Max(1, Math.Floor(completedLaps) + 1);
+            string sessionStateToken = ReadLapDetectorSessionState();
+            bool sessionRunning = IsSessionRunningForLapDetector(sessionStateToken);
+            bool isRaceSession = string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase);
+            double fuelPerLapForPitWindow = LiveFuelPerLap_Stable > 0.0 ? LiveFuelPerLap_Stable : fuelPerLapForCalc;
+            int pitWindowClosingLap = 0;
+            double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
 
-                // Step 1 — Race-only gate FIRST (so Qualifying always shows N/A)
-                if (!isRaceSession || !sessionRunning)
-                {
-                    pitWindowState = 6;
-                    pitWindowLabel = "N/A";
-                    IsPitWindowOpen = false;
-                    pitWindowOpeningLap = 0;
-                    pitWindowClosingLap = 0;
-                }
-                // Step 1b — Inhibit when no more fuel stops required
-                else if (PitStopsRequiredByFuel <= 0)
-                {
-                    pitWindowState = 6;
-                    pitWindowLabel = "N/A";
-                    IsPitWindowOpen = false;
-                    pitWindowOpeningLap = 0;
-                    pitWindowClosingLap = 0;
-                }
+            // Step 1 — Race-only gate FIRST (so Qualifying always shows N/A)
+            if (!isRaceSession || !sessionRunning)
+            {
+                pitWindowState = 6;
+                pitWindowLabel = "N/A";
+                IsPitWindowOpen = false;
+                pitWindowOpeningLap = 0;
+                pitWindowClosingLap = 0;
+            }
+            // Step 1b — Inhibit when no more fuel stops required
+            else if (PitStopsRequiredByFuel <= 0)
+            {
+                pitWindowState = 6;
+                pitWindowLabel = "N/A";
+                IsPitWindowOpen = false;
+                pitWindowOpeningLap = 0;
+                pitWindowClosingLap = 0;
+            }
             // Step 0/2 — Confidence gate (now only applies in-race)
-                else if (LiveFuelPerLap_StableConfidence < fuelReadyConfidence)
+            else if (LiveFuelPerLap_StableConfidence < fuelReadyConfidence)
+            {
+                pitWindowState = 5;
+                pitWindowLabel = "NO DATA YET";
+                IsPitWindowOpen = false;
+                pitWindowOpeningLap = 0;
+                pitWindowClosingLap = 0;
+            }
+            else if (!_isRefuelSelected || pitWindowRequestedAdd <= 0.0)
+            {
+                pitWindowState = 4;
+                pitWindowLabel = "SET FUEL!";
+                IsPitWindowOpen = false;
+                pitWindowOpeningLap = 0;
+                pitWindowClosingLap = 0;
+            }
+            else if (maxTankCapacity <= 0.0)
+            {
+                pitWindowState = 8;
+                pitWindowLabel = "TANK ERROR";
+                IsPitWindowOpen = false;
+                pitWindowOpeningLap = 0;
+                pitWindowClosingLap = 0;
+            }
+            else
+            {
+
+                double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
+                double stableFuelPerLap = LiveFuelPerLap_Stable;
+
+                bool pushValid = stableLapsRemaining > 0.0 && PushFuelPerLap > 0.0;
+                bool stdValid = stableLapsRemaining > 0.0 && stableFuelPerLap > 0.0;
+                bool ecoValid = stableLapsRemaining > 0.0 && FuelSaveFuelPerLap > 0.0;
+
+                double needAddPush = pushValid ? Math.Max(0.0, (stableLapsRemaining * PushFuelPerLap) - currentFuel) : 0.0;
+                double needAddStd = stdValid ? Math.Max(0.0, (stableLapsRemaining * stableFuelPerLap) - currentFuel) : 0.0;
+                double needAddEco = ecoValid ? Math.Max(0.0, (stableLapsRemaining * FuelSaveFuelPerLap) - currentFuel) : 0.0;
+
+                bool openPush = pushValid && tankSpace >= needAddPush;
+                bool openStd = stdValid && tankSpace >= needAddStd;
+                bool openEco = ecoValid && tankSpace >= needAddEco;
+
+                if (openPush || openStd || openEco)
                 {
-                    pitWindowState = 5;
-                    pitWindowLabel = "NO DATA YET";
-                    IsPitWindowOpen = false;
-                    pitWindowOpeningLap = 0;
-                    pitWindowClosingLap = 0;
-                }
-                else if (!_isRefuelSelected || pitWindowRequestedAdd <= 0.0)
-                {
-                    pitWindowState = 4;
-                    pitWindowLabel = "SET FUEL!";
-                    IsPitWindowOpen = false;
-                    pitWindowOpeningLap = 0;
-                    pitWindowClosingLap = 0;
-                }
-                else if (maxTankCapacity <= 0.0)
-                {
-                    pitWindowState = 8;
-                    pitWindowLabel = "TANK ERROR";
-                    IsPitWindowOpen = false;
-                    pitWindowOpeningLap = 0;
-                    pitWindowClosingLap = 0;
+                    IsPitWindowOpen = true;
+                    pitWindowOpeningLap = currentLapNumber;
+
+                    if (openPush)
+                    {
+                        pitWindowState = 3;
+                        pitWindowLabel = "CLEAR PUSH";
+                    }
+                    else if (openStd)
+                    {
+                        pitWindowState = 2;
+                        pitWindowLabel = "RACE PACE";
+                    }
+                    else
+                    {
+                        pitWindowState = 1;
+                        pitWindowLabel = "FUEL SAVE";
+                    }
                 }
                 else
                 {
+                    pitWindowState = 7;
+                    pitWindowLabel = "TANK SPACE";
+                    IsPitWindowOpen = false;
 
-                    double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
-                    double stableFuelPerLap = LiveFuelPerLap_Stable;
-
-                    bool pushValid = stableLapsRemaining > 0.0 && PushFuelPerLap > 0.0;
-                    bool stdValid = stableLapsRemaining > 0.0 && stableFuelPerLap > 0.0;
-                    bool ecoValid = stableLapsRemaining > 0.0 && FuelSaveFuelPerLap > 0.0;
-
-                    double needAddPush = pushValid ? Math.Max(0.0, (stableLapsRemaining * PushFuelPerLap) - currentFuel) : 0.0;
-                    double needAddStd = stdValid ? Math.Max(0.0, (stableLapsRemaining * stableFuelPerLap) - currentFuel) : 0.0;
-                    double needAddEco = ecoValid ? Math.Max(0.0, (stableLapsRemaining * FuelSaveFuelPerLap) - currentFuel) : 0.0;
-
-                    bool openPush = pushValid && tankSpace >= needAddPush;
-                    bool openStd = stdValid && tankSpace >= needAddStd;
-                    bool openEco = ecoValid && tankSpace >= needAddEco;
-
-                    if (openPush || openStd || openEco)
+                    if (ecoValid && fuelPerLapForPitWindow > 0.0)
                     {
-                        IsPitWindowOpen = true;
-                        pitWindowOpeningLap = currentLapNumber;
+                        double fuelToBurnEco = Math.Max(0.0, needAddEco - tankSpace);
+                        int lapsToOpen = (int)Math.Ceiling(fuelToBurnEco / fuelPerLapForPitWindow);
+                        if (lapsToOpen < 0) lapsToOpen = 0;
 
-                        if (openPush)
-                        {
-                            pitWindowState = 3;
-                            pitWindowLabel = "CLEAR PUSH";
-                        }
-                        else if (openStd)
-                        {
-                            pitWindowState = 2;
-                            pitWindowLabel = "RACE PACE";
-                        }
-                        else
-                        {
-                            pitWindowState = 1;
-                            pitWindowLabel = "FUEL SAVE";
-                        }
+                        pitWindowOpeningLap = currentLapNumber + lapsToOpen;
                     }
                     else
                     {
-                        pitWindowState = 7;
-                        pitWindowLabel = "TANK SPACE";
-                        IsPitWindowOpen = false;
-
-                        if (ecoValid && fuelPerLapForPitWindow > 0.0)
-                        {
-                            double fuelToBurnEco = Math.Max(0.0, needAddEco - tankSpace);
-                            int lapsToOpen = (int)Math.Ceiling(fuelToBurnEco / fuelPerLapForPitWindow);
-                            if (lapsToOpen < 0) lapsToOpen = 0;
-
-                            pitWindowOpeningLap = currentLapNumber + lapsToOpen;
-                        }
-                        else
-                        {
-                            pitWindowOpeningLap = 0;
-                        }
-                    }
-
-                    if (fuelPerLapForPitWindow > 0.0)
-                    {
-                        double lapsRemainingInTankNow = currentFuel / fuelPerLapForPitWindow;
-                        int closingLap = (int)Math.Floor(lapsRemainingInTankNow);
-                        int latestLap = currentLapNumber + closingLap;
-                        if (latestLap < currentLapNumber) latestLap = currentLapNumber;
-                        pitWindowClosingLap = latestLap;
-                    }
-                    else
-                    {
-                        pitWindowClosingLap = 0;
+                        pitWindowOpeningLap = 0;
                     }
                 }
 
-                PitWindowState = pitWindowState;
-                PitWindowLabel = pitWindowLabel;
-                PitWindowOpeningLap = pitWindowOpeningLap;
-                PitWindowClosingLap = pitWindowClosingLap;
-
-                if ((pitWindowState != _lastPitWindowState ||
-                    !string.Equals(pitWindowLabel, _lastPitWindowLabel, StringComparison.Ordinal)) &&
-                    (DateTime.UtcNow - _lastPitWindowLogUtc).TotalSeconds > 0.5)
+                if (fuelPerLapForPitWindow > 0.0)
                 {
-                    SimHub.Logging.Current.Info(
-                        $"[LalaPlugin:Pit Window] state={pitWindowState} label={pitWindowLabel} reqAdd={pitWindowRequestedAdd:F1} " +
-                        $"tankSpace={tankSpace:F1} lap={currentLapNumber} confStable={LiveFuelPerLap_StableConfidence:F0}% confOverall={OverallConfidence:F0}% reqStops={strategyRequiredStops} closeLap={pitWindowClosingLap}");
+                    double lapsRemainingInTankNow = currentFuel / fuelPerLapForPitWindow;
+                    int closingLap = (int)Math.Floor(lapsRemainingInTankNow);
+                    int latestLap = currentLapNumber + closingLap;
+                    if (latestLap < currentLapNumber) latestLap = currentLapNumber;
+                    pitWindowClosingLap = latestLap;
+                }
+                else
+                {
+                    pitWindowClosingLap = 0;
+                }
+            }
+
+            PitWindowState = pitWindowState;
+            PitWindowLabel = pitWindowLabel;
+            PitWindowOpeningLap = pitWindowOpeningLap;
+            PitWindowClosingLap = pitWindowClosingLap;
+
+            if ((pitWindowState != _lastPitWindowState ||
+                !string.Equals(pitWindowLabel, _lastPitWindowLabel, StringComparison.Ordinal)) &&
+                (DateTime.UtcNow - _lastPitWindowLogUtc).TotalSeconds > 0.5)
+            {
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Pit Window] state={pitWindowState} label={pitWindowLabel} reqAdd={pitWindowRequestedAdd:F1} " +
+                    $"tankSpace={tankSpace:F1} lap={currentLapNumber} confStable={LiveFuelPerLap_StableConfidence:F0}% confOverall={OverallConfidence:F0}% reqStops={strategyRequiredStops} closeLap={pitWindowClosingLap}");
 
                 _lastPitWindowState = pitWindowState;
-                    _lastPitWindowLabel = pitWindowLabel;
-                    _lastPitWindowLogUtc = DateTime.UtcNow;
-                }
-                else if (pitWindowState != _lastPitWindowState ||
-                    !string.Equals(pitWindowLabel, _lastPitWindowLabel, StringComparison.Ordinal))
-                {
-                    _lastPitWindowState = pitWindowState;
-                    _lastPitWindowLabel = pitWindowLabel;
-                    _lastPitWindowLogUtc = DateTime.UtcNow;
-                }
+                _lastPitWindowLabel = pitWindowLabel;
+                _lastPitWindowLogUtc = DateTime.UtcNow;
+            }
+            else if (pitWindowState != _lastPitWindowState ||
+                !string.Equals(pitWindowLabel, _lastPitWindowLabel, StringComparison.Ordinal))
+            {
+                _lastPitWindowState = pitWindowState;
+                _lastPitWindowLabel = pitWindowLabel;
+                _lastPitWindowLogUtc = DateTime.UtcNow;
+            }
 
-                LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
+            LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
 
-                UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
+            UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
 
-                if (lapCrossed && string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
-                {
-                    double observedAfterZero = (_timerZeroSeen && sessionTime > _timerZeroSessionTime)
-                        ? Math.Max(0.0, sessionTime - _timerZeroSessionTime)
-                        : 0.0;
+            if (lapCrossed && string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
+            {
+                double observedAfterZero = (_timerZeroSeen && sessionTime > _timerZeroSessionTime)
+                    ? Math.Max(0.0, sessionTime - _timerZeroSessionTime)
+                    : 0.0;
 
                 SimHub.Logging.Current.Info(
                     $"[LalaPlugin:Drive Time Projection] " +
@@ -2624,9 +2623,9 @@ namespace LaunchPlugin
 
             // --- 4) Update "last" values for next tick ---
             _lastFuelLevel = currentFuel;
-                _lastLapDistPct = rawLapPct; // keep original scale; we normalize on read
-                if (_lapStartFuel < 0) _lapStartFuel = currentFuel;
-            }
+            _lastLapDistPct = rawLapPct; // keep original scale; we normalize on read
+            if (_lapStartFuel < 0) _lapStartFuel = currentFuel;
+        }
 
         // --- Settings / Car Profiles ---
 
@@ -2905,7 +2904,7 @@ namespace LaunchPlugin
             this.PluginManager = pluginManager;
             PluginStorage.Initialize(pluginManager);
             Settings = LoadSettings();
-            
+
 #if DEBUG
             FuelProjectionMath.RunSelfTests();
 #endif
@@ -4016,7 +4015,7 @@ namespace LaunchPlugin
             }
 
             UpdateLiveSurfaceSummary(pluginManager);
-            
+
             // --- Pit Entry Assist config from profile (per-car) ---
             if (_pit != null && ActiveProfile != null)
             {
@@ -4152,7 +4151,7 @@ namespace LaunchPlugin
             if (pitExitEdge)
             {
                 _opponentsEngine?.NotifyPitExitLine(completedLaps, sessionTime, trackPct);
-               // LogPitExitPitOutSnapshot(sessionTime, completedLaps + 1, pitTripActive);
+                // LogPitExitPitOutSnapshot(sessionTime, completedLaps + 1, pitTripActive);
             }
 
             // === AUTO-LEARN REFUEL RATE FROM PIT BOX (hardened) ===
@@ -4472,7 +4471,7 @@ namespace LaunchPlugin
             // --- AUTO DASH SWITCHING (READINESS-GATED, NO GLOBAL RESET) ---
             bool ignitionOn = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.EngineIgnitionOn") ?? false);
             bool engineStarted = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.EngineStarted") ?? false);
-            
+
             if (Settings.EnableAutoDashSwitch && !string.IsNullOrWhiteSpace(currentSession) && !string.Equals(currentSession, _dashLastSessionType, StringComparison.Ordinal))
             {
                 _dashLastSessionType = currentSession;
@@ -5086,37 +5085,37 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info($"[LalaPlugin:PitExit] {auditLine}");
             }
         }
-/*
-        private void LogPitExitPitOutSnapshot(double sessionTime, int lapNumber, bool pitTripActive)
-        {
-            if (_opponentsEngine == null) return;
+        /*
+                private void LogPitExitPitOutSnapshot(double sessionTime, int lapNumber, bool pitTripActive)
+                {
+                    if (_opponentsEngine == null) return;
 
-            var hasSnapshot = _opponentsEngine.TryGetPitExitSnapshot(out var snapshot);
-            int posClass = hasSnapshot ? snapshot.PlayerPositionInClass : 0;
-            int posOverall = hasSnapshot ? snapshot.PlayerPositionOverall : 0;
-            int predPosClass = hasSnapshot ? snapshot.PredictedPositionInClass : 0;
-            int carsAhead = hasSnapshot ? snapshot.CarsAheadAfterPit : 0;
-            double entryGapLdr = hasSnapshot ? snapshot.PitEntryGapToLeaderSec : double.NaN;
-            double gapLdrLive = hasSnapshot ? snapshot.GapToLeaderLiveSec : double.NaN;
-            double gapLdrUsed = hasSnapshot ? snapshot.GapToLeaderUsedSec : double.NaN;
-            double predGapAfterPit = hasSnapshot ? snapshot.PredGapAfterPitSec : double.NaN;
-            bool pitTripLockActive = hasSnapshot && snapshot.PitTripLockActive;
+                    var hasSnapshot = _opponentsEngine.TryGetPitExitSnapshot(out var snapshot);
+                    int posClass = hasSnapshot ? snapshot.PlayerPositionInClass : 0;
+                    int posOverall = hasSnapshot ? snapshot.PlayerPositionOverall : 0;
+                    int predPosClass = hasSnapshot ? snapshot.PredictedPositionInClass : 0;
+                    int carsAhead = hasSnapshot ? snapshot.CarsAheadAfterPit : 0;
+                    double entryGapLdr = hasSnapshot ? snapshot.PitEntryGapToLeaderSec : double.NaN;
+                    double gapLdrLive = hasSnapshot ? snapshot.GapToLeaderLiveSec : double.NaN;
+                    double gapLdrUsed = hasSnapshot ? snapshot.GapToLeaderUsedSec : double.NaN;
+                    double predGapAfterPit = hasSnapshot ? snapshot.PredGapAfterPitSec : double.NaN;
+                    bool pitTripLockActive = hasSnapshot && snapshot.PitTripLockActive;
 
-            double laneRef = _pitLite?.TimePitLaneSec ?? 0.0;
-            double boxRef = _pitLite?.TimePitBoxSec ?? 0.0;
-            double directRef = _pitLite?.DirectSec ?? 0.0;
+                    double laneRef = _pitLite?.TimePitLaneSec ?? 0.0;
+                    double boxRef = _pitLite?.TimePitBoxSec ?? 0.0;
+                    double directRef = _pitLite?.DirectSec ?? 0.0;
 
-            SimHub.Logging.Current.Info(
-                $"[LalaPlugin:PitExit] Pit-out snapshot: lap={lapNumber} t={sessionTime:F1} " +
-                $"posClass=P{posClass} posOverall=P{posOverall} predPosClassNow=P{predPosClass} " +
-                $"carsAheadNow={carsAhead} lane={FormatSecondsWithSuffix(laneRef)} box={FormatSecondsWithSuffix(boxRef)} " +
-                $"direct={FormatSecondsWithSuffix(directRef)} pitTripActive={pitTripActive} " +
-                $"entryGapLdr={FormatSecondsWithSuffix(entryGapLdr)} gapLdrLiveNow={FormatSecondsWithSuffix(gapLdrLive)} " +
-                $"gapLdrUsed={FormatSecondsWithSuffix(gapLdrUsed)} predGapAfterPit={FormatSecondsWithSuffix(predGapAfterPit)} " +
-                $"lock={pitTripLockActive}"
-            );
-        }
-*/
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:PitExit] Pit-out snapshot: lap={lapNumber} t={sessionTime:F1} " +
+                        $"posClass=P{posClass} posOverall=P{posOverall} predPosClassNow=P{predPosClass} " +
+                        $"carsAheadNow={carsAhead} lane={FormatSecondsWithSuffix(laneRef)} box={FormatSecondsWithSuffix(boxRef)} " +
+                        $"direct={FormatSecondsWithSuffix(directRef)} pitTripActive={pitTripActive} " +
+                        $"entryGapLdr={FormatSecondsWithSuffix(entryGapLdr)} gapLdrLiveNow={FormatSecondsWithSuffix(gapLdrLive)} " +
+                        $"gapLdrUsed={FormatSecondsWithSuffix(gapLdrUsed)} predGapAfterPit={FormatSecondsWithSuffix(predGapAfterPit)} " +
+                        $"lock={pitTripLockActive}"
+                    );
+                }
+        */
         private void ResetSmoothedOutputs()
         {
             // Reset internal EMA state
@@ -5594,17 +5593,17 @@ namespace LaunchPlugin
             _afterZeroResultLogged = true;
         }
 
-     private long _finishTimingSessionId = -1;
-     private string _finishTimingSessionType = string.Empty;
+        private long _finishTimingSessionId = -1;
+        private string _finishTimingSessionType = string.Empty;
 
-     private void UpdateFinishTiming(
-     PluginManager pluginManager,
-     GameData data,
-     double sessionTime,
-     double sessionTimeRemain,
-     int completedLaps,
-     long sessionId,
-     string sessionType)
+        private void UpdateFinishTiming(
+        PluginManager pluginManager,
+        GameData data,
+        double sessionTime,
+        double sessionTimeRemain,
+        int completedLaps,
+        long sessionId,
+        string sessionType)
         {
             bool isRace = string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase);
 
