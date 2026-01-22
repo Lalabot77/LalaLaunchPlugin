@@ -931,6 +931,13 @@ namespace LaunchPlugin
             _maxWetFuelPerLap = 0.0;
             _minDryFuelPerLap = 0.0;
             _minWetFuelPerLap = 0.0;
+            _wetValidCompletedLaps = 0;
+            _wasWetRecordingAllowed = false;
+            _lastWetPbBlockReason = string.Empty;
+            _lastValidLapMs = 0;
+            _lastValidLapNumber = -1;
+            _lastValidLapWetPbAllowed = false;
+            _lastValidLapWetPbBlockReason = string.Empty;
             _lastFuelLevel = -1.0;
             _lapStartFuel = -1.0;
             _lastLapDistPct = -1.0;
