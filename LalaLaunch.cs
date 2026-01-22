@@ -1398,8 +1398,9 @@ namespace LaunchPlugin
 
             int trackWetness;
             bool? declaredWet;
-            _ = GetWetModeActiveFromTelemetry(pluginManager, out trackWetness, out declaredWet, out _);
+            bool? wetModeActive = GetWetModeActiveFromTelemetry(pluginManager, out trackWetness, out declaredWet, out _);
             int effectiveWetness = GetEffectiveTrackWetness(trackWetness, declaredWet);
+            bool isWetEffective = wetModeActive ?? declaredWet ?? (FuelCalculator?.IsWet ?? false);
             bool isWetTyres = IsWetTyreCompound(pluginManager, out _);
             bool dryRecordingAllowed = effectiveWetness >= 1 && effectiveWetness <= 2 && !isWetTyres;
             bool wetRecordingAllowed = effectiveWetness >= 4 && effectiveWetness <= 6 && isWetTyres;
@@ -1412,7 +1413,7 @@ namespace LaunchPlugin
             }
             _wasWetRecordingAllowed = wetRecordingAllowed;
 
-            _isWetMode = FuelCalculator?.IsWet ?? false;
+            _isWetMode = isWetEffective;
 
             // Pit detection: use both signals (some installs expose only one reliably)
             bool isInPitLaneFlag = (data.NewData?.IsInPitLane ?? 0) != 0;
@@ -4074,6 +4075,13 @@ namespace LaunchPlugin
                 _lastSubSessionId = currentSubSessionId;
                 _lastSessionToken = currentSessionToken;
                 _summaryPitStopIndex = 0;
+                _wetValidCompletedLaps = 0;
+                _wasWetRecordingAllowed = false;
+                _lastWetPbBlockReason = string.Empty;
+                _lastValidLapMs = 0;
+                _lastValidLapNumber = -1;
+                _lastValidLapWetPbAllowed = false;
+                _lastValidLapWetPbBlockReason = string.Empty;
                 FuelCalculator.ForceProfileDataReload();
                 ResetLiveFuelModelForNewSession(currentSessionTypeForConfidence, false);
                 ClearFuelInstructionOutputs();
@@ -4402,7 +4410,7 @@ namespace LaunchPlugin
 
                     int lapMs = (int)Math.Round(currentBestLap.TotalMilliseconds);
                     int completedLapsNow = Convert.ToInt32(data.NewData?.CompletedLaps ?? 0);
-                    bool lapValidForPb = _lastValidLapNumber == completedLapsNow && _lastValidLapMs == lapMs;
+                    bool lapValidForPb = _lastValidLapNumber == completedLapsNow && Math.Abs(_lastValidLapMs - lapMs) <= 2;
 
                     bool accepted = false;
                     if (lapValidForPb && (!isWetEffective || _lastValidLapWetPbAllowed))
@@ -6192,7 +6200,14 @@ namespace LaunchPlugin
                 return;
             }
 
-            if (_lastWetModeActive.HasValue && _lastWetModeActive.Value != wetModeActive.Value)
+            if (!_lastWetModeActive.HasValue)
+            {
+                string initial = wetModeActive.Value ? "Wet" : "Dry";
+                string declaredWetText = declaredWet.HasValue ? declaredWet.Value.ToString() : "null";
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Surface] Mode initial={initial} trackWetness={trackWetness} declaredWet={declaredWetText} fallbackUsed={fallbackUsed}");
+            }
+            else if (_lastWetModeActive.Value != wetModeActive.Value)
             {
                 string from = _lastWetModeActive.Value ? "Wet" : "Dry";
                 string to = wetModeActive.Value ? "Wet" : "Dry";
