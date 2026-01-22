@@ -1415,7 +1415,19 @@ namespace LaunchPlugin
             bool? declaredWet;
             bool? wetModeActive = GetWetModeActiveFromTelemetry(pluginManager, out trackWetness, out declaredWet, out _);
             int effectiveWetness = GetEffectiveTrackWetness(trackWetness, declaredWet);
-            bool isWetEffective = wetModeActive ?? declaredWet ?? (FuelCalculator?.IsWet ?? false);
+            bool isWetEffective;
+            if (wetModeActive.HasValue)
+            {
+                isWetEffective = wetModeActive.Value;
+            }
+            else if (declaredWet.HasValue)
+            {
+                isWetEffective = declaredWet.Value;
+            }
+            else
+            {
+                isWetEffective = _isWetMode;
+            }
             int wetTyreCandidatesTried;
             string wetTyreCompound;
             bool isWetTyres = IsWetTyreCompound(pluginManager, out wetTyreCompound, out wetTyreCandidatesTried);
@@ -1432,7 +1444,7 @@ namespace LaunchPlugin
                     string compoundText = string.IsNullOrWhiteSpace(wetTyreCompound) ? "null" : wetTyreCompound;
                     SimHub.Logging.Current.Info(
                         $"[LalaPlugin:Surface] Wet gating: wetness indicates wet but wet tyres not detected; " +
-                        $"compound='{compoundText}'; candidates tried={wetTyreCandidatesTried}; persistence blocked.");
+                        $"compound='{compoundText}'; keys checked={wetTyreCandidatesTried}; persistence blocked.");
                     _wetTyreMissingLastCompound = compoundForLog;
                 }
             }
