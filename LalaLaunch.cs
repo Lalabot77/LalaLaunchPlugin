@@ -430,6 +430,10 @@ namespace LaunchPlugin
         private bool? _lastWetModeActive = null;
         private int _lastTrackWetness = -1;
         private bool? _lastWeatherDeclaredWet = null;
+        private string _wetTyreMissingLastCompound = string.Empty;
+        private bool _wetFuelPersistLogged = false;
+        private bool _dryFuelPersistLogged = false;
+        private bool _msgV1InfoLogged = false;
         private int _lastValidLapMs = 0;
         private int _lastValidLapNumber = -1;
         private bool _lastValidLapWetPbAllowed = false;
@@ -938,6 +942,10 @@ namespace LaunchPlugin
             _lastValidLapNumber = -1;
             _lastValidLapWetPbAllowed = false;
             _lastValidLapWetPbBlockReason = string.Empty;
+            _wetTyreMissingLastCompound = string.Empty;
+            _wetFuelPersistLogged = false;
+            _dryFuelPersistLogged = false;
+            _msgV1InfoLogged = false;
             _lastFuelLevel = -1.0;
             _lapStartFuel = -1.0;
             _lastLapDistPct = -1.0;
@@ -1408,11 +1416,26 @@ namespace LaunchPlugin
             bool? wetModeActive = GetWetModeActiveFromTelemetry(pluginManager, out trackWetness, out declaredWet, out _);
             int effectiveWetness = GetEffectiveTrackWetness(trackWetness, declaredWet);
             bool isWetEffective = wetModeActive ?? declaredWet ?? (FuelCalculator?.IsWet ?? false);
-            bool isWetTyres = IsWetTyreCompound(pluginManager, out _);
+            int wetTyreCandidatesTried;
+            string wetTyreCompound;
+            bool isWetTyres = IsWetTyreCompound(pluginManager, out wetTyreCompound, out wetTyreCandidatesTried);
             bool dryRecordingAllowed = effectiveWetness >= 1 && effectiveWetness <= 2 && !isWetTyres;
             bool wetRecordingAllowed = effectiveWetness >= 4 && effectiveWetness <= 6 && isWetTyres;
             bool extremeWet = effectiveWetness == 7 && isWetTyres;
             bool wetFuelRecordingAllowed = isWetTyres && effectiveWetness >= 4 && effectiveWetness <= 7;
+
+            if ((wetModeActive == true || effectiveWetness >= 4) && !isWetTyres)
+            {
+                string compoundForLog = wetTyreCompound ?? string.Empty;
+                if (!string.Equals(_wetTyreMissingLastCompound, compoundForLog, StringComparison.Ordinal))
+                {
+                    string compoundText = string.IsNullOrWhiteSpace(wetTyreCompound) ? "null" : wetTyreCompound;
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:Surface] Wet gating: wetness indicates wet but wet tyres not detected; " +
+                        $"compound='{compoundText}'; candidates tried={wetTyreCandidatesTried}; persistence blocked.");
+                    _wetTyreMissingLastCompound = compoundForLog;
+                }
+            }
 
             if (!wetRecordingAllowed && _wasWetRecordingAllowed && _wetValidCompletedLaps != 0)
             {
@@ -1962,6 +1985,14 @@ namespace LaunchPlugin
                                             if (_avgWetFuelPerLap > 0) trackRecord.AvgFuelPerLapWet = _avgWetFuelPerLap;
                                             if (_maxWetFuelPerLap > 0) trackRecord.MaxFuelPerLapWet = _maxWetFuelPerLap;
                                             trackRecord.MarkFuelUpdatedWet("Telemetry");
+                                            if (!_wetFuelPersistLogged)
+                                            {
+                                                SimHub.Logging.Current.Info(
+                                                    $"[LalaPlugin:Profile/Fuel] Persisted Wet fuel stats: " +
+                                                    $"samples={_validWetLaps} avg={_avgWetFuelPerLap:F3} min={_minWetFuelPerLap:F3} max={_maxWetFuelPerLap:F3} " +
+                                                    $"locked={trackRecord.WetConditionsLocked}");
+                                                _wetFuelPersistLogged = true;
+                                            }
                                         }
                                     }
                                 }
@@ -1977,6 +2008,14 @@ namespace LaunchPlugin
                                             if (_avgDryFuelPerLap > 0) trackRecord.AvgFuelPerLapDry = _avgDryFuelPerLap;
                                             if (_maxDryFuelPerLap > 0) trackRecord.MaxFuelPerLapDry = _maxDryFuelPerLap;
                                             trackRecord.MarkFuelUpdatedDry("Telemetry");
+                                            if (!_dryFuelPersistLogged)
+                                            {
+                                                SimHub.Logging.Current.Info(
+                                                    $"[LalaPlugin:Profile/Fuel] Persisted Dry fuel stats: " +
+                                                    $"samples={_validDryLaps} avg={_avgDryFuelPerLap:F3} min={_minDryFuelPerLap:F3} max={_maxDryFuelPerLap:F3} " +
+                                                    $"locked={trackRecord.DryConditionsLocked}");
+                                                _dryFuelPersistLogged = true;
+                                            }
                                         }
                                     }
                                 }
@@ -4089,6 +4128,10 @@ namespace LaunchPlugin
                 _lastValidLapNumber = -1;
                 _lastValidLapWetPbAllowed = false;
                 _lastValidLapWetPbBlockReason = string.Empty;
+                _wetTyreMissingLastCompound = string.Empty;
+                _wetFuelPersistLogged = false;
+                _dryFuelPersistLogged = false;
+                _msgV1InfoLogged = false;
                 FuelCalculator.ForceProfileDataReload();
                 ResetLiveFuelModelForNewSession(currentSessionTypeForConfidence, false);
                 ClearFuelInstructionOutputs();
@@ -4105,6 +4148,11 @@ namespace LaunchPlugin
             }
 
             UpdateLiveSurfaceSummary(pluginManager);
+            if (!_msgV1InfoLogged && _msgV1Engine != null)
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:MSGV1] Session active (logs suppressed; set DEBUG to view details)");
+                _msgV1InfoLogged = true;
+            }
 
             // --- Pit Entry Assist config from profile (per-car) ---
             if (_pit != null && ActiveProfile != null)
@@ -4410,7 +4458,7 @@ namespace LaunchPlugin
                 UpdateLiveFuelCalcs(data, pluginManager);
 
                 var currentBestLap = data.NewData?.BestLapTime ?? TimeSpan.Zero;
-                bool isWetEffective = FuelCalculator?.IsWet ?? false;
+                bool isWetEffective = _isWetMode;
                 if (currentBestLap > TimeSpan.Zero && currentBestLap != _lastSeenBestLap)
                 {
                     _lastSeenBestLap = currentBestLap;
@@ -6170,9 +6218,10 @@ namespace LaunchPlugin
             return fallbackWet ? 4 : 2;
         }
 
-        private bool IsWetTyreCompound(PluginManager pluginManager, out string compound)
+        private bool IsWetTyreCompound(PluginManager pluginManager, out string compound, out int candidatesTried)
         {
             compound = null;
+            candidatesTried = 0;
             string[] candidates =
             {
                 "DataCorePlugin.GameRawData.Telemetry.TireCompound",
@@ -6182,6 +6231,7 @@ namespace LaunchPlugin
 
             foreach (string candidate in candidates)
             {
+                candidatesTried++;
                 object raw = pluginManager.GetPropertyValue(candidate);
                 string text = Convert.ToString(raw, CultureInfo.InvariantCulture);
                 if (!string.IsNullOrWhiteSpace(text))
