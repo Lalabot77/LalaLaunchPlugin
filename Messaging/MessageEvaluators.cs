@@ -432,7 +432,7 @@ namespace LaunchPlugin.Messaging
             if (AlreadyLatched(token)) return false;
             Latch(token);
 
-            SimHub.Logging.Current.Info(
+            SimHub.Logging.Current.Debug(
                 $"[LalaPlugin:PitMarkers] MSGV1 fire: captured track={trackKey} entryPct={payload.EntryPct:F4} exitPct={payload.ExitPct:F4} locked={payload.Locked}");
 
             string text = $"Pit markers learned for {trackKey}.";
@@ -453,7 +453,7 @@ namespace LaunchPlugin.Messaging
             if (AlreadyLatched(token)) return false;
             Latch(token);
 
-            SimHub.Logging.Current.Info(
+            SimHub.Logging.Current.Debug(
                 $"[LalaPlugin:PitMarkers] MSGV1 fire: track_length_delta track={trackKey} start_m={payload.StartM:F1} now_m={payload.NowM:F1} delta_m={payload.DeltaM:F1}");
 
             string text = "Track length changed; pit marker distances may be off.";
@@ -474,7 +474,7 @@ namespace LaunchPlugin.Messaging
             if (AlreadyLatched(token)) return false;
             Latch(token);
 
-            SimHub.Logging.Current.Info(
+            SimHub.Logging.Current.Debug(
                 $"[LalaPlugin:PitMarkers] MSGV1 fire: locked_mismatch track={trackKey} storedEntryPct={payload.StoredEntryPct:F4} candEntryPct={payload.CandidateEntryPct:F4} storedExitPct={payload.StoredExitPct:F4} candExitPct={payload.CandidateExitPct:F4} tolPct={payload.TolerancePct:F4}");
 
             string text = $"Locked pit markers differ from live detection for {trackKey}.";

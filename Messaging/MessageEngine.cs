@@ -478,7 +478,7 @@ namespace LaunchPlugin.Messaging
 
         private static void LogInfo(string message)
         {
-            SimHub.Logging.Current.Info($"[LalaPlugin:MSGV1] {message}");
+            SimHub.Logging.Current.Debug($"[LalaPlugin:MSGV1] {message}");
         }
 
         private void RegisterMissingEvaluators()
@@ -513,7 +513,7 @@ namespace LaunchPlugin.Messaging
                 return $"{id} -> {msgs}";
             }));
 
-            SimHub.Logging.Current.Info($"[LalaPlugin:MSGV1] Registered placeholder evaluators: {summary}");
+            SimHub.Logging.Current.Debug($"[LalaPlugin:MSGV1] Registered placeholder evaluators: {summary}");
         }
     }
 
