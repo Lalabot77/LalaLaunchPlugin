@@ -424,8 +424,11 @@ namespace LaunchPlugin
         private int _validWetLaps = 0;
         private const int WetPbMinValidLaps = 2;
         private const int WetExtremeMinAvgSamples = 3;
+        private const int WetTyreWarmupLaps = 2;
         private int _wetValidCompletedLaps = 0;
         private bool _wasWetRecordingAllowed = false;
+        private bool _wasWetTyres = false;
+        private int _wetTyreWarmupLapsRemaining = 0;
         private string _lastWetPbBlockReason = string.Empty;
         private bool? _lastWetModeActive = null;
         private int _lastTrackWetness = -1;
@@ -940,6 +943,8 @@ namespace LaunchPlugin
             _minWetFuelPerLap = 0.0;
             _wetValidCompletedLaps = 0;
             _wasWetRecordingAllowed = false;
+            _wasWetTyres = false;
+            _wetTyreWarmupLapsRemaining = 0;
             _lastWetPbBlockReason = string.Empty;
             _lastValidLapMs = 0;
             _lastValidLapNumber = -1;
@@ -1438,6 +1443,18 @@ namespace LaunchPlugin
             bool wetRecordingAllowed = effectiveWetness >= 4 && effectiveWetness <= 6 && isWetTyres;
             bool extremeWet = effectiveWetness == 7 && isWetTyres;
             bool wetFuelRecordingAllowed = isWetTyres && effectiveWetness >= 4 && effectiveWetness <= 7;
+            bool wetTyreTransition = isWetTyres && effectiveWetness >= 4 && !_wasWetTyres;
+            if (wetTyreTransition)
+            {
+                _wetTyreWarmupLapsRemaining = WetTyreWarmupLaps;
+                SimHub.Logging.Current.Info(
+                    $"[LalaPlugin:Surface] Wet tyres detected; suppressing wet recording for next {WetTyreWarmupLaps} flying laps");
+            }
+            else if (!isWetTyres)
+            {
+                _wetTyreWarmupLapsRemaining = 0;
+            }
+            _wasWetTyres = isWetTyres;
 
             if ((wetModeActive == true || effectiveWetness >= 4) && !isWetTyres)
             {
@@ -1676,8 +1693,8 @@ namespace LaunchPlugin
                     double currentAvgLeader = LiveLeaderAvgPaceSeconds;
                     int currentLeaderCount = _recentLeaderLapTimes.Count;
 
-                    bool paceReject = false;
-                    string paceReason = "";
+                    bool lapRejected = false;
+                    string lapRejectReason = "";
                     double paceBaselineForLog = 0.0;
                     double paceDeltaForLog = 0.0;
 
@@ -1693,79 +1710,157 @@ namespace LaunchPlugin
                         paceDeltaForLog = lastLapSec - paceBaselineForLog;
                     }
 
+                    double fuelUsed = (_lapStartFuel > 0 && currentFuel >= 0)
+                        ? (_lapStartFuel - currentFuel)
+                        : 0.0;
+
                     // 1) Global race warm-up: ignore very early race laps (same as fuel)
                     if (completedLapsNow <= 1)
                     {
-                        paceReject = true;
-                        paceReason = "race-warmup";
+                        lapRejected = true;
+                        lapRejectReason = "race-warmup";
                     }
 
-                    // 2) Any pit involvement this lap? Ignore for pace.
-                    if (!paceReject && pitTripActive)
+                    // 2) Any pit involvement this lap? Ignore for pace/fuel.
+                    if (!lapRejected && pitTripActive)
                     {
-                        paceReject = true;
-                        paceReason = "pit-lap";
+                        lapRejected = true;
+                        lapRejectReason = "pit-lap";
                     }
 
-                    // 3) Serious off / incident laps
-                    if (!paceReject && _hadOffTrackThisLap)
+                    // 3) First lap after pit exit – tyres cold
+                    if (!lapRejected && _lapsSincePitExit == 0)
                     {
-                        paceReject = true;
-                        paceReason = _latchedIncidentReason.HasValue
+                        lapRejected = true;
+                        lapRejectReason = "pit-warmup";
+                    }
+
+                    // 4) Serious off / incident laps
+                    if (!lapRejected && _hadOffTrackThisLap)
+                    {
+                        lapRejected = true;
+                        lapRejectReason = _latchedIncidentReason.HasValue
                             ? $"incident:{_latchedIncidentReason.Value}"
                             : "incident";
                     }
 
-                    // 4) Obvious junk lap times
-                    if (!paceReject)
+                    // 5) Obvious junk lap times
+                    if (!lapRejected)
                     {
                         if (lastLapSec <= 20.0 || lastLapSec >= 900.0)
                         {
-                            paceReject = true;
-                            paceReason = "bad-lap-time";
+                            lapRejected = true;
+                            lapRejectReason = "bad-lap-time";
                         }
                     }
 
-                    // 5) Timing bracket: moderate + gross outliers
-                    if (!paceReject && _recentLapTimes.Count >= 3 && paceBaselineForLog > 0)
+                    // 6) Timing bracket: moderate + gross outliers
+                    if (!lapRejected && _recentLapTimes.Count >= 3 && paceBaselineForLog > 0)
                     {
                         double delta = paceDeltaForLog; // +ve = slower than recent average
 
-                        // 5a) Gross outliers: >20s away from our current clean pace, either direction.
+                        // 6a) Gross outliers: >20s away from our current clean pace, either direction.
                         //     This catches things like huge course cuts or tow / timing glitches.
                         if (Math.Abs(delta) > 20.0)
                         {
-                            // You can log this if you like:
                             SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Gross outlier lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
-                            paceReject = true;
-                            paceReason = "gross-outlier";
+                            lapRejected = true;
+                            lapRejectReason = "gross-outlier";
                         }
-                        // 5b) Normal too-slow laps: more than ~6s slower than our recent clean pace.
+                        // 6b) Normal too-slow laps: more than ~6s slower than our recent clean pace.
                         //     Keeps spins / heavy traffic / yellows out of the model, but allows faster laps.
                         else if (delta > 6.0)
                         {
                             SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Rejected too-slow lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
-                            paceReject = true;
-                            paceReason = "slow-outlier";
+                            lapRejected = true;
+                            lapRejectReason = "slow-outlier";
                         }
                     }
 
-
-                    bool lapValidForStats = !paceReject;
-                    if (lapValidForStats)
+                    // 7) Obvious fuel telemetry junk
+                    if (!lapRejected)
                     {
-                        if (wetRecordingAllowed)
+                        // coarse cap: 20% of tank or 10 L, whichever is larger
+                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(effectiveMaxTank, 50.0));
+                        if (fuelUsed <= 0.05)
                         {
-                            _wetValidCompletedLaps++;
+                            lapRejected = true;
+                            lapRejectReason = "fuel<=0";
                         }
+                        else if (fuelUsed > maxPlausibleHard)
+                        {
+                            lapRejected = true;
+                            lapRejectReason = "fuelTooHigh";
+                        }
+                    }
 
+                    // 8) Profile-based sanity bracket [0.5, 1.5] × baseline
+                    if (!lapRejected)
+                    {
+                        var (baselineDry, baselineWet) = GetProfileFuelBaselines();
+                        double baseline = _isWetMode ? baselineWet : baselineDry;
+
+                        if (baseline > 0.0)
+                        {
+                            double ratio = fuelUsed / baseline;
+                            if (ratio < 0.5 || ratio > 1.5)
+                            {
+                                lapRejected = true;
+                                lapRejectReason = string.Format("profileBracket (r={0:F2})", ratio);
+                            }
+                        }
+                    }
+
+                    bool lapAcceptedForStats = !lapRejected;
+                    bool wetStatsAllowed = wetRecordingAllowed || extremeWet;
+                    bool wetWarmupBlocked = false;
+                    string recordBlockReason = string.Empty;
+
+                    if (lapAcceptedForStats && wetStatsAllowed && _wetTyreWarmupLapsRemaining > 0)
+                    {
+                        wetWarmupBlocked = true;
+                        _wetTyreWarmupLapsRemaining--;
+                        recordBlockReason = "wet-warmup";
+                        SimHub.Logging.Current.Debug(
+                            $"[LalaPlugin:Surface] Wet warmup lap blocked lap={completedLapsNow} remaining={_wetTyreWarmupLapsRemaining}");
+                        if (_wetTyreWarmupLapsRemaining == 0)
+                        {
+                            SimHub.Logging.Current.Info("[LalaPlugin:Surface] Wet tyre warmup complete; wet recording enabled");
+                        }
+                    }
+
+                    bool recordWetLap = lapAcceptedForStats && wetStatsAllowed && !wetWarmupBlocked;
+                    bool recordDryLap = lapAcceptedForStats && dryRecordingAllowed;
+                    bool recordLapForStats = recordWetLap || recordDryLap;
+
+                    if (lapAcceptedForStats && !recordLapForStats && string.IsNullOrEmpty(recordBlockReason))
+                    {
+                        recordBlockReason = "recording-blocked";
+                    }
+
+                    if (recordWetLap && wetRecordingAllowed)
+                    {
+                        _wetValidCompletedLaps++;
+                    }
+
+                    if (recordLapForStats)
+                    {
                         _lastValidLapMs = (int)Math.Round(lastLapSec * 1000.0);
                         _lastValidLapNumber = completedLapsNow;
-                        _lastValidLapWetPbAllowed = wetRecordingAllowed && _wetValidCompletedLaps >= WetPbMinValidLaps && !extremeWet;
+                        _lastValidLapWetPbAllowed = recordWetLap && wetRecordingAllowed &&
+                            _wetValidCompletedLaps >= WetPbMinValidLaps && !extremeWet;
                         _lastValidLapWetPbBlockReason = GetWetPbBlockReason(effectiveWetness, isWetTyres, _wetValidCompletedLaps);
                     }
 
-                    if (!paceReject)
+                    string rejectReasonForLog = lapRejected ? lapRejectReason : recordBlockReason;
+                    string paceReason = recordLapForStats
+                        ? "accepted"
+                        : (string.IsNullOrEmpty(rejectReasonForLog) ? "rejected" : rejectReasonForLog);
+                    string fuelReason = paceReason;
+                    bool paceAccepted = recordLapForStats;
+                    bool fuelAccepted = recordLapForStats;
+
+                    if (recordLapForStats)
                     {
                         _recentLapTimes.Add(lastLapSec);
                         // Trim to window
@@ -1805,19 +1900,6 @@ namespace LaunchPlugin
                         {
                             FuelCalculator?.SetLiveLapPaceEstimate(Pace_StintAvgLapTimeSec, _recentLapTimes.Count);
                         }
-
-                        if (string.IsNullOrEmpty(paceReason))
-                        {
-                            paceReason = "accepted";
-                        }
-                    }
-                    else
-                    {
-                        // If we rejected the lap, keep existing averages, but make sure reason is not empty
-                        if (string.IsNullOrEmpty(paceReason))
-                        {
-                            paceReason = "rejected";
-                        }
                     }
 
                     string paceBaselineLog = (paceBaselineForLog > 0)
@@ -1828,84 +1910,11 @@ namespace LaunchPlugin
                         : "-";
 
                     // --- Fuel per lap calculation & rolling averages ---
-
-                    double fuelUsed = (_lapStartFuel > 0 && currentFuel >= 0)
-                        ? (_lapStartFuel - currentFuel)
-                        : 0.0;
-
-                    bool reject = false;
-                    string reason = "";
-
-                    // Global race warm-up: ignore very early race laps
-                    // CompletedLaps 0/1 = formation + first race lap (depending on series)
-                    if (!reject && completedLapsNow <= 1)
+                    if (recordLapForStats)
                     {
-                        reject = true;
-                        reason = "race-warmup";
-                    }
+                        var window = recordWetLap ? _recentWetFuelLaps : _recentDryFuelLaps;
 
-                    // 1) Pit involvement – any lap that touched pit lane is rejected
-                    if (pitTripActive)
-                    {
-                        reject = true;
-                        reason = "pit-lap";
-                    }
-
-                    // 2) First lap after pit exit – tyres cold
-                    if (!reject && _lapsSincePitExit == 0)
-                    {
-                        reject = true;
-                        reason = "pit-warmup";
-                    }
-
-                    // 3) Incident/off-track laps (hook this when you wire incidents)
-                    if (!reject && _hadOffTrackThisLap)
-                    {
-                        reject = true;
-                        reason = _latchedIncidentReason.HasValue
-                            ? $"incident:{_latchedIncidentReason.Value}"
-                            : "incident";
-                    }
-
-                    // 4) Obvious telemetry junk
-                    if (!reject)
-                    {
-                        // coarse cap: 20% of tank or 10 L, whichever is larger
-                        double maxPlausibleHard = Math.Max(10.0, 0.20 * Math.Max(effectiveMaxTank, 50.0));
-                        if (fuelUsed <= 0.05)
-                        {
-                            reject = true;
-                            reason = "fuel<=0";
-                        }
-                        else if (fuelUsed > maxPlausibleHard)
-                        {
-                            reject = true;
-                            reason = "fuelTooHigh";
-                        }
-                    }
-
-                    // 5) Profile-based sanity bracket [0.5, 1.5] × baseline
-                    if (!reject)
-                    {
-                        var (baselineDry, baselineWet) = GetProfileFuelBaselines();
-                        double baseline = _isWetMode ? baselineWet : baselineDry;
-
-                        if (baseline > 0.0)
-                        {
-                            double ratio = fuelUsed / baseline;
-                            if (ratio < 0.5 || ratio > 1.5)
-                            {
-                                reject = true;
-                                reason = string.Format("profileBracket (r={0:F2})", ratio);
-                            }
-                        }
-                    }
-
-                    if (!reject)
-                    {
-                        var window = _isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
-
-                        if (_isWetMode)
+                        if (recordWetLap)
                             _freshWetSamplesInWindow++;
                         else
                             _freshDrySamplesInWindow++;
@@ -1914,12 +1923,12 @@ namespace LaunchPlugin
                         SessionSummaryRuntime.OnValidFuelLap(_currentSessionToken, fuelUsed);
                         while (window.Count > FuelWindowSize)
                         {
-                            if (_isWetMode && _hasActiveWetSeed)
+                            if (recordWetLap && _hasActiveWetSeed)
                             {
                                 window.RemoveAt(0);
                                 _hasActiveWetSeed = false;
                             }
-                            else if (!_isWetMode && _hasActiveDrySeed)
+                            else if (!recordWetLap && _hasActiveDrySeed)
                             {
                                 window.RemoveAt(0);
                                 _hasActiveDrySeed = false;
@@ -1927,14 +1936,14 @@ namespace LaunchPlugin
                             else
                             {
                                 window.RemoveAt(0);
-                                if (_isWetMode && _freshWetSamplesInWindow > 0)
+                                if (recordWetLap && _freshWetSamplesInWindow > 0)
                                     _freshWetSamplesInWindow--;
-                                else if (!_isWetMode && _freshDrySamplesInWindow > 0)
+                                else if (!recordWetLap && _freshDrySamplesInWindow > 0)
                                     _freshDrySamplesInWindow--;
                             }
                         }
 
-                        if (_isWetMode)
+                        if (recordWetLap)
                         {
                             _avgWetFuelPerLap = window.Average();
                             _validWetLaps = window.Count;
@@ -2109,19 +2118,7 @@ namespace LaunchPlugin
                                 }
                             }
                         }
-
                     }
-                    else
-                    {
-                        if (string.IsNullOrEmpty(reason))
-                        {
-                            reason = "rejected";
-                        }
-                    }
-
-                    string fuelReasonForLog = reject
-                        ? reason
-                        : (string.IsNullOrEmpty(reason) ? "accepted" : reason);
 
                     double stableFuelPerLap = LiveFuelPerLap_Stable;
                     double stableLapsRemaining = LiveLapsRemainingInRace_Stable;
@@ -2133,7 +2130,7 @@ namespace LaunchPlugin
                     LogLapCrossingSummary(
                         completedLapsNow,
                         lastLapSec,
-                        !paceReject,
+                        paceAccepted,
                         paceReason,
                         paceBaselineLog,
                         paceDeltaLog,
@@ -2144,8 +2141,8 @@ namespace LaunchPlugin
                         currentAvgLeader,
                         currentLeaderCount,
                         fuelUsed,
-                        !reject,
-                        fuelReasonForLog,
+                        fuelAccepted,
+                        fuelReason,
                         _isWetMode,
                         LiveFuelPerLap,
                         _validDryLaps,
@@ -4149,6 +4146,8 @@ namespace LaunchPlugin
                 _summaryPitStopIndex = 0;
                 _wetValidCompletedLaps = 0;
                 _wasWetRecordingAllowed = false;
+                _wasWetTyres = false;
+                _wetTyreWarmupLapsRemaining = 0;
                 _lastWetPbBlockReason = string.Empty;
                 _lastValidLapMs = 0;
                 _lastValidLapNumber = -1;
