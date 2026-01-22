@@ -438,6 +438,9 @@ namespace LaunchPlugin
         private int _lastValidLapNumber = -1;
         private bool _lastValidLapWetPbAllowed = false;
         private string _lastValidLapWetPbBlockReason = string.Empty;
+        private string _wetTyreDiag_PlayerTireCompoundRaw = string.Empty;
+        private string _wetTyreDiag_ExtraPropCompoundRaw = string.Empty;
+
 
         // Lap-context state for rejection logic
         private int _lastCompletedFuelLap = -1;
@@ -1438,14 +1441,25 @@ namespace LaunchPlugin
 
             if ((wetModeActive == true || effectiveWetness >= 4) && !isWetTyres)
             {
-                string compoundForLog = wetTyreCompound ?? string.Empty;
-                if (!string.Equals(_wetTyreMissingLastCompound, compoundForLog, StringComparison.Ordinal))
+                // latch on the whole observed state, not just the chosen compound, so you log again if inputs change
+                string chosen = wetTyreCompound ?? string.Empty;
+                string stateKey =
+                    $"{_wetTyreDiag_PlayerTireCompoundRaw}|{_wetTyreDiag_ExtraPropCompoundRaw}|{chosen}|{wetTyreCandidatesTried}|{effectiveWetness}|{wetModeActive?.ToString() ?? "null"}";
+
+                if (!string.Equals(_wetTyreMissingLastCompound, stateKey, StringComparison.Ordinal))
                 {
-                    string compoundText = string.IsNullOrWhiteSpace(wetTyreCompound) ? "null" : wetTyreCompound;
+                    string wm = wetModeActive.HasValue ? wetModeActive.Value.ToString() : "null";
+                    string dw = declaredWet.HasValue ? declaredWet.Value.ToString() : "null";
+                    string chosenText = string.IsNullOrWhiteSpace(wetTyreCompound) ? "null" : wetTyreCompound;
+
                     SimHub.Logging.Current.Info(
                         $"[LalaPlugin:Surface] Wet gating: wetness indicates wet but wet tyres not detected; " +
-                        $"compound='{compoundText}'; keys checked={wetTyreCandidatesTried}; persistence blocked.");
-                    _wetTyreMissingLastCompound = compoundForLog;
+                        $"wetModeActive={wm} declaredWet={dw} trackWetness={trackWetness} effectiveWetness={effectiveWetness}; " +
+                        $"PlayerTireCompound={_wetTyreDiag_PlayerTireCompoundRaw}; " +
+                        $"ExtraPropTireCompound='{_wetTyreDiag_ExtraPropCompoundRaw}'; " +
+                        $"chosen='{chosenText}'; sourcesTried={wetTyreCandidatesTried}; persistence blocked.");
+
+                    _wetTyreMissingLastCompound = stateKey;
                 }
             }
 
@@ -6232,32 +6246,66 @@ namespace LaunchPlugin
 
         private bool IsWetTyreCompound(PluginManager pluginManager, out string compound, out int candidatesTried)
         {
+            _wetTyreDiag_PlayerTireCompoundRaw = string.Empty;
+            _wetTyreDiag_ExtraPropCompoundRaw = string.Empty;
             compound = null;
             candidatesTried = 0;
-            string[] candidates =
-            {
-                "DataCorePlugin.GameRawData.Telemetry.TireCompound",
-                "DataCorePlugin.GameRawData.Telemetry.TyreCompound",
-                "IRacingExtraProperties.iRacing_Player_TireCompound"
-            };
 
-            foreach (string candidate in candidates)
+            // 1) iRacing primary: PlayerTireCompound (0=dry, 1=wet) as per your SimHub testing
+            candidatesTried++;
+            object rawPlayer = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.PlayerTireCompound");
+            _wetTyreDiag_PlayerTireCompoundRaw = rawPlayer == null ? "null" : Convert.ToString(rawPlayer, CultureInfo.InvariantCulture) ?? "null";
+
+            int? playerCompound = TryReadNullableInt(rawPlayer);
+            if (playerCompound.HasValue)
             {
-                candidatesTried++;
-                object raw = pluginManager.GetPropertyValue(candidate);
-                string text = Convert.ToString(raw, CultureInfo.InvariantCulture);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    compound = text.Trim();
-                    break;
-                }
+                compound = playerCompound.Value.ToString(CultureInfo.InvariantCulture);
+                return playerCompound.Value == 1;
             }
 
-            if (string.IsNullOrWhiteSpace(compound)) return false;
+            // 2) ExtraProperties: iRacing_Player_TireCompound ("S"=dry, "M"=wet) as per your SimHub testing
+            candidatesTried++;
+            object rawExtra = pluginManager.GetPropertyValue("iRacingExtraProperties.iRacing_Player_TireCompound");
+            _wetTyreDiag_ExtraPropCompoundRaw = rawExtra == null ? "null" : Convert.ToString(rawExtra, CultureInfo.InvariantCulture) ?? "null";
 
-            string lowered = compound.ToLowerInvariant();
-            return lowered.Contains("wet") || lowered.Contains("rain") || lowered.Contains("inter");
+            string extra = Convert.ToString(rawExtra, CultureInfo.InvariantCulture);
+            if (!string.IsNullOrWhiteSpace(extra))
+            {
+                compound = extra.Trim();
+
+                // Be strict to your observed mapping.
+                // (If in future you see "W" or "Wet", we can expand safely.)
+                return string.Equals(compound, "M", StringComparison.OrdinalIgnoreCase);
+            }
+
+            // Nothing usable found
+            return false;
         }
+
+        private static int? TryReadNullableInt(object value)
+        {
+            if (value == null) return null;
+
+            try
+            {
+                switch (value)
+                {
+                    case int i: return i;
+                    case long l: return (int)l;
+                    case double d: return (int)Math.Round(d);
+                    case float f: return (int)Math.Round(f);
+                    case string s when int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed):
+                        return parsed;
+                    default:
+                        return Convert.ToInt32(value, CultureInfo.InvariantCulture);
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
 
         private void LogWetModeTransition(bool? wetModeActive, int trackWetness, bool? declaredWet, bool fallbackUsed)
         {
