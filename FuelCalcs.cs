@@ -2889,7 +2889,7 @@ namespace LaunchPlugin
     {
         IsEstimatedLapTimeManual = false;
         IsFuelPerLapManual = false;
-        IsLeaderDeltaManual = false;
+        ResetLeaderDeltaToLive();
         ApplyPlanningSourceToAutoFields(applyLapTime: true, applyFuel: true);
     }
 
