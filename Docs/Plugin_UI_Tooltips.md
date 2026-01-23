@@ -19,38 +19,47 @@
 - L48: Automatically switch dash screens when a session starts based on context.
 - L50: How long the post-launch results screen stays visible (sec).
 - L52: Minimum confidence (%) before pit strategy uses live fuel. Below this, profile estimates may be used.
-- L84: Enable the Launch screen for this dash type.
-- L86: Show the Launch screen on the Main Dash.
-- L88: Show the Launch screen on the Message Dash.
-- L91: Enable the Pit Limiter screen for this dash type.
-- L93: Show the Pit Limiter screen on the Main Dash.
-- L95: Show the Pit Limiter screen on the Message Dash.
-- L98: Enable the automatic pit screen for this dash type.
-- L100: Show the automatic pit screen on the Main Dash.
-- L102: Show the automatic pit screen on the Message Dash.
-- L105: Enable track rejoin assist for this dash type.
-- L107: Show track rejoin assist on the Main Dash.
-- L109: Show track rejoin assist on the Message Dash.
-- L112: Enable detailed race messages for this dash type.
-- L114: Show verbose race messages on the Main Dash.
-- L116: Show verbose race messages on the Message Dash.
-- L119: Enable race flag notifications for this dash type.
-- L121: Show race flags on the Main Dash.
-- L123: Show race flags on the Message Dash.
-- L126: Enable radio message popups for this dash type.
-- L128: Show radio messages on the Main Dash.
-- L130: Show radio messages on the Message Dash.
-- L133: Enable traffic alert warnings for this dash type.
-- L135: Show traffic alerts on the Main Dash.
-- L137: Show traffic alerts on the Message Dash.
-- L150: Save the current dash user variables to this profile.
-- L155: Resets the view to the 'Default Settings' profile.
-- L166: How long the rejoin warning remains after you return to the track (sec).
-- L168: Speed (kph) above which the rejoin warning clears automatically.
-- L170: Yaw rate (deg/s) above which a spin is detected.
-- L172: Seconds to impact for an approaching car before an overtake alert triggers.
-- L174: Target braking deceleration for pit entry assist (m/s²).
-- L176: Distance before pit entry to start the braking assist (m).
+- L60: Reserve fuel as a percentage of one lap (based on stable fuel burn) when calculating stint burn targets.
+- L88: Enable the Launch screen for this dash type.
+- L90: Show the Launch screen on the Main Dash.
+- L92: Show the Launch screen on the Message Dash.
+- L94: Show the Launch screen on the Overlay.
+- L96: Enable the Pit Limiter screen for this dash type.
+- L98: Show the Pit Limiter screen on the Main Dash.
+- L100: Show the Pit Limiter screen on the Message Dash.
+- L102: Show the Pit Limiter screen on the Overlay.
+- L105: Enable the automatic pit screen for this dash type.
+- L107: Show the automatic pit screen on the Main Dash.
+- L109: Show the automatic pit screen on the Message Dash.
+- L111: Show the automatic pit screen on the Overlay.
+- L114: Enable track rejoin assist for this dash type.
+- L116: Show track rejoin assist on the Main Dash.
+- L118: Show track rejoin assist on the Message Dash.
+- L120: Show track rejoin assist on the Overlay.
+- L123: Enable detailed race messages for this dash type.
+- L125: Show verbose race messages on the Main Dash.
+- L127: Show verbose race messages on the Message Dash.
+- L129: Show verbose race messages on the Overlay.
+- L132: Enable race flag notifications for this dash type.
+- L134: Show race flags on the Main Dash.
+- L136: Show race flags on the Message Dash.
+- L138: Show race flags on the Overlay.
+- L141: Enable radio message popups for this dash type.
+- L143: Show radio messages on the Main Dash.
+- L145: Show radio messages on the Message Dash.
+- L147: Show radio messages on the Overlay.
+- L150: Enable traffic alert warnings for this dash type.
+- L152: Show traffic alerts on the Main Dash.
+- L154: Show traffic alerts on the Message Dash.
+- L156: Show traffic alerts on the Overlay.
+- L170: Save the current dash user variables to this profile.
+- L175: Resets the view to the 'Default Settings' profile.
+- L185: How long the rejoin warning remains after you return to the track (sec).
+- L188: Speed (kph) above which the rejoin warning clears automatically.
+- L190: Yaw rate (deg/s) above which a spin is detected.
+- L192: Seconds to impact for an approaching car before an overtake alert triggers.
+- L194: Target braking deceleration for pit entry assist (m/s²).
+- L196: Distance before pit entry to start the braking assist (m).
 
 ## FuelCalculatorView.xaml
 - L114: Inputs used to calculate the pre-race fuel plan.

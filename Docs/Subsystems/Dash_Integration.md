@@ -1,7 +1,7 @@
 # Dash Integration
 
-Validated against commit: 298accf  
-Last updated: 2026-02-10  
+Validated against commit: b45bc8f  
+Last updated: 2026-02-12  
 Branch: work
 
 ## Purpose
@@ -24,6 +24,19 @@ Define how SimHub exports from LalaLaunch should be consumed by dashboards with 
 - **Direction:** Marker up = early; marker down = late.
 - **Secondary labels:** Show `Pit.EntryCueText` beside the marker; keep colours neutral to avoid masking small movements.
 - **Expression hygiene:** Force floating-point math in SimHub expressions (e.g., `150.0`) to prevent integer truncation; avoid nested `if` blocks that cause stepped movement.
+
+## Pit screen mode + visibility exports
+- **Properties:** `PitScreenActive`, `PitScreenMode`.
+- **Mode values:** `auto` (pit-road auto mode) or `manual` (user toggled on track). Use these to display distinct banners or colour treatments when the pit screen is intentionally forced on.
+- **Manual lifecycle:** manual mode is reset to auto on session token changes or car/track combo changes; if you cache state in dashboards, clear it on those transitions.
+
+### Dash visibility toggles
+- **Main dash:** `LalaDashShow*`
+- **Message dash:** `MsgDashShow*`
+- **Overlay:** `OverlayDashShow*`
+
+Use these toggles as hard gates for visibility. For pit-screen overlays, combine:
+- `PitScreenActive` AND relevant `*ShowPitScreen` toggle.
 
 ## Reset behaviour
 - Hide or clear Pit Entry Assist visuals when:

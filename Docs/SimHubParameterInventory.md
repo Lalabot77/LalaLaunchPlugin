@@ -2,9 +2,9 @@
 
 **CANONICAL CONTRACT**
 
-Validated against: 9f784a9  
-Last reviewed: 2026-01-14  
-Last updated: 2026-01-14  
+Validated against: b45bc8f  
+Last reviewed: 2026-02-12  
+Last updated: 2026-02-12  
 Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
@@ -16,6 +16,8 @@ Branch: work
 | --- | --- | --- | --- | --- |
 | Fuel.LiveFuelPerLap | double | Rolling average burn per accepted lap (wet/dry windows, rejects pit/warmup/off-track/outliers). | 500 ms poll (`UpdateLiveFuelCalcs`). | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L1895-L2143】【F:LalaLaunch.cs†L2672-L2955】 |
 | Fuel.LiveFuelPerLap_Stable / StableSource / StableConfidence | double/string/double | Smoothed burn chosen from live/profile (deadband hold; confidence aligned to source). | 500 ms poll. | `LalaLaunch.cs` — `UpdateStableFuelPerLap` + `AttachCore`【F:LalaLaunch.cs†L4180-L4254】【F:LalaLaunch.cs†L2672-L2955】 |
+| LalaLaunch.Surface.TrackWetness | int | Raw iRacing track wetness (0–3/4 depending on telemetry); informational only. | 500 ms poll. | `LalaLaunch.cs` — `ReadTrackWetness` + `AttachCore`【F:LalaLaunch.cs†L1402-L1426】【F:LalaLaunch.cs†L6095-L6134】【F:LalaLaunch.cs†L2996-L3003】 |
+| LalaLaunch.Surface.TrackWetnessLabel | string | Human label for track wetness (“Dry/Damp/Light Wet/Mod Wet/Very Wet/Unknown”). | 500 ms poll. | `LalaLaunch.cs` — `MapWetnessLabel` + `AttachCore`【F:LalaLaunch.cs†L1402-L1426】【F:LalaLaunch.cs†L6115-L6134】【F:LalaLaunch.cs†L2996-L3003】 |
 | Fuel.FuelReadyConfidenceThreshold | double | Confidence threshold gating fuel readiness and pit window. | 500 ms poll. | `LalaLaunch.cs` — `GetFuelReadyConfidenceThreshold` + `AttachCore`【F:LalaLaunch.cs†L2672-L2955】 |
 | Fuel.LiveLapsRemainingInRace / _S | double | Projected laps remaining using stable burn & lap time with EMA-smoothed string variant. | 500 ms poll. | `LalaLaunch.cs` — `ComputeProjectedLapsRemaining`, `UpdateSmoothedFuelOutputs`, `AttachCore`【F:LalaLaunch.cs†L1895-L2143】【F:LalaLaunch.cs†L4243-L4306】【F:LalaLaunch.cs†L2676-L2690】 |
 | Fuel.LiveLapsRemainingInRace_Stable / _Stable_S | double | Explicit stable mirror of the projection (for dash/debug). | 500 ms poll. | `LalaLaunch.cs` — `UpdateSmoothedFuelOutputs` + `AttachCore`【F:LalaLaunch.cs†L4243-L4306】【F:LalaLaunch.cs†L2676-L2690】 |
@@ -24,6 +26,7 @@ Branch: work
 | Fuel.LapsRemainingInTank | double | Tank fuel ÷ stable (or live) burn. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L1895-L1967】【F:LalaLaunch.cs†L2687-L2690】 |
 | Fuel.Confidence | int | Fuel-model confidence from accepted window size/quality. | 500 ms poll. | `LalaLaunch.cs` — `ComputeFuelModelConfidence` + `AttachCore`【F:LalaLaunch.cs†L1830-L1890】【F:LalaLaunch.cs†L2688-L2691】 |
 | Fuel.PushFuelPerLap / Fuel.FuelSavePerLap | double | Push = max session burn or +2%; Save = min window burn or 97% fallback. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L2005-L2143】【F:LalaLaunch.cs†L2690-L2694】 |
+| Fuel.StintBurnTarget / Fuel.StintBurnTargetBand | double/string | Current-tank per-lap burn target plus band label (SAVE/PUSH/HOLD/OKAY) based on pit-in reserve percentage. | 500 ms poll. | `LalaLaunch.cs` — stint target block + `AttachCore`【F:LalaLaunch.cs†L2371-L2449】【F:LalaLaunch.cs†L3017-L3021】 |
 | Fuel.DeltaLapsIfPush / Fuel.CanAffordToPush | double/bool | Surplus/deficit if driving at push burn and affordability flag. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L2005-L2143】【F:LalaLaunch.cs†L2690-L2694】 |
 | Fuel.Delta.LitresCurrent / Plan / WillAdd | double | Liter delta to finish for current fuel, MFD request, and clamped add at stable burn. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L2145-L2195】【F:LalaLaunch.cs†L2694-L2702】 |
 | Fuel.Delta.LitresCurrentPush / PlanPush / WillAddPush | double | Same deltas assuming push burn. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L2145-L2210】【F:LalaLaunch.cs†L2697-L2702】 |
@@ -168,9 +171,11 @@ Branch: work
 | --- | --- | --- | --- | --- |
 | CurrentDashPage | string | Current dash page set by `ScreenManager`. | Per tick. | `LalaLaunch.cs` — `Screens` state + `AttachCore`【F:LalaLaunch.cs†L2805-L2810】【F:LalaLaunch.cs†L3688-L3730】 |
 | DashControlMode | string | Dash control mode (“manual”/“auto”). | Per tick. | `LalaLaunch.cs` — `Screens.Mode` + `AttachCore`【F:LalaLaunch.cs†L2805-L2810】【F:LalaLaunch.cs†L3688-L3730】 |
-| PitScreenActive | bool | Whether pit screen is currently shown. | Per tick. | `LalaLaunch.cs` — pit screen state + `AttachCore`【F:LalaLaunch.cs†L3732-L3763】【F:LalaLaunch.cs†L2815-L2818】 |
-| LalaDashShowLaunchScreen / LalaDashShowPitLimiter / LalaDashShowPitScreen / LalaDashShowRejoinAssist / LalaDashShowVerboseMessaging / LalaDashShowRaceFlags / LalaDashShowRadioMessages / LalaDashShowTraffic | bool | User visibility toggles for Lala dash. | Per tick. | `LaunchPluginSettings` persisted values + `AttachCore`【F:LalaLaunch.cs†L2832-L2841】 |
-| MsgDashShowLaunchScreen / MsgDashShowPitLimiter / MsgDashShowPitScreen / MsgDashShowRejoinAssist / MsgDashShowVerboseMessaging / MsgDashShowRaceFlags / MsgDashShowRadioMessages / MsgDashShowTraffic | bool | User visibility toggles for messaging dash. | Per tick. | `LaunchPluginSettings` persisted values + `AttachCore`【F:LalaLaunch.cs†L2842-L2849】 |
+| PitScreenActive | bool | Whether pit screen is currently shown. | Per tick. | `LalaLaunch.cs` — pit screen state + `AttachCore`【F:LalaLaunch.cs†L3732-L3878】【F:LalaLaunch.cs†L3158-L3162】 |
+| PitScreenMode | string | Pit screen mode (`auto` or `manual`). | Per tick. | `LalaLaunch.cs` — pit screen state + `AttachCore`【F:LalaLaunch.cs†L3837-L3878】【F:LalaLaunch.cs†L3158-L3162】 |
+| LalaDashShowLaunchScreen / LalaDashShowPitLimiter / LalaDashShowPitScreen / LalaDashShowRejoinAssist / LalaDashShowVerboseMessaging / LalaDashShowRaceFlags / LalaDashShowRadioMessages / LalaDashShowTraffic | bool | User visibility toggles for Lala dash. | Per tick. | `LaunchPluginSettings` persisted values + `AttachCore`【F:LalaLaunch.cs†L3177-L3185】 |
+| MsgDashShowLaunchScreen / MsgDashShowPitLimiter / MsgDashShowPitScreen / MsgDashShowRejoinAssist / MsgDashShowVerboseMessaging / MsgDashShowRaceFlags / MsgDashShowRadioMessages / MsgDashShowTraffic | bool | User visibility toggles for messaging dash. | Per tick. | `LaunchPluginSettings` persisted values + `AttachCore`【F:LalaLaunch.cs†L3187-L3195】 |
+| OverlayDashShowLaunchScreen / OverlayDashShowPitLimiter / OverlayDashShowPitScreen / OverlayDashShowRejoinAssist / OverlayDashShowVerboseMessaging / OverlayDashShowRaceFlags / OverlayDashShowRadioMessages / OverlayDashShowTraffic | bool | User visibility toggles for overlay dash. | Per tick. | `LaunchPluginSettings` persisted values + `AttachCore`【F:LalaLaunch.cs†L3197-L3205】 |
 
 ## Debug (verbose-only)
 | Exported name | Type | Units / meaning | Update cadence | Defined in |

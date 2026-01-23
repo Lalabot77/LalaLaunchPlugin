@@ -1,7 +1,7 @@
 # Profiles and Personal Bests
 
-Validated against commit: 9f784a9  
-Last updated: 2026-01-14  
+Validated against commit: b45bc8f  
+Last updated: 2026-02-12  
 Branch: work
 
 ## Purpose
@@ -63,7 +63,7 @@ PB laps are captured when:
 - Lap improves the stored PB for the active condition.
 - Session context allows PB capture.
 
-PB metadata (source + timestamp) is stored separately for dry and wet laps.
+PB metadata (source + timestamp) is stored separately for dry and wet laps. The **active condition** (dry vs wet) is driven by live wet-mode detection (tyre compound), so PB capture always aligns to the current surface mode.
 
 ---
 
