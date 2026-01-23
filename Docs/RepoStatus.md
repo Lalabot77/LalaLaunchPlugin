@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is the current HEAD with PRs #241–#269 (session summary v2 mapping, profile schema upgrades, JSON storage standardization, live max-fuel handling, preset/live snapshot fixes, and messaging signals). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
+- The latest commit on `work` is the current HEAD with PRs #241–#281 (session summary v2 mapping, profile schema upgrades, JSON storage standardization, live max-fuel handling, preset/live snapshot fixes, messaging signals, dash overlay visibility controls, pit-entry assist manual mode, pit-entry debrief/time-loss outputs, stint burn targets, wet/dry stat gating, and wet-surface detection). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
@@ -53,6 +53,8 @@
 
 ## Feature delivery status (docs canonical)
 - **Pit Entry Assist:** **COMPLETE** — stable, shipped, and represented in driver/dash docs. Uses pit speed + distance sources with decel/buffer tuning; no pending work in this repo.
+- **Pit entry assist (manual mode):** **COMPLETE** — pit entry assist can be manually armed via pit screen toggle when within 500 m; pit screen mode resets to auto on session/combo changes to avoid stale manual state.
+- **Pit entry line debrief + time loss:** **COMPLETE** — ENTRY LINE logs and exports capture safe/normal/bad results plus time loss vs pit limiter once below-limit distance is known.
 - **Track Markers:** **COMPLETE** — pit entry/exit markers auto-learned per track with lock/unlock semantics, track-length change detection, and MSGV1 notifications. Stored in `PluginsData/Common/LalaPlugin/TrackMarkers.json` (migrates from legacy filenames on load).
 - **MSGV1 for pit markers:** **INTEGRATED** — pit marker capture/length-delta/lock-mismatch messages defined in `PluginsData/Common/LalaPlugin/Messages.json` via `MessageDefinitionStore`; MSGV1 core continues elsewhere but this repo ships pit marker hooks.
 - **Legacy messaging:** **Not used** — only MSGV1 definition-driven messages fire; no legacy/adhoc messaging paths remain for pit markers.
@@ -68,6 +70,10 @@
 - **Fuel planner max-fuel handling:** **COMPLETE** — profile-mode max fuel override is clamped to per-car base tank; Live Snapshot mode uses live session cap (MaxFuel × BoP, defaulting BoP to 1.0) and raises a clear error when live cap is unavailable. The Live Session panel clears max-fuel displays when the cap is missing.
 - **Live Snapshot + presets:** **COMPLETE** — changing car/track clears the Live Snapshot UI to avoid stale data; switching back to Profile mode restores the previous profile max-fuel override and re-applies the selected preset.
 - **Messaging signals:** **COMPLETE** — `MSG.OtherClassBehindGap` exported for multi-class approach messaging; no `MSGOtherClassBehindGap` alias remains.
+- **Stint burn targets:** **COMPLETE** — live “current tank” burn guidance exported with banding (SAVE/HOLD/PUSH/OKAY) and a configurable pit-in reserve expressed as % of one lap’s stable burn.
+- **Dash overlay visibility:** **COMPLETE** — overlay dash receives the same show/hide toggles as main/message dashes, including pit/launch/rejoin/race flags and traffic alerts.
+- **Wet/dry stat gating:** **COMPLETE** — wet mode is detected via tire compound signals, wet stats are captured separately, and wet/dry confidence applies a cross-mode penalty when using opposite-condition data.
+- **Wet surface telemetry exports:** **COMPLETE** — track wetness and label are exported alongside live wet/dry mode updates for dashboards and live snapshot UI.
 
 ## Known/accepted limitations (intentional)
 - Replay session identity quirks can surface inconsistent session tokens in replays — accepted because replay identity data is unreliable (see `Reset_And_Session_Identity.md`).

@@ -1,7 +1,7 @@
 # Fuel Planner Tab
 
-Validated against commit: 9f784a9  
-Last updated: 2026-01-14  
+Validated against commit: b45bc8f  
+Last updated: 2026-02-12  
 Branch: work
 
 ## Purpose
@@ -68,6 +68,7 @@ From the Fuel Model and Pace subsystem:
 - Tank capacity detection (live cap = MaxFuel × BoP, with BoP defaulting to 1.0).
 - Pit loss estimates (lane + stop).
 - Session context (race vs non-race).
+- Live surface mode (wet/dry from tyre compound) and track wetness label for display.
 
 These values **inform** the planner but do not overwrite user-selected inputs unless the user opts in.
 
@@ -84,6 +85,11 @@ The planner tracks *what source is currently active* for each input:
   - manual / PB / profile / live
 - `FuelPerLapSourceInfo`
   - manual / profile / live / max
+
+### Track-condition handling (dry vs wet)
+- **Manual selection:** Drivers can explicitly switch the planner into dry or wet mode (per-track).
+- **Live Snapshot sync:** When the live surface mode is known (tyre compound), Live Snapshot mode auto-switches the planner to match unless the user has manually overridden the condition.
+- **Wet factor support:** If wet mode is selected but only dry profile stats exist, the planner scales dry values by the wet factor percentage and labels the source accordingly.
 
 ### Max fuel override handling (profile vs live)
 - **Profile mode:** `MaxFuelOverride` is clamped to the profile base tank (`BaseTankLitres`), and the UI shows a percent-of-base-tank badge.

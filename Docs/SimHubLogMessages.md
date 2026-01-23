@@ -2,9 +2,9 @@
 
 **CANONICAL OBSERVABILITY MAP**
 
-Validated against: 298accf  
-Last reviewed: 2026-01-14  
-Last updated: 2026-02-10  
+Validated against: b45bc8f  
+Last reviewed: 2026-02-12  
+Last updated: 2026-02-12  
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
@@ -35,6 +35,7 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Fuel Burn] Seeded race model from previous session ... conf=Z%.`** — Applies saved seeds on entering Race with matching car/track.【F:LalaLaunch.cs†L934-L956】
 - **`[LalaPlugin:Fuel Burn] Car/track change detected – clearing seeds and confidence`** — Fuel model reset because car or track identity changed.【F:LalaLaunch.cs†L968-L983】
 - **`[LalaPlugin:Session] token change old=... new=... type=...`** — Session identity changed (SessionID/SubSessionID); triggers subsystem resets and pit-save finalization.【F:LalaLaunch.cs†L3308-L3365】
+- **`[LalaPlugin:Surface] Mode flip Dry->Wet/Wet->Dry (tyres=..., PlayerTireCompound=..., ExtraProp=..., trackWetness=...)`** — Wet mode toggled based on tyre compound telemetry; includes track wetness context for the change.【F:LalaLaunch.cs†L1402-L1426】
 
 ## Lap detection and per-lap summaries
 - **`[LalaPlugin:Lap Detector] Pending expired ...`** — Armed lap increment expired without confirmation; includes target lap and pct.【F:LalaLaunch.cs†L1058-L1068】
@@ -99,6 +100,8 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Dash] Auto dash executed for session '...' – mode=auto, page='...'`** — Auto dash switched page on ignition-on/engine-start.【F:LalaLaunch.cs†L3711-L3724】
 - **`[LalaPlugin:Dash] Auto dash timer expired – mode set to 'manual'.`** — Auto dash reverted to manual after delay.【F:LalaLaunch.cs†L3718-L3729】
 - **`[LalaPlugin:PitScreen] Active -> <bool> (onPitRoad=..., dismissed=..., manual=...)`** — Pit screen visibility changed due to pit state or manual toggle.【F:LalaLaunch.cs†L3734-L3763】
+- **`[LalaPlugin:PitScreen] Mode -> <auto|manual> (onPitRoad=..., dismissed=..., manual=...)`** — Pit screen mode changed (manual toggle or automatic pit-road logic).【F:LalaLaunch.cs†L3875-L3878】
+- **`[LalaPlugin:PitScreen] Reset to auto (session-change|combo-change) -> mode=..., manual=..., dismissed=...`** — Manual pit screen was cleared due to session token or car/track combo changes.【F:LalaLaunch.cs†L3820-L3834】【F:LalaLaunch.cs†L4068-L4435】
 
 ## Finish timing and after-zero observation
 - **`[LalaPlugin:Finish] checkered_flag trigger=flag ...`** — Finish detection driven by session flag data; includes leader/class validity and multiclass flag.【F:LalaLaunch.cs†L4566-L4715】
@@ -143,13 +146,14 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:SessionSummary] AppendSummaryRow called green=... checkered=...`** — Session summary CSV writer invoked; row is only appended when green and checkered are both seen.【F:SessionSummaryLogger.cs†L50-L74】
 
 ## Pit Entry Assist
-- **`[LalaPlugin:PitEntryAssist] ACTIVATE dToLine=... dReq=... margin=... spdΔ=... decel=... buffer=... cue=...`** — Edge-triggered when the assist arms (EnteringPits **or** limiter ON with overspeed >2 kph). Captures the resolved distance source, constant-decel requirement, margin, speed delta, profiled decel, buffer, and cue at arming time.【F:PitEngine.cs†L240-L363】
-- **`[LalaPlugin:PitEntryAssist] LINE dToLine=... dReq=... margin=... spdΔ=... firstOK=... okBefore=... decel=... buffer=... cue=...`** — Edge-triggered on the pit-lane entry transition. Adds compliance markers: `firstOK` = distance to line where speed first dropped to pit limit during this activation; `okBefore` = metres compliant before the line (mirrors `firstOK` because compliance is recorded against distance-to-line). Used for tuning decel/buffer per track and verifying braking timing.【F:PitEngine.cs†L183-L216】
+- **`[LalaPlugin:PitEntryAssist] ACTIVATE dToLineRaw=... dToLineGuided=... dReq=... margin=... spdΔ=... decel=... buffer=... cue=...`** — Edge-triggered when the assist arms (EnteringPits, limiter overspeed, or pit-screen manual arming). Captures raw/guided distance, constant-decel requirement, margin, speed delta, profiled decel, buffer, and cue at arming time.【F:PitEngine.cs†L428-L446】
+- **`[LalaPlugin:PitEntryAssist] ENTRY LINE SAFE/NORMAL: Speed Δ at Line ...kph, Below Limiter at ...m, Time Loss: +...s`** — Edge-triggered on the pit-lane entry transition when below the limiter. Includes the first compliant distance and computed time loss vs the limiter.【F:PitEngine.cs†L460-L495】
+- **`[LalaPlugin:PitEntryAssist] ENTRY LINE BAD: Speed Δ at Line ...kph, Braked ...m too late`** — Edge-triggered on the pit-lane entry transition when still above the limiter; time loss is omitted/zero.【F:PitEngine.cs†L496-L507】
 - **`[LalaPlugin:PitEntryAssist] END`** — Edge-triggered when the assist disarms (pit entry handled, invalid inputs, distance ≥500 m, or arming removed).【F:PitEngine.cs†L376-L398】
 
 **Example pit entry lines:**
-- `[LalaPlugin:PitEntryAssist] ACTIVATE dToLine=185.3m dReq=142.7m margin=42.6m spdΔ=35.2kph decel=14.0 buffer=15.0 cue=2`
-- `[LalaPlugin:PitEntryAssist] LINE dToLine=3.2m dReq=0.0m margin=3.2m spdΔ=-2.1kph firstOK=58.4m okBefore=58.4m decel=14.0 buffer=15.0 cue=1`
+- `[LalaPlugin:PitEntryAssist] ACTIVATE dToLineRaw=185.3m dToLineGuided=170.3m dReq=142.7m margin=27.6m spdΔ=35.2kph decel=14.0 buffer=15.0 cue=2`
+- `[LalaPlugin:PitEntryAssist] ENTRY LINE SAFE: Speed Δ at Line -2.1kph, Below Limiter at 58.4m, Time Loss: +0.62s`
 - `[LalaPlugin:PitEntryAssist] END`
 
 ## Pit markers and track length

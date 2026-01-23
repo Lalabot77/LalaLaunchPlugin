@@ -1,7 +1,7 @@
 # Fuel Model
 
-Validated against commit: 9f784a9  
-Last updated: 2026-01-14  
+Validated against commit: b45bc8f  
+Last updated: 2026-02-12  
 Branch: work
 
 ## Purpose
@@ -56,6 +56,11 @@ It does **not** re-document:
 - “Active seeds” markers (so seeded laps aren’t immediately evicted).
 - Wet/dry mode flag influencing which window is considered “live”.
 
+### Surface detection & wet mode
+- **Wet mode source:** tire compound telemetry (iRacing PlayerTireCompound / extra property) drives `wet` vs `dry` mode. Track wetness telemetry is captured for dashboards but does not override the tyre-based mode.
+- **Track wetness exports:** numeric wetness and a label (“Dry”, “Damp”, “Light Wet”, “Mod Wet”, “Very Wet”, “Unknown”) are exported for UI display.
+- **Cross-mode penalty:** when using the opposite-condition window (e.g., wet mode with only dry samples), confidence applies a wet/dry match penalty.
+
 ### Seed handling across sessions
 - On session transitions, the model captures dry/wet seeds (burn averages + sample counts) and re-applies them when entering a Race session for the same car/track.
 - Seeded laps are protected from immediate eviction in the rolling window until fresh samples arrive.
@@ -97,6 +102,8 @@ On lap completion, compute fuel delta for the lap and apply rejection rules befo
 - Fuel delta sanity (>0.05 L, and <= max(10 L, 20% of effective tank)) → reject.
 - If profile baseline exists: require 0.5x–1.5x baseline → reject otherwise.
 
+Wet/dry mode **does not change** the acceptance rules; it only controls which condition’s rolling window receives the lap and which stats can be persisted.
+
 Source of truth: `FuelProperties_Spec.md`.
 
 ### 2) Rolling window maintenance (per accepted lap)
@@ -134,6 +141,8 @@ Using current fuel + projected laps + burns (push/stable/save), compute:
 - Liters needed vs end (`Fuel.Pit.TotalNeededToEnd`), liters to add (`Fuel.Pit.NeedToAdd`).
 - “Will add” litres based on MFD request clamped to tank space.
 - Required stops by capacity vs by plan, and final stops required to end.
+- **Stops-required fields:** `PitStopsRequiredByFuel` is computed from liters short ÷ effective tank capacity. `PitStopsRequiredByPlan` prefers the strategy-required stop count when available, otherwise falls back to the fuel-only calculation. `Pit.StopsRequiredToEnd` mirrors the plan-first value for dashboards.
+- **Stint burn target (current tank only):** a per-lap target burn that respects the configured pit-in reserve (percentage of one lap’s stable burn). The output is banded (`SAVE`/`PUSH`/`HOLD`/`OKAY`) to guide the current stint without implying long-term strategy.
 
 ### 7) Pit window state machine (continuous)
 Pit window is **race-only** and only meaningful when stops may be required.
@@ -161,6 +170,7 @@ See `Docs/SimHubParameterInventory.md` for the full list, but the main Fuel Mode
 - `Fuel.LiveFuelPerLap`, `Fuel.LiveFuelPerLap_Stable`, `Fuel.LiveFuelPerLap_StableSource`, `Fuel.LiveFuelPerLap_StableConfidence`
 - `Fuel.LiveLapsRemainingInRace(_Stable)` (+ `_S` strings)
 - `Fuel.DeltaLaps`, `Fuel.TargetFuelPerLap`, `Fuel.LapsRemainingInTank`
+- `Fuel.StintBurnTarget`, `Fuel.StintBurnTargetBand`
 - Pit deltas and need-to-add: `Fuel.Pit.*` and `Fuel.Delta.*`
 - Stops required: `Fuel.PitStopsRequiredByFuel`, `Fuel.PitStopsRequiredByPlan`, `Fuel.Pit.StopsRequiredToEnd`
 - After-zero model: `Fuel.Live.DriveTimeAfterZero`, `Fuel.Live.ProjectedDriveSecondsRemaining`
@@ -173,6 +183,7 @@ Fuel model emits structured INFO logs for:
 - Per-lap acceptance/rejection summary (fuel + pace + projection lines).
 - Projection source changes (lap-time source, after-zero source).
 - Pit window state changes (debounced).
+- Wet surface mode flips (tyre compound changes) with track wetness context.
 
 ---
 

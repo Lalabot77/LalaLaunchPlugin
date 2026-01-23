@@ -1,7 +1,7 @@
 # Pace and Projection
 
-Validated against commit: 298accf  
-Last updated: 2026-02-10  
+Validated against commit: b45bc8f  
+Last updated: 2026-02-12  
 Branch: work
 
 ## Purpose
@@ -100,6 +100,8 @@ On each lap completion:
 - Reject laps marked invalid by incident logic (if present).
 
 Accepted laps feed pace windows; rejected laps do not affect averages.
+
+Wet/dry mode does **not** change pace validity rules; it only influences how the resulting lap stats are persisted to dry vs wet profile fields.
 
 Acceptance rules mirror fuel-lap acceptance where possible.
 
