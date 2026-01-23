@@ -982,6 +982,7 @@ namespace LaunchPlugin
             _lastPitWindowLogUtc = DateTime.MinValue;
 
             FuelCalculator?.ResetTrackConditionOverrideForSessionChange();
+            FuelCalculator?.ResetPlannerManualOverrides();
 
             // Clear pace tracking alongside fuel model resets so session transitions don't carry stale data
             _recentLapTimes.Clear();
