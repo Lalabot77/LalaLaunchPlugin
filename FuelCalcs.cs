@@ -102,6 +102,8 @@ namespace LaunchPlugin
 
     private bool _isApplyingPlanningSourceUpdates;
     private bool _suppressManualOverrideTracking;
+    private const double LiveFuelPerLapDeadband = 0.02;
+    private const double LiveLapTimeDeadbandSeconds = 0.05;
 
 
     private string _liveLapPaceInfo = "-";
@@ -2919,6 +2921,7 @@ namespace LaunchPlugin
             if (applyLapTime && !IsEstimatedLapTimeManual)
             {
                 TimeSpan? lap = null;
+                bool isLiveLap = false;
 
                 string lapSource = null;
 
@@ -2932,21 +2935,40 @@ namespace LaunchPlugin
                     if (IsLiveLapPaceAvailable)
                     {
                         lap = GetLiveAverageLapTimeSnapshot();
-                            lapSource = "Live avg";
-                        }
-                        else
-                        {
-                            lap = GetProfileLapTimeForCondition(IsWet, out lapSource);
-                        }
+                        lapSource = "Live avg";
+                        isLiveLap = true;
+                    }
+                    else
+                    {
+                        lap = GetProfileLapTimeForCondition(IsWet, out lapSource);
+                    }
+                }
+
+                if (lap.HasValue)
+                {
+                    double currentLapSeconds = ParseLapTime(EstimatedLapTime);
+                    double nextLapSeconds = lap.Value.TotalSeconds;
+                    bool shouldApply = true;
+
+                    if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+                        && isLiveLap
+                        && currentLapSeconds > 0.0
+                        && Math.Abs(nextLapSeconds - currentLapSeconds) < LiveLapTimeDeadbandSeconds)
+                    {
+                        shouldApply = false;
                     }
 
-                    if (lap.HasValue)
-                {
-                    EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
-                    IsEstimatedLapTimeManual = false;
-                    LapTimeSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
-                        ? FormatConditionSourceLabel("Profile avg")
-                        : FormatConditionSourceLabel("Live avg");
+                    if (shouldApply)
+                    {
+                        ApplySourceUpdate(() =>
+                        {
+                            EstimatedLapTime = lap.Value.ToString("m\\:ss\\.fff");
+                            IsEstimatedLapTimeManual = false;
+                            LapTimeSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
+                                ? FormatConditionSourceLabel("Profile avg")
+                                : FormatConditionSourceLabel("Live avg");
+                        });
+                    }
                 }
             }
 
@@ -2954,6 +2976,7 @@ namespace LaunchPlugin
             {
                 double? fuel = null;
                 string fuelSource = null;
+                bool isLiveFuel = false;
 
                 if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
                 {
@@ -2966,16 +2989,40 @@ namespace LaunchPlugin
                 else if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
                 {
                     fuel = GetLiveAverageFuelPerLapForCurrentCondition();
+                    isLiveFuel = true;
                 }
 
                 if (fuel.HasValue)
                 {
-                    FuelPerLap = fuel.Value;
-                    FuelPerLapText = fuel.Value.ToString("0.00", CultureInfo.InvariantCulture);
-                    IsFuelPerLapManual = false;
-                    FuelPerLapSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
-                        ? FormatConditionSourceLabel("Profile avg")
-                        : FormatConditionSourceLabel("Live avg");
+                    bool shouldApply = true;
+                    if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+                        && isLiveFuel
+                        && FuelPerLap > 0.0
+                        && Math.Abs(fuel.Value - FuelPerLap) < LiveFuelPerLapDeadband)
+                    {
+                        shouldApply = false;
+                    }
+
+                    if (shouldApply)
+                    {
+                        ApplySourceUpdate(() =>
+                        {
+                            FuelPerLap = fuel.Value;
+                            _suppressFuelTextSync = true;
+                            try
+                            {
+                                FuelPerLapText = fuel.Value.ToString("0.00", CultureInfo.InvariantCulture);
+                            }
+                            finally
+                            {
+                                _suppressFuelTextSync = false;
+                            }
+                            IsFuelPerLapManual = false;
+                            FuelPerLapSourceInfo = SelectedPlanningSourceMode == PlanningSourceMode.Profile
+                                ? FormatConditionSourceLabel("Profile avg")
+                                : FormatConditionSourceLabel("Live avg");
+                        });
+                    }
                 }
             }
         }
