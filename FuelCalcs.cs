@@ -349,7 +349,7 @@ namespace LaunchPlugin
                 }
                 else
                 {
-                    MaxFuelOverride = 0.0;
+                    MaxFuelOverride = _lastProfileMaxFuelOverride;
                 }
             }
 
@@ -4294,6 +4294,13 @@ namespace LaunchPlugin
         }
 
         RefreshLiveMaxFuelDisplays(liveMaxFuel);
+
+        if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+            && IsLiveSessionActive
+            && liveMaxFuel > 0.0)
+        {
+            MaxFuelOverride = liveMaxFuel;
+        }
     }
 
         public void CalculateStrategy()
