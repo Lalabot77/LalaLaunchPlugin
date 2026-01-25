@@ -27,6 +27,7 @@ Branch: work
 | Fuel.Confidence | int | Fuel-model confidence from accepted window size/quality. | 500 ms poll. | `LalaLaunch.cs` — `ComputeFuelModelConfidence` + `AttachCore`【F:LalaLaunch.cs†L1830-L1890】【F:LalaLaunch.cs†L2688-L2691】 |
 | Fuel.PushFuelPerLap / Fuel.FuelSavePerLap | double | Push = max session burn or +2%; Save = min window burn or 97% fallback. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L2005-L2143】【F:LalaLaunch.cs†L2690-L2694】 |
 | Fuel.StintBurnTarget / Fuel.StintBurnTargetBand | double/string | Current-tank per-lap burn target plus band label (SAVE/PUSH/HOLD/OKAY) based on pit-in reserve percentage. | 500 ms poll. | `LalaLaunch.cs` — stint target block + `AttachCore`【F:LalaLaunch.cs†L2371-L2449】【F:LalaLaunch.cs†L3017-L3021】 |
+| Fuel.FuelBurnPredictor / Fuel.FuelBurnPredictorSource | double/string | Predictor burn: stable burn until 5 valid laps, then rolling 3-lap average. Source labels: SIMHUB/PLUGIN/STINT/AVG3. | 500 ms poll. | `LalaLaunch.cs` — predictor outputs + `AttachCore`【F:LalaLaunch.cs†L5364-L5427】【F:LalaLaunch.cs†L3030-L3033】 |
 | Fuel.DeltaLapsIfPush / Fuel.CanAffordToPush | double/bool | Surplus/deficit if driving at push burn and affordability flag. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L2005-L2143】【F:LalaLaunch.cs†L2690-L2694】 |
 | Fuel.Delta.LitresCurrent / Plan / WillAdd | double | Liter delta to finish for current fuel, MFD request, and clamped add at stable burn. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L2145-L2195】【F:LalaLaunch.cs†L2694-L2702】 |
 | Fuel.Delta.LitresCurrentPush / PlanPush / WillAddPush | double | Same deltas assuming push burn. | 500 ms poll. | `LalaLaunch.cs` — `UpdateLiveFuelCalcs` + `AttachCore`【F:LalaLaunch.cs†L2145-L2210】【F:LalaLaunch.cs†L2697-L2702】 |
@@ -61,6 +62,7 @@ Branch: work
 | Pace.LeaderDeltaToPlayerSec | double | Leader pace minus player pace. | Per lap. | `LalaLaunch.cs` — `UpdateLeaderDelta` + `AttachCore`【F:LalaLaunch.cs†L1080-L1405】【F:LalaLaunch.cs†L2734-L2737】 |
 | Pace.PaceConfidence | int | Confidence derived from clean pace window size/outlier rejection. | Per lap. | `LalaLaunch.cs` — `ComputePaceConfidence` + `AttachCore`【F:LalaLaunch.cs†L1080-L1405】【F:LalaLaunch.cs†L2735-L2737】 |
 | Pace.OverallConfidence | int | Combined fuel/pace confidence (probabilistic product). | Per lap / poll. | `LalaLaunch.cs` — `OverallConfidence` getter + `AttachCore`【F:LalaLaunch.cs†L468-L491】【F:LalaLaunch.cs†L2736-L2737】 |
+| Pace.PacePredictor / Pace.PacePredictorSource | double/string | Predictor lap time: projection lap time until 5 clean laps, then rolling 3-lap average. Source labels: SIMHUB/PLUGIN/STINT/AVG5/AVG3. | Per lap / poll. | `LalaLaunch.cs` — predictor outputs + `AttachCore`【F:LalaLaunch.cs†L5364-L5427】【F:LalaLaunch.cs†L3073-L3081】 |
 
 ## Opponents & Pit Exit
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
