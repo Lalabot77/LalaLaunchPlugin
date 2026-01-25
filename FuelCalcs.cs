@@ -1943,7 +1943,18 @@ namespace LaunchPlugin
     {
         get
         {
-            if (SelectedPlanningSourceMode != PlanningSourceMode.Profile && _appliedPreset != null)
+            if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+            {
+                var liveCap = GetLiveSessionCapLitresOrNull();
+                if (liveCap.HasValue && liveCap.Value > 0.0)
+                {
+                    return liveCap.Value;
+                }
+
+                return MaxFuelOverride;
+            }
+
+            if (_appliedPreset != null)
             {
                 var presetValue = GetPresetMaxFuelOverrideLitres(_appliedPreset);
                 if (presetValue.HasValue)
