@@ -1,5 +1,7 @@
 ﻿// File: RacePreset.cs
 // Namespace must match the rest of your plugin.
+using Newtonsoft.Json;
+
 namespace LaunchPlugin
 {
     public enum RacePresetType
@@ -30,8 +32,12 @@ namespace LaunchPlugin
         // Tyre change time (seconds). null => leave current UI value unchanged.
         public double? TireChangeTimeSec { get; set; }
 
-        // Max fuel override (litres). null => leave current UI value unchanged.
-        public double? MaxFuelLitres { get; set; }
+        // Max fuel override (% of base tank). null => leave current UI value unchanged.
+        public double? MaxFuelPercent { get; set; }
+
+        // Legacy max fuel override in litres (kept for backward compatibility with old JSON).
+        [JsonProperty("MaxFuelLitres", NullValueHandling = NullValueHandling.Ignore)]
+        public double? LegacyMaxFuelLitres { get; set; }
 
         // Contingency buffer
         public bool ContingencyInLaps { get; set; } = true; // true = laps; false = litres

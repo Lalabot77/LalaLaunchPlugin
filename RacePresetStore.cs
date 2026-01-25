@@ -141,7 +141,7 @@ namespace LaunchPlugin
                     RaceMinutes = 40,
                     MandatoryStopRequired = false,
                     TireChangeTimeSec = 0,        // 0 = no planned tyre change
-                    MaxFuelLitres = null,         // null => leave current UI value
+                    MaxFuelPercent = 100,         // percent of base tank
                     ContingencyInLaps = true,
                     ContingencyValue = 1.0
                 },
@@ -152,7 +152,7 @@ namespace LaunchPlugin
                     RaceMinutes = 25,
                     MandatoryStopRequired = false,
                     TireChangeTimeSec = 0,
-                    MaxFuelLitres = null,
+                    MaxFuelPercent = 100,
                     ContingencyInLaps = true,
                     ContingencyValue = 0.5
                 },
@@ -163,7 +163,7 @@ namespace LaunchPlugin
                     RaceLaps = 30,
                     MandatoryStopRequired = false,
                     TireChangeTimeSec = 0,
-                    MaxFuelLitres = null,
+                    MaxFuelPercent = 100,
                     ContingencyInLaps = true,
                     ContingencyValue = 1.0
                 }
