@@ -111,8 +111,23 @@ namespace LaunchPlugin
         {
             var s = EditorSelection;
             // No defaults here: blank when nothing selected
-            EditingPreset = s != null ? Clone(s) : new RacePreset { Name = "" };
+            EditingPreset = s != null ? CreateEditableCopy(s) : new RacePreset { Name = "" };
             _originalName = s?.Name ?? "";
+        }
+
+        private RacePreset CreateEditableCopy(RacePreset p)
+        {
+            var clone = Clone(p);
+            if (!clone.MaxFuelPercent.HasValue && clone.LegacyMaxFuelLitres.HasValue)
+            {
+                var baseTank = _vm?.MaxFuelOverrideMaximum ?? 0.0;
+                if (baseTank > 0.0)
+                {
+                    clone.MaxFuelPercent = Math.Round((clone.LegacyMaxFuelLitres.Value / baseTank) * 100.0, 1);
+                }
+            }
+
+            return clone;
         }
 
         private static RacePreset Clone(RacePreset p) => new RacePreset
@@ -123,7 +138,8 @@ namespace LaunchPlugin
             RaceLaps = p.RaceLaps,
             MandatoryStopRequired = p.MandatoryStopRequired,
             TireChangeTimeSec = p.TireChangeTimeSec,
-            MaxFuelLitres = p.MaxFuelLitres,
+            MaxFuelPercent = p.MaxFuelPercent,
+            LegacyMaxFuelLitres = p.LegacyMaxFuelLitres,
             ContingencyInLaps = p.ContingencyInLaps,
             ContingencyValue = p.ContingencyValue
         };
@@ -154,7 +170,13 @@ namespace LaunchPlugin
                 }
 
                 // Save (VM updates in place, persists, refreshes collection, reapplies if active)
-                var saved = _vm.SavePresetEdits(_originalName, Clone(EditingPreset));
+                var normalized = Clone(EditingPreset);
+                if (normalized.MaxFuelPercent.HasValue)
+                {
+                    normalized.LegacyMaxFuelLitres = null;
+                }
+
+                var saved = _vm.SavePresetEdits(_originalName, normalized);
                 _originalName = saved?.Name ?? EditingPreset.Name; // track new name for subsequent edits
 
                 // Keep editing the same (possibly renamed) preset using LOCAL selection

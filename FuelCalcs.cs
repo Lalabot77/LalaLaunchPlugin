@@ -779,8 +779,14 @@ namespace LaunchPlugin
             TireChangeTime = p.TireChangeTimeSec.Value;
 
         // Max fuel override: only when specified
-        if (p.MaxFuelLitres.HasValue && SelectedPlanningSourceMode == PlanningSourceMode.Profile)
-            MaxFuelOverride = p.MaxFuelLitres.Value;
+        if (SelectedPlanningSourceMode == PlanningSourceMode.Profile)
+        {
+            var presetMaxFuel = GetPresetMaxFuelOverrideLitres(p);
+            if (presetMaxFuel.HasValue)
+            {
+                MaxFuelOverride = presetMaxFuel.Value;
+            }
+        }
 
         // Contingency
         IsContingencyInLaps = p.ContingencyInLaps;
@@ -826,9 +832,12 @@ namespace LaunchPlugin
         bool tyreDiff = _appliedPreset.TireChangeTimeSec.HasValue &&
                         Math.Abs(_appliedPreset.TireChangeTimeSec.Value - TireChangeTime) > 0.05;
 
-        bool fuelDiff = SelectedPlanningSourceMode == PlanningSourceMode.Profile &&
-                        _appliedPreset.MaxFuelLitres.HasValue &&
-                        Math.Abs(_appliedPreset.MaxFuelLitres.Value - MaxFuelOverride) > 0.05;
+        var appliedMaxFuel = SelectedPlanningSourceMode == PlanningSourceMode.Profile
+            ? GetPresetMaxFuelOverrideLitres(_appliedPreset)
+            : null;
+
+        bool fuelDiff = appliedMaxFuel.HasValue &&
+                        Math.Abs(appliedMaxFuel.Value - MaxFuelOverride) > 0.05;
 
         bool contDiff =
             (_appliedPreset.ContingencyInLaps != IsContingencyInLaps) ||
@@ -1737,6 +1746,48 @@ namespace LaunchPlugin
         return baseTank.Value;
     }
 
+    private double? ConvertMaxFuelOverrideToPercent(double overrideLitres)
+    {
+        var baseTank = GetProfileBaseTankLitresOrDefault();
+        if (baseTank <= 0.0)
+        {
+            return null;
+        }
+
+        return (overrideLitres / baseTank) * 100.0;
+    }
+
+    private double? ConvertPresetPercentToLitres(double percent)
+    {
+        var baseTank = GetProfileBaseTankLitresOrDefault();
+        if (baseTank <= 0.0)
+        {
+            return null;
+        }
+
+        return baseTank * (percent / 100.0);
+    }
+
+    private double? GetPresetMaxFuelOverrideLitres(RacePreset preset)
+    {
+        if (preset == null)
+        {
+            return null;
+        }
+
+        if (preset.MaxFuelPercent.HasValue)
+        {
+            return ConvertPresetPercentToLitres(preset.MaxFuelPercent.Value);
+        }
+
+        if (preset.LegacyMaxFuelLitres.HasValue)
+        {
+            return preset.LegacyMaxFuelLitres.Value;
+        }
+
+        return null;
+    }
+
     private double? GetLiveSessionCapLitresOrNull()
     {
         var pluginManager = _plugin?.PluginManager;
@@ -2585,7 +2636,8 @@ namespace LaunchPlugin
         target.RaceLaps = source.RaceLaps;
         target.MandatoryStopRequired = source.MandatoryStopRequired;
         target.TireChangeTimeSec = source.TireChangeTimeSec;
-        target.MaxFuelLitres = source.MaxFuelLitres;
+        target.MaxFuelPercent = source.MaxFuelPercent;
+        target.LegacyMaxFuelLitres = source.LegacyMaxFuelLitres;
         target.ContingencyInLaps = source.ContingencyInLaps;
         target.ContingencyValue = source.ContingencyValue;
     }
@@ -2602,7 +2654,8 @@ namespace LaunchPlugin
             RaceLaps = source.RaceLaps,
             MandatoryStopRequired = source.MandatoryStopRequired,
             TireChangeTimeSec = source.TireChangeTimeSec,
-            MaxFuelLitres = source.MaxFuelLitres,
+            MaxFuelPercent = source.MaxFuelPercent,
+            LegacyMaxFuelLitres = source.LegacyMaxFuelLitres,
             ContingencyInLaps = source.ContingencyInLaps,
             ContingencyValue = source.ContingencyValue
         };
@@ -2718,7 +2771,8 @@ namespace LaunchPlugin
 
             MandatoryStopRequired = MandatoryStopRequired,
             TireChangeTimeSec = TireChangeTime,
-            MaxFuelLitres = MaxFuelOverride,
+            MaxFuelPercent = ConvertMaxFuelOverrideToPercent(MaxFuelOverride),
+            LegacyMaxFuelLitres = null,
 
             ContingencyInLaps = IsContingencyInLaps,
             ContingencyValue = ContingencyValue
@@ -2735,7 +2789,8 @@ namespace LaunchPlugin
             RaceMinutes = 40,
             MandatoryStopRequired = false,
             TireChangeTimeSec = 23,
-            MaxFuelLitres = 110,
+            MaxFuelPercent = null,
+            LegacyMaxFuelLitres = null,
             ContingencyInLaps = true,
             ContingencyValue = 1
         };
