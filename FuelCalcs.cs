@@ -2789,7 +2789,7 @@ namespace LaunchPlugin
             RaceMinutes = 40,
             MandatoryStopRequired = false,
             TireChangeTimeSec = 23,
-            MaxFuelPercent = null,
+            MaxFuelPercent = 100,
             LegacyMaxFuelLitres = null,
             ContingencyInLaps = true,
             ContingencyValue = 1
