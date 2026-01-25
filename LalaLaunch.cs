@@ -2641,7 +2641,10 @@ namespace LaunchPlugin
 
             LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
 
-            UpdatePredictorOutputs();
+            if (fuelPerLapForCalc > 0.0)
+            {
+                UpdatePredictorOutputs();
+            }
 
             UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
 
