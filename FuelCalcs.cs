@@ -318,6 +318,7 @@ namespace LaunchPlugin
             OnPropertyChanged(nameof(ShowProfileLapHelper));
             OnPropertyChanged(nameof(MaxFuelOverrideMaximum));
             OnPropertyChanged(nameof(MaxFuelOverridePercentDisplay));
+            OnPropertyChanged(nameof(MaxFuelOverrideDisplayValue));
             RaiseFuelChoiceIndicators();
             RaiseSourceWetFactorIndicators();
             CommandManager.InvalidateRequerySuggested();
@@ -851,6 +852,7 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(AppliedPreset));
         OnPropertyChanged(nameof(PresetBadge));
         OnPropertyChanged(nameof(IsPresetModifiedFlag));
+        OnPropertyChanged(nameof(MaxFuelOverrideDisplayValue));
     }
 
     public string FuelPerLapText
@@ -1937,6 +1939,44 @@ namespace LaunchPlugin
         return $"({Math.Round(percent)}%)";
     }
 
+    public double MaxFuelOverrideDisplayValue
+    {
+        get
+        {
+            if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+            {
+                if (_appliedPreset != null)
+                {
+                    var presetValue = GetPresetMaxFuelOverrideLitres(_appliedPreset);
+                    if (presetValue.HasValue)
+                    {
+                        return presetValue.Value;
+                    }
+                }
+
+                var liveCap = GetLiveSessionCapLitresOrNull();
+                if (liveCap.HasValue && liveCap.Value > 0.0)
+                {
+                    return liveCap.Value;
+                }
+
+                return GetProfileBaseTankLitresOrDefault();
+            }
+
+            if (_appliedPreset != null)
+            {
+                var presetValue = GetPresetMaxFuelOverrideLitres(_appliedPreset);
+                if (presetValue.HasValue)
+                {
+                    return presetValue.Value;
+                }
+            }
+
+            return MaxFuelOverride;
+        }
+        set => MaxFuelOverride = value;
+    }
+
     public double MaxFuelOverride
     {
         get => _maxFuelOverride;
@@ -1947,6 +1987,7 @@ namespace LaunchPlugin
             {
                 _maxFuelOverride = clamped;
                 OnPropertyChanged("MaxFuelOverride");
+                OnPropertyChanged(nameof(MaxFuelOverrideDisplayValue));
                 OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh)); // Notify UI to re-check the highlight
                 OnPropertyChanged(nameof(MaxFuelOverridePercentDisplay));
                 CalculateStrategy();
@@ -4358,9 +4399,9 @@ namespace LaunchPlugin
         }
     }
 
-        public void CalculateStrategy()
-        {
-            var ts = _plugin.ProfilesViewModel.TryGetCarTrack(SelectedCarProfile?.ProfileName, SelectedTrack);
+    public void CalculateStrategy()
+    {
+        var ts = _plugin.ProfilesViewModel.TryGetCarTrack(SelectedCarProfile?.ProfileName, SelectedTrack);
             bool usingDefaultProfile = false;
             if (ts == null)
             {
@@ -4374,9 +4415,23 @@ namespace LaunchPlugin
             double? liveCapLitres = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
                 ? GetLiveSessionCapLitresOrNull()
                 : (double?)null;
-            double maxFuelLimit = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
-                ? (liveCapLitres ?? 0.0)
-                : ClampMaxFuelOverride(MaxFuelOverride);
+            double maxFuelLimit;
+            if (SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot)
+            {
+                var presetCap = GetPresetMaxFuelOverrideLitres(_appliedPreset);
+                if (presetCap.HasValue)
+                {
+                    maxFuelLimit = presetCap.Value;
+                }
+                else
+                {
+                    maxFuelLimit = liveCapLitres ?? 0.0;
+                }
+            }
+            else
+            {
+                maxFuelLimit = ClampMaxFuelOverride(MaxFuelOverride);
+            }
 
             double num = PitLaneTimeLoss; // use the current value directly
 
@@ -4424,7 +4479,9 @@ namespace LaunchPlugin
             bool fuelInvalid = double.IsNaN(fuelPerLap) || double.IsInfinity(fuelPerLap) ||
                                fuelPerLap <= 0.0 || fuelPerLap > 50.0;
 
-            bool liveCapMissing = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot && !liveCapLitres.HasValue;
+            bool liveCapMissing = SelectedPlanningSourceMode == PlanningSourceMode.LiveSnapshot
+                                  && !liveCapLitres.HasValue
+                                  && !GetPresetMaxFuelOverrideLitres(_appliedPreset).HasValue;
             double maxAllowed = SelectedPlanningSourceMode == PlanningSourceMode.Profile
                 ? MaxFuelOverrideMaximum
                 : 500.0;
