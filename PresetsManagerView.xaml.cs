@@ -15,6 +15,8 @@ namespace LaunchPlugin
         private RacePreset _editingPreset;      // working copy for the right pane
         private RacePreset _editorSelection;    // local selection for the left list (decoupled from VM.SelectedPreset)
         private string _originalName;           // original name of the working copy, for rename-on-save
+        private bool _autoConvertedFromLegacy;
+        private double? _autoConvertedMaxFuelPercent;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -118,12 +120,16 @@ namespace LaunchPlugin
         private RacePreset CreateEditableCopy(RacePreset p)
         {
             var clone = Clone(p);
+            _autoConvertedFromLegacy = false;
+            _autoConvertedMaxFuelPercent = null;
             if (!clone.MaxFuelPercent.HasValue && clone.LegacyMaxFuelLitres.HasValue)
             {
                 var baseTank = _vm?.MaxFuelOverrideMaximum ?? 0.0;
                 if (baseTank > 0.0)
                 {
                     clone.MaxFuelPercent = Math.Round((clone.LegacyMaxFuelLitres.Value / baseTank) * 100.0, 1);
+                    _autoConvertedFromLegacy = true;
+                    _autoConvertedMaxFuelPercent = clone.MaxFuelPercent;
                 }
             }
 
@@ -173,7 +179,16 @@ namespace LaunchPlugin
                 var normalized = Clone(EditingPreset);
                 if (normalized.MaxFuelPercent.HasValue)
                 {
-                    normalized.LegacyMaxFuelLitres = null;
+                    if (_autoConvertedFromLegacy &&
+                        normalized.LegacyMaxFuelLitres.HasValue &&
+                        normalized.MaxFuelPercent == _autoConvertedMaxFuelPercent)
+                    {
+                        normalized.MaxFuelPercent = null;
+                    }
+                    else
+                    {
+                        normalized.LegacyMaxFuelLitres = null;
+                    }
                 }
 
                 var saved = _vm.SavePresetEdits(_originalName, normalized);
