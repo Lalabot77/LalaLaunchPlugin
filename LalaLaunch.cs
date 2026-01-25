@@ -508,6 +508,8 @@ namespace LaunchPlugin
         public double FuelSaveFuelPerLap { get; private set; }
         public double StintBurnTarget { get; private set; }
         public string StintBurnTargetBand { get; private set; } = "current";
+        public double FuelBurnPredictor { get; private set; }
+        public string FuelBurnPredictorSource { get; private set; } = "SIMHUB";
 
         public double LiveProjectedDriveTimeAfterZero { get; private set; }
         public double LiveProjectedDriveSecondsRemaining { get; private set; }
@@ -557,6 +559,8 @@ namespace LaunchPlugin
         public double Pace_StintAvgLapTimeSec { get; private set; }
         public double Pace_Last5LapAvgSec { get; private set; }
         public int PaceConfidence { get; private set; }
+        public double PacePredictor { get; private set; }
+        public string PacePredictorSource { get; private set; } = "SIMHUB";
         private bool _lastOnPitRoadForOpponents = false;
 
         public double ProjectionLapTime_Stable { get; private set; }
@@ -2181,6 +2185,8 @@ namespace LaunchPlugin
                 FuelSaveFuelPerLap = 0;
                 StintBurnTarget = 0;
                 StintBurnTargetBand = "current";
+                FuelBurnPredictor = 0;
+                FuelBurnPredictorSource = "SIMHUB";
                 LiveProjectedDriveTimeAfterZero = 0;
                 LiveProjectedDriveSecondsRemaining = 0;
 
@@ -2196,6 +2202,8 @@ namespace LaunchPlugin
                 Pace_Last5LapAvgSec = 0.0;
                 Pace_LeaderDeltaToPlayerSec = 0.0;
                 PaceConfidence = 0;
+                PacePredictor = 0.0;
+                PacePredictorSource = "SIMHUB";
                 FuelCalculator?.SetLiveLapPaceEstimate(0, 0);
                 FuelCalculator?.SetLiveConfidenceLevels(Confidence, PaceConfidence, OverallConfidence);
             }
@@ -2633,6 +2641,8 @@ namespace LaunchPlugin
 
             LiveLapsRemainingInRace_Stable = LiveLapsRemainingInRace;
 
+            UpdatePredictorOutputs();
+
             UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
 
             if (lapCrossed && string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
@@ -3019,6 +3029,8 @@ namespace LaunchPlugin
             AttachCore("Fuel.FuelSavePerLap", () => FuelSaveFuelPerLap);
             AttachCore("Fuel.StintBurnTarget", () => StintBurnTarget);
             AttachCore("Fuel.StintBurnTargetBand", () => StintBurnTargetBand);
+            AttachCore("Fuel.FuelBurnPredictor", () => FuelBurnPredictor);
+            AttachCore("Fuel.FuelBurnPredictorSource", () => FuelBurnPredictorSource);
             AttachCore("Fuel.DeltaLapsIfPush", () => DeltaLapsIfPush);
             AttachCore("Fuel.CanAffordToPush", () => CanAffordToPush);
             AttachCore("Fuel.Delta.LitresCurrent", () => Math.Round(Fuel_Delta_LitresCurrent, 1));
@@ -3065,6 +3077,8 @@ namespace LaunchPlugin
             AttachCore("Pace.LeaderDeltaToPlayerSec", () => Pace_LeaderDeltaToPlayerSec);
             AttachCore("Pace.PaceConfidence", () => PaceConfidence);
             AttachCore("Pace.OverallConfidence", () => OverallConfidence);
+            AttachCore("Pace.PacePredictor", () => PacePredictor);
+            AttachCore("Pace.PacePredictorSource", () => PacePredictorSource);
             AttachCore("Reset.LastSession", () => _lastSessionToken);
             AttachCore("Reset.ThisSession", () => _currentSessionToken);
             AttachCore("Reset.ThisSessionType", () => _finishTimingSessionType);
@@ -5345,6 +5359,71 @@ namespace LaunchPlugin
             LiveFuelPerLap_Stable = _stableFuelPerLap;
             LiveFuelPerLap_StableSource = _stableFuelPerLapSource;
             LiveFuelPerLap_StableConfidence = _stableFuelPerLapConfidence;
+        }
+
+        private static double? GetRollingAverage(List<double> samples, int sampleCount)
+        {
+            if (samples == null || samples.Count < sampleCount)
+            {
+                return null;
+            }
+
+            double sum = 0.0;
+            for (int i = samples.Count - sampleCount; i < samples.Count; i++)
+            {
+                sum += samples[i];
+            }
+
+            return sum / sampleCount;
+        }
+
+        private static string MapFuelPredictorSource(string stableSource)
+        {
+            if (string.Equals(stableSource, "Live", StringComparison.OrdinalIgnoreCase)) return "STINT";
+            if (string.Equals(stableSource, "Profile", StringComparison.OrdinalIgnoreCase)) return "PLUGIN";
+            return "SIMHUB";
+        }
+
+        private static string MapPacePredictorSource(string projectionSource)
+        {
+            if (string.Equals(projectionSource, "pace.stint", StringComparison.OrdinalIgnoreCase)) return "STINT";
+            if (string.Equals(projectionSource, "pace.last5", StringComparison.OrdinalIgnoreCase)) return "AVG5";
+            if (string.Equals(projectionSource, "profile.avg", StringComparison.OrdinalIgnoreCase)) return "PLUGIN";
+            if (string.Equals(projectionSource, "fuelcalc.estimated", StringComparison.OrdinalIgnoreCase)) return "SIMHUB";
+            if (string.Equals(projectionSource, "telemetry.lastlap", StringComparison.OrdinalIgnoreCase)) return "SIMHUB";
+            return "SIMHUB";
+        }
+
+        private void UpdatePredictorOutputs()
+        {
+            var fuelWindow = _isWetMode ? _recentWetFuelLaps : _recentDryFuelLaps;
+            double? fuelAvg3 = GetRollingAverage(fuelWindow, 3);
+            if (fuelWindow.Count >= 5 && fuelAvg3.HasValue)
+            {
+                FuelBurnPredictor = fuelAvg3.Value;
+                FuelBurnPredictorSource = "AVG3";
+            }
+            else
+            {
+                FuelBurnPredictor = LiveFuelPerLap_Stable;
+                FuelBurnPredictorSource = LiveFuelPerLap_Stable > 0.0
+                    ? MapFuelPredictorSource(LiveFuelPerLap_StableSource)
+                    : "SIMHUB";
+            }
+
+            double? paceAvg3 = GetRollingAverage(_recentLapTimes, 3);
+            if (_recentLapTimes.Count >= 5 && paceAvg3.HasValue)
+            {
+                PacePredictor = paceAvg3.Value;
+                PacePredictorSource = "AVG3";
+            }
+            else
+            {
+                PacePredictor = ProjectionLapTime_Stable;
+                PacePredictorSource = PacePredictor > 0.0
+                    ? MapPacePredictorSource(ProjectionLapTime_StableSource)
+                    : "SIMHUB";
+            }
         }
 
         private void UpdateSmoothedFuelOutputs(double requestedAddLitres)
