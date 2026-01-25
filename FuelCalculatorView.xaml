@@ -382,7 +382,7 @@
                                            ToolTip="Limit the usable tank size for restricted fuel races (L)." />
                             </Grid>
 
-                            <ui:TitledSlider Title="" Minimum="0" Maximum="{Binding MaxFuelOverrideMaximum}" Value="{Binding MaxFuelOverride, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel." IsEnabled="{Binding IsPlanningSourceProfile}">
+                            <ui:TitledSlider Title="" Minimum="0" Maximum="{Binding MaxFuelOverrideMaximum}" Value="{Binding MaxFuelOverrideDisplayValue, Mode=TwoWay}" ToolTip="Limit the car's tank size for races with restricted fuel." IsEnabled="{Binding IsPlanningSourceProfile}">
                                 <ui:TitledSlider.Resources>
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>

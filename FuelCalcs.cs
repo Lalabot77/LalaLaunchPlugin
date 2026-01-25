@@ -318,6 +318,7 @@ namespace LaunchPlugin
             OnPropertyChanged(nameof(ShowProfileLapHelper));
             OnPropertyChanged(nameof(MaxFuelOverrideMaximum));
             OnPropertyChanged(nameof(MaxFuelOverridePercentDisplay));
+            OnPropertyChanged(nameof(MaxFuelOverrideDisplayValue));
             RaiseFuelChoiceIndicators();
             RaiseSourceWetFactorIndicators();
             CommandManager.InvalidateRequerySuggested();
@@ -851,6 +852,7 @@ namespace LaunchPlugin
         OnPropertyChanged(nameof(AppliedPreset));
         OnPropertyChanged(nameof(PresetBadge));
         OnPropertyChanged(nameof(IsPresetModifiedFlag));
+        OnPropertyChanged(nameof(MaxFuelOverrideDisplayValue));
     }
 
     public string FuelPerLapText
@@ -1937,6 +1939,24 @@ namespace LaunchPlugin
         return $"({Math.Round(percent)}%)";
     }
 
+    public double MaxFuelOverrideDisplayValue
+    {
+        get
+        {
+            if (SelectedPlanningSourceMode != PlanningSourceMode.Profile && _appliedPreset != null)
+            {
+                var presetValue = GetPresetMaxFuelOverrideLitres(_appliedPreset);
+                if (presetValue.HasValue)
+                {
+                    return presetValue.Value;
+                }
+            }
+
+            return MaxFuelOverride;
+        }
+        set => MaxFuelOverride = value;
+    }
+
     public double MaxFuelOverride
     {
         get => _maxFuelOverride;
@@ -1947,6 +1967,7 @@ namespace LaunchPlugin
             {
                 _maxFuelOverride = clamped;
                 OnPropertyChanged("MaxFuelOverride");
+                OnPropertyChanged(nameof(MaxFuelOverrideDisplayValue));
                 OnPropertyChanged(nameof(IsMaxFuelOverrideTooHigh)); // Notify UI to re-check the highlight
                 OnPropertyChanged(nameof(MaxFuelOverridePercentDisplay));
                 CalculateStrategy();
