@@ -1,7 +1,7 @@
 # Fuel Planner Tab
 
-Validated against commit: b45bc8f  
-Last updated: 2026-02-12  
+Validated against commit: 708af0f  
+Last updated: 2026-01-27  
 Branch: work
 
 ## Purpose
@@ -93,7 +93,9 @@ The planner tracks *what source is currently active* for each input:
 
 ### Max fuel override handling (profile vs live)
 - **Profile mode:** `MaxFuelOverride` is clamped to the profile base tank (`BaseTankLitres`), and the UI shows a percent-of-base-tank badge.
+- **Preset max fuel input:** Preset max fuel is expressed as a **percentage of base tank** (default 100%), making presets portable across cars with different base tanks.
 - **Live Snapshot mode:** `MaxFuelOverride` is set from the live session cap (MaxFuel × BoP), or `0` if the live cap is unavailable.
+- **Preset visibility in Live Snapshot:** Preset max-fuel values remain visible (read-only) so drivers can compare preset intent against live caps.
 - **Mode transitions:** switching into Live Snapshot stores the previous profile override; switching back to Profile restores it and re-applies the selected preset (if any).
 - **Validation:** if the live cap is missing in Live Snapshot mode, the planner surfaces an explicit “Live max fuel cap unavailable” error and blocks strategy outputs.
 

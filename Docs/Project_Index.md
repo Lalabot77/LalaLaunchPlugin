@@ -1,7 +1,7 @@
 # Project Index
 
-Validated against commit: b45bc8f  
-Last updated: 2026-02-12  
+Validated against commit: 708af0f  
+Last updated: 2026-01-27  
 Branch: work
 
 ## What this repo is
@@ -78,6 +78,6 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - Fuel tab/UI source or planner changes → update `FuelTab_SourceFlowNotes.md`.
 
 ## Freshness
-- Validated against commit: b45bc8f  
-- Date: 2026-02-12  
+- Validated against commit: 708af0f  
+- Date: 2026-01-27  
 - Branch: work

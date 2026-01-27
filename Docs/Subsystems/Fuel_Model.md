@@ -1,7 +1,7 @@
 # Fuel Model
 
-Validated against commit: b45bc8f  
-Last updated: 2026-02-12  
+Validated against commit: 708af0f  
+Last updated: 2026-01-27  
 Branch: work
 
 ## Purpose
