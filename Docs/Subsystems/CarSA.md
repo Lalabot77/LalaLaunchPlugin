@@ -15,6 +15,7 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 - Backward distance: `(myPct - oppPct + 1.0) % 1.0`
 - Default: pit-road cars are **excluded** from candidate slots to reduce practice/quali noise.
 - Slot stability: a candidate replaces the current slot only if it is **at least 10% closer** (or the current slot is invalid).
+- Slot stability: if a slot swaps to a new `CarIdx`, the gap/closing-rate history is cleared to avoid carrying stale gap data across cars.
 
 ## RealGap (checkpoint stopwatch)
 - **60 checkpoints** evenly spaced around lapPct [0..1).

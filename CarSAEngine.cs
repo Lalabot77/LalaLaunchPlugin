@@ -393,6 +393,18 @@ namespace LaunchPlugin
                 return;
             }
 
+            if (slot.CarIdx != carIdx)
+            {
+                slot.HasGap = false;
+                slot.LastGapSec = 0.0;
+                slot.LastGapUpdateTimeSec = 0.0;
+                slot.ClosingRateSecPerSec = 0.0;
+                slot.GapRealSec = double.NaN;
+                slot.RealGapRawSec = double.NaN;
+                slot.RealGapAdjSec = double.NaN;
+                slot.LastSeenCheckpointTimeSec = 0.0;
+            }
+
             slot.CarIdx = carIdx;
             if (isAhead)
             {
