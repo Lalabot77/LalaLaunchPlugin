@@ -60,6 +60,7 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 ## Opponents and pit-exit prediction
 - **`[LalaPlugin:Opponents] Opponents subsystem active (Race session + lap gate met).`** — Gate opened (Race + CompletedLaps ≥1); outputs now live.【F:Opponents.cs†L72-L88】
 - **`[LalaPlugin:Opponents] Slot <slot> rebound -> <identity> (<name>)`** — Nearby slot (Ahead1/2, Behind1/2) re-bound to a new identity; pace cache persists per identity (logs gated to lap ≥1 and debug toggle).【F:Opponents.cs†L252-L361】
+- **`[LalaPlugin:CarSA] CarSA enabled (source=CarIdxTruth, checkpoints=60, slots=5/5)`** — CarSA subsystem became valid for the session (CarIdx truth, 60 checkpoints, 5/5 slots).【F:CarSAEngine.cs†L180-L186】
 - **`[LalaPlugin:PitExit] Predictor valid -> true (pitLoss=X.Xs)`** — Pit-exit predictor became valid with leaderboard/player row found.【F:Opponents.cs†L507-L566】
 - **`[LalaPlugin:PitExit] Predicted class position changed -> P# (ahead=N)`** — Predicted post-stop class position changed while valid (gated to lap ≥1 and debug toggle).【F:Opponents.cs†L532-L566】
 - **`[LalaPlugin:PitExit] Predictor valid -> false`** — Pit-exit predictor lost validity (no player row/leaderboard data).【F:Opponents.cs†L568-L579】

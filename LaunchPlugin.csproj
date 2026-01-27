@@ -131,6 +131,9 @@
       <DependentUpon>DashesTabView.xaml</DependentUpon>
     </Compile>
     <Compile Include="Opponents.cs" />
+    <Compile Include="CarSAEngine.cs" />
+    <Compile Include="CarSASlot.cs" />
+    <Compile Include="RealGapStopwatch.cs" />
     <Compile Include="LaunchPluginSettingsUI.xaml.cs">
       <DependentUpon>LaunchPluginSettingsUI.xaml</DependentUpon>
     </Compile>
