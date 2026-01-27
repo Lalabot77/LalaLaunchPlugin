@@ -3019,8 +3019,8 @@ namespace LaunchPlugin
             AttachCore("Fuel.LiveFuelPerLap_Stable", () => LiveFuelPerLap_Stable);
             AttachCore("Fuel.LiveFuelPerLap_StableSource", () => LiveFuelPerLap_StableSource);
             AttachCore("Fuel.LiveFuelPerLap_StableConfidence", () => LiveFuelPerLap_StableConfidence);
-            AttachCore("LalaLaunch.Surface.TrackWetness", () => TrackWetness);
-            AttachCore("LalaLaunch.Surface.TrackWetnessLabel", () => TrackWetnessLabel);
+            AttachCore("Surface.TrackWetness", () => TrackWetness);
+            AttachCore("Surface.TrackWetnessLabel", () => TrackWetnessLabel);
             AttachCore("Fuel.FuelReadyConfidenceThreshold", () => GetFuelReadyConfidenceThreshold());
             AttachCore("Fuel.LiveLapsRemainingInRace", () => LiveLapsRemainingInRace);
             AttachCore("Fuel.LiveLapsRemainingInRace_S", () => LiveLapsRemainingInRace_S);
