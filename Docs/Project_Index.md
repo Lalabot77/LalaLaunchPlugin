@@ -17,6 +17,7 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) — dash consumption and visualisation contracts (Pit Entry Assist + overlay visibility included).
 - [Subsystems/Track_Markers.md](Subsystems/Track_Markers.md) — pit entry/exit marker auto-learn, storage, locking, and MSGV1 notifications.
 - [Subsystems/Opponents.md](Subsystems/Opponents.md) — nearby pace/fight and pit-exit prediction (Race-only gate, lap ≥1).
+- [Subsystems/CarSA.md](Subsystems/CarSA.md) — car-based spatial awareness (session-agnostic, CarIdx truth, RealGap checkpoints).
 - [Subsystems/Message_System_V1.md](Subsystems/Message_System_V1.md) — notification layer for pit markers and other signals (definition-driven, no legacy messages).
 - [Subsystems/MessageEngineV1_Notes.md](Subsystems/MessageEngineV1_Notes.md) — SimHub export list + migration notes for MSGV1 and legacy MSG lanes.
 - [Subsystems/Trace_Logging.md](Subsystems/Trace_Logging.md) — session summary CSV + per-lap trace schema and lifecycle.
@@ -56,6 +57,7 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 | Pit Entry Assist | Pit entry braking cues, margin/cue maths, decel capture instrumentation | [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) (driver/dash/engine) |
 | Track markers | Auto-learned pit entry/exit markers (per track), locking, track-length change detection, MSGV1 notifications | [Subsystems/Track_Markers.md](Subsystems/Track_Markers.md) |
 | Opponents | Nearby pace/fight prediction and pit-exit class position forecasting (Race-only, lap gate ≥1, gaps absolute) | [Subsystems/Opponents.md](Subsystems/Opponents.md) |
+| CarSA | Car-based spatial awareness and RealGap checkpoints (session-agnostic, CarIdx truth) | [Subsystems/CarSA.md](Subsystems/CarSA.md) |
 | Dash integration | Screen manager modes, pit screen, dash visibility toggles (main/message/overlay), and Pit Entry Assist visual guidance | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Canonical docs map
