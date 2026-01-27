@@ -14,6 +14,10 @@ namespace LaunchPlugin
         private const double MaxRealGapSec = 600.0;
         private const double WrapAdjustThresholdFactor = 0.50;
         private const double ClosingRateClamp = 5.0;
+        private const double HalfLapFilterMin = 0.40;
+        private const double HalfLapFilterMax = 0.60;
+        private const int TrackSurfaceNotInWorld = -1;
+        private const int TrackSurfaceOnTrack = 3;
 
         private readonly RealGapStopwatch _stopwatch;
         private readonly CarSAOutputs _outputs;
@@ -62,6 +66,8 @@ namespace LaunchPlugin
             int onTrackCount = 0;
             int invalidLapPctCount = 0;
             int timestampUpdates = 0;
+            int filteredHalfLapAhead = 0;
+            int filteredHalfLapBehind = 0;
             bool playerCheckpointCrossed;
             int playerCheckpointIndex;
 
@@ -123,7 +129,15 @@ namespace LaunchPlugin
                 bool onTrack = true;
                 if (carIdxTrackSurface != null && carIdx < carIdxTrackSurface.Length)
                 {
-                    onTrack = carIdxTrackSurface[carIdx] > 0;
+                    int surface = carIdxTrackSurface[carIdx];
+                    if (surface == TrackSurfaceNotInWorld)
+                    {
+                        onTrack = false;
+                    }
+                    else
+                    {
+                        onTrack = surface == TrackSurfaceOnTrack;
+                    }
                 }
 
                 bool onPitRoad = false;
@@ -153,8 +167,23 @@ namespace LaunchPlugin
                 double backwardDist = playerLapPct - lapPct;
                 if (backwardDist < 0.0) backwardDist += 1.0;
 
-                InsertCandidate(carIdx, forwardDist, _aheadCandidateIdx, _aheadCandidateDist);
-                InsertCandidate(carIdx, backwardDist, _behindCandidateIdx, _behindCandidateDist);
+                if (forwardDist >= HalfLapFilterMin && forwardDist <= HalfLapFilterMax)
+                {
+                    filteredHalfLapAhead++;
+                }
+                else
+                {
+                    InsertCandidate(carIdx, forwardDist, _aheadCandidateIdx, _aheadCandidateDist);
+                }
+
+                if (backwardDist >= HalfLapFilterMin && backwardDist <= HalfLapFilterMax)
+                {
+                    filteredHalfLapBehind++;
+                }
+                else
+                {
+                    InsertCandidate(carIdx, backwardDist, _behindCandidateIdx, _behindCandidateDist);
+                }
             }
 
             _outputs.Valid = true;
@@ -167,6 +196,8 @@ namespace LaunchPlugin
             _outputs.Debug.OnPitRoadCount = onPitRoadCount;
             _outputs.Debug.OnTrackCount = onTrackCount;
             _outputs.Debug.TimestampUpdatesThisTick = timestampUpdates;
+            _outputs.Debug.FilteredHalfLapCountAhead = filteredHalfLapAhead;
+            _outputs.Debug.FilteredHalfLapCountBehind = filteredHalfLapBehind;
 
             if (debugEnabled)
             {
@@ -239,6 +270,8 @@ namespace LaunchPlugin
             _outputs.Debug.OnPitRoadCount = onPitRoadCount;
             _outputs.Debug.OnTrackCount = onTrackCount;
             _outputs.Debug.TimestampUpdatesThisTick = timestampUpdates;
+            _outputs.Debug.FilteredHalfLapCountAhead = 0;
+            _outputs.Debug.FilteredHalfLapCountBehind = 0;
             _outputs.Debug.Ahead01CarIdx = -1;
             _outputs.Debug.Behind01CarIdx = -1;
             _outputs.Debug.SourceFastPathUsed = false;
@@ -398,6 +431,8 @@ namespace LaunchPlugin
                 slot.HasGap = false;
                 slot.LastGapSec = 0.0;
                 slot.LastGapUpdateTimeSec = 0.0;
+                slot.HasGapAbs = false;
+                slot.LastGapAbs = 0.0;
                 slot.ClosingRateSecPerSec = 0.0;
                 slot.GapRealSec = double.NaN;
                 slot.RealGapRawSec = double.NaN;
@@ -439,7 +474,18 @@ namespace LaunchPlugin
 
             if (carIdxTrackSurface != null && slot.CarIdx < carIdxTrackSurface.Length)
             {
-                slot.IsOnTrack = carIdxTrackSurface[slot.CarIdx] > 0;
+                int surface = carIdxTrackSurface[slot.CarIdx];
+                if (surface == TrackSurfaceNotInWorld)
+                {
+                    slot.IsValid = false;
+                    slot.IsOnTrack = false;
+                    slot.IsOnPitRoad = false;
+                    slot.LapDelta = 0;
+                    slot.Status = (int)CarSAStatus.Unknown;
+                    return;
+                }
+
+                slot.IsOnTrack = surface == TrackSurfaceOnTrack;
             }
 
             if (carIdxOnPitRoad != null && slot.CarIdx < carIdxOnPitRoad.Length)
@@ -542,10 +588,13 @@ namespace LaunchPlugin
                 return;
             }
 
-            if (!slot.HasGap)
+            double gapAbs = Math.Abs(slot.GapRealSec);
+            if (!slot.HasGapAbs)
             {
                 slot.HasGap = true;
+                slot.HasGapAbs = true;
                 slot.LastGapSec = slot.GapRealSec;
+                slot.LastGapAbs = gapAbs;
                 slot.LastGapUpdateTimeSec = sessionTimeSec;
                 slot.ClosingRateSecPerSec = double.NaN;
                 return;
@@ -557,8 +606,8 @@ namespace LaunchPlugin
                 return;
             }
 
-            double delta = slot.GapRealSec - slot.LastGapSec;
-            double rate = delta / dt;
+            double deltaAbs = gapAbs - slot.LastGapAbs;
+            double rate = -(deltaAbs / dt);
 
             if (rate > ClosingRateClamp) rate = ClosingRateClamp;
             if (rate < -ClosingRateClamp) rate = -ClosingRateClamp;
@@ -573,6 +622,7 @@ namespace LaunchPlugin
             }
 
             slot.LastGapSec = slot.GapRealSec;
+            slot.LastGapAbs = gapAbs;
             slot.LastGapUpdateTimeSec = sessionTimeSec;
         }
 

@@ -9,6 +9,8 @@ namespace LaunchPlugin
         private readonly double[] _lastTimeSec;
         private readonly double[] _prevLapPct;
         private const double WrapThreshold = 0.5;
+        private const int TrackSurfaceNotInWorld = -1;
+        private const int TrackSurfaceOnTrack = 3;
 
         public RealGapStopwatch(int checkpointCount, int maxCars)
         {
@@ -74,7 +76,14 @@ namespace LaunchPlugin
                 bool onTrack = true;
                 if (carIdxTrackSurface != null && carIdx < carIdxTrackSurface.Length)
                 {
-                    onTrack = carIdxTrackSurface[carIdx] > 0;
+                    int surface = carIdxTrackSurface[carIdx];
+                    if (surface == TrackSurfaceNotInWorld)
+                    {
+                        _prevLapPct[carIdx] = double.NaN;
+                        continue;
+                    }
+
+                    onTrack = surface == TrackSurfaceOnTrack;
                 }
 
                 if (onTrack)

@@ -13,9 +13,11 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 - Ordering uses CarIdx lap distance percentages (`LapDistPct`) for all cars.
 - Forward distance: `(oppPct - myPct + 1.0) % 1.0`
 - Backward distance: `(myPct - oppPct + 1.0) % 1.0`
+- TrackSurface semantics: `IsOnTrack` is **true only when TrackSurface == OnTrack**; OffTrack/OnPitRoad/NotInWorld are treated as not on track, and NotInWorld marks the slot invalid.
 - Default: pit-road cars are **excluded** from candidate slots to reduce practice/quali noise.
 - Slot stability: a candidate replaces the current slot only if it is **at least 10% closer** (or the current slot is invalid).
 - Slot stability: if a slot swaps to a new `CarIdx`, the gap/closing-rate history is cleared to avoid carrying stale gap data across cars.
+- Half-lap filter: candidates with `distPct` in **[0.40, 0.60]** are skipped per direction to avoid S/F wrap ambiguity (tracked by debug counters).
 
 ## RealGap (checkpoint stopwatch)
 - **60 checkpoints** evenly spaced around lapPct [0..1).
@@ -30,6 +32,10 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 - If `lapDelta != 0`, `RealGapAdjSec += lapDelta * LapTimeEstimateSec`.
 - If `lapDelta == 0` and the slot is **behind**, the gap is wrapped by subtracting the lap-time estimate when the raw gap implies the previous lap.
 - RealGap is clamped to ±600 s to guard against telemetry spikes.
+
+### ClosingRate definition
+- `ClosingRateSecPerSec` uses **absolute gap magnitude**.
+- Positive values mean the gap is **shrinking** (closing), negative values mean the gap is growing (dropping back), regardless of ahead/behind sign.
 
 ### Lap time estimate (used for RealGap)
 Priority order:
@@ -64,6 +70,13 @@ Debug (`Car.Debug.*`):
 - RealGap validation (Ahead01/Behind01 only): `CarIdx`, distance pct, raw/adjusted gap, last checkpoint time
 - Sanity: `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`
 - Optional (debug-gated): `LapTimeEstimateSec`, `HysteresisReplacementsThisTick`, `RealGapClampsThisTick`
+- Candidate filter: `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`
+
+## Debug export (optional)
+When `EnableCarSADebugExport` is enabled, CarSA writes a lightweight CSV snapshot on **player checkpoint crossings**:
+- Path: `PluginsData/Common/LalaLaunch/Debug/CarSA_DebugExport_<SessionID_SubSessionID>.csv`
+- Cadence: **checkpoint crossings only** (same event that updates RealGap).
+- Columns: session time, player lap/pct/checkpoint, Ahead01 and Behind01 slot basics (car idx, distance pct, gap, closing rate, lap delta, on-track/pit flags), plus counters (`TimestampUpdatesThisTick`, `RealGapClampsThisTick`, `HysteresisReplacementsThisTick`, `FilteredHalfLapCountAhead/Behind`).
 
 ## Performance notes
 - Single-pass candidate selection with fixed arrays (no per-tick allocations).
