@@ -26,7 +26,7 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
   - `PlayerCheckpointIndexNow = floor(PlayerLapPct * CheckpointCount)` (clamped 0..59). It only returns `-1` when `PlayerLapPct` is invalid.
   - `PlayerCheckpointIndexCrossed` updates **only** on the crossing tick and is `-1` otherwise.
 - RealGap is updated **every tick** using `PlayerCheckpointIndexNow`:
-  - `RealGapRawSec = sessionTimeSec - lastCheckpointTimeSec`
+  - `RealGapRawSec = playerCheckpointTimeSec - lastCheckpointTimeSec`
   - `RealGapAdjSec` is adjusted for lap delta and wrap behavior.
   - **Sign convention:** Ahead = **positive**, Behind = **negative**.
 
