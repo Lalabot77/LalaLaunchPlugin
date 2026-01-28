@@ -47,12 +47,14 @@ namespace LaunchPlugin
             int playerCarIdx,
             out bool playerCheckpointCrossed,
             out int playerCheckpointIndex,
+            out int playerCheckpointIndexNow,
             out int timestampUpdates,
             out int invalidLapPctCount,
             out int onTrackCount)
         {
             playerCheckpointCrossed = false;
             playerCheckpointIndex = -1;
+            playerCheckpointIndexNow = -1;
             timestampUpdates = 0;
             invalidLapPctCount = 0;
             onTrackCount = 0;
@@ -74,12 +76,29 @@ namespace LaunchPlugin
                 }
 
                 bool onTrack = true;
+                if (carIdx == playerCarIdx)
+                {
+                    int checkpointIndexNow = (int)Math.Floor(lapPct * _checkpointCount);
+                    if (checkpointIndexNow < 0)
+                    {
+                        checkpointIndexNow = 0;
+                    }
+                    else if (checkpointIndexNow >= _checkpointCount)
+                    {
+                        checkpointIndexNow = _checkpointCount - 1;
+                    }
+                    playerCheckpointIndexNow = checkpointIndexNow;
+                }
                 if (carIdxTrackSurface != null && carIdx < carIdxTrackSurface.Length)
                 {
                     int surface = carIdxTrackSurface[carIdx];
                     if (surface == TrackSurfaceNotInWorld)
                     {
                         _prevLapPct[carIdx] = double.NaN;
+                        if (carIdx == playerCarIdx)
+                        {
+                            playerCheckpointIndexNow = -1;
+                        }
                         continue;
                     }
 

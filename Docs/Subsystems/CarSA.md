@@ -22,7 +22,10 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 ## RealGap (checkpoint stopwatch)
 - **60 checkpoints** evenly spaced around lapPct [0..1).
 - For each (checkpoint, carIdx), CarSA stores the last timestamp when that car crossed the checkpoint.
-- When the player crosses a checkpoint, CarSA computes RealGap for the current slots:
+- CarSA computes the player’s **current checkpoint index** every tick:
+  - `PlayerCheckpointIndexNow = floor(PlayerLapPct * CheckpointCount)` (clamped 0..59).
+  - `PlayerCheckpointIndexCrossed` only updates on the crossing tick and is `-1` otherwise.
+- RealGap is updated **every tick** using `PlayerCheckpointIndexNow`:
   - `RealGapRawSec = sessionTimeSec - lastCheckpointTimeSec`
   - `RealGapAdjSec` is adjusted for lap delta and wrap behavior.
   - **Sign convention:** Ahead = **positive**, Behind = **negative**.
@@ -66,19 +69,19 @@ Slots (Ahead01..Ahead05, Behind01..Behind05):
 - Derived: `ClosingRateSecPerSec`, `Status`
 
 Debug (`Car.Debug.*`):
-- Player: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `PlayerCheckpointIndex`, `PlayerCheckpointCrossed`, `SessionTimeSec`, `SourceFastPathUsed`
+- Player: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `PlayerCheckpointIndexNow`, `PlayerCheckpointIndexCrossed`, `PlayerCheckpointCrossed`, `SessionTimeSec`, `SourceFastPathUsed`
 - RealGap validation (Ahead01/Behind01 only): `CarIdx`, distance pct, raw/adjusted gap, last checkpoint time
 - Sanity: `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`
-- Optional (debug-gated): `LapTimeEstimateSec`, `HysteresisReplacementsThisTick`, `RealGapClampsThisTick`
+- Optional (debug-gated): `LapTimeEstimateSec`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`, `RealGapClampsThisTick`
 - Candidate filter: `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`
 
 ## Debug export (optional)
 When `EnableCarSADebugExport` is enabled, CarSA writes a lightweight CSV snapshot on **player checkpoint crossings**:
 - Path: `PluginsData/Common/LalaLaunch/Debug/CarSA_DebugExport_<SessionID_SubSessionID>.csv`
 - Cadence: **checkpoint crossings only** (same event that updates RealGap).
-- Columns: session time, player lap/pct/checkpoint, Ahead01 and Behind01 slot basics (car idx, distance pct, gap, closing rate, lap delta, on-track/pit flags), plus counters (`TimestampUpdatesThisTick`, `RealGapClampsThisTick`, `HysteresisReplacementsThisTick`, `FilteredHalfLapCountAhead/Behind`).
+- Columns: session time, player lap/pct/checkpoint (now + crossed), Ahead01 and Behind01 slot basics (car idx, distance pct, gap, closing rate, lap delta, on-track/pit flags), plus counters (`TimestampUpdatesThisTick`, `RealGapClampsThisTick`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`, `FilteredHalfLapCountAhead/Behind`).
 
 ## Performance notes
 - Single-pass candidate selection with fixed arrays (no per-tick allocations).
 - No LINQ or string formatting in per-tick loops.
-- RealGap updates only on player checkpoint crossings.
+- RealGap updates every tick using `PlayerCheckpointIndexNow`.

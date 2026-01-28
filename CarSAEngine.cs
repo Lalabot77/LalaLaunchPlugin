@@ -70,6 +70,7 @@ namespace LaunchPlugin
             int filteredHalfLapBehind = 0;
             bool playerCheckpointCrossed;
             int playerCheckpointIndex;
+            int playerCheckpointIndexNow;
 
             _stopwatch.Update(
                 sessionTimeSec,
@@ -78,6 +79,7 @@ namespace LaunchPlugin
                 playerCarIdx,
                 out playerCheckpointCrossed,
                 out playerCheckpointIndex,
+                out playerCheckpointIndexNow,
                 out timestampUpdates,
                 out invalidLapPctCount,
                 out onTrackCount);
@@ -190,7 +192,8 @@ namespace LaunchPlugin
             _outputs.Debug.PlayerCarIdx = playerCarIdx;
             _outputs.Debug.PlayerLapPct = playerLapPct;
             _outputs.Debug.PlayerLap = playerLap;
-            _outputs.Debug.PlayerCheckpointIndex = playerCheckpointIndex;
+            _outputs.Debug.PlayerCheckpointIndexNow = playerCheckpointIndexNow;
+            _outputs.Debug.PlayerCheckpointIndexCrossed = playerCheckpointIndex;
             _outputs.Debug.PlayerCheckpointCrossed = playerCheckpointCrossed;
             _outputs.Debug.InvalidLapPctCount = invalidLapPctCount;
             _outputs.Debug.OnPitRoadCount = onPitRoadCount;
@@ -209,24 +212,27 @@ namespace LaunchPlugin
             }
 
             int hysteresisReplacements = 0;
+            int slotCarIdxChanged = 0;
 
-            ApplySlots(true, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _aheadCandidateIdx, _aheadCandidateDist, _outputs.AheadSlots, ref hysteresisReplacements);
-            ApplySlots(false, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _behindCandidateIdx, _behindCandidateDist, _outputs.BehindSlots, ref hysteresisReplacements);
+            ApplySlots(true, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _aheadCandidateIdx, _aheadCandidateDist, _outputs.AheadSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
+            ApplySlots(false, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _behindCandidateIdx, _behindCandidateDist, _outputs.BehindSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
 
             if (debugEnabled)
             {
                 _outputs.Debug.HysteresisReplacementsThisTick = hysteresisReplacements;
+                _outputs.Debug.SlotCarIdxChangedThisTick = slotCarIdxChanged;
             }
             else
             {
                 _outputs.Debug.HysteresisReplacementsThisTick = 0;
+                _outputs.Debug.SlotCarIdxChangedThisTick = 0;
             }
 
             int realGapClamps = 0;
-            if (playerCheckpointCrossed && playerCheckpointIndex >= 0)
+            if (playerCheckpointIndexNow >= 0)
             {
-                UpdateRealGaps(true, sessionTimeSec, playerCheckpointIndex, playerLap, lapTimeUsed, carIdxLap, _outputs.AheadSlots, ref realGapClamps);
-                UpdateRealGaps(false, sessionTimeSec, playerCheckpointIndex, playerLap, lapTimeUsed, carIdxLap, _outputs.BehindSlots, ref realGapClamps);
+                UpdateRealGaps(true, sessionTimeSec, playerCheckpointIndexNow, playerLap, lapTimeUsed, carIdxLap, _outputs.AheadSlots, ref realGapClamps);
+                UpdateRealGaps(false, sessionTimeSec, playerCheckpointIndexNow, playerLap, lapTimeUsed, carIdxLap, _outputs.BehindSlots, ref realGapClamps);
             }
 
             if (debugEnabled)
@@ -263,7 +269,8 @@ namespace LaunchPlugin
             _outputs.Debug.PlayerCarIdx = playerCarIdx;
             _outputs.Debug.PlayerLapPct = double.NaN;
             _outputs.Debug.PlayerLap = 0;
-            _outputs.Debug.PlayerCheckpointIndex = -1;
+            _outputs.Debug.PlayerCheckpointIndexNow = -1;
+            _outputs.Debug.PlayerCheckpointIndexCrossed = -1;
             _outputs.Debug.PlayerCheckpointCrossed = false;
             _outputs.Debug.SessionTimeSec = sessionTimeSec;
             _outputs.Debug.InvalidLapPctCount = invalidLapPctCount;
@@ -276,6 +283,7 @@ namespace LaunchPlugin
             _outputs.Debug.Behind01CarIdx = -1;
             _outputs.Debug.SourceFastPathUsed = false;
             _outputs.Debug.HysteresisReplacementsThisTick = 0;
+            _outputs.Debug.SlotCarIdxChangedThisTick = 0;
             _outputs.Debug.RealGapClampsThisTick = 0;
             if (debugEnabled)
             {
@@ -335,7 +343,8 @@ namespace LaunchPlugin
             int[] candidateIdx,
             double[] candidateDist,
             CarSASlot[] slots,
-            ref int hysteresisReplacements)
+            ref int hysteresisReplacements,
+            ref int slotCarIdxChanged)
         {
             int slotCount = slots.Length;
             for (int slotIndex = 0; slotIndex < slotCount; slotIndex++)
@@ -362,7 +371,10 @@ namespace LaunchPlugin
 
                     if (!currentValid)
                     {
-                        ApplySlotAssignment(slot, newIdx, newDist, isAhead);
+                        if (ApplySlotAssignment(slot, newIdx, newDist, isAhead))
+                        {
+                            slotCarIdxChanged++;
+                        }
                         if (newIdx != -1)
                         {
                             hysteresisReplacements++;
@@ -370,7 +382,10 @@ namespace LaunchPlugin
                     }
                     else if (newIdx != -1 && newDist < currentDist * HysteresisFactor)
                     {
-                        ApplySlotAssignment(slot, newIdx, newDist, isAhead);
+                        if (ApplySlotAssignment(slot, newIdx, newDist, isAhead))
+                        {
+                            slotCarIdxChanged++;
+                        }
                         hysteresisReplacements++;
                     }
                     else
@@ -418,22 +433,23 @@ namespace LaunchPlugin
             return true;
         }
 
-        private static void ApplySlotAssignment(CarSASlot slot, int carIdx, double dist, bool isAhead)
+        private static bool ApplySlotAssignment(CarSASlot slot, int carIdx, double dist, bool isAhead)
         {
+            bool carIdxChanged = slot.CarIdx != carIdx;
             if (carIdx < 0)
             {
                 slot.Reset();
-                return;
+                return carIdxChanged;
             }
 
-            if (slot.CarIdx != carIdx)
+            if (carIdxChanged)
             {
                 slot.HasGap = false;
-                slot.LastGapSec = 0.0;
+                slot.LastGapSec = double.NaN;
                 slot.LastGapUpdateTimeSec = 0.0;
                 slot.HasGapAbs = false;
-                slot.LastGapAbs = 0.0;
-                slot.ClosingRateSecPerSec = 0.0;
+                slot.LastGapAbs = double.NaN;
+                slot.ClosingRateSecPerSec = double.NaN;
                 slot.GapRealSec = double.NaN;
                 slot.RealGapRawSec = double.NaN;
                 slot.RealGapAdjSec = double.NaN;
@@ -451,6 +467,8 @@ namespace LaunchPlugin
                 slot.BackwardDistPct = dist;
                 slot.ForwardDistPct = double.NaN;
             }
+
+            return carIdxChanged;
         }
 
         private static void UpdateSlotState(CarSASlot slot, int playerLap, int[] carIdxLap, int[] carIdxTrackSurface, bool[] carIdxOnPitRoad)

@@ -65,7 +65,8 @@ namespace LaunchPlugin
         public int PlayerCarIdx { get; set; } = -1;
         public double PlayerLapPct { get; set; } = double.NaN;
         public int PlayerLap { get; set; }
-        public int PlayerCheckpointIndex { get; set; } = -1;
+        public int PlayerCheckpointIndexNow { get; set; } = -1;
+        public int PlayerCheckpointIndexCrossed { get; set; } = -1;
         public bool PlayerCheckpointCrossed { get; set; }
         public double SessionTimeSec { get; set; }
         public bool SourceFastPathUsed { get; set; }
@@ -91,6 +92,7 @@ namespace LaunchPlugin
 
         public double LapTimeEstimateSec { get; set; }
         public int HysteresisReplacementsThisTick { get; set; }
+        public int SlotCarIdxChangedThisTick { get; set; }
         public int RealGapClampsThisTick { get; set; }
 
         public void Reset()
@@ -98,7 +100,8 @@ namespace LaunchPlugin
             PlayerCarIdx = -1;
             PlayerLapPct = double.NaN;
             PlayerLap = 0;
-            PlayerCheckpointIndex = -1;
+            PlayerCheckpointIndexNow = -1;
+            PlayerCheckpointIndexCrossed = -1;
             PlayerCheckpointCrossed = false;
             SessionTimeSec = 0.0;
             SourceFastPathUsed = false;
@@ -120,6 +123,7 @@ namespace LaunchPlugin
             FilteredHalfLapCountBehind = 0;
             LapTimeEstimateSec = 0.0;
             HysteresisReplacementsThisTick = 0;
+            SlotCarIdxChangedThisTick = 0;
             RealGapClampsThisTick = 0;
         }
     }
