@@ -3465,6 +3465,7 @@ namespace LaunchPlugin
             AttachCore("Car.Debug.OnPitRoadCount", () => _carSaEngine?.Outputs.Debug.OnPitRoadCount ?? 0);
             AttachCore("Car.Debug.OnTrackCount", () => _carSaEngine?.Outputs.Debug.OnTrackCount ?? 0);
             AttachCore("Car.Debug.TimestampUpdatesThisTick", () => _carSaEngine?.Outputs.Debug.TimestampUpdatesThisTick ?? 0);
+            AttachCore("Car.Debug.TimestampUpdatesSinceLastPlayerCross", () => _carSaEngine?.Outputs.Debug.TimestampUpdatesSinceLastPlayerCross ?? 0);
             AttachCore("Car.Debug.FilteredHalfLapCountAhead", () => _carSaEngine?.Outputs.Debug.FilteredHalfLapCountAhead ?? 0);
             AttachCore("Car.Debug.FilteredHalfLapCountBehind", () => _carSaEngine?.Outputs.Debug.FilteredHalfLapCountBehind ?? 0);
             AttachCore("Car.Debug.LapTimeEstimateSec", () => _carSaEngine?.Outputs.Debug.LapTimeEstimateSec ?? 0.0);

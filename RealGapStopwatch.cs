@@ -72,10 +72,13 @@ namespace LaunchPlugin
                 {
                     invalidLapPctCount++;
                     _prevLapPct[carIdx] = double.NaN;
+                    if (carIdx == playerCarIdx)
+                    {
+                        playerCheckpointIndexNow = -1;
+                    }
                     continue;
                 }
 
-                bool onTrack = true;
                 if (carIdx == playerCarIdx)
                 {
                     int checkpointIndexNow = (int)Math.Floor(lapPct * _checkpointCount);
@@ -89,16 +92,14 @@ namespace LaunchPlugin
                     }
                     playerCheckpointIndexNow = checkpointIndexNow;
                 }
+
+                bool onTrack = true;
                 if (carIdxTrackSurface != null && carIdx < carIdxTrackSurface.Length)
                 {
                     int surface = carIdxTrackSurface[carIdx];
                     if (surface == TrackSurfaceNotInWorld)
                     {
                         _prevLapPct[carIdx] = double.NaN;
-                        if (carIdx == playerCarIdx)
-                        {
-                            playerCheckpointIndexNow = -1;
-                        }
                         continue;
                     }
 
