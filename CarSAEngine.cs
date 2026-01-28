@@ -231,8 +231,9 @@ namespace LaunchPlugin
             int realGapClamps = 0;
             if (playerCheckpointIndexNow >= 0)
             {
-                UpdateRealGaps(true, sessionTimeSec, playerCheckpointIndexNow, playerLap, lapTimeUsed, carIdxLap, _outputs.AheadSlots, ref realGapClamps);
-                UpdateRealGaps(false, sessionTimeSec, playerCheckpointIndexNow, playerLap, lapTimeUsed, carIdxLap, _outputs.BehindSlots, ref realGapClamps);
+                double playerCheckpointTimeSec = _stopwatch.GetLastCheckpointTimeSec(playerCheckpointIndexNow, playerCarIdx);
+                UpdateRealGaps(true, sessionTimeSec, playerCheckpointTimeSec, playerCheckpointIndexNow, playerLap, lapTimeUsed, carIdxLap, _outputs.AheadSlots, ref realGapClamps);
+                UpdateRealGaps(false, sessionTimeSec, playerCheckpointTimeSec, playerCheckpointIndexNow, playerLap, lapTimeUsed, carIdxLap, _outputs.BehindSlots, ref realGapClamps);
             }
 
             if (debugEnabled)
@@ -532,6 +533,7 @@ namespace LaunchPlugin
         private void UpdateRealGaps(
             bool isAhead,
             double sessionTimeSec,
+            double playerCheckpointTimeSec,
             int checkpointIndex,
             int playerLap,
             double lapTimeEstimateSec,
@@ -561,7 +563,15 @@ namespace LaunchPlugin
                     continue;
                 }
 
-                double rawGap = sessionTimeSec - lastSeen;
+                if (playerCheckpointTimeSec <= 0.0)
+                {
+                    slot.GapRealSec = double.NaN;
+                    slot.RealGapRawSec = double.NaN;
+                    slot.RealGapAdjSec = double.NaN;
+                    continue;
+                }
+
+                double rawGap = playerCheckpointTimeSec - lastSeen;
                 double adjustedGap = rawGap;
 
                 int lapDelta = slot.LapDelta;
