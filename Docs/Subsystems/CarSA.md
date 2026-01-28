@@ -23,8 +23,8 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 - **60 checkpoints** evenly spaced around lapPct [0..1).
 - For each (checkpoint, carIdx), CarSA stores the last timestamp when that car crossed the checkpoint.
 - CarSA computes the player’s **current checkpoint index** every tick:
-  - `PlayerCheckpointIndexNow = floor(PlayerLapPct * CheckpointCount)` (clamped 0..59).
-  - `PlayerCheckpointIndexCrossed` only updates on the crossing tick and is `-1` otherwise.
+  - `PlayerCheckpointIndexNow = floor(PlayerLapPct * CheckpointCount)` (clamped 0..59). It only returns `-1` when `PlayerLapPct` is invalid.
+  - `PlayerCheckpointIndexCrossed` updates **only** on the crossing tick and is `-1` otherwise.
 - RealGap is updated **every tick** using `PlayerCheckpointIndexNow`:
   - `RealGapRawSec = sessionTimeSec - lastCheckpointTimeSec`
   - `RealGapAdjSec` is adjusted for lap delta and wrap behavior.
@@ -32,9 +32,13 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 
 ### Lap delta correction
 - `lapDelta = oppLap - myLap`
-- If `lapDelta != 0`, `RealGapAdjSec += lapDelta * LapTimeEstimateSec`.
+- If `lapDelta != 0`, `RealGapAdjSec += lapDelta * LapTimeEstimateSec` (guarded near S/F to avoid wrap spikes when the player or the slot is within 3% of the lap edge).
 - If `lapDelta == 0` and the slot is **behind**, the gap is wrapped by subtracting the lap-time estimate when the raw gap implies the previous lap.
 - RealGap is clamped to ±600 s to guard against telemetry spikes.
+
+### Gap RealSec grace hold
+- If a slot has a valid last gap and a RealGap update is missing (no checkpoint timestamp yet), CarSA **holds the last gap for ~2 seconds** before returning `NaN`.
+- During this grace hold, `ClosingRateSecPerSec` is frozen to `0` to avoid spikes.
 
 ### ClosingRate definition
 - `ClosingRateSecPerSec` uses **absolute gap magnitude**.
@@ -72,6 +76,7 @@ Debug (`Car.Debug.*`):
 - Player: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `PlayerCheckpointIndexNow`, `PlayerCheckpointIndexCrossed`, `PlayerCheckpointCrossed`, `SessionTimeSec`, `SourceFastPathUsed`
 - RealGap validation (Ahead01/Behind01 only): `CarIdx`, distance pct, raw/adjusted gap, last checkpoint time
 - Sanity: `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`
+- Timestamp accumulator: `TimestampUpdatesSinceLastPlayerCross` (counts checkpoint timestamp writes since the last player checkpoint crossing).
 - Optional (debug-gated): `LapTimeEstimateSec`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`, `RealGapClampsThisTick`
 - Candidate filter: `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`
 

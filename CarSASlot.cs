@@ -33,6 +33,8 @@ namespace LaunchPlugin
         internal bool HasGap { get; set; }
         internal double LastGapAbs { get; set; } = double.NaN;
         internal bool HasGapAbs { get; set; }
+        internal bool HasRealGap { get; set; }
+        internal double LastRealGapUpdateSessionTimeSec { get; set; } = 0.0;
 
         public void Reset()
         {
@@ -57,6 +59,8 @@ namespace LaunchPlugin
             HasGap = false;
             LastGapAbs = double.NaN;
             HasGapAbs = false;
+            HasRealGap = false;
+            LastRealGapUpdateSessionTimeSec = 0.0;
         }
     }
 
@@ -89,6 +93,7 @@ namespace LaunchPlugin
         public int TimestampUpdatesThisTick { get; set; }
         public int FilteredHalfLapCountAhead { get; set; }
         public int FilteredHalfLapCountBehind { get; set; }
+        public int TimestampUpdatesSinceLastPlayerCross { get; set; }
 
         public double LapTimeEstimateSec { get; set; }
         public int HysteresisReplacementsThisTick { get; set; }
@@ -121,6 +126,7 @@ namespace LaunchPlugin
             TimestampUpdatesThisTick = 0;
             FilteredHalfLapCountAhead = 0;
             FilteredHalfLapCountBehind = 0;
+            TimestampUpdatesSinceLastPlayerCross = 0;
             LapTimeEstimateSec = 0.0;
             HysteresisReplacementsThisTick = 0;
             SlotCarIdxChangedThisTick = 0;

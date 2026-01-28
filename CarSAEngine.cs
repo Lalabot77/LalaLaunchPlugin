@@ -16,6 +16,9 @@ namespace LaunchPlugin
         private const double ClosingRateClamp = 5.0;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
+        private const double RealGapGraceSec = 2.0;
+        private const double WrapGuardDistPct = 0.03;
+        private const double WrapGuardEdgePct = 0.03;
         private const int TrackSurfaceNotInWorld = -1;
         private const int TrackSurfaceOnTrack = 3;
 
@@ -27,6 +30,7 @@ namespace LaunchPlugin
         private readonly double[] _behindCandidateDist;
         private readonly bool _includePitRoad;
         private bool _loggedEnabled;
+        private int _timestampUpdatesSinceLastPlayerCross;
 
         public CarSAEngine()
         {
@@ -46,6 +50,7 @@ namespace LaunchPlugin
             _loggedEnabled = false;
             _stopwatch.Reset();
             _outputs.ResetAll();
+            _timestampUpdatesSinceLastPlayerCross = 0;
         }
 
         public void Update(
@@ -83,6 +88,8 @@ namespace LaunchPlugin
                 out timestampUpdates,
                 out invalidLapPctCount,
                 out onTrackCount);
+
+            _timestampUpdatesSinceLastPlayerCross += timestampUpdates;
 
             int carCount = carIdxLapDistPct != null ? carIdxLapDistPct.Length : 0;
             if (carCount <= 0 || playerCarIdx < 0 || playerCarIdx >= carCount)
@@ -201,6 +208,11 @@ namespace LaunchPlugin
             _outputs.Debug.TimestampUpdatesThisTick = timestampUpdates;
             _outputs.Debug.FilteredHalfLapCountAhead = filteredHalfLapAhead;
             _outputs.Debug.FilteredHalfLapCountBehind = filteredHalfLapBehind;
+            _outputs.Debug.TimestampUpdatesSinceLastPlayerCross = _timestampUpdatesSinceLastPlayerCross;
+            if (playerCheckpointCrossed)
+            {
+                _timestampUpdatesSinceLastPlayerCross = 0;
+            }
 
             if (debugEnabled)
             {
@@ -232,8 +244,8 @@ namespace LaunchPlugin
             if (playerCheckpointIndexNow >= 0)
             {
                 double playerCheckpointTimeSec = _stopwatch.GetLastCheckpointTimeSec(playerCheckpointIndexNow, playerCarIdx);
-                UpdateRealGaps(true, sessionTimeSec, playerCheckpointTimeSec, playerCheckpointIndexNow, playerLap, lapTimeUsed, carIdxLap, _outputs.AheadSlots, ref realGapClamps);
-                UpdateRealGaps(false, sessionTimeSec, playerCheckpointTimeSec, playerCheckpointIndexNow, playerLap, lapTimeUsed, carIdxLap, _outputs.BehindSlots, ref realGapClamps);
+                UpdateRealGaps(true, sessionTimeSec, playerCheckpointTimeSec, playerCheckpointIndexNow, playerLap, playerLapPct, lapTimeUsed, carIdxLap, _outputs.AheadSlots, ref realGapClamps);
+                UpdateRealGaps(false, sessionTimeSec, playerCheckpointTimeSec, playerCheckpointIndexNow, playerLap, playerLapPct, lapTimeUsed, carIdxLap, _outputs.BehindSlots, ref realGapClamps);
             }
 
             if (debugEnabled)
@@ -280,12 +292,14 @@ namespace LaunchPlugin
             _outputs.Debug.TimestampUpdatesThisTick = timestampUpdates;
             _outputs.Debug.FilteredHalfLapCountAhead = 0;
             _outputs.Debug.FilteredHalfLapCountBehind = 0;
+            _outputs.Debug.TimestampUpdatesSinceLastPlayerCross = _timestampUpdatesSinceLastPlayerCross;
             _outputs.Debug.Ahead01CarIdx = -1;
             _outputs.Debug.Behind01CarIdx = -1;
             _outputs.Debug.SourceFastPathUsed = false;
             _outputs.Debug.HysteresisReplacementsThisTick = 0;
             _outputs.Debug.SlotCarIdxChangedThisTick = 0;
             _outputs.Debug.RealGapClampsThisTick = 0;
+            _timestampUpdatesSinceLastPlayerCross = 0;
             if (debugEnabled)
             {
                 _outputs.Debug.LapTimeEstimateSec = lapTimeEstimateSec;
@@ -455,6 +469,8 @@ namespace LaunchPlugin
                 slot.RealGapRawSec = double.NaN;
                 slot.RealGapAdjSec = double.NaN;
                 slot.LastSeenCheckpointTimeSec = 0.0;
+                slot.HasRealGap = false;
+                slot.LastRealGapUpdateSessionTimeSec = 0.0;
             }
 
             slot.CarIdx = carIdx;
@@ -536,6 +552,7 @@ namespace LaunchPlugin
             double playerCheckpointTimeSec,
             int checkpointIndex,
             int playerLap,
+            double playerLapPct,
             double lapTimeEstimateSec,
             int[] carIdxLap,
             CarSASlot[] slots,
@@ -550,24 +567,26 @@ namespace LaunchPlugin
                     slot.RealGapRawSec = double.NaN;
                     slot.RealGapAdjSec = double.NaN;
                     slot.LastSeenCheckpointTimeSec = 0.0;
+                    slot.HasRealGap = false;
+                    slot.LastRealGapUpdateSessionTimeSec = 0.0;
                     continue;
                 }
 
                 double lastSeen = _stopwatch.GetLastCheckpointTimeSec(checkpointIndex, slot.CarIdx);
                 slot.LastSeenCheckpointTimeSec = lastSeen;
-                if (lastSeen <= 0.0)
+                if (lastSeen <= 0.0 || playerCheckpointTimeSec <= 0.0)
                 {
-                    slot.GapRealSec = double.NaN;
-                    slot.RealGapRawSec = double.NaN;
-                    slot.RealGapAdjSec = double.NaN;
-                    continue;
-                }
+                    if (slot.HasRealGap && (sessionTimeSec - slot.LastRealGapUpdateSessionTimeSec) <= RealGapGraceSec)
+                    {
+                        slot.ClosingRateSecPerSec = 0.0;
+                        continue;
+                    }
 
-                if (playerCheckpointTimeSec <= 0.0)
-                {
                     slot.GapRealSec = double.NaN;
                     slot.RealGapRawSec = double.NaN;
                     slot.RealGapAdjSec = double.NaN;
+                    slot.ClosingRateSecPerSec = double.NaN;
+                    slot.HasRealGap = false;
                     continue;
                 }
 
@@ -583,7 +602,15 @@ namespace LaunchPlugin
 
                 if (lapDelta != 0)
                 {
-                    adjustedGap += lapDelta * lapTimeEstimateSec;
+                    bool playerNearEdge = playerLapPct < WrapGuardEdgePct || playerLapPct > (1.0 - WrapGuardEdgePct);
+                    bool slotNearEdge =
+                        (!double.IsNaN(slot.ForwardDistPct) && slot.ForwardDistPct < WrapGuardDistPct) ||
+                        (!double.IsNaN(slot.BackwardDistPct) && slot.BackwardDistPct < WrapGuardDistPct);
+
+                    if (!playerNearEdge || !slotNearEdge)
+                    {
+                        adjustedGap += lapDelta * lapTimeEstimateSec;
+                    }
                 }
                 else if (!isAhead && rawGap > lapTimeEstimateSec * WrapAdjustThresholdFactor)
                 {
@@ -604,6 +631,8 @@ namespace LaunchPlugin
                 slot.RealGapRawSec = rawGap;
                 slot.RealGapAdjSec = adjustedGap;
                 slot.GapRealSec = isAhead ? Math.Abs(adjustedGap) : -Math.Abs(adjustedGap);
+                slot.HasRealGap = true;
+                slot.LastRealGapUpdateSessionTimeSec = sessionTimeSec;
 
                 UpdateClosingRate(slot, playerCheckpointTimeSec);
             }
