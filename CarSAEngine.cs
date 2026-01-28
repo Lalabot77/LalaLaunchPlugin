@@ -639,33 +639,42 @@ namespace LaunchPlugin
                 double adjustedGap = rawGap;
 
                 int lapDelta = slot.LapDelta;
+                const double WrapStraddleClosePct = 0.10;
+                double slotLapPct = double.NaN;
+                double distPct = double.NaN;
+
+                if (isAhead && !double.IsNaN(slot.ForwardDistPct))
+                {
+                    distPct = slot.ForwardDistPct;
+                    slotLapPct = playerLapPct + slot.ForwardDistPct;
+                    if (slotLapPct >= 1.0) slotLapPct -= 1.0;
+                }
+                else if (!isAhead && !double.IsNaN(slot.BackwardDistPct))
+                {
+                    distPct = slot.BackwardDistPct;
+                    slotLapPct = playerLapPct - slot.BackwardDistPct;
+                    if (slotLapPct < 0.0) slotLapPct += 1.0;
+                }
+
+                bool playerNearEdge = playerLapPct <= WrapGuardEdgePct || playerLapPct >= (1.0 - WrapGuardEdgePct);
+                bool slotNearEdge = !double.IsNaN(slotLapPct) &&
+                    (slotLapPct <= WrapGuardEdgePct || slotLapPct >= (1.0 - WrapGuardEdgePct));
+                bool closeEnough = !double.IsNaN(distPct) && distPct <= WrapStraddleClosePct;
+                bool suppressLapDeltaCorrection = playerNearEdge && slotNearEdge && closeEnough;
 
                 if (lapDelta != 0)
                 {
-                    double slotLapPct = double.NaN;
-                    if (isAhead && !double.IsNaN(slot.ForwardDistPct))
-                    {
-                        slotLapPct = playerLapPct + slot.ForwardDistPct;
-                        if (slotLapPct >= 1.0) slotLapPct -= 1.0;
-                    }
-                    else if (!isAhead && !double.IsNaN(slot.BackwardDistPct))
-                    {
-                        slotLapPct = playerLapPct - slot.BackwardDistPct;
-                        if (slotLapPct < 0.0) slotLapPct += 1.0;
-                    }
-
-                    bool playerNearEdge = playerLapPct <= WrapGuardEdgePct || playerLapPct >= (1.0 - WrapGuardEdgePct);
-                    bool slotNearEdge = !double.IsNaN(slotLapPct) &&
-                        (slotLapPct <= WrapGuardEdgePct || slotLapPct >= (1.0 - WrapGuardEdgePct));
-
-                    if (!playerNearEdge && !slotNearEdge)
+                    if (!suppressLapDeltaCorrection)
                     {
                         adjustedGap += lapDelta * lapTimeEstimateSec;
                     }
                 }
                 else if (!isAhead && rawGap > lapTimeEstimateSec * WrapAdjustThresholdFactor)
                 {
-                    adjustedGap = rawGap - lapTimeEstimateSec;
+                    if (!suppressLapDeltaCorrection)
+                    {
+                        adjustedGap = rawGap - lapTimeEstimateSec;
+                    }
                 }
 
                 if (adjustedGap > MaxRealGapSec)
