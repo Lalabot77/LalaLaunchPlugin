@@ -17,7 +17,6 @@ namespace LaunchPlugin
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
         private const double RealGapGraceSec = 2.0;
-        private const double WrapGuardDistPct = 0.03;
         private const double WrapGuardEdgePct = 0.03;
         private const int TrackSurfaceNotInWorld = -1;
         private const int TrackSurfaceOnTrack = 3;
@@ -416,7 +415,7 @@ namespace LaunchPlugin
                     }
                 }
 
-                UpdateSlotState(slot, playerLap, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad);
+                UpdateSlotState(slot, playerLap, playerLapPct, isAhead, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad);
             }
         }
 
@@ -488,7 +487,14 @@ namespace LaunchPlugin
             return carIdxChanged;
         }
 
-        private static void UpdateSlotState(CarSASlot slot, int playerLap, int[] carIdxLap, int[] carIdxTrackSurface, bool[] carIdxOnPitRoad)
+        private static void UpdateSlotState(
+            CarSASlot slot,
+            int playerLap,
+            double playerLapPct,
+            bool isAhead,
+            int[] carIdxLap,
+            int[] carIdxTrackSurface,
+            bool[] carIdxOnPitRoad)
         {
             if (slot.CarIdx < 0)
             {
@@ -534,7 +540,45 @@ namespace LaunchPlugin
                 oppLap = carIdxLap[slot.CarIdx];
             }
 
-            slot.LapDelta = oppLap - playerLap;
+            int baseLapDelta = oppLap - playerLap;
+            if (baseLapDelta != 0 && !double.IsNaN(playerLapPct))
+            {
+                const double lapDeltaClosePct = 0.10;
+                double oppLapPct = double.NaN;
+
+                if (isAhead && !double.IsNaN(slot.ForwardDistPct))
+                {
+                    oppLapPct = playerLapPct + slot.ForwardDistPct;
+                    if (oppLapPct >= 1.0) oppLapPct -= 1.0;
+                }
+                else if (!isAhead && !double.IsNaN(slot.BackwardDistPct))
+                {
+                    oppLapPct = playerLapPct - slot.BackwardDistPct;
+                    if (oppLapPct < 0.0) oppLapPct += 1.0;
+                }
+
+                if (!double.IsNaN(oppLapPct))
+                {
+                    if (isAhead &&
+                        baseLapDelta == 1 &&
+                        slot.ForwardDistPct <= lapDeltaClosePct &&
+                        playerLapPct >= (1.0 - WrapGuardEdgePct) &&
+                        oppLapPct <= WrapGuardEdgePct)
+                    {
+                        baseLapDelta = 0;
+                    }
+                    else if (!isAhead &&
+                        baseLapDelta == -1 &&
+                        slot.BackwardDistPct <= lapDeltaClosePct &&
+                        playerLapPct <= WrapGuardEdgePct &&
+                        oppLapPct >= (1.0 - WrapGuardEdgePct))
+                    {
+                        baseLapDelta = 0;
+                    }
+                }
+            }
+
+            slot.LapDelta = baseLapDelta;
 
             if (slot.IsOnPitRoad)
             {
@@ -602,12 +646,23 @@ namespace LaunchPlugin
 
                 if (lapDelta != 0)
                 {
-                    bool playerNearEdge = playerLapPct < WrapGuardEdgePct || playerLapPct > (1.0 - WrapGuardEdgePct);
-                    bool slotNearEdge =
-                        (!double.IsNaN(slot.ForwardDistPct) && slot.ForwardDistPct < WrapGuardDistPct) ||
-                        (!double.IsNaN(slot.BackwardDistPct) && slot.BackwardDistPct < WrapGuardDistPct);
+                    double slotLapPct = double.NaN;
+                    if (isAhead && !double.IsNaN(slot.ForwardDistPct))
+                    {
+                        slotLapPct = playerLapPct + slot.ForwardDistPct;
+                        if (slotLapPct >= 1.0) slotLapPct -= 1.0;
+                    }
+                    else if (!isAhead && !double.IsNaN(slot.BackwardDistPct))
+                    {
+                        slotLapPct = playerLapPct - slot.BackwardDistPct;
+                        if (slotLapPct < 0.0) slotLapPct += 1.0;
+                    }
 
-                    if (!playerNearEdge || !slotNearEdge)
+                    bool playerNearEdge = playerLapPct <= WrapGuardEdgePct || playerLapPct >= (1.0 - WrapGuardEdgePct);
+                    bool slotNearEdge = !double.IsNaN(slotLapPct) &&
+                        (slotLapPct <= WrapGuardEdgePct || slotLapPct >= (1.0 - WrapGuardEdgePct));
+
+                    if (!playerNearEdge && !slotNearEdge)
                     {
                         adjustedGap += lapDelta * lapTimeEstimateSec;
                     }
