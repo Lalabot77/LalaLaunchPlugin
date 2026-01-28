@@ -11,6 +11,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -2815,6 +2816,10 @@ namespace LaunchPlugin
         private PitEngine _pit;
         private OpponentsEngine _opponentsEngine;
         private CarSAEngine _carSaEngine;
+        private StringBuilder _carSaDebugExportBuffer;
+        private string _carSaDebugExportPath;
+        private string _carSaDebugExportToken;
+        private int _carSaDebugExportPendingLines;
 
         private enum LaunchState
         {
@@ -3442,6 +3447,8 @@ namespace LaunchPlugin
             AttachCore("Car.Debug.PlayerLapPct", () => _carSaEngine?.Outputs.Debug.PlayerLapPct ?? double.NaN);
             AttachCore("Car.Debug.PlayerLap", () => _carSaEngine?.Outputs.Debug.PlayerLap ?? 0);
             AttachCore("Car.Debug.PlayerCheckpointIndex", () => _carSaEngine?.Outputs.Debug.PlayerCheckpointIndex ?? -1);
+            AttachCore("Car.Debug.PlayerCheckpointIndexCrossed", () => _carSaEngine?.Outputs.Debug.PlayerCheckpointIndexCrossed ?? -1);
+            AttachCore("Car.Debug.PlayerCheckpointIndexNow", () => _carSaEngine?.Outputs.Debug.PlayerCheckpointIndexNow ?? -1);
             AttachCore("Car.Debug.PlayerCheckpointCrossed", () => _carSaEngine?.Outputs.Debug.PlayerCheckpointCrossed ?? false);
             AttachCore("Car.Debug.SessionTimeSec", () => _carSaEngine?.Outputs.Debug.SessionTimeSec ?? 0.0);
             AttachCore("Car.Debug.SourceFastPathUsed", () => _carSaEngine?.Outputs.Debug.SourceFastPathUsed ?? false);
@@ -3459,6 +3466,9 @@ namespace LaunchPlugin
             AttachCore("Car.Debug.OnPitRoadCount", () => _carSaEngine?.Outputs.Debug.OnPitRoadCount ?? 0);
             AttachCore("Car.Debug.OnTrackCount", () => _carSaEngine?.Outputs.Debug.OnTrackCount ?? 0);
             AttachCore("Car.Debug.TimestampUpdatesThisTick", () => _carSaEngine?.Outputs.Debug.TimestampUpdatesThisTick ?? 0);
+            AttachCore("Car.Debug.FilteredHalfLapCountAhead", () => _carSaEngine?.Outputs.Debug.FilteredHalfLapCountAhead ?? 0);
+            AttachCore("Car.Debug.FilteredHalfLapCountBehind", () => _carSaEngine?.Outputs.Debug.FilteredHalfLapCountBehind ?? 0);
+            AttachCore("Car.Debug.SlotCarIdxChangedThisTick", () => _carSaEngine?.Outputs.Debug.SlotCarIdxChangedThisTick ?? 0);
             AttachCore("Car.Debug.LapTimeEstimateSec", () => _carSaEngine?.Outputs.Debug.LapTimeEstimateSec ?? 0.0);
             AttachCore("Car.Debug.HysteresisReplacementsThisTick", () => _carSaEngine?.Outputs.Debug.HysteresisReplacementsThisTick ?? 0);
             AttachCore("Car.Debug.RealGapClampsThisTick", () => _carSaEngine?.Outputs.Debug.RealGapClampsThisTick ?? 0);
@@ -4120,6 +4130,7 @@ namespace LaunchPlugin
                 _pit?.ResetPitPhaseState();
                 _opponentsEngine?.Reset();
                 _carSaEngine?.Reset();
+                ResetCarSaDebugExportState();
                 _currentCarModel = string.Empty;
                 CurrentTrackName = string.Empty;
                 CurrentTrackKey = string.Empty;
@@ -4303,6 +4314,10 @@ namespace LaunchPlugin
                 lapTimeEstimateSec = 120.0;
             }
             _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, lapTimeEstimateSec, debugEnabled);
+            if (_carSaEngine != null)
+            {
+                WriteCarSaDebugExport(_carSaEngine.Outputs);
+            }
 
             if (pitEntryEdge)
             {
@@ -4736,6 +4751,133 @@ namespace LaunchPlugin
         #endregion
 
         #region Private Helper Methods for DataUpdate
+
+        private void WriteCarSaDebugExport(CarSAOutputs outputs)
+        {
+            if (outputs == null || Settings?.EnableCarSADebugExport != true)
+            {
+                return;
+            }
+
+            if (!outputs.Debug.PlayerCheckpointCrossed)
+            {
+                return;
+            }
+
+            try
+            {
+                EnsureCarSaDebugExportFile();
+
+                CarSASlot ahead = outputs.AheadSlots.Length > 0 ? outputs.AheadSlots[0] : null;
+                CarSASlot behind = outputs.BehindSlots.Length > 0 ? outputs.BehindSlots[0] : null;
+
+                StringBuilder buffer = _carSaDebugExportBuffer ?? (_carSaDebugExportBuffer = new StringBuilder(1024));
+                buffer.Append(outputs.Debug.SessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+                buffer.Append(outputs.Debug.PlayerLap).Append(',');
+                buffer.Append(outputs.Debug.PlayerLapPct.ToString("F6", CultureInfo.InvariantCulture)).Append(',');
+                buffer.Append(outputs.Debug.PlayerCheckpointIndexCrossed).Append(',');
+
+                AppendSlotDebugRow(buffer, ahead, isAhead: true);
+                AppendSlotDebugRow(buffer, behind, isAhead: false);
+
+                buffer.Append(outputs.Debug.TimestampUpdatesThisTick).Append(',');
+                buffer.Append(outputs.Debug.RealGapClampsThisTick).Append(',');
+                buffer.Append(outputs.Debug.HysteresisReplacementsThisTick).Append(',');
+                buffer.Append(outputs.Debug.FilteredHalfLapCountAhead).Append(',');
+                buffer.Append(outputs.Debug.FilteredHalfLapCountBehind);
+                buffer.AppendLine();
+
+                _carSaDebugExportPendingLines++;
+                if (_carSaDebugExportPendingLines >= 20 || buffer.Length >= 4096)
+                {
+                    FlushCarSaDebugExportBuffer();
+                }
+            }
+            catch (Exception)
+            {
+                _carSaDebugExportPath = null;
+                _carSaDebugExportPendingLines = 0;
+                if (_carSaDebugExportBuffer != null)
+                {
+                    _carSaDebugExportBuffer.Clear();
+                }
+            }
+        }
+
+        private void AppendSlotDebugRow(StringBuilder buffer, CarSASlot slot, bool isAhead)
+        {
+            if (slot == null)
+            {
+                buffer.Append("-1,");
+                buffer.Append("NaN,");
+                buffer.Append("NaN,");
+                buffer.Append("NaN,");
+                buffer.Append("0,");
+                buffer.Append("0,");
+                buffer.Append("0,");
+                return;
+            }
+
+            buffer.Append(slot.CarIdx).Append(',');
+            buffer.Append((isAhead ? slot.ForwardDistPct : slot.BackwardDistPct).ToString("F6", CultureInfo.InvariantCulture)).Append(',');
+            buffer.Append(slot.GapRealSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+            buffer.Append(slot.ClosingRateSecPerSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+            buffer.Append(slot.LapDelta).Append(',');
+            buffer.Append(slot.IsOnTrack ? 1 : 0).Append(',');
+            buffer.Append(slot.IsOnPitRoad ? 1 : 0).Append(',');
+        }
+
+        private void EnsureCarSaDebugExportFile()
+        {
+            string token = string.IsNullOrWhiteSpace(_currentSessionToken) ? "na" : _currentSessionToken.Replace(":", "_");
+            if (!string.Equals(token, _carSaDebugExportToken, StringComparison.Ordinal) || string.IsNullOrWhiteSpace(_carSaDebugExportPath))
+            {
+                FlushCarSaDebugExportBuffer();
+                _carSaDebugExportToken = token;
+
+                string folder = Path.Combine(PluginStorage.GetCommonFolder(), "LalaLaunch", "Debug");
+                Directory.CreateDirectory(folder);
+                _carSaDebugExportPath = Path.Combine(folder, $"CarSA_DebugExport_{token}.csv");
+
+                if (!File.Exists(_carSaDebugExportPath))
+                {
+                    File.WriteAllText(_carSaDebugExportPath, GetCarSaDebugExportHeader() + Environment.NewLine);
+                }
+            }
+
+            if (_carSaDebugExportBuffer == null)
+            {
+                _carSaDebugExportBuffer = new StringBuilder(1024);
+            }
+        }
+
+        private void FlushCarSaDebugExportBuffer()
+        {
+            if (string.IsNullOrWhiteSpace(_carSaDebugExportPath) || _carSaDebugExportBuffer == null || _carSaDebugExportBuffer.Length == 0)
+            {
+                return;
+            }
+
+            File.AppendAllText(_carSaDebugExportPath, _carSaDebugExportBuffer.ToString());
+            _carSaDebugExportBuffer.Clear();
+            _carSaDebugExportPendingLines = 0;
+        }
+
+        private static string GetCarSaDebugExportHeader()
+        {
+            return "SessionTimeSec,PlayerLap,PlayerLapPct,CheckpointIndex," +
+                   "Ahead01.CarIdx,Ahead01.ForwardDistPct,Ahead01.GapRealSec,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad," +
+                   "Behind01.CarIdx,Behind01.BackwardDistPct,Behind01.GapRealSec,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad," +
+                   "TimestampUpdatesThisTick,RealGapClampsThisTick,HysteresisReplacementsThisTick,FilteredHalfLapCountAhead,FilteredHalfLapCountBehind";
+        }
+
+        private void ResetCarSaDebugExportState()
+        {
+            FlushCarSaDebugExportBuffer();
+            _carSaDebugExportPath = null;
+            _carSaDebugExportToken = null;
+            _carSaDebugExportPendingLines = 0;
+        }
 
         private void UpdateOpponentsAndPitExit(GameData data, PluginManager pluginManager, int completedLaps, string sessionTypeToken)
         {
@@ -6863,6 +7005,7 @@ namespace LaunchPlugin
 
         // --- Global Settings with Corrected Defaults ---
         public bool EnableDebugLogging { get; set; } = false;
+        public bool EnableCarSADebugExport { get; set; } = false;
         public bool PitExitVerboseLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
         public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;

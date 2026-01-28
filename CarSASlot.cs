@@ -31,6 +31,8 @@ namespace LaunchPlugin
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
         internal double LastGapSec { get; set; } = double.NaN;
         internal bool HasGap { get; set; }
+        internal double LastGapAbs { get; set; } = double.NaN;
+        internal bool HasGapAbs { get; set; }
 
         public void Reset()
         {
@@ -53,6 +55,8 @@ namespace LaunchPlugin
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
             HasGap = false;
+            LastGapAbs = double.NaN;
+            HasGapAbs = false;
         }
     }
 
@@ -62,6 +66,8 @@ namespace LaunchPlugin
         public double PlayerLapPct { get; set; } = double.NaN;
         public int PlayerLap { get; set; }
         public int PlayerCheckpointIndex { get; set; } = -1;
+        public int PlayerCheckpointIndexCrossed { get; set; } = -1;
+        public int PlayerCheckpointIndexNow { get; set; } = -1;
         public bool PlayerCheckpointCrossed { get; set; }
         public double SessionTimeSec { get; set; }
         public bool SourceFastPathUsed { get; set; }
@@ -82,6 +88,9 @@ namespace LaunchPlugin
         public int OnPitRoadCount { get; set; }
         public int OnTrackCount { get; set; }
         public int TimestampUpdatesThisTick { get; set; }
+        public int FilteredHalfLapCountAhead { get; set; }
+        public int FilteredHalfLapCountBehind { get; set; }
+        public int SlotCarIdxChangedThisTick { get; set; }
 
         public double LapTimeEstimateSec { get; set; }
         public int HysteresisReplacementsThisTick { get; set; }
@@ -93,6 +102,8 @@ namespace LaunchPlugin
             PlayerLapPct = double.NaN;
             PlayerLap = 0;
             PlayerCheckpointIndex = -1;
+            PlayerCheckpointIndexCrossed = -1;
+            PlayerCheckpointIndexNow = -1;
             PlayerCheckpointCrossed = false;
             SessionTimeSec = 0.0;
             SourceFastPathUsed = false;
@@ -110,6 +121,9 @@ namespace LaunchPlugin
             OnPitRoadCount = 0;
             OnTrackCount = 0;
             TimestampUpdatesThisTick = 0;
+            FilteredHalfLapCountAhead = 0;
+            FilteredHalfLapCountBehind = 0;
+            SlotCarIdxChangedThisTick = 0;
             LapTimeEstimateSec = 0.0;
             HysteresisReplacementsThisTick = 0;
             RealGapClampsThisTick = 0;

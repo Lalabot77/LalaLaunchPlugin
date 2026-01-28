@@ -9,6 +9,8 @@ namespace LaunchPlugin
         private readonly double[] _lastTimeSec;
         private readonly double[] _prevLapPct;
         private const double WrapThreshold = 0.5;
+        private const int TrackSurfaceNotInWorld = -1;
+        private const int TrackSurfaceOnTrack = 3;
 
         public RealGapStopwatch(int checkpointCount, int maxCars)
         {
@@ -44,13 +46,15 @@ namespace LaunchPlugin
             int[] carIdxTrackSurface,
             int playerCarIdx,
             out bool playerCheckpointCrossed,
-            out int playerCheckpointIndex,
+            out int playerCheckpointIndexCrossed,
+            out int playerCheckpointIndexNow,
             out int timestampUpdates,
             out int invalidLapPctCount,
             out int onTrackCount)
         {
             playerCheckpointCrossed = false;
-            playerCheckpointIndex = -1;
+            playerCheckpointIndexCrossed = -1;
+            playerCheckpointIndexNow = -1;
             timestampUpdates = 0;
             invalidLapPctCount = 0;
             onTrackCount = 0;
@@ -68,13 +72,36 @@ namespace LaunchPlugin
                 {
                     invalidLapPctCount++;
                     _prevLapPct[carIdx] = double.NaN;
+                    if (carIdx == playerCarIdx)
+                    {
+                        playerCheckpointIndexNow = -1;
+                    }
                     continue;
+                }
+
+                if (carIdx == playerCarIdx)
+                {
+                    int nowIndex = (int)Math.Floor(lapPct * _checkpointCount);
+                    if (nowIndex < 0) nowIndex = 0;
+                    if (nowIndex >= _checkpointCount) nowIndex = _checkpointCount - 1;
+                    playerCheckpointIndexNow = nowIndex;
                 }
 
                 bool onTrack = true;
                 if (carIdxTrackSurface != null && carIdx < carIdxTrackSurface.Length)
                 {
-                    onTrack = carIdxTrackSurface[carIdx] > 0;
+                    int surface = carIdxTrackSurface[carIdx];
+                    if (surface == TrackSurfaceNotInWorld)
+                    {
+                        _prevLapPct[carIdx] = double.NaN;
+                        if (carIdx == playerCarIdx)
+                        {
+                            playerCheckpointIndexNow = -1;
+                        }
+                        continue;
+                    }
+
+                    onTrack = surface == TrackSurfaceOnTrack;
                 }
 
                 if (onTrack)
@@ -120,7 +147,7 @@ namespace LaunchPlugin
                     if (carIdx == playerCarIdx)
                     {
                         playerCheckpointCrossed = true;
-                        playerCheckpointIndex = normalizedIndex;
+                        playerCheckpointIndexCrossed = normalizedIndex;
                     }
                 }
 
