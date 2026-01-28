@@ -35,7 +35,7 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 - If `lapDelta != 0`, `RealGapAdjSec += lapDelta * LapTimeEstimateSec` is applied **only when both the player and the slot are not near S/F** (near edge = within 3% of lapPct 0/1). If either side is near the edge, the correction is skipped to avoid wrap spikes.
 - If `lapDelta == 0` and the slot is **behind**, the gap is wrapped by subtracting the lap-time estimate when the raw gap implies the previous lap.
 - RealGap is clamped to ±600 s to guard against telemetry spikes.
-- LapDelta wrap override: if lap counters differ by ±1 at S/F but the cars are physically close (within 10% lap distance) and straddling the S/F edge, LapDelta is treated as `0` to prevent single-tick spikes.
+- LapDelta wrap override: if lap counters differ by ±1 at S/F but the cars are physically close (within 10% lap distance) and straddling the S/F edge (within 15% of lapPct 0/1), LapDelta is treated as `0` to prevent single-tick spikes.
 
 ### Gap RealSec grace hold
 - If a slot has a valid last gap and a RealGap update is missing (no checkpoint timestamp yet), CarSA **holds the last gap for ~2 seconds** before returning `NaN`.

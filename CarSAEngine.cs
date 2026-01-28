@@ -18,6 +18,7 @@ namespace LaunchPlugin
         private const double HalfLapFilterMax = 0.60;
         private const double RealGapGraceSec = 2.0;
         private const double WrapGuardEdgePct = 0.03;
+        private const double LapDeltaWrapEdgePct = 0.15;
         private const int TrackSurfaceNotInWorld = -1;
         private const int TrackSurfaceOnTrack = 3;
 
@@ -562,16 +563,16 @@ namespace LaunchPlugin
                     if (isAhead &&
                         baseLapDelta == 1 &&
                         slot.ForwardDistPct <= lapDeltaClosePct &&
-                        playerLapPct >= (1.0 - WrapGuardEdgePct) &&
-                        oppLapPct <= WrapGuardEdgePct)
+                        playerLapPct >= (1.0 - LapDeltaWrapEdgePct) &&
+                        oppLapPct <= LapDeltaWrapEdgePct)
                     {
                         baseLapDelta = 0;
                     }
                     else if (!isAhead &&
                         baseLapDelta == -1 &&
                         slot.BackwardDistPct <= lapDeltaClosePct &&
-                        playerLapPct <= WrapGuardEdgePct &&
-                        oppLapPct >= (1.0 - WrapGuardEdgePct))
+                        playerLapPct <= LapDeltaWrapEdgePct &&
+                        oppLapPct >= (1.0 - LapDeltaWrapEdgePct))
                     {
                         baseLapDelta = 0;
                     }
@@ -638,11 +639,6 @@ namespace LaunchPlugin
                 double adjustedGap = rawGap;
 
                 int lapDelta = slot.LapDelta;
-                if (carIdxLap != null && slot.CarIdx < carIdxLap.Length)
-                {
-                    int oppLap = carIdxLap[slot.CarIdx];
-                    lapDelta = oppLap - playerLap;
-                }
 
                 if (lapDelta != 0)
                 {
