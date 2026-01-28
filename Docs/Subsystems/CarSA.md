@@ -83,7 +83,7 @@ Debug (`Car.Debug.*`):
 
 ## Debug export (optional)
 When `EnableCarSADebugExport` is enabled, CarSA writes a lightweight CSV snapshot on **player checkpoint crossings**:
-- Path: `PluginsData/Common/LalaLaunch/Debug/CarSA_DebugExport_<SessionID_SubSessionID>.csv`
+- Path: `SimHub/Logs/LalapluginData/CarSA_DebugExport_<SessionID_SubSessionID>.csv`
 - Cadence: **checkpoint crossings only** (same event that updates RealGap).
 - Columns: session time, player lap/pct/checkpoint (now + crossed), Ahead01 and Behind01 slot basics (car idx, distance pct, gap, closing rate, lap delta, on-track/pit flags), plus counters (`TimestampUpdatesThisTick`, `RealGapClampsThisTick`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`, `FilteredHalfLapCountAhead/Behind`).
 

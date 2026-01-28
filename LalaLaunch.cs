@@ -4837,7 +4837,7 @@ namespace LaunchPlugin
                 FlushCarSaDebugExportBuffer();
                 _carSaDebugExportToken = token;
 
-                string folder = Path.Combine(PluginStorage.GetCommonFolder(), "LalaLaunch", "Debug");
+                string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalapluginData");
                 Directory.CreateDirectory(folder);
                 _carSaDebugExportPath = Path.Combine(folder, $"CarSA_DebugExport_{token}.csv");
 
