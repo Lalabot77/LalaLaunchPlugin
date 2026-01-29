@@ -4839,7 +4839,9 @@ namespace LaunchPlugin
 
                 string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalapluginData");
                 Directory.CreateDirectory(folder);
-                _carSaDebugExportPath = Path.Combine(folder, $"CarSA_DebugExport_{token}.csv");
+                string trackName = SanitizeCarSaDebugExportName(CurrentTrackName);
+                string timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+                _carSaDebugExportPath = Path.Combine(folder, $"CarSA_Debug_{timestamp}_{trackName}.csv");
 
                 if (!File.Exists(_carSaDebugExportPath))
                 {
@@ -4851,6 +4853,66 @@ namespace LaunchPlugin
             {
                 _carSaDebugExportBuffer = new StringBuilder(1024);
             }
+        }
+
+        private static string SanitizeCarSaDebugExportName(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return "Unknown";
+            }
+
+            string invalidChars = new string(Path.GetInvalidFileNameChars()) + new string(Path.GetInvalidPathChars());
+            char[] buffer = input.ToCharArray();
+            char[] cleaned = new char[buffer.Length];
+            int cleanedLength = 0;
+            bool lastUnderscore = false;
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                char c = buffer[i];
+                bool makeUnderscore = char.IsWhiteSpace(c) || invalidChars.IndexOf(c) >= 0;
+                char nextChar = makeUnderscore ? '_' : c;
+                if (nextChar == '_')
+                {
+                    if (lastUnderscore)
+                    {
+                        continue;
+                    }
+                    lastUnderscore = true;
+                }
+                else
+                {
+                    lastUnderscore = false;
+                }
+
+                cleaned[cleanedLength] = nextChar;
+                cleanedLength++;
+            }
+
+            int start = 0;
+            int end = cleanedLength - 1;
+            while (start <= end && cleaned[start] == '_')
+            {
+                start++;
+            }
+            while (end >= start && cleaned[end] == '_')
+            {
+                end--;
+            }
+
+            if (end < start)
+            {
+                return "Unknown";
+            }
+
+            int maxLength = 60;
+            int length = end - start + 1;
+            if (length > maxLength)
+            {
+                length = maxLength;
+            }
+
+            return new string(cleaned, start, length);
         }
 
         private void FlushCarSaDebugExportBuffer()

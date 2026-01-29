@@ -3,7 +3,7 @@
 # Code Snapshot
 
 - Source commit/PR: 9f784a9 (current HEAD; PR unknown)
-- Generated date: 2026-01-14
+- Generated date: 2026-01-29
 - Regeneration: manual snapshot; no regen pipeline defined
 - Branch: work
 
@@ -11,7 +11,7 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 
 ## Snapshot metadata (legacy)
 - Commit: 9f784a9 (current HEAD)
-- Date: 2026-01-14
+- Date: 2026-01-29
 
 ## Architectural notes (profiles, storage, fuel persistence)
 - **Standardized JSON storage** now resolves all plugin JSON data into `PluginsData/Common/LalaPlugin/` via `PluginStorage`, with built-in legacy migration helpers. Car profiles, race presets, message definitions, global settings, and track markers all use this storage helper for consistent locations and one-time migrations.【F:PluginStorage.cs†L1-L76】【F:ProfilesManagerViewModel.cs†L545-L936】【F:RacePresetStore.cs†L11-L140】【F:Messaging/MessageDefinitionStore.cs†L10-L120】【F:LalaLaunch.cs†L3469-L3510】
@@ -23,9 +23,12 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - **Fuel planner max-fuel override** is clamped to the profile base tank in Profile mode; switching into Live Snapshot captures the prior override and uses the live cap (or 0 if missing), while switching back restores the profile value and re-applies any selected preset.【F:FuelCalcs.cs†L300-L405】【F:FuelCalcs.cs†L1821-L1884】
 - **Live Snapshot resets** clear live fuel/pace summaries when the car/track changes, ensuring the Live Session panel never shows profile fallback values during a new live session startup.【F:FuelCalcs.cs†L3270-L3703】
 - **Messaging signals** include `MSG.OtherClassBehindGap` (seconds behind a faster-class car) alongside `MSG.OvertakeApproachLine`, for use in message catalog evaluators.【F:MessagingSystem.cs†L13-L214】【F:LalaLaunch.cs†L3123-L3129】
+- **CarSA Phase-1 stabilization** adds a one-tick settle guard after slot rebinds (suppressing lap-delta and behind-wrap corrections on the first RealGap publish) and updates debug CSV filenames to include UTC timestamp and sanitized track names (collapsed/trimmed underscores, clamped length).【F:CarSAEngine.cs†L629-L719】【F:LalaLaunch.cs†L4835-L4912】
 
 ## Included .cs Files
 - CarProfiles.cs — last modified 2026-02-08T00:00:00+00:00
+- CarSAEngine.cs — last modified 2026-01-29
+- CarSASlot.cs — last modified 2026-01-29
 - CopyProfileDialog.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - DashesTabView.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - EnumEqualsConverter.cs — last modified 2025-11-04T19:13:41-06:00
@@ -33,7 +36,7 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - FuelCalculatorView.xaml.cs — last modified 2025-11-27T07:30:04-06:00
 - FuelProjectionMath.cs — last modified 2025-12-27T12:32:10+00:00
 - InvertBooleanConverter.cs — last modified 2025-09-14T19:32:49+01:00
-- LalaLaunch.cs — last modified 2026-01-13
+- LalaLaunch.cs — last modified 2026-01-29
 - LapTimeValidationRule.cs — last modified 2025-09-14T19:32:49+01:00
 - LaunchAnalysisControl.xaml.cs — last modified 2025-11-27T11:49:07-06:00
 - LaunchPluginCombinedSettingsControl.xaml.cs — last modified 2025-11-04T19:13:41-06:00
