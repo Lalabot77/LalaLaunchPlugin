@@ -8,6 +8,7 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 ## Truth source
 - **Primary:** `CarIdx*` raw telemetry arrays (CarIdxLapDistPct, CarIdxLap, CarIdxTrackSurface, CarIdxOnPitRoad).
 - **Fast-path:** Not enabled in Phase 1 (source remains `CarIdxTruth`).
+- **Identity:** Slot Name/CarNumber/ClassColor are populated on slot rebinds/session reset from `SessionData.DriverInfo.CompetingDrivers` (UserName/CarNumber/CarClassColor).
 
 ## Slot selection (Ahead/Behind)
 - Ordering uses CarIdx lap distance percentages (`LapDistPct`) for all cars.
