@@ -2823,6 +2823,7 @@ namespace LaunchPlugin
         private readonly int[] _carSaLastAheadIdx = new int[CarSAEngine.SlotsAhead];
         private readonly int[] _carSaLastBehindIdx = new int[CarSAEngine.SlotsBehind];
         private bool _carSaIdentityRefreshRequested;
+        private double _carSaIdentityLastRetrySessionTimeSec = -1.0;
 
         private enum LaunchState
         {
@@ -4322,7 +4323,7 @@ namespace LaunchPlugin
             if (_carSaEngine != null)
             {
                 WriteCarSaDebugExport(_carSaEngine.Outputs);
-                RefreshCarSaSlotIdentities(pluginManager);
+                RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
             }
 
             if (pitEntryEdge)
@@ -4952,6 +4953,7 @@ namespace LaunchPlugin
         private void ResetCarSaIdentityState()
         {
             _carSaIdentityRefreshRequested = true;
+            _carSaIdentityLastRetrySessionTimeSec = -1.0;
             for (int i = 0; i < _carSaLastAheadIdx.Length; i++)
             {
                 _carSaLastAheadIdx[i] = -1;
@@ -4962,7 +4964,7 @@ namespace LaunchPlugin
             }
         }
 
-        private void RefreshCarSaSlotIdentities(PluginManager pluginManager)
+        private void RefreshCarSaSlotIdentities(PluginManager pluginManager, double sessionTimeSec)
         {
             if (_carSaEngine == null || pluginManager == null)
             {
@@ -4970,6 +4972,15 @@ namespace LaunchPlugin
             }
 
             bool forceRefresh = _carSaIdentityRefreshRequested;
+            if (forceRefresh && !IsCompetingDriversReady(pluginManager))
+            {
+                if (_carSaIdentityLastRetrySessionTimeSec < 0.0 || sessionTimeSec - _carSaIdentityLastRetrySessionTimeSec >= 0.5)
+                {
+                    _carSaIdentityLastRetrySessionTimeSec = sessionTimeSec;
+                }
+                return;
+            }
+
             if (forceRefresh)
             {
                 _carSaIdentityRefreshRequested = false;
@@ -5059,6 +5070,13 @@ namespace LaunchPlugin
             }
 
             return false;
+        }
+
+        private bool IsCompetingDriversReady(PluginManager pluginManager)
+        {
+            if (pluginManager == null) return false;
+            int idx = GetInt(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[0].CarIdx", int.MinValue);
+            return idx != int.MinValue;
         }
 
         private void UpdateOpponentsAndPitExit(GameData data, PluginManager pluginManager, int completedLaps, string sessionTypeToken)
