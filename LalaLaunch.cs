@@ -2820,6 +2820,10 @@ namespace LaunchPlugin
         private string _carSaDebugExportPath;
         private string _carSaDebugExportToken;
         private int _carSaDebugExportPendingLines;
+        private readonly int[] _carSaLastAheadIdx = new int[CarSAEngine.SlotsAhead];
+        private readonly int[] _carSaLastBehindIdx = new int[CarSAEngine.SlotsBehind];
+        private bool _carSaIdentityRefreshRequested;
+        private double _carSaIdentityLastRetrySessionTimeSec = -1.0;
 
         private enum LaunchState
         {
@@ -2994,6 +2998,7 @@ namespace LaunchPlugin
             _telemetryTraceLogger = new TelemetryTraceLogger(this);
             _opponentsEngine = new OpponentsEngine();
             _carSaEngine = new CarSAEngine();
+            ResetCarSaIdentityState();
 
             _poll250ms.Start();
             _poll500ms.Start();
@@ -4130,6 +4135,7 @@ namespace LaunchPlugin
                 _pit?.ResetPitPhaseState();
                 _opponentsEngine?.Reset();
                 _carSaEngine?.Reset();
+                ResetCarSaIdentityState();
                 ResetCarSaDebugExportState();
                 _currentCarModel = string.Empty;
                 CurrentTrackName = string.Empty;
@@ -4317,6 +4323,7 @@ namespace LaunchPlugin
             if (_carSaEngine != null)
             {
                 WriteCarSaDebugExport(_carSaEngine.Outputs);
+                RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
             }
 
             if (pitEntryEdge)
@@ -4941,6 +4948,135 @@ namespace LaunchPlugin
             _carSaDebugExportPath = null;
             _carSaDebugExportToken = null;
             _carSaDebugExportPendingLines = 0;
+        }
+
+        private void ResetCarSaIdentityState()
+        {
+            _carSaIdentityRefreshRequested = true;
+            _carSaIdentityLastRetrySessionTimeSec = -1.0;
+            for (int i = 0; i < _carSaLastAheadIdx.Length; i++)
+            {
+                _carSaLastAheadIdx[i] = -1;
+            }
+            for (int i = 0; i < _carSaLastBehindIdx.Length; i++)
+            {
+                _carSaLastBehindIdx[i] = -1;
+            }
+        }
+
+        private void RefreshCarSaSlotIdentities(PluginManager pluginManager, double sessionTimeSec)
+        {
+            if (_carSaEngine == null || pluginManager == null)
+            {
+                return;
+            }
+
+            bool forceRefresh = _carSaIdentityRefreshRequested;
+            if (forceRefresh && !IsCompetingDriversReady(pluginManager))
+            {
+                if (_carSaIdentityLastRetrySessionTimeSec < 0.0 || sessionTimeSec - _carSaIdentityLastRetrySessionTimeSec >= 0.5)
+                {
+                    _carSaIdentityLastRetrySessionTimeSec = sessionTimeSec;
+                }
+                return;
+            }
+
+            if (forceRefresh)
+            {
+                _carSaIdentityRefreshRequested = false;
+            }
+
+            ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.AheadSlots, _carSaLastAheadIdx, forceRefresh);
+            ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.BehindSlots, _carSaLastBehindIdx, forceRefresh);
+        }
+
+        private void ApplyCarSaIdentityRefresh(PluginManager pluginManager, CarSASlot[] slots, int[] lastCarIdx, bool forceRefresh)
+        {
+            if (slots == null || lastCarIdx == null) return;
+
+            int count = Math.Min(slots.Length, lastCarIdx.Length);
+            for (int i = 0; i < count; i++)
+            {
+                var slot = slots[i];
+                int carIdx = slot?.CarIdx ?? -1;
+                bool carIdxChanged = carIdx != lastCarIdx[i];
+
+                if (carIdxChanged)
+                {
+                    lastCarIdx[i] = carIdx;
+                }
+
+                if (!forceRefresh && !carIdxChanged)
+                {
+                    continue;
+                }
+
+                if (slot == null || carIdx < 0)
+                {
+                    if (slot != null)
+                    {
+                        slot.Name = string.Empty;
+                        slot.CarNumber = string.Empty;
+                        slot.ClassColor = string.Empty;
+                    }
+                    continue;
+                }
+
+                slot.Name = string.Empty;
+                slot.CarNumber = string.Empty;
+                slot.ClassColor = string.Empty;
+
+                if (TryGetCarIdentityFromSessionInfo(pluginManager, carIdx, out var name, out var carNumber, out var classColor))
+                {
+                    if (!string.IsNullOrWhiteSpace(name)) slot.Name = name;
+                    if (!string.IsNullOrWhiteSpace(carNumber)) slot.CarNumber = carNumber;
+                    if (!string.IsNullOrWhiteSpace(classColor)) slot.ClassColor = classColor;
+                }
+            }
+        }
+
+        private bool TryGetCarIdentityFromSessionInfo(PluginManager pluginManager, int carIdx, out string name, out string carNumber, out string classColor)
+        {
+            name = string.Empty;
+            carNumber = string.Empty;
+            classColor = string.Empty;
+
+            if (pluginManager == null || carIdx < 0)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < 64; i++)
+            {
+                int idx = GetInt(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarIdx", int.MinValue);
+                if (idx == int.MinValue)
+                {
+                    break;
+                }
+
+                if (idx != carIdx)
+                {
+                    continue;
+                }
+
+                name = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].UserName") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    name = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].TeamName") ?? string.Empty;
+                }
+                carNumber = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarNumber") ?? string.Empty;
+                classColor = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarClassColor") ?? string.Empty;
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool IsCompetingDriversReady(PluginManager pluginManager)
+        {
+            if (pluginManager == null) return false;
+            int idx = GetInt(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[0].CarIdx", int.MinValue);
+            return idx != int.MinValue;
         }
 
         private void UpdateOpponentsAndPitExit(GameData data, PluginManager pluginManager, int completedLaps, string sessionTypeToken)
