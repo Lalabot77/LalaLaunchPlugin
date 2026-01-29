@@ -23,7 +23,7 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - **Fuel planner max-fuel override** is clamped to the profile base tank in Profile mode; switching into Live Snapshot captures the prior override and uses the live cap (or 0 if missing), while switching back restores the profile value and re-applies any selected preset.【F:FuelCalcs.cs†L300-L405】【F:FuelCalcs.cs†L1821-L1884】
 - **Live Snapshot resets** clear live fuel/pace summaries when the car/track changes, ensuring the Live Session panel never shows profile fallback values during a new live session startup.【F:FuelCalcs.cs†L3270-L3703】
 - **Messaging signals** include `MSG.OtherClassBehindGap` (seconds behind a faster-class car) alongside `MSG.OvertakeApproachLine`, for use in message catalog evaluators.【F:MessagingSystem.cs†L13-L214】【F:LalaLaunch.cs†L3123-L3129】
-- **CarSA Phase-1 stabilization** adds a one-tick settle guard after slot rebinds (suppressing lap-delta and behind-wrap corrections on the first RealGap publish) and updates debug CSV filenames to include UTC timestamp and sanitized track names (collapsed/trimmed underscores, clamped length).【F:CarSAEngine.cs†L629-L719】【F:LalaLaunch.cs†L4835-L4912】
+- **CarSA Phase-1 stabilization** adds a one-tick settle guard after slot rebinds and refines Behind wrap suppression by using a stricter S/F threshold while keeping lap-delta suppression intact; debug CSV filenames include UTC timestamps and sanitized track names (collapsed/trimmed underscores, clamped length).【F:CarSAEngine.cs†L629-L722】【F:LalaLaunch.cs†L4835-L4912】
 
 ## Included .cs Files
 - CarProfiles.cs — last modified 2026-02-08T00:00:00+00:00

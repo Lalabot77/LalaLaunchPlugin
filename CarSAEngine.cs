@@ -662,18 +662,20 @@ namespace LaunchPlugin
                     (slotLapPct <= WrapGuardEdgePct || slotLapPct >= (1.0 - WrapGuardEdgePct));
                 bool closeEnough = !double.IsNaN(distPct) && distPct <= WrapStraddleClosePct;
                 bool suppressLapDeltaCorrection = playerNearEdge && slotNearEdge && closeEnough;
-                bool allowWrapAdjust = !slot.JustRebound && !suppressLapDeltaCorrection;
+                bool allowLapDeltaAdjust = !slot.JustRebound && !suppressLapDeltaCorrection;
+                bool allowBehindWrap = !slot.JustRebound;
+                double behindWrapThreshold = suppressLapDeltaCorrection ? 0.90 : WrapAdjustThresholdFactor;
 
                 if (lapDelta != 0)
                 {
-                    if (allowWrapAdjust)
+                    if (allowLapDeltaAdjust)
                     {
                         adjustedGap += lapDelta * lapTimeEstimateSec;
                     }
                 }
-                else if (!isAhead && rawGap > lapTimeEstimateSec * WrapAdjustThresholdFactor)
+                else if (!isAhead && rawGap > lapTimeEstimateSec * behindWrapThreshold)
                 {
-                    if (allowWrapAdjust)
+                    if (allowBehindWrap)
                     {
                         adjustedGap = rawGap - lapTimeEstimateSec;
                     }

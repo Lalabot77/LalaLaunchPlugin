@@ -33,7 +33,7 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 ### Lap delta correction
 - `lapDelta = oppLap - myLap`
 - If `lapDelta != 0`, `RealGapAdjSec += lapDelta * LapTimeEstimateSec` is applied **unless both the player and the slot are near S/F and physically close** (near edge = within 3% of lapPct 0/1, close = within 10% lap distance). This suppresses only the true S/F straddle spike.
-- If `lapDelta == 0` and the slot is **behind**, the gap is wrapped by subtracting the lap-time estimate when the raw gap implies the previous lap; this wrap adjustment is also suppressed when both cars are near S/F and physically close.
+- If `lapDelta == 0` and the slot is **behind**, the gap is wrapped by subtracting the lap-time estimate when the raw gap implies the previous lap; when both cars are near S/F and physically close, the wrap uses a stricter threshold (0.90 * lap time) to avoid false wraps.
 - On the **first RealGap update after a slot rebind**, lap-delta and behind-wrap corrections are suppressed (one-tick settle guard) and cleared after the first successful RealGap publish.
 - RealGap is clamped to ±600 s to guard against telemetry spikes.
 - LapDelta wrap override: if lap counters differ by ±1 at S/F but the cars are physically close (within 10% lap distance) and straddling the S/F edge (within 15% of lapPct 0/1), LapDelta is treated as `0` to prevent single-tick spikes.
