@@ -471,6 +471,7 @@ namespace LaunchPlugin
                 slot.LastSeenCheckpointTimeSec = 0.0;
                 slot.HasRealGap = false;
                 slot.LastRealGapUpdateSessionTimeSec = 0.0;
+                slot.JustRebound = true;
             }
 
             slot.CarIdx = carIdx;
@@ -661,17 +662,20 @@ namespace LaunchPlugin
                     (slotLapPct <= WrapGuardEdgePct || slotLapPct >= (1.0 - WrapGuardEdgePct));
                 bool closeEnough = !double.IsNaN(distPct) && distPct <= WrapStraddleClosePct;
                 bool suppressLapDeltaCorrection = playerNearEdge && slotNearEdge && closeEnough;
+                bool allowLapDeltaAdjust = !slot.JustRebound && !suppressLapDeltaCorrection;
+                bool allowBehindWrap = !slot.JustRebound;
+                double behindWrapThreshold = suppressLapDeltaCorrection ? 0.90 : WrapAdjustThresholdFactor;
 
                 if (lapDelta != 0)
                 {
-                    if (!suppressLapDeltaCorrection)
+                    if (allowLapDeltaAdjust)
                     {
                         adjustedGap += lapDelta * lapTimeEstimateSec;
                     }
                 }
-                else if (!isAhead && rawGap > lapTimeEstimateSec * WrapAdjustThresholdFactor)
+                else if (!isAhead && rawGap > lapTimeEstimateSec * behindWrapThreshold)
                 {
-                    if (!suppressLapDeltaCorrection)
+                    if (allowBehindWrap)
                     {
                         adjustedGap = rawGap - lapTimeEstimateSec;
                     }
@@ -693,6 +697,7 @@ namespace LaunchPlugin
                 slot.GapRealSec = isAhead ? Math.Abs(adjustedGap) : -Math.Abs(adjustedGap);
                 slot.HasRealGap = true;
                 slot.LastRealGapUpdateSessionTimeSec = sessionTimeSec;
+                slot.JustRebound = false;
 
                 UpdateClosingRate(slot, playerCheckpointTimeSec);
             }
