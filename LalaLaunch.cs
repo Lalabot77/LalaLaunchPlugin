@@ -632,6 +632,7 @@ namespace LaunchPlugin
         private const double SmoothedAlpha = 0.35; // ~1–2s response at 500ms tick
         internal const double FuelReadyConfidenceDefault = 60.0;
         internal const int StintFuelMarginPctDefault = 10;
+        internal const double CarSANotRelevantGapSecDefault = 10.0;
         private const int LapTimeConfidenceSwitchOn = 50;
         private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
         private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
@@ -3430,6 +3431,9 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.Gap.RealSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapRealSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Status", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Status ?? 0);
+                AttachCore($"Car.Ahead{label}.StatusE", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusE ?? 0);
+                AttachCore($"Car.Ahead{label}.StatusShort", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusShort ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.StatusLong", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusLong ?? string.Empty);
             }
             for (int i = 0; i < CarSAEngine.SlotsBehind; i++)
             {
@@ -3446,6 +3450,9 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.Gap.RealSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapRealSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Status", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Status ?? 0);
+                AttachCore($"Car.Behind{label}.StatusE", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusE ?? 0);
+                AttachCore($"Car.Behind{label}.StatusShort", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusShort ?? string.Empty);
+                AttachCore($"Car.Behind{label}.StatusLong", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusLong ?? string.Empty);
             }
 
             AttachCore("Car.Debug.PlayerCarIdx", () => _carSaEngine?.Outputs.Debug.PlayerCarIdx ?? -1);
@@ -4319,7 +4326,12 @@ namespace LaunchPlugin
             {
                 lapTimeEstimateSec = 120.0;
             }
-            _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, lapTimeEstimateSec, debugEnabled);
+            double notRelevantGapSec = Settings?.NotRelevantGapSec ?? CarSANotRelevantGapSecDefault;
+            if (double.IsNaN(notRelevantGapSec) || double.IsInfinity(notRelevantGapSec) || notRelevantGapSec < 0.0)
+            {
+                notRelevantGapSec = CarSANotRelevantGapSecDefault;
+            }
+            _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
             if (_carSaEngine != null)
             {
                 WriteCarSaDebugExport(_carSaEngine.Outputs);
@@ -5009,6 +5021,11 @@ namespace LaunchPlugin
                 if (!forceRefresh && !carIdxChanged)
                 {
                     continue;
+                }
+
+                if (slot != null)
+                {
+                    slot.StatusETextDirty = true;
                 }
 
                 if (slot == null || carIdx < 0)
@@ -7215,6 +7232,7 @@ namespace LaunchPlugin
         public string CsvLogPath { get; set; } = "";
         public string TraceLogPath { get; set; } = "";
         public bool EnableTelemetryTracing { get; set; } = true;
+        public double NotRelevantGapSec { get; set; } = LalaLaunch.CarSANotRelevantGapSecDefault;
 
         // --- LalaDash Toggles (Default ON) ---
         public bool LalaDashShowLaunchScreen { get; set; } = true;

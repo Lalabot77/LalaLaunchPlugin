@@ -59,7 +59,37 @@ CarSA defines a minimal, stable status enum:
 - `Normal = 1`
 - `InPits = 2` (set whenever `CarIdxOnPitRoad` is true).
 
-## Exports (Phase 1)
+## StatusE ladder (Phase 2.1)
+CarSA now publishes a Traffic SA “E-number” ladder per slot for dash filtering. Values are grouped into LOW/MID/HIGH numeric ranges.
+
+**Numeric mapping (locked):**
+
+| Range | Value | Status | Short | Long |
+| --- | --- | --- | --- | --- |
+| LOW | 0 | Unknown | UNK | Unknown |
+| MID | 100 | OutLap | OUT | Out lap |
+| MID | 110 | InPits | PIT | In pits |
+| MID | 190 | NotRelevant | NR | Not relevant |
+| HIGH | 200 | FasterClass | F+ | Faster class |
+| HIGH | 210 | SlowerClass | S- | Slower class |
+| HIGH | 220 | Racing | RCE | Racing |
+| HIGH | 230 | LappingYou | LY | Lapping you |
+| HIGH | 240 | BeingLapped | BL | Being lapped |
+
+**Range usage notes (Phase 2.1):**
+- LOW range values are reserved for Practice/Open Quali only; Phase 2.1 does not emit PushLap/SlowLap and keeps `Unknown`.
+- HIGH range values are Race-only in the full ladder; Phase 2.1 keeps them at `Unknown`.
+
+**Phase 2.1 logic (per slot, priority order):**
+1. If the slot is not valid **or** not on track ⇒ `NotRelevant` (190).
+2. If `IsOnPitRoad` ⇒ `InPits` (110).
+3. If `abs(GapRealSec) > NotRelevantGapSec` ⇒ `NotRelevant` (190).
+4. Else ⇒ `Unknown` (0) for Phase 2.1 (OutLap/Faster/Slower/Racing/Lapping/BeingLapped remain inactive).
+
+**Configuration:**
+- `NotRelevantGapSec` (double, default **10.0s**) is stored in global plugin settings and persists across sessions.
+
+## Exports (Phase 2.1)
 Prefix: `Car.*`
 
 System:
@@ -73,7 +103,7 @@ Slots (Ahead01..Ahead05, Behind01..Behind05):
 - Identity: `CarIdx`, `Name`, `CarNumber`, `ClassColor`
 - State: `IsOnTrack`, `IsOnPitRoad`, `IsValid`
 - Spatial: `LapDelta`, `Gap.RealSec`
-- Derived: `ClosingRateSecPerSec`, `Status`
+- Derived: `ClosingRateSecPerSec`, `Status`, `StatusE`, `StatusShort`, `StatusLong`
 
 Debug (`Car.Debug.*`):
 - Player: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `PlayerCheckpointIndexNow`, `PlayerCheckpointIndexCrossed`, `PlayerCheckpointCrossed`, `SessionTimeSec`, `SourceFastPathUsed`

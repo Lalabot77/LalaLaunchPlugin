@@ -21,6 +21,24 @@ namespace LaunchPlugin
         private const double LapDeltaWrapEdgePct = 0.15;
         private const int TrackSurfaceNotInWorld = -1;
         private const int TrackSurfaceOnTrack = 3;
+        private const string StatusShortUnknown = "UNK";
+        private const string StatusShortOutLap = "OUT";
+        private const string StatusShortInPits = "PIT";
+        private const string StatusShortNotRelevant = "NR";
+        private const string StatusShortFasterClass = "F+";
+        private const string StatusShortSlowerClass = "S-";
+        private const string StatusShortRacing = "RCE";
+        private const string StatusShortLappingYou = "LY";
+        private const string StatusShortBeingLapped = "BL";
+        private const string StatusLongUnknown = "Unknown";
+        private const string StatusLongOutLap = "Out lap";
+        private const string StatusLongInPits = "In pits";
+        private const string StatusLongNotRelevant = "Not relevant";
+        private const string StatusLongFasterClass = "Faster class";
+        private const string StatusLongSlowerClass = "Slower class";
+        private const string StatusLongRacing = "Racing";
+        private const string StatusLongLappingYou = "Lapping you";
+        private const string StatusLongBeingLapped = "Being lapped";
 
         private readonly RealGapStopwatch _stopwatch;
         private readonly CarSAOutputs _outputs;
@@ -61,6 +79,7 @@ namespace LaunchPlugin
             int[] carIdxTrackSurface,
             bool[] carIdxOnPitRoad,
             double lapTimeEstimateSec,
+            double notRelevantGapSec,
             bool debugEnabled)
         {
             _outputs.Source = "CarIdxTruth";
@@ -247,6 +266,9 @@ namespace LaunchPlugin
                 UpdateRealGaps(true, sessionTimeSec, playerCheckpointTimeSec, playerCheckpointIndexNow, playerLap, playerLapPct, lapTimeUsed, carIdxLap, _outputs.AheadSlots, ref realGapClamps);
                 UpdateRealGaps(false, sessionTimeSec, playerCheckpointTimeSec, playerCheckpointIndexNow, playerLap, playerLapPct, lapTimeUsed, carIdxLap, _outputs.BehindSlots, ref realGapClamps);
             }
+
+            UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec);
+            UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec);
 
             if (debugEnabled)
             {
@@ -472,6 +494,13 @@ namespace LaunchPlugin
                 slot.HasRealGap = false;
                 slot.LastRealGapUpdateSessionTimeSec = 0.0;
                 slot.JustRebound = true;
+
+                       // Phase 2: prevent stale StatusE labels carrying across car rebinds
+                slot.StatusE = (int)CarSAStatusE.Unknown;
+                slot.LastStatusE = int.MinValue;     // force UpdateStatusEText to run
+                slot.StatusETextDirty = true;
+                slot.StatusShort = "UNK";
+                slot.StatusLong = "Unknown";
             }
 
             slot.CarIdx = carIdx;
@@ -590,6 +619,105 @@ namespace LaunchPlugin
             {
                 slot.Status = (int)CarSAStatus.Normal;
             }
+        }
+
+        private static void UpdateStatusE(CarSASlot[] slots, double notRelevantGapSec)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                UpdateStatusE(slots[i], notRelevantGapSec);
+            }
+        }
+
+        private static void UpdateStatusE(CarSASlot slot, double notRelevantGapSec)
+        {
+            if (slot == null)
+            {
+                return;
+            }
+
+            int statusE = (int)CarSAStatusE.Unknown;
+            if (!slot.IsValid)
+            {
+                statusE = (int)CarSAStatusE.NotRelevant;
+            }
+            else if (slot.IsOnPitRoad)
+            {
+                statusE = (int)CarSAStatusE.InPits;
+            }
+            else if (!slot.IsOnTrack)
+            {
+                statusE = (int)CarSAStatusE.NotRelevant;
+            }
+
+            else if (!double.IsNaN(slot.GapRealSec) && Math.Abs(slot.GapRealSec) > notRelevantGapSec)
+            {
+                statusE = (int)CarSAStatusE.NotRelevant;
+            }
+
+            slot.StatusE = statusE;
+            UpdateStatusEText(slot);
+        }
+
+        private static void UpdateStatusEText(CarSASlot slot)
+        {
+            if (slot == null)
+            {
+                return;
+            }
+
+            if (slot.LastStatusE == slot.StatusE && !slot.StatusETextDirty)
+            {
+                return;
+            }
+
+            switch (slot.StatusE)
+            {
+                case (int)CarSAStatusE.OutLap:
+                    slot.StatusShort = StatusShortOutLap;
+                    slot.StatusLong = StatusLongOutLap;
+                    break;
+                case (int)CarSAStatusE.InPits:
+                    slot.StatusShort = StatusShortInPits;
+                    slot.StatusLong = StatusLongInPits;
+                    break;
+                case (int)CarSAStatusE.NotRelevant:
+                    slot.StatusShort = StatusShortNotRelevant;
+                    slot.StatusLong = StatusLongNotRelevant;
+                    break;
+                case (int)CarSAStatusE.FasterClass:
+                    slot.StatusShort = StatusShortFasterClass;
+                    slot.StatusLong = StatusLongFasterClass;
+                    break;
+                case (int)CarSAStatusE.SlowerClass:
+                    slot.StatusShort = StatusShortSlowerClass;
+                    slot.StatusLong = StatusLongSlowerClass;
+                    break;
+                case (int)CarSAStatusE.Racing:
+                    slot.StatusShort = StatusShortRacing;
+                    slot.StatusLong = StatusLongRacing;
+                    break;
+                case (int)CarSAStatusE.LappingYou:
+                    slot.StatusShort = StatusShortLappingYou;
+                    slot.StatusLong = StatusLongLappingYou;
+                    break;
+                case (int)CarSAStatusE.BeingLapped:
+                    slot.StatusShort = StatusShortBeingLapped;
+                    slot.StatusLong = StatusLongBeingLapped;
+                    break;
+                default:
+                    slot.StatusShort = StatusShortUnknown;
+                    slot.StatusLong = StatusLongUnknown;
+                    break;
+            }
+
+            slot.LastStatusE = slot.StatusE;
+            slot.StatusETextDirty = false;
         }
 
         private void UpdateRealGaps(

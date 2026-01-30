@@ -3,7 +3,7 @@
 # Code Snapshot
 
 - Source commit/PR: 9f784a9 (current HEAD; PR unknown)
-- Generated date: 2026-01-29
+- Generated date: 2026-01-29 (updated)
 - Regeneration: manual snapshot; no regen pipeline defined
 - Branch: work
 
@@ -11,7 +11,7 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 
 ## Snapshot metadata (legacy)
 - Commit: 9f784a9 (current HEAD)
-- Date: 2026-01-29
+- Date: 2026-01-29 (updated)
 
 ## Architectural notes (profiles, storage, fuel persistence)
 - **Standardized JSON storage** now resolves all plugin JSON data into `PluginsData/Common/LalaPlugin/` via `PluginStorage`, with built-in legacy migration helpers. Car profiles, race presets, message definitions, global settings, and track markers all use this storage helper for consistent locations and one-time migrations.【F:PluginStorage.cs†L1-L76】【F:ProfilesManagerViewModel.cs†L545-L936】【F:RacePresetStore.cs†L11-L140】【F:Messaging/MessageDefinitionStore.cs†L10-L120】【F:LalaLaunch.cs†L3469-L3510】
@@ -23,13 +23,14 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - **Fuel planner max-fuel override** is clamped to the profile base tank in Profile mode; switching into Live Snapshot captures the prior override and uses the live cap (or 0 if missing), while switching back restores the profile value and re-applies any selected preset.【F:FuelCalcs.cs†L300-L405】【F:FuelCalcs.cs†L1821-L1884】
 - **Live Snapshot resets** clear live fuel/pace summaries when the car/track changes, ensuring the Live Session panel never shows profile fallback values during a new live session startup.【F:FuelCalcs.cs†L3270-L3703】
 - **Messaging signals** include `MSG.OtherClassBehindGap` (seconds behind a faster-class car) alongside `MSG.OvertakeApproachLine`, for use in message catalog evaluators.【F:MessagingSystem.cs†L13-L214】【F:LalaLaunch.cs†L3123-L3129】
-- **CarSA Phase-1 stabilization** adds a one-tick settle guard after slot rebinds and refines Behind wrap suppression by using a stricter S/F threshold while keeping lap-delta suppression intact; debug CSV filenames include UTC timestamps and sanitized track names (collapsed/trimmed underscores, clamped length).【F:CarSAEngine.cs†L629-L722】【F:LalaLaunch.cs†L4835-L4912】
-- **CarSA identity refresh retry** keeps slot identity refreshes pending until `SessionData.DriverInfo.CompetingDrivers` is ready, preventing blank identities when driver info loads late in a session.【F:LalaLaunch.cs†L4317-L5067】
+- **CarSA Phase-1 stabilization** adds a one-tick settle guard after slot rebinds and refines Behind wrap suppression by using a stricter S/F threshold while keeping lap-delta suppression intact; debug CSV filenames include UTC timestamps and sanitized track names (collapsed/trimmed underscores, clamped length).【F:CarSAEngine.cs†L740-L816】【F:LalaLaunch.cs†L4774-L4906】
+- **CarSA identity refresh retry** keeps slot identity refreshes pending until `SessionData.DriverInfo.CompetingDrivers` is ready, preventing blank identities when driver info loads late in a session.【F:LalaLaunch.cs†L4983-L5052】
+- **CarSA Phase 2.1 status ladder** adds StatusE outputs with short/long labels, backed by the NotRelevantGapSec threshold for slot filtering, without changing existing Status behavior.【F:CarSAEngine.cs†L24-L709】【F:CarSASlot.cs†L12-L88】【F:LalaLaunch.cs†L3414-L3455】
 
 ## Included .cs Files
 - CarProfiles.cs — last modified 2026-02-08T00:00:00+00:00
-- CarSAEngine.cs — last modified 2026-01-29
-- CarSASlot.cs — last modified 2026-01-29
+- CarSAEngine.cs — last modified 2026-01-29 (updated)
+- CarSASlot.cs — last modified 2026-01-29 (updated)
 - CopyProfileDialog.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - DashesTabView.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - EnumEqualsConverter.cs — last modified 2025-11-04T19:13:41-06:00
