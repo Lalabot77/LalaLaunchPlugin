@@ -5096,14 +5096,14 @@ namespace LaunchPlugin
                     name = GetString(pluginManager, $"{basePath}.AbbrevName") ?? string.Empty;
                 }
 
-                int numberRaw = GetInt(pluginManager, $"{basePath}.CarNumberRaw", int.MinValue);
-                if (numberRaw != int.MinValue)
+                carNumber = GetString(pluginManager, $"{basePath}.CarNumber") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(carNumber))
                 {
-                    carNumber = numberRaw.ToString(CultureInfo.InvariantCulture);
-                }
-                else
-                {
-                    carNumber = GetString(pluginManager, $"{basePath}.CarNumber") ?? string.Empty;
+                    int numberRaw = GetInt(pluginManager, $"{basePath}.CarNumberRaw", int.MinValue);
+                    if (numberRaw != int.MinValue)
+                    {
+                        carNumber = numberRaw.ToString(CultureInfo.InvariantCulture);
+                    }
                 }
 
                 classColor = GetCarClassColorHex(pluginManager, $"{basePath}.CarClassColor");
