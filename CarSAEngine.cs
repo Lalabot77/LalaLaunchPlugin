@@ -494,6 +494,13 @@ namespace LaunchPlugin
                 slot.HasRealGap = false;
                 slot.LastRealGapUpdateSessionTimeSec = 0.0;
                 slot.JustRebound = true;
+
+                       // Phase 2: prevent stale StatusE labels carrying across car rebinds
+                slot.StatusE = (int)CarSAStatusE.Unknown;
+                slot.LastStatusE = int.MinValue;     // force UpdateStatusEText to run
+                slot.StatusETextDirty = true;
+                slot.StatusShort = "UNK";
+                slot.StatusLong = "Unknown";
             }
 
             slot.CarIdx = carIdx;
@@ -635,7 +642,7 @@ namespace LaunchPlugin
             }
 
             int statusE = (int)CarSAStatusE.Unknown;
-            if (!slot.IsValid || !slot.IsOnTrack)
+            if (!slot.IsValid)
             {
                 statusE = (int)CarSAStatusE.NotRelevant;
             }
@@ -643,6 +650,11 @@ namespace LaunchPlugin
             {
                 statusE = (int)CarSAStatusE.InPits;
             }
+            else if (!slot.IsOnTrack)
+            {
+                statusE = (int)CarSAStatusE.NotRelevant;
+            }
+
             else if (!double.IsNaN(slot.GapRealSec) && Math.Abs(slot.GapRealSec) > notRelevantGapSec)
             {
                 statusE = (int)CarSAStatusE.NotRelevant;
