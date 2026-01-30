@@ -9,6 +9,19 @@ namespace LaunchPlugin
         InPits = 2
     }
 
+    public enum CarSAStatusE
+    {
+        Unknown = 0,
+        OutLap = 100,
+        InPits = 110,
+        NotRelevant = 190,
+        FasterClass = 200,
+        SlowerClass = 210,
+        Racing = 220,
+        LappingYou = 230,
+        BeingLapped = 240
+    }
+
     public class CarSASlot
     {
         public int CarIdx { get; set; } = -1;
@@ -22,6 +35,9 @@ namespace LaunchPlugin
         public double GapRealSec { get; set; } = double.NaN;
         public double ClosingRateSecPerSec { get; set; } = double.NaN;
         public int Status { get; set; } = (int)CarSAStatus.Unknown;
+        public int StatusE { get; set; } = (int)CarSAStatusE.Unknown;
+        public string StatusShort { get; set; } = "UNK";
+        public string StatusLong { get; set; } = "Unknown";
         public double ForwardDistPct { get; set; } = double.NaN;
         public double BackwardDistPct { get; set; } = double.NaN;
         public double RealGapRawSec { get; set; } = double.NaN;
@@ -36,6 +52,8 @@ namespace LaunchPlugin
         internal bool HasGapAbs { get; set; }
         internal bool HasRealGap { get; set; }
         internal double LastRealGapUpdateSessionTimeSec { get; set; } = 0.0;
+        internal int LastStatusE { get; set; } = (int)CarSAStatusE.Unknown;
+        internal bool StatusETextDirty { get; set; } = true;
 
         public void Reset()
         {
@@ -50,6 +68,9 @@ namespace LaunchPlugin
             GapRealSec = double.NaN;
             ClosingRateSecPerSec = double.NaN;
             Status = (int)CarSAStatus.Unknown;
+            StatusE = (int)CarSAStatusE.Unknown;
+            StatusShort = "UNK";
+            StatusLong = "Unknown";
             ForwardDistPct = double.NaN;
             BackwardDistPct = double.NaN;
             RealGapRawSec = double.NaN;
@@ -63,6 +84,8 @@ namespace LaunchPlugin
             HasGapAbs = false;
             HasRealGap = false;
             LastRealGapUpdateSessionTimeSec = 0.0;
+            LastStatusE = (int)CarSAStatusE.Unknown;
+            StatusETextDirty = true;
         }
     }
 
