@@ -4984,7 +4984,7 @@ namespace LaunchPlugin
             }
 
             bool forceRefresh = _carSaIdentityRefreshRequested;
-            if (forceRefresh && !IsCompetingDriversReady(pluginManager))
+            if (forceRefresh && !IsCarSaIdentitySourceReady(pluginManager))
             {
                 if (_carSaIdentityLastRetrySessionTimeSec < 0.0 || sessionTimeSec - _carSaIdentityLastRetrySessionTimeSec >= 0.5)
                 {
@@ -5049,6 +5049,10 @@ namespace LaunchPlugin
                     if (!string.IsNullOrWhiteSpace(carNumber)) slot.CarNumber = carNumber;
                     if (!string.IsNullOrWhiteSpace(classColor)) slot.ClassColor = classColor;
                 }
+                else if (carIdxChanged)
+                {
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:CarSA] Identity unresolved for carIdx={carIdx} after slot change.");
+                }
             }
         }
 
@@ -5062,6 +5066,63 @@ namespace LaunchPlugin
             {
                 return false;
             }
+
+            if (TryGetCarIdentityFromDriversTable(pluginManager, carIdx, out name, out carNumber, out classColor))
+            {
+                return true;
+            }
+
+            return TryGetCarIdentityFromCompetingDrivers(pluginManager, carIdx, out name, out carNumber, out classColor);
+        }
+
+        private bool TryGetCarIdentityFromDriversTable(PluginManager pluginManager, int carIdx, out string name, out string carNumber, out string classColor)
+        {
+            name = string.Empty;
+            carNumber = string.Empty;
+            classColor = string.Empty;
+
+            for (int i = 1; i <= 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.Drivers{i:00}";
+                int idx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (idx == int.MinValue || idx != carIdx)
+                {
+                    continue;
+                }
+
+                name = GetString(pluginManager, $"{basePath}.UserName") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    name = GetString(pluginManager, $"{basePath}.AbbrevName") ?? string.Empty;
+                }
+
+                int numberRaw = GetInt(pluginManager, $"{basePath}.CarNumberRaw", int.MinValue);
+                if (numberRaw != int.MinValue)
+                {
+                    carNumber = numberRaw.ToString(CultureInfo.InvariantCulture);
+                }
+                else
+                {
+                    carNumber = GetString(pluginManager, $"{basePath}.CarNumber") ?? string.Empty;
+                }
+
+                int colorRaw = GetInt(pluginManager, $"{basePath}.CarClassColor", int.MinValue);
+                if (colorRaw != int.MinValue)
+                {
+                    classColor = FormatCarClassColor(colorRaw);
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryGetCarIdentityFromCompetingDrivers(PluginManager pluginManager, int carIdx, out string name, out string carNumber, out string classColor)
+        {
+            name = string.Empty;
+            carNumber = string.Empty;
+            classColor = string.Empty;
 
             for (int i = 0; i < 64; i++)
             {
@@ -5089,11 +5150,20 @@ namespace LaunchPlugin
             return false;
         }
 
-        private bool IsCompetingDriversReady(PluginManager pluginManager)
+        private static string FormatCarClassColor(int colorRaw)
+        {
+            int rgb = colorRaw & 0xFFFFFF;
+            return $"0x{rgb:X6}";
+        }
+
+        private bool IsCarSaIdentitySourceReady(PluginManager pluginManager)
         {
             if (pluginManager == null) return false;
-            int idx = GetInt(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[0].CarIdx", int.MinValue);
-            return idx != int.MinValue;
+            int driversIdx = GetInt(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.Drivers01.CarIdx", int.MinValue);
+            if (driversIdx != int.MinValue) return true;
+
+            int competingIdx = GetInt(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[0].CarIdx", int.MinValue);
+            return competingIdx != int.MinValue;
         }
 
         private void UpdateOpponentsAndPitExit(GameData data, PluginManager pluginManager, int completedLaps, string sessionTypeToken)
