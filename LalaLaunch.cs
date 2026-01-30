@@ -5106,11 +5106,7 @@ namespace LaunchPlugin
                     carNumber = GetString(pluginManager, $"{basePath}.CarNumber") ?? string.Empty;
                 }
 
-                int colorRaw = GetInt(pluginManager, $"{basePath}.CarClassColor", int.MinValue);
-                if (colorRaw != int.MinValue)
-                {
-                    classColor = FormatCarClassColor(colorRaw);
-                }
+                classColor = GetCarClassColorHex(pluginManager, $"{basePath}.CarClassColor");
 
                 return true;
             }
@@ -5143,11 +5139,65 @@ namespace LaunchPlugin
                     name = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].TeamName") ?? string.Empty;
                 }
                 carNumber = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarNumber") ?? string.Empty;
-                classColor = GetString(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarClassColor") ?? string.Empty;
+                classColor = GetCarClassColorHex(pluginManager, $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}].CarClassColor");
                 return true;
             }
 
             return false;
+        }
+
+        private static string GetCarClassColorHex(PluginManager pluginManager, string propertyName)
+        {
+            if (pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                var raw = pluginManager.GetPropertyValue(propertyName);
+                if (raw == null) return string.Empty;
+
+                if (raw is int intValue)
+                {
+                    return FormatCarClassColor(intValue);
+                }
+
+                if (raw is long longValue)
+                {
+                    return FormatCarClassColor((int)longValue);
+                }
+
+                if (raw is uint uintValue)
+                {
+                    return FormatCarClassColor((int)uintValue);
+                }
+
+                string rawText = Convert.ToString(raw, CultureInfo.InvariantCulture);
+                if (string.IsNullOrWhiteSpace(rawText)) return string.Empty;
+
+                rawText = rawText.Trim();
+                if (rawText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                {
+                    rawText = rawText.Substring(2);
+                }
+
+                if (int.TryParse(rawText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int parsedHex))
+                {
+                    return FormatCarClassColor(parsedHex);
+                }
+
+                if (int.TryParse(rawText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedInt))
+                {
+                    return FormatCarClassColor(parsedInt);
+                }
+
+                return string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private static string FormatCarClassColor(int colorRaw)
