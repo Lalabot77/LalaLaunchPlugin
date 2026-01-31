@@ -38,6 +38,9 @@ namespace LaunchPlugin
         public int StatusE { get; set; } = (int)CarSAStatusE.Unknown;
         public string StatusShort { get; set; } = "UNK";
         public string StatusLong { get; set; } = "Unknown";
+        public int PaceFlagsRaw { get; set; } = -1;
+        public int SessionFlagsRaw { get; set; } = -1;
+        public int TrackSurfaceMaterialRaw { get; set; } = -1;
         public double ForwardDistPct { get; set; } = double.NaN;
         public double BackwardDistPct { get; set; } = double.NaN;
         public double RealGapRawSec { get; set; } = double.NaN;
@@ -71,6 +74,9 @@ namespace LaunchPlugin
             StatusE = (int)CarSAStatusE.Unknown;
             StatusShort = "UNK";
             StatusLong = "Unknown";
+            PaceFlagsRaw = -1;
+            SessionFlagsRaw = -1;
+            TrackSurfaceMaterialRaw = -1;
             ForwardDistPct = double.NaN;
             BackwardDistPct = double.NaN;
             RealGapRawSec = double.NaN;
@@ -124,6 +130,12 @@ namespace LaunchPlugin
         public int HysteresisReplacementsThisTick { get; set; }
         public int SlotCarIdxChangedThisTick { get; set; }
         public int RealGapClampsThisTick { get; set; }
+        public bool HasCarIdxPaceFlags { get; set; }
+        public bool HasCarIdxSessionFlags { get; set; }
+        public bool HasCarIdxTrackSurfaceMaterial { get; set; }
+        public int PlayerPaceFlagsRaw { get; set; } = -1;
+        public int PlayerSessionFlagsRaw { get; set; } = -1;
+        public int PlayerTrackSurfaceMaterialRaw { get; set; } = -1;
 
         public void Reset()
         {
@@ -156,6 +168,12 @@ namespace LaunchPlugin
             HysteresisReplacementsThisTick = 0;
             SlotCarIdxChangedThisTick = 0;
             RealGapClampsThisTick = 0;
+            HasCarIdxPaceFlags = false;
+            HasCarIdxSessionFlags = false;
+            HasCarIdxTrackSurfaceMaterial = false;
+            PlayerPaceFlagsRaw = -1;
+            PlayerSessionFlagsRaw = -1;
+            PlayerTrackSurfaceMaterialRaw = -1;
         }
     }
 
