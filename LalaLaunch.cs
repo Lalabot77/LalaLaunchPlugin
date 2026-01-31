@@ -2823,6 +2823,10 @@ namespace LaunchPlugin
         private int _carSaDebugExportPendingLines;
         private readonly int[] _carSaLastAheadIdx = new int[CarSAEngine.SlotsAhead];
         private readonly int[] _carSaLastBehindIdx = new int[CarSAEngine.SlotsBehind];
+        private readonly Dictionary<int, int> _carSaLastPaceFlags = new Dictionary<int, int>();
+        private readonly Dictionary<int, int> _carSaLastSessionFlags = new Dictionary<int, int>();
+        private readonly Dictionary<int, DateTime> _carSaLastPaceFlagsLog = new Dictionary<int, DateTime>();
+        private readonly Dictionary<int, DateTime> _carSaLastSessionFlagsLog = new Dictionary<int, DateTime>();
         private bool _carSaIdentityRefreshRequested;
         private double _carSaIdentityLastRetrySessionTimeSec = -1.0;
 
@@ -3416,6 +3420,9 @@ namespace LaunchPlugin
             AttachCore("Car.Checkpoints", () => _carSaEngine?.Outputs.Checkpoints ?? 0);
             AttachCore("Car.SlotsAhead", () => _carSaEngine?.Outputs.SlotsAhead ?? 0);
             AttachCore("Car.SlotsBehind", () => _carSaEngine?.Outputs.SlotsBehind ?? 0);
+            AttachCore("Car.Player.PaceFlagsRaw", () => _carSaEngine?.Outputs.Debug.PlayerPaceFlagsRaw ?? -1);
+            AttachCore("Car.Player.SessionFlagsRaw", () => _carSaEngine?.Outputs.Debug.PlayerSessionFlagsRaw ?? -1);
+            AttachCore("Car.Player.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.Debug.PlayerTrackSurfaceMaterialRaw ?? -1);
             for (int i = 0; i < CarSAEngine.SlotsAhead; i++)
             {
                 int slotIndex = i;
@@ -3434,6 +3441,9 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.StatusE", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusE ?? 0);
                 AttachCore($"Car.Ahead{label}.StatusShort", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusShort ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.StatusLong", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusLong ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.PaceFlagsRaw", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].PaceFlagsRaw ?? -1);
+                AttachCore($"Car.Ahead{label}.SessionFlagsRaw", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].SessionFlagsRaw ?? -1);
+                AttachCore($"Car.Ahead{label}.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TrackSurfaceMaterialRaw ?? -1);
             }
             for (int i = 0; i < CarSAEngine.SlotsBehind; i++)
             {
@@ -3453,6 +3463,9 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.StatusE", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusE ?? 0);
                 AttachCore($"Car.Behind{label}.StatusShort", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusShort ?? string.Empty);
                 AttachCore($"Car.Behind{label}.StatusLong", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusLong ?? string.Empty);
+                AttachCore($"Car.Behind{label}.PaceFlagsRaw", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].PaceFlagsRaw ?? -1);
+                AttachCore($"Car.Behind{label}.SessionFlagsRaw", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].SessionFlagsRaw ?? -1);
+                AttachCore($"Car.Behind{label}.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TrackSurfaceMaterialRaw ?? -1);
             }
 
             AttachCore("Car.Debug.PlayerCarIdx", () => _carSaEngine?.Outputs.Debug.PlayerCarIdx ?? -1);
@@ -3463,6 +3476,9 @@ namespace LaunchPlugin
             AttachCore("Car.Debug.PlayerCheckpointCrossed", () => _carSaEngine?.Outputs.Debug.PlayerCheckpointCrossed ?? false);
             AttachCore("Car.Debug.SessionTimeSec", () => _carSaEngine?.Outputs.Debug.SessionTimeSec ?? 0.0);
             AttachCore("Car.Debug.SourceFastPathUsed", () => _carSaEngine?.Outputs.Debug.SourceFastPathUsed ?? false);
+            AttachCore("Car.Debug.HasCarIdxPaceFlags", () => _carSaEngine?.Outputs.Debug.HasCarIdxPaceFlags ?? false);
+            AttachCore("Car.Debug.HasCarIdxSessionFlags", () => _carSaEngine?.Outputs.Debug.HasCarIdxSessionFlags ?? false);
+            AttachCore("Car.Debug.HasCarIdxTrackSurfaceMaterial", () => _carSaEngine?.Outputs.Debug.HasCarIdxTrackSurfaceMaterial ?? false);
             AttachCore("Car.Debug.Ahead01.CarIdx", () => _carSaEngine?.Outputs.Debug.Ahead01CarIdx ?? -1);
             AttachCore("Car.Debug.Ahead01.ForwardDistPct", () => _carSaEngine?.Outputs.Debug.Ahead01ForwardDistPct ?? double.NaN);
             AttachCore("Car.Debug.Ahead01.RealGapRawSec", () => _carSaEngine?.Outputs.Debug.Ahead01RealGapRawSec ?? double.NaN);
@@ -4334,6 +4350,7 @@ namespace LaunchPlugin
             _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
             if (_carSaEngine != null)
             {
+                UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
                 WriteCarSaDebugExport(_carSaEngine.Outputs);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
             }
@@ -4823,6 +4840,187 @@ namespace LaunchPlugin
                     _carSaDebugExportBuffer.Clear();
                 }
             }
+        }
+
+        private void UpdateCarSaRawTelemetryDebug(PluginManager pluginManager, CarSAOutputs outputs, int playerCarIdx, bool debugEnabled)
+        {
+            if (outputs == null)
+            {
+                return;
+            }
+
+            if (!debugEnabled)
+            {
+                outputs.Debug.HasCarIdxPaceFlags = false;
+                outputs.Debug.HasCarIdxSessionFlags = false;
+                outputs.Debug.HasCarIdxTrackSurfaceMaterial = false;
+                outputs.Debug.PlayerPaceFlagsRaw = -1;
+                outputs.Debug.PlayerSessionFlagsRaw = -1;
+                outputs.Debug.PlayerTrackSurfaceMaterialRaw = -1;
+                ClearCarSaRawSlots(outputs.AheadSlots);
+                ClearCarSaRawSlots(outputs.BehindSlots);
+                return;
+            }
+
+            bool hasPaceFlags = TryReadTelemetryIntArray(pluginManager, "CarIdxPaceFlags", out int[] paceFlags);
+            bool hasSessionFlags = TryReadTelemetryIntArray(pluginManager, "CarIdxSessionFlags", out int[] sessionFlags);
+            bool hasTrackSurfaceMaterial = TryReadTelemetryIntArray(pluginManager, "CarIdxTrackSurfaceMaterial", out int[] trackSurfaceMaterial);
+
+            outputs.Debug.HasCarIdxPaceFlags = hasPaceFlags;
+            outputs.Debug.HasCarIdxSessionFlags = hasSessionFlags;
+            outputs.Debug.HasCarIdxTrackSurfaceMaterial = hasTrackSurfaceMaterial;
+
+            outputs.Debug.PlayerPaceFlagsRaw = ReadCarIdxRawValue(paceFlags, hasPaceFlags, playerCarIdx);
+            outputs.Debug.PlayerSessionFlagsRaw = ReadCarIdxRawValue(sessionFlags, hasSessionFlags, playerCarIdx);
+            outputs.Debug.PlayerTrackSurfaceMaterialRaw = ReadCarIdxRawValue(trackSurfaceMaterial, hasTrackSurfaceMaterial, playerCarIdx);
+
+            UpdateCarSaRawSlots(outputs.AheadSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
+            UpdateCarSaRawSlots(outputs.BehindSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
+
+            if (hasPaceFlags)
+            {
+                LogFlagChanges("PaceFlags", paceFlags, playerCarIdx, outputs);
+            }
+            if (hasSessionFlags)
+            {
+                LogFlagChanges("SessionFlags", sessionFlags, playerCarIdx, outputs);
+            }
+        }
+
+        private static void ClearCarSaRawSlots(CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            foreach (var slot in slots)
+            {
+                if (slot == null)
+                {
+                    continue;
+                }
+                slot.PaceFlagsRaw = -1;
+                slot.SessionFlagsRaw = -1;
+                slot.TrackSurfaceMaterialRaw = -1;
+            }
+        }
+
+        private static void UpdateCarSaRawSlots(
+            CarSASlot[] slots,
+            int[] paceFlags,
+            int[] sessionFlags,
+            int[] trackSurfaceMaterial,
+            bool hasPaceFlags,
+            bool hasSessionFlags,
+            bool hasTrackSurfaceMaterial)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            foreach (var slot in slots)
+            {
+                if (slot == null)
+                {
+                    continue;
+                }
+                int carIdx = slot.CarIdx;
+                slot.PaceFlagsRaw = ReadCarIdxRawValue(paceFlags, hasPaceFlags, carIdx);
+                slot.SessionFlagsRaw = ReadCarIdxRawValue(sessionFlags, hasSessionFlags, carIdx);
+                slot.TrackSurfaceMaterialRaw = ReadCarIdxRawValue(trackSurfaceMaterial, hasTrackSurfaceMaterial, carIdx);
+            }
+        }
+
+        private static int ReadCarIdxRawValue(int[] values, bool hasValues, int carIdx)
+        {
+            if (!hasValues || values == null || carIdx < 0 || carIdx >= values.Length)
+            {
+                return -1;
+            }
+
+            return values[carIdx];
+        }
+
+        private void LogFlagChanges(string label, int[] values, int playerCarIdx, CarSAOutputs outputs)
+        {
+            if (values == null || outputs == null)
+            {
+                return;
+            }
+
+            var tracked = new HashSet<int>();
+            if (playerCarIdx >= 0)
+            {
+                tracked.Add(playerCarIdx);
+            }
+            AddTrackedSlots(tracked, outputs.AheadSlots);
+            AddTrackedSlots(tracked, outputs.BehindSlots);
+
+            foreach (var carIdx in tracked)
+            {
+                if (carIdx < 0 || carIdx >= values.Length)
+                {
+                    continue;
+                }
+                int current = values[carIdx];
+                if (label == "PaceFlags")
+                {
+                    LogCarIdxFlagChange(label, carIdx, current, _carSaLastPaceFlags, _carSaLastPaceFlagsLog);
+                }
+                else
+                {
+                    LogCarIdxFlagChange(label, carIdx, current, _carSaLastSessionFlags, _carSaLastSessionFlagsLog);
+                }
+            }
+        }
+
+        private static void AddTrackedSlots(HashSet<int> tracked, CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            foreach (var slot in slots)
+            {
+                if (slot?.CarIdx >= 0)
+                {
+                    tracked.Add(slot.CarIdx);
+                }
+            }
+        }
+
+        private static void LogCarIdxFlagChange(
+            string label,
+            int carIdx,
+            int current,
+            Dictionary<int, int> lastValues,
+            Dictionary<int, DateTime> lastLogs)
+        {
+            if (!lastValues.TryGetValue(carIdx, out int previous))
+            {
+                lastValues[carIdx] = current;
+                return;
+            }
+
+            if (previous == current)
+            {
+                return;
+            }
+
+            lastValues[carIdx] = current;
+
+            DateTime now = DateTime.UtcNow;
+            if (lastLogs.TryGetValue(carIdx, out DateTime lastLog) && (now - lastLog).TotalSeconds < 1.0)
+            {
+                return;
+            }
+
+            lastLogs[carIdx] = now;
+            int xor = previous ^ current;
+            SimHub.Logging.Current.Debug($"[LalaPlugin:CarSA] {label} changed carIdx={carIdx} {previous} -> {current} (xor=0x{xor:X})");
         }
 
         private void AppendSlotDebugRow(StringBuilder buffer, CarSASlot slot, bool isAhead)
@@ -5325,6 +5523,73 @@ namespace LaunchPlugin
             catch
             {
                 return null;
+            }
+        }
+
+        private static bool TryReadTelemetryIntArray(PluginManager pluginManager, string propertyName, out int[] values)
+        {
+            values = null;
+            if (pluginManager == null)
+            {
+                return false;
+            }
+
+            object telemetry;
+            try
+            {
+                telemetry = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry");
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (telemetry == null)
+            {
+                return false;
+            }
+
+            var prop = telemetry.GetType().GetProperty(propertyName);
+            if (prop == null)
+            {
+                return false;
+            }
+
+            object raw;
+            try
+            {
+                raw = prop.GetValue(telemetry);
+            }
+            catch
+            {
+                return false;
+            }
+
+            return TryConvertToIntArray(raw, out values);
+        }
+
+        private static bool TryConvertToIntArray(object raw, out int[] values)
+        {
+            values = null;
+            switch (raw)
+            {
+                case int[] ints:
+                    values = ints;
+                    return true;
+                case uint[] uints:
+                    values = Array.ConvertAll(uints, v => unchecked((int)v));
+                    return true;
+                case short[] shorts:
+                    values = Array.ConvertAll(shorts, v => (int)v);
+                    return true;
+                case ushort[] ushorts:
+                    values = Array.ConvertAll(ushorts, v => (int)v);
+                    return true;
+                case byte[] bytes:
+                    values = Array.ConvertAll(bytes, v => (int)v);
+                    return true;
+                default:
+                    return false;
             }
         }
 
