@@ -85,9 +85,9 @@ if "!SIMHUB_RUNNING!"=="1" (
 echo Copying plugin to SimHub folder...
 copy "%SOURCE%" "%SIMHUBFOLDER%\LaunchPlugin.dll"
 if exist "%SIMHUBFOLDER%\LaunchPlugin.dll" (
-    echo ✅ Copy successful: LaunchPlugin.dll now in SimHub folder.
+    echo Copy successful: LaunchPlugin.dll now in SimHub folder.
 ) else (
-    echo ❌ Copy failed: LaunchPlugin.dll was not found after copy attempt.
+    echo Copy failed: LaunchPlugin.dll was not found after copy attempt.
 )
 
 :: === Restart SimHub ===
