@@ -2827,6 +2827,7 @@ namespace LaunchPlugin
         private readonly Dictionary<int, int> _carSaLastSessionFlags = new Dictionary<int, int>();
         private readonly Dictionary<int, DateTime> _carSaLastPaceFlagsLog = new Dictionary<int, DateTime>();
         private readonly Dictionary<int, DateTime> _carSaLastSessionFlagsLog = new Dictionary<int, DateTime>();
+        private readonly int[] _carSaTrackedCarIdxs = new int[CarSAEngine.SlotsAhead + CarSAEngine.SlotsBehind + 1];
         private bool _carSaIdentityRefreshRequested;
         private double _carSaIdentityLastRetrySessionTimeSec = -1.0;
 
@@ -4849,7 +4850,8 @@ namespace LaunchPlugin
                 return;
             }
 
-            if (!debugEnabled)
+            int rawTelemetryMode = Settings?.CarSARawTelemetryMode ?? 1;
+            if (!debugEnabled || rawTelemetryMode <= 0)
             {
                 outputs.Debug.HasCarIdxPaceFlags = false;
                 outputs.Debug.HasCarIdxSessionFlags = false;
@@ -4874,35 +4876,24 @@ namespace LaunchPlugin
             outputs.Debug.PlayerSessionFlagsRaw = ReadCarIdxRawValue(sessionFlags, hasSessionFlags, playerCarIdx);
             outputs.Debug.PlayerTrackSurfaceMaterialRaw = ReadCarIdxRawValue(trackSurfaceMaterial, hasTrackSurfaceMaterial, playerCarIdx);
 
-            UpdateCarSaRawSlots(outputs.AheadSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
-            UpdateCarSaRawSlots(outputs.BehindSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
-
-            if (hasPaceFlags)
+            bool includeSlots = rawTelemetryMode >= 2;
+            if (includeSlots)
             {
-                LogFlagChanges("PaceFlags", paceFlags, playerCarIdx, outputs);
-            }
-            if (hasSessionFlags)
-            {
-                LogFlagChanges("SessionFlags", sessionFlags, playerCarIdx, outputs);
-            }
-        }
-
-        private static void ClearCarSaRawSlots(CarSASlot[] slots)
-        {
-            if (slots == null)
-            {
-                return;
+                UpdateCarSaRawSlots(outputs.AheadSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
+                UpdateCarSaRawSlots(outputs.BehindSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
             }
 
-            foreach (var slot in slots)
+            if (includeSlots)
             {
-                if (slot == null)
+                int trackedCount = BuildTrackedCarIdxs(playerCarIdx, outputs, _carSaTrackedCarIdxs);
+                if (hasPaceFlags)
                 {
-                    continue;
+                    LogFlagChanges("PaceFlags", paceFlags, _carSaTrackedCarIdxs, trackedCount);
                 }
-                slot.PaceFlagsRaw = -1;
-                slot.SessionFlagsRaw = -1;
-                slot.TrackSurfaceMaterialRaw = -1;
+                if (hasSessionFlags)
+                {
+                    LogFlagChanges("SessionFlags", sessionFlags, _carSaTrackedCarIdxs, trackedCount);
+                }
             }
         }
 
@@ -4933,6 +4924,25 @@ namespace LaunchPlugin
             }
         }
 
+        private static void ClearCarSaRawSlots(CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            foreach (var slot in slots)
+            {
+                if (slot == null)
+                {
+                    continue;
+                }
+                slot.PaceFlagsRaw = -1;
+                slot.SessionFlagsRaw = -1;
+                slot.TrackSurfaceMaterialRaw = -1;
+            }
+        }
+
         private static int ReadCarIdxRawValue(int[] values, bool hasValues, int carIdx)
         {
             if (!hasValues || values == null || carIdx < 0 || carIdx >= values.Length)
@@ -4943,23 +4953,72 @@ namespace LaunchPlugin
             return values[carIdx];
         }
 
-        private void LogFlagChanges(string label, int[] values, int playerCarIdx, CarSAOutputs outputs)
+        private int BuildTrackedCarIdxs(int playerCarIdx, CarSAOutputs outputs, int[] buffer)
         {
-            if (values == null || outputs == null)
+            if (buffer == null)
+            {
+                return 0;
+            }
+
+            int count = 0;
+            count = AddTrackedCarIdx(buffer, count, playerCarIdx);
+            if (outputs != null)
+            {
+                count = AddTrackedSlots(buffer, count, outputs.AheadSlots);
+                count = AddTrackedSlots(buffer, count, outputs.BehindSlots);
+            }
+
+            return count;
+        }
+
+        private static int AddTrackedCarIdx(int[] buffer, int count, int carIdx)
+        {
+            if (carIdx < 0)
+            {
+                return count;
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                if (buffer[i] == carIdx)
+                {
+                    return count;
+                }
+            }
+
+            if (count < buffer.Length)
+            {
+                buffer[count++] = carIdx;
+            }
+
+            return count;
+        }
+
+        private static int AddTrackedSlots(int[] buffer, int count, CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return count;
+            }
+
+            foreach (var slot in slots)
+            {
+                count = AddTrackedCarIdx(buffer, count, slot?.CarIdx ?? -1);
+            }
+
+            return count;
+        }
+
+        private void LogFlagChanges(string label, int[] values, int[] tracked, int trackedCount)
+        {
+            if (values == null || tracked == null)
             {
                 return;
             }
 
-            var tracked = new HashSet<int>();
-            if (playerCarIdx >= 0)
+            for (int i = 0; i < trackedCount; i++)
             {
-                tracked.Add(playerCarIdx);
-            }
-            AddTrackedSlots(tracked, outputs.AheadSlots);
-            AddTrackedSlots(tracked, outputs.BehindSlots);
-
-            foreach (var carIdx in tracked)
-            {
+                int carIdx = tracked[i];
                 if (carIdx < 0 || carIdx >= values.Length)
                 {
                     continue;
@@ -4972,22 +5031,6 @@ namespace LaunchPlugin
                 else
                 {
                     LogCarIdxFlagChange(label, carIdx, current, _carSaLastSessionFlags, _carSaLastSessionFlagsLog);
-                }
-            }
-        }
-
-        private static void AddTrackedSlots(HashSet<int> tracked, CarSASlot[] slots)
-        {
-            if (slots == null)
-            {
-                return;
-            }
-
-            foreach (var slot in slots)
-            {
-                if (slot?.CarIdx >= 0)
-                {
-                    tracked.Add(slot.CarIdx);
                 }
             }
         }
@@ -7608,6 +7651,7 @@ namespace LaunchPlugin
         // --- Global Settings with Corrected Defaults ---
         public bool EnableDebugLogging { get; set; } = false;
         public bool EnableCarSADebugExport { get; set; } = false;
+        public int CarSARawTelemetryMode { get; set; } = 1;
         public bool PitExitVerboseLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
         public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
