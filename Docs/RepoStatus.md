@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is the current HEAD with PRs #282–#309 (Fuel planner max-fuel percent/preset handling, live snapshot max-tank sync, predictor outputs, Opponents/CarSA documentation, extensive CarSA Phase 2.2 updates including status ladder expansions, raw telemetry flags, debug export improvements, identity refresh hardening, and new track vs race gap outputs). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
+- The latest commit on `work` is the current HEAD with PRs #282–#312 (Fuel planner max-fuel percent/preset handling, live snapshot max-tank sync, predictor outputs, Opponents/CarSA documentation, extensive CarSA Phase 2.2 updates, and SA-Core v2 distance-based car-centric CarSA gaps with closing-rate sign/grace fixes plus CSV cross-check logging cleanup). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
@@ -61,7 +61,7 @@
 - **Pit loss locking:** **COMPLETE** — per-track pit loss values can be locked to block auto-updates; blocked candidates are captured and surfaced in the Profiles UI for review before manual unlock.
 - **Pit-exit prediction audit + settled logging:** **COMPLETE** — pit-exit predictor now locks pit-loss and gap inputs at pit entry to avoid drift, logs richer pit-in/out snapshots plus math audit, and emits a one-lap-delayed “pit-out settled” confirmation.
 - **Opponents subsystem:** **COMPLETE** — race-only opponent pace/fight and pit-exit prediction exports with lap gate ≥1, summary strings, and log support.
-- **CarSA Phase 2.2:** **COMPLETE** — slot identity refresh hardening, StatusE ladder (out-lap, compromised, lapping, racing, other-class), raw telemetry flag ingest, track vs race gap outputs, and expanded debug export columns.
+- **CarSA SA-Core v2:** **INTEGRATED** — distance-based, car-centric gap/closing model with player-centric closing sign, grace window for telemetry blips, and trimmed CSV debug columns plus raw external gap cross-checks.
 - **Dry/Wet condition lock UI:** **COMPLETE** — per-track dry/wet condition lock toggles persist immediately in profiles (no save prompt).
 - **Session summary + trace v2:** **COMPLETE** — session summary CSV v2, lap trace rows with pit-stop index/phase, corrected pit-stop counting semantics, and explicit CSV column mapping for summary exports.
 - **Profile storage & schema:** **COMPLETE** — car profiles now save in a schema-v2 wrapper with opt-in track stats serialization, normalized track keys, and legacy JSON migration from older filenames/locations.
