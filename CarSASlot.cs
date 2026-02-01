@@ -23,6 +23,10 @@ namespace LaunchPlugin
         BeingLapped = 240
     }
 
+    // CarSASlot is a slot-centric container: state is bound to a slot position (Ahead/Behind index),
+    // not to a specific car identity. Slot assignment swaps reset per-slot state and gaps.
+    // SA-Core v2 intent: retain track-awareness and StatusE state; strip race-gap/telemetry
+    // concepts that are NOT USED BY SA-CORE (see annotations below).
     public class CarSASlot
     {
         public int CarIdx { get; set; } = -1;
@@ -33,8 +37,11 @@ namespace LaunchPlugin
         public bool IsOnPitRoad { get; set; }
         public bool IsValid { get; set; }
         public int LapDelta { get; set; }
+        // SA / track-awareness gap (used by StatusE relevance + closing rate).
         public double GapTrackSec { get; set; } = double.NaN;
+        // Race-gap concepts (NOT USED BY SA-CORE; slated for removal in SA-Core v2).
         public double GapRaceSec { get; set; } = double.NaN;
+        [Obsolete("Deprecated: duplicates GapRaceSec; NOT USED BY SA-CORE.")]
         public double GapRealSec { get; set; } = double.NaN;
         public double ClosingRateSecPerSec { get; set; } = double.NaN;
         public int Status { get; set; } = (int)CarSAStatus.Unknown;
@@ -47,6 +54,7 @@ namespace LaunchPlugin
         public int TrackSurfaceMaterialRaw { get; set; } = -1;
         public double ForwardDistPct { get; set; } = double.NaN;
         public double BackwardDistPct { get; set; } = double.NaN;
+        // Race-gap / checkpoint timing (NOT USED BY SA-CORE; slated for removal in SA-Core v2).
         public double RealGapRawSec { get; set; } = double.NaN;
         public double RealGapAdjSec { get; set; } = double.NaN;
         public double LastSeenCheckpointTimeSec { get; set; } = 0.0;
@@ -71,6 +79,7 @@ namespace LaunchPlugin
         internal int OutLapLap { get; set; } = int.MinValue;
         internal bool CompromisedThisLap { get; set; }
         internal int CompromisedLap { get; set; } = int.MinValue;
+        // Deprecated alias (keep for legacy exports; internal state is OutLapActive only).
         internal bool OutLapLatched => OutLapActive;
         internal bool CompromisedThisLapLatched => CompromisedThisLap;
         internal int TrackSurfaceRawDebug => TrackSurfaceRaw;

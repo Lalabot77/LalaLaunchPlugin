@@ -2826,6 +2826,10 @@ namespace LaunchPlugin
         private int _carSaDebugLastBehindStatusE;
         private int _carSaDebugLastAheadCarIdx;
         private int _carSaDebugLastBehindCarIdx;
+        private double _carSaDebugAheadDahlRelativeGapSec = double.NaN;
+        private double _carSaDebugBehindDahlRelativeGapSec = double.NaN;
+        private double _carSaDebugAheadIRacingRelativeGapSec = double.NaN;
+        private double _carSaDebugBehindIRacingRelativeGapSec = double.NaN;
         private readonly int[] _carSaLastAheadIdx = new int[CarSAEngine.SlotsAhead];
         private readonly int[] _carSaLastBehindIdx = new int[CarSAEngine.SlotsBehind];
         private readonly Dictionary<int, int> _carSaLastPaceFlags = new Dictionary<int, int>();
@@ -4362,6 +4366,11 @@ namespace LaunchPlugin
             _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
             if (_carSaEngine != null)
             {
+                _carSaDebugAheadDahlRelativeGapSec = SafeReadDouble(pluginManager, "DahlDesign.CarAhead01Relative", double.NaN);
+                _carSaDebugBehindDahlRelativeGapSec = SafeReadDouble(pluginManager, "DahlDesign.CarBehind01Relative", double.NaN);
+                _carSaDebugAheadIRacingRelativeGapSec = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_DriverAhead_00_RelativeGapToPlayer", double.NaN);
+                _carSaDebugBehindIRacingRelativeGapSec = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer", double.NaN);
+
                 UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
                 WriteCarSaDebugExport(_carSaEngine.Outputs, notRelevantGapSec);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
@@ -4837,8 +4846,10 @@ namespace LaunchPlugin
                 buffer.Append(outputs.Debug.PlayerCheckpointIndexCrossed).Append(',');
                 buffer.Append(notRelevantGapSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
 
-                AppendSlotDebugRow(buffer, ahead, isAhead: true, statusEChanged: aheadStatusChanged, carIdxChanged: aheadCarIdxChanged);
-                AppendSlotDebugRow(buffer, behind, isAhead: false, statusEChanged: behindStatusChanged, carIdxChanged: behindCarIdxChanged);
+                AppendSlotDebugRow(buffer, ahead, isAhead: true, statusEChanged: aheadStatusChanged, carIdxChanged: aheadCarIdxChanged,
+                    _carSaDebugAheadDahlRelativeGapSec, _carSaDebugAheadIRacingRelativeGapSec);
+                AppendSlotDebugRow(buffer, behind, isAhead: false, statusEChanged: behindStatusChanged, carIdxChanged: behindCarIdxChanged,
+                    _carSaDebugBehindDahlRelativeGapSec, _carSaDebugBehindIRacingRelativeGapSec);
 
                 buffer.Append(outputs.Debug.TimestampUpdatesThisTick).Append(',');
                 buffer.Append(outputs.Debug.RealGapClampsThisTick).Append(',');
@@ -5108,7 +5119,8 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Debug($"[LalaPlugin:CarSA] {label} changed carIdx={carIdx} {previous} -> {current} (xor=0x{xor:X})");
         }
 
-        private void AppendSlotDebugRow(StringBuilder buffer, CarSASlot slot, bool isAhead, bool statusEChanged, bool carIdxChanged)
+        private void AppendSlotDebugRow(StringBuilder buffer, CarSASlot slot, bool isAhead, bool statusEChanged, bool carIdxChanged,
+            double dahlRelativeGapSec, double iRacingRelativeGapSec)
         {
             if (slot == null)
             {
@@ -5118,7 +5130,6 @@ namespace LaunchPlugin
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
-                buffer.Append("0,");
                 buffer.Append("NaN,");
                 buffer.Append("0,");
                 buffer.Append("0,");
@@ -5126,7 +5137,6 @@ namespace LaunchPlugin
                 buffer.Append("0,");
                 buffer.Append("UNK,");
                 buffer.Append("Unknown,");
-                buffer.Append("0,");
                 buffer.Append("0,");
                 buffer.Append("0,");
                 buffer.Append(int.MinValue).Append(',');
@@ -5152,11 +5162,10 @@ namespace LaunchPlugin
 
             buffer.Append(slot.CarIdx).Append(',');
             buffer.Append((isAhead ? slot.ForwardDistPct : slot.BackwardDistPct).ToString("F6", CultureInfo.InvariantCulture)).Append(',');
-            buffer.Append(slot.GapRealSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.GapTrackSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.GapRaceSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
-            buffer.Append(slot.RealGapRawSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
-            buffer.Append(slot.BehindWrapApplied ? 1 : 0).Append(',');
+            buffer.Append(FormatDoubleOrNaN(dahlRelativeGapSec)).Append(',');
+            buffer.Append(FormatDoubleOrNaN(iRacingRelativeGapSec)).Append(',');
             buffer.Append(slot.ClosingRateSecPerSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.LapDelta).Append(',');
             buffer.Append(slot.IsOnTrack ? 1 : 0).Append(',');
@@ -5164,7 +5173,6 @@ namespace LaunchPlugin
             buffer.Append(slot.StatusE).Append(',');
             buffer.Append(string.IsNullOrWhiteSpace(slot.StatusShort) ? "UNK" : slot.StatusShort).Append(',');
             buffer.Append(string.IsNullOrWhiteSpace(slot.StatusLong) ? "Unknown" : slot.StatusLong).Append(',');
-            buffer.Append(slot.OutLapLatched ? 1 : 0).Append(',');
             buffer.Append(slot.CompromisedThisLapLatched ? 1 : 0).Append(',');
             buffer.Append(slot.CurrentLap).Append(',');
             buffer.Append(slot.LastLap).Append(',');
@@ -5296,21 +5304,31 @@ namespace LaunchPlugin
         private static string GetCarSaDebugExportHeader()
         {
             return "SessionTimeSec,PlayerLap,PlayerLapPct,CheckpointIndexNow,CheckpointIndexCrossed,NotRelevantGapSec," +
-                   "Ahead01.CarIdx,Ahead01.ForwardDistPct,Ahead01.GapRealSec,Ahead01.GapTrackSec,Ahead01.GapRaceSec,Ahead01.RealGapRawSec,Ahead01.BehindWrapApplied,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad," +
-                   "Ahead01.StatusE,Ahead01.StatusShort,Ahead01.StatusLong,Ahead01.OutLapLatched,Ahead01.CompromisedThisLapLatched," +
+                   "Ahead01.CarIdx,Ahead01.ForwardDistPct,Ahead01.GapTrackSec,Ahead01.GapRaceSec,Ahead01.DahlRelativeGapSec,Ahead01.iRacingRelativeGapSec,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad," +
+                   "Ahead01.StatusE,Ahead01.StatusShort,Ahead01.StatusLong,Ahead01.CompromisedThisLapLatched," +
                    "Ahead01.CurrentLap,Ahead01.LastLap,Ahead01.OutLapActive,Ahead01.OutLapLap,Ahead01.WasOnPitRoad,Ahead01.CompromisedLap," +
                    "Ahead01.CmpFlag_Black,Ahead01.CmpFlag_Furled,Ahead01.CmpFlag_Repair,Ahead01.CmpFlag_Disqualify," +
                    "Ahead01.TrackSurfaceRaw,Ahead01.TrackSurfaceMaterialRaw,Ahead01.SessionFlagsRaw," +
                    "Ahead01.CmpEvidence_OffTrack,Ahead01.CmpEvidence_Material,Ahead01.CmpEvidence_SessionFlags," +
                    "Ahead01.StatusEReason,Ahead01.StatusEChanged,Ahead01.CarIdxChanged," +
-                   "Behind01.CarIdx,Behind01.BackwardDistPct,Behind01.GapRealSec,Behind01.GapTrackSec,Behind01.GapRaceSec,Behind01.RealGapRawSec,Behind01.BehindWrapApplied,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad," +
-                   "Behind01.StatusE,Behind01.StatusShort,Behind01.StatusLong,Behind01.OutLapLatched,Behind01.CompromisedThisLapLatched," +
+                   "Behind01.CarIdx,Behind01.BackwardDistPct,Behind01.GapTrackSec,Behind01.GapRaceSec,Behind01.DahlRelativeGapSec,Behind01.iRacingRelativeGapSec,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad," +
+                   "Behind01.StatusE,Behind01.StatusShort,Behind01.StatusLong,Behind01.CompromisedThisLapLatched," +
                    "Behind01.CurrentLap,Behind01.LastLap,Behind01.OutLapActive,Behind01.OutLapLap,Behind01.WasOnPitRoad,Behind01.CompromisedLap," +
                    "Behind01.CmpFlag_Black,Behind01.CmpFlag_Furled,Behind01.CmpFlag_Repair,Behind01.CmpFlag_Disqualify," +
                    "Behind01.TrackSurfaceRaw,Behind01.TrackSurfaceMaterialRaw,Behind01.SessionFlagsRaw," +
                    "Behind01.CmpEvidence_OffTrack,Behind01.CmpEvidence_Material,Behind01.CmpEvidence_SessionFlags," +
                    "Behind01.StatusEReason,Behind01.StatusEChanged,Behind01.CarIdxChanged," +
                    "TimestampUpdatesThisTick,RealGapClampsThisTick,HysteresisReplacementsThisTick,SlotCarIdxChangedThisTick,FilteredHalfLapCountAhead,FilteredHalfLapCountBehind";
+        }
+
+        private static string FormatDoubleOrNaN(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return "NaN";
+            }
+
+            return value.ToString("F3", CultureInfo.InvariantCulture);
         }
 
         private void ResetCarSaDebugExportState()
