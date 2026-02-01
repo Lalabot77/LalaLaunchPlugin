@@ -25,16 +25,16 @@ namespace LaunchPlugin
         private const string StatusShortInPits = "PIT";
         private const string StatusShortCompromisedOffTrack = "OFF";
         private const string StatusShortCompromisedPenalty = "PEN";
-        private const string StatusShortFasterClass = "OC";
-        private const string StatusShortSlowerClass = "OC2";
+        private const string StatusShortFasterClass = "FCL";
+        private const string StatusShortSlowerClass = "SCL";
         private const string StatusShortRacing = "RCE";
         private const string StatusLongUnknown = "Unknown";
         private const string StatusLongOutLap = "Out lap";
         private const string StatusLongInPits = "In pits";
         private const string StatusLongCompromisedOffTrack = "Off track";
         private const string StatusLongCompromisedPenalty = "Penalty/Flag";
-        private const string StatusLongFasterClass = "Other class";
-        private const string StatusLongSlowerClass = "Other class (reserved)";
+        private const string StatusLongFasterClass = "Faster class";
+        private const string StatusLongSlowerClass = "Slower class";
         private const string StatusLongRacing = "Racing";
         private const string StatusEReasonPits = "pits";
         private const string StatusEReasonCompromisedOffTrack = "cmp_off";
@@ -900,6 +900,12 @@ namespace LaunchPlugin
                 statusEReason = StatusEReasonOtherClass;
             }
 
+            if (statusE == (int)CarSAStatusE.NotRelevant)
+            {
+                statusE = (int)CarSAStatusE.Unknown;
+                statusEReason = StatusEReasonUnknown;
+            }
+
             slot.StatusE = statusE;
             slot.StatusEReason = statusEReason;
             UpdateStatusEText(slot);
@@ -1172,8 +1178,8 @@ namespace LaunchPlugin
                         lapDeltaAbs = 9;
                     }
 
-                    string lapPrefix = lapDelta >= 0 ? "A" : "B";
-                    slot.StatusShort = $"{lapPrefix}{lapDeltaAbs}L";
+                    string lapSignShort = lapDelta >= 0 ? "+" : "-";
+                    slot.StatusShort = $"{lapSignShort}{lapDeltaAbs}L";
                     string directionLabel = slot.SlotIsAhead ? "Ahead" : "Behind";
                     string lapSign = lapDelta >= 0 ? "+" : "-";
                     slot.StatusLong = $"{directionLabel} {lapSign}{Math.Abs(lapDelta)} laps";
