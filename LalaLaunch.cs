@@ -2821,6 +2821,11 @@ namespace LaunchPlugin
         private string _carSaDebugExportPath;
         private string _carSaDebugExportToken;
         private int _carSaDebugExportPendingLines;
+        private bool _carSaDebugHasLastRow;
+        private int _carSaDebugLastAheadStatusE;
+        private int _carSaDebugLastBehindStatusE;
+        private int _carSaDebugLastAheadCarIdx;
+        private int _carSaDebugLastBehindCarIdx;
         private readonly int[] _carSaLastAheadIdx = new int[CarSAEngine.SlotsAhead];
         private readonly int[] _carSaLastBehindIdx = new int[CarSAEngine.SlotsBehind];
         private readonly Dictionary<int, int> _carSaLastPaceFlags = new Dictionary<int, int>();
@@ -4811,6 +4816,14 @@ namespace LaunchPlugin
 
                 CarSASlot ahead = outputs.AheadSlots.Length > 0 ? outputs.AheadSlots[0] : null;
                 CarSASlot behind = outputs.BehindSlots.Length > 0 ? outputs.BehindSlots[0] : null;
+                int aheadStatusE = ahead?.StatusE ?? (int)CarSAStatusE.Unknown;
+                int behindStatusE = behind?.StatusE ?? (int)CarSAStatusE.Unknown;
+                int aheadCarIdx = ahead?.CarIdx ?? -1;
+                int behindCarIdx = behind?.CarIdx ?? -1;
+                bool aheadStatusChanged = _carSaDebugHasLastRow && aheadStatusE != _carSaDebugLastAheadStatusE;
+                bool behindStatusChanged = _carSaDebugHasLastRow && behindStatusE != _carSaDebugLastBehindStatusE;
+                bool aheadCarIdxChanged = _carSaDebugHasLastRow && aheadCarIdx != _carSaDebugLastAheadCarIdx;
+                bool behindCarIdxChanged = _carSaDebugHasLastRow && behindCarIdx != _carSaDebugLastBehindCarIdx;
 
                 StringBuilder buffer = _carSaDebugExportBuffer ?? (_carSaDebugExportBuffer = new StringBuilder(1024));
                 buffer.Append(outputs.Debug.SessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
@@ -4819,8 +4832,8 @@ namespace LaunchPlugin
                 buffer.Append(outputs.Debug.PlayerCheckpointIndexNow).Append(',');
                 buffer.Append(outputs.Debug.PlayerCheckpointIndexCrossed).Append(',');
 
-                AppendSlotDebugRow(buffer, ahead, isAhead: true);
-                AppendSlotDebugRow(buffer, behind, isAhead: false);
+                AppendSlotDebugRow(buffer, ahead, isAhead: true, statusEChanged: aheadStatusChanged, carIdxChanged: aheadCarIdxChanged);
+                AppendSlotDebugRow(buffer, behind, isAhead: false, statusEChanged: behindStatusChanged, carIdxChanged: behindCarIdxChanged);
 
                 buffer.Append(outputs.Debug.TimestampUpdatesThisTick).Append(',');
                 buffer.Append(outputs.Debug.RealGapClampsThisTick).Append(',');
@@ -4829,6 +4842,12 @@ namespace LaunchPlugin
                 buffer.Append(outputs.Debug.FilteredHalfLapCountAhead).Append(',');
                 buffer.Append(outputs.Debug.FilteredHalfLapCountBehind);
                 buffer.AppendLine();
+
+                _carSaDebugHasLastRow = true;
+                _carSaDebugLastAheadStatusE = aheadStatusE;
+                _carSaDebugLastBehindStatusE = behindStatusE;
+                _carSaDebugLastAheadCarIdx = aheadCarIdx;
+                _carSaDebugLastBehindCarIdx = behindCarIdx;
 
                 _carSaDebugExportPendingLines++;
                 if (_carSaDebugExportPendingLines >= 20 || buffer.Length >= 4096)
@@ -5078,7 +5097,7 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Debug($"[LalaPlugin:CarSA] {label} changed carIdx={carIdx} {previous} -> {current} (xor=0x{xor:X})");
         }
 
-        private void AppendSlotDebugRow(StringBuilder buffer, CarSASlot slot, bool isAhead)
+        private void AppendSlotDebugRow(StringBuilder buffer, CarSASlot slot, bool isAhead, bool statusEChanged, bool carIdxChanged)
         {
             if (slot == null)
             {
@@ -5087,6 +5106,20 @@ namespace LaunchPlugin
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
                 buffer.Append("0,");
+                buffer.Append("0,");
+                buffer.Append("0,");
+                buffer.Append("0,");
+                buffer.Append("UNK,");
+                buffer.Append("Unknown,");
+                buffer.Append("0,");
+                buffer.Append("0,");
+                buffer.Append(int.MinValue).Append(',');
+                buffer.Append("-1,");
+                buffer.Append("-1,");
+                buffer.Append("0,");
+                buffer.Append("0,");
+                buffer.Append("0,");
+                buffer.Append("unknown,");
                 buffer.Append("0,");
                 buffer.Append("0,");
                 return;
@@ -5099,6 +5132,21 @@ namespace LaunchPlugin
             buffer.Append(slot.LapDelta).Append(',');
             buffer.Append(slot.IsOnTrack ? 1 : 0).Append(',');
             buffer.Append(slot.IsOnPitRoad ? 1 : 0).Append(',');
+            buffer.Append(slot.StatusE).Append(',');
+            buffer.Append(string.IsNullOrWhiteSpace(slot.StatusShort) ? "UNK" : slot.StatusShort).Append(',');
+            buffer.Append(string.IsNullOrWhiteSpace(slot.StatusLong) ? "Unknown" : slot.StatusLong).Append(',');
+            buffer.Append(slot.OutLapLatched ? 1 : 0).Append(',');
+            buffer.Append(slot.CompromisedThisLapLatched ? 1 : 0).Append(',');
+            buffer.Append(slot.TrackSurfaceRawDebug).Append(',');
+            buffer.Append(slot.TrackSurfaceMaterialRaw).Append(',');
+            buffer.Append(slot.SessionFlagsRaw).Append(',');
+            CarSAEngine.GetCompromisedEvidenceDetails(slot, out bool offTrackEvidence, out bool materialEvidence, out bool sessionFlagEvidence);
+            buffer.Append(offTrackEvidence ? 1 : 0).Append(',');
+            buffer.Append(materialEvidence ? 1 : 0).Append(',');
+            buffer.Append(sessionFlagEvidence ? 1 : 0).Append(',');
+            buffer.Append(string.IsNullOrWhiteSpace(slot.StatusEReason) ? "unknown" : slot.StatusEReason).Append(',');
+            buffer.Append(statusEChanged ? 1 : 0).Append(',');
+            buffer.Append(carIdxChanged ? 1 : 0).Append(',');
         }
 
         private void EnsureCarSaDebugExportFile()
@@ -5119,6 +5167,12 @@ namespace LaunchPlugin
                 {
                     File.WriteAllText(_carSaDebugExportPath, GetCarSaDebugExportHeader() + Environment.NewLine);
                 }
+
+                _carSaDebugHasLastRow = false;
+                _carSaDebugLastAheadStatusE = int.MinValue;
+                _carSaDebugLastBehindStatusE = int.MinValue;
+                _carSaDebugLastAheadCarIdx = -1;
+                _carSaDebugLastBehindCarIdx = -1;
             }
 
             if (_carSaDebugExportBuffer == null)
@@ -5203,7 +5257,15 @@ namespace LaunchPlugin
         {
             return "SessionTimeSec,PlayerLap,PlayerLapPct,CheckpointIndexNow,CheckpointIndexCrossed," +
                    "Ahead01.CarIdx,Ahead01.ForwardDistPct,Ahead01.GapRealSec,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad," +
+                   "Ahead01.StatusE,Ahead01.StatusShort,Ahead01.StatusLong,Ahead01.OutLapLatched,Ahead01.CompromisedThisLapLatched," +
+                   "Ahead01.TrackSurfaceRaw,Ahead01.TrackSurfaceMaterialRaw,Ahead01.SessionFlagsRaw," +
+                   "Ahead01.CmpEvidence_OffTrack,Ahead01.CmpEvidence_Material,Ahead01.CmpEvidence_SessionFlags," +
+                   "Ahead01.StatusEReason,Ahead01.StatusEChanged,Ahead01.CarIdxChanged," +
                    "Behind01.CarIdx,Behind01.BackwardDistPct,Behind01.GapRealSec,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad," +
+                   "Behind01.StatusE,Behind01.StatusShort,Behind01.StatusLong,Behind01.OutLapLatched,Behind01.CompromisedThisLapLatched," +
+                   "Behind01.TrackSurfaceRaw,Behind01.TrackSurfaceMaterialRaw,Behind01.SessionFlagsRaw," +
+                   "Behind01.CmpEvidence_OffTrack,Behind01.CmpEvidence_Material,Behind01.CmpEvidence_SessionFlags," +
+                   "Behind01.StatusEReason,Behind01.StatusEChanged,Behind01.CarIdxChanged," +
                    "TimestampUpdatesThisTick,RealGapClampsThisTick,HysteresisReplacementsThisTick,SlotCarIdxChangedThisTick,FilteredHalfLapCountAhead,FilteredHalfLapCountBehind";
         }
 
@@ -5213,6 +5275,11 @@ namespace LaunchPlugin
             _carSaDebugExportPath = null;
             _carSaDebugExportToken = null;
             _carSaDebugExportPendingLines = 0;
+            _carSaDebugHasLastRow = false;
+            _carSaDebugLastAheadStatusE = int.MinValue;
+            _carSaDebugLastBehindStatusE = int.MinValue;
+            _carSaDebugLastAheadCarIdx = -1;
+            _carSaDebugLastBehindCarIdx = -1;
         }
 
         private void ResetCarSaIdentityState()
