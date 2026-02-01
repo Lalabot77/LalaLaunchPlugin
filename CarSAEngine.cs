@@ -678,13 +678,17 @@ namespace LaunchPlugin
             UpdateStatusELatches(slot);
 
             int statusE = (int)CarSAStatusE.Unknown;
-            if (!slot.IsValid || !slot.IsOnTrack)
+            if (!slot.IsValid || slot.TrackSurfaceRaw == TrackSurfaceNotInWorld)
             {
                 statusE = (int)CarSAStatusE.NotRelevant;
             }
             else if (slot.IsOnPitRoad)
             {
                 statusE = (int)CarSAStatusE.InPits;
+            }
+            else if (!slot.IsOnTrack)
+            {
+                statusE = (int)CarSAStatusE.NotRelevant;
             }
             else if (slot.CompromisedThisLap)
             {
