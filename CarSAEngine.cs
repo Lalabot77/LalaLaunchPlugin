@@ -31,7 +31,7 @@ namespace LaunchPlugin
         private const string StatusShortSlowerClass = "S-";
         private const string StatusShortRacing = "RACE";
         private const string StatusShortLappingYou = "LAP";
-        private const string StatusShortBeingLapped = "BLP";
+        private const string StatusShortBeingLapped = "YLP";
         private const string StatusLongUnknown = "Unknown";
         private const string StatusLongOutLap = "Out lap";
         private const string StatusLongInPits = "In pits";
@@ -41,7 +41,7 @@ namespace LaunchPlugin
         private const string StatusLongSlowerClass = "Slower class";
         private const string StatusLongRacing = "Racing";
         private const string StatusLongLappingYou = "Lapping you";
-        private const string StatusLongBeingLapped = "Being lapped";
+        private const string StatusLongBeingLapped = "You are lapping";
         private const int SessionFlagMaskCompromised = 0x00010000 | 0x00080000 | 0x00100000 | 0x00020000;
 
         private readonly RealGapStopwatch _stopwatch;
@@ -765,9 +765,9 @@ namespace LaunchPlugin
                 return false;
             }
 
-            bool offTrackEvidence = slot.TrackSurfaceRaw != TrackSurfaceUnknown && slot.TrackSurfaceRaw != TrackSurfaceOnTrack;
+            bool offTrackEvidence = !slot.IsOnTrack && !slot.IsOnPitRoad && slot.TrackSurfaceRaw != TrackSurfaceUnknown;
             bool materialOffTrack = slot.TrackSurfaceMaterialRaw >= 15;
-            bool sessionFlagged = slot.SessionFlagsRaw >= 0 && (slot.SessionFlagsRaw & SessionFlagMaskCompromised) != 0;
+            bool sessionFlagged = (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
             return offTrackEvidence || materialOffTrack || sessionFlagged;
         }
 
