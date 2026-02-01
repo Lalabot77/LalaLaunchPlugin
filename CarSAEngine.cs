@@ -716,7 +716,7 @@ namespace LaunchPlugin
                 statusE = (int)CarSAStatusE.CompromisedThisLap;
                 statusEReason = StatusEReasonCompromised;
             }
-            else if (!double.IsNaN(slot.GapRealSec) && Math.Abs(slot.GapRealSec) > notRelevantGapSec)
+            else if (!double.IsNaN(slot.GapTrackSec) && Math.Abs(slot.GapTrackSec) > notRelevantGapSec)
             {
                 statusE = (int)CarSAStatusE.NotRelevant;
                 statusEReason = StatusEReasonNotRelevantGap;
@@ -1031,6 +1031,8 @@ namespace LaunchPlugin
                 CarSASlot slot = slots[i];
                 if (!slot.IsValid || slot.CarIdx < 0)
                 {
+                    slot.GapTrackSec = double.NaN;
+                    slot.GapRaceSec = double.NaN;
                     slot.GapRealSec = double.NaN;
                     slot.RealGapRawSec = double.NaN;
                     slot.RealGapAdjSec = double.NaN;
@@ -1050,6 +1052,8 @@ namespace LaunchPlugin
                         continue;
                     }
 
+                    slot.GapTrackSec = double.NaN;
+                    slot.GapRaceSec = double.NaN;
                     slot.GapRealSec = double.NaN;
                     slot.RealGapRawSec = double.NaN;
                     slot.RealGapAdjSec = double.NaN;
@@ -1059,7 +1063,8 @@ namespace LaunchPlugin
                 }
 
                 double rawGap = playerCheckpointTimeSec - lastSeen;
-                double adjustedGap = rawGap;
+                double trackGap = rawGap;
+                double raceGap = rawGap;
 
                 int lapDelta = slot.LapDelta;
                 const double WrapStraddleClosePct = 0.10;
@@ -1095,31 +1100,45 @@ namespace LaunchPlugin
                 {
                     if (allowLapDeltaAdjust)
                     {
-                        adjustedGap += lapDelta * lapTimeEstimateSec;
+                        raceGap = trackGap + (lapDelta * lapTimeEstimateSec);
                     }
                 }
                 else if (!isAhead && rawGap > lapTimeEstimateSec * behindWrapThreshold)
                 {
                     if (allowBehindWrap)
                     {
-                        adjustedGap = rawGap - lapTimeEstimateSec;
+                        trackGap = rawGap - lapTimeEstimateSec;
+                        raceGap = trackGap;
                     }
                 }
 
-                if (adjustedGap > MaxRealGapSec)
+                if (trackGap > MaxRealGapSec)
                 {
-                    adjustedGap = MaxRealGapSec;
+                    trackGap = MaxRealGapSec;
+                }
+                else if (trackGap < -MaxRealGapSec)
+                {
+                    trackGap = -MaxRealGapSec;
+                }
+
+                if (raceGap > MaxRealGapSec)
+                {
+                    raceGap = MaxRealGapSec;
                     realGapClamps++;
                 }
-                else if (adjustedGap < -MaxRealGapSec)
+                else if (raceGap < -MaxRealGapSec)
                 {
-                    adjustedGap = -MaxRealGapSec;
+                    raceGap = -MaxRealGapSec;
                     realGapClamps++;
                 }
 
                 slot.RealGapRawSec = rawGap;
-                slot.RealGapAdjSec = adjustedGap;
-                slot.GapRealSec = isAhead ? Math.Abs(adjustedGap) : -Math.Abs(adjustedGap);
+                slot.RealGapAdjSec = raceGap;
+                // TrackGapSec: SA proximity gap (no lapDelta term).
+                slot.GapTrackSec = isAhead ? Math.Abs(trackGap) : -Math.Abs(trackGap);
+                // RaceGapSec: race-time style gap (includes lapDelta * lapTimeEstimateSec).
+                slot.GapRaceSec = isAhead ? Math.Abs(raceGap) : -Math.Abs(raceGap);
+                slot.GapRealSec = slot.GapRaceSec;
                 slot.HasRealGap = true;
                 slot.LastRealGapUpdateSessionTimeSec = sessionTimeSec;
                 if (!inRebindSettle)
@@ -1133,17 +1152,17 @@ namespace LaunchPlugin
 
         private static void UpdateClosingRate(CarSASlot slot, double gapTimeSec)
         {
-            if (!slot.IsValid || double.IsNaN(slot.GapRealSec))
+            if (!slot.IsValid || double.IsNaN(slot.GapTrackSec))
             {
                 return;
             }
 
-            double gapAbs = Math.Abs(slot.GapRealSec);
+            double gapAbs = Math.Abs(slot.GapTrackSec);
             if (!slot.HasGapAbs)
             {
                 slot.HasGap = true;
                 slot.HasGapAbs = true;
-                slot.LastGapSec = slot.GapRealSec;
+                slot.LastGapSec = slot.GapTrackSec;
                 slot.LastGapAbs = gapAbs;
                 slot.LastGapUpdateTimeSec = gapTimeSec;
                 slot.ClosingRateSecPerSec = double.NaN;
@@ -1171,7 +1190,7 @@ namespace LaunchPlugin
                 slot.ClosingRateSecPerSec = (0.8 * slot.ClosingRateSecPerSec) + (0.2 * rate);
             }
 
-            slot.LastGapSec = slot.GapRealSec;
+            slot.LastGapSec = slot.GapTrackSec;
             slot.LastGapAbs = gapAbs;
             slot.LastGapUpdateTimeSec = gapTimeSec;
         }

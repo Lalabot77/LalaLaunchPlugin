@@ -33,6 +33,8 @@ namespace LaunchPlugin
         public bool IsOnPitRoad { get; set; }
         public bool IsValid { get; set; }
         public int LapDelta { get; set; }
+        public double GapTrackSec { get; set; } = double.NaN;
+        public double GapRaceSec { get; set; } = double.NaN;
         public double GapRealSec { get; set; } = double.NaN;
         public double ClosingRateSecPerSec { get; set; } = double.NaN;
         public int Status { get; set; } = (int)CarSAStatus.Unknown;
@@ -82,6 +84,8 @@ namespace LaunchPlugin
             IsOnPitRoad = false;
             IsValid = false;
             LapDelta = 0;
+            GapTrackSec = double.NaN;
+            GapRaceSec = double.NaN;
             GapRealSec = double.NaN;
             ClosingRateSecPerSec = double.NaN;
             Status = (int)CarSAStatus.Unknown;
