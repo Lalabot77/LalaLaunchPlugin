@@ -42,6 +42,20 @@ namespace LaunchPlugin
         private const string StatusLongRacing = "Racing";
         private const string StatusLongLappingYou = "Lapping you";
         private const string StatusLongBeingLapped = "You are lapping";
+        private const string StatusEReasonInvalid = "invalid";
+        private const string StatusEReasonPits = "pits";
+        private const string StatusEReasonCompromised = "cmp";
+        private const string StatusEReasonNotRelevantGap = "nr_gap";
+        private const string StatusEReasonOutLap = "outlap";
+        private const string StatusEReasonLappingYou = "lapping_you";
+        private const string StatusEReasonYouAreLapping = "you_are_lapping";
+        private const string StatusEReasonRacing = "racing";
+        private const string StatusEReasonOtherClass = "otherclass";
+        private const string StatusEReasonUnknown = "unknown";
+        private const int SessionFlagBlack = 0x00010000;
+        private const int SessionFlagFurled = 0x00020000;
+        private const int SessionFlagRepair = 0x00080000;
+        private const int SessionFlagDisqualify = 0x00100000;
         private const int SessionFlagMaskCompromised = 0x00010000 | 0x00080000 | 0x00100000 | 0x00020000;
 
         private readonly RealGapStopwatch _stopwatch;
@@ -517,6 +531,7 @@ namespace LaunchPlugin
                 slot.StatusETextDirty = true;
                 slot.StatusShort = "UNK";
                 slot.StatusLong = "Unknown";
+                slot.StatusEReason = "unknown";
             }
 
             slot.CarIdx = carIdx;
@@ -678,48 +693,60 @@ namespace LaunchPlugin
             UpdateStatusELatches(slot);
 
             int statusE = (int)CarSAStatusE.Unknown;
+            string statusEReason = StatusEReasonUnknown;
             if (!slot.IsValid || slot.TrackSurfaceRaw == TrackSurfaceNotInWorld)
             {
                 statusE = (int)CarSAStatusE.NotRelevant;
+                statusEReason = StatusEReasonInvalid;
             }
             else if (slot.IsOnPitRoad)
             {
                 statusE = (int)CarSAStatusE.InPits;
+                statusEReason = StatusEReasonPits;
             }
             else if (!slot.IsOnTrack)
             {
                 statusE = (int)CarSAStatusE.NotRelevant;
+                statusEReason = StatusEReasonInvalid;
             }
             else if (slot.CompromisedThisLap)
             {
                 statusE = (int)CarSAStatusE.CompromisedThisLap;
+                statusEReason = StatusEReasonCompromised;
             }
             else if (!double.IsNaN(slot.GapRealSec) && Math.Abs(slot.GapRealSec) > notRelevantGapSec)
             {
                 statusE = (int)CarSAStatusE.NotRelevant;
+                statusEReason = StatusEReasonNotRelevantGap;
             }
             else if (slot.OutLapActive)
             {
                 statusE = (int)CarSAStatusE.OutLap;
+                statusEReason = StatusEReasonOutLap;
             }
             else if (slot.LapDelta > 0)
             {
                 statusE = (int)CarSAStatusE.LappingYou;
+                statusEReason = StatusEReasonLappingYou;
             }
             else if (slot.LapDelta < 0)
             {
                 statusE = (int)CarSAStatusE.BeingLapped;
+                statusEReason = StatusEReasonYouAreLapping;
             }
             else if (IsRacingFromOpponents(slot, opponentOutputs, isAhead))
             {
                 statusE = (int)CarSAStatusE.Racing;
+                statusEReason = StatusEReasonRacing;
             }
             else if (IsOtherClass(slot, playerClassColor))
             {
                 statusE = (int)CarSAStatusE.FasterClass; // placeholder for "other class"
+                statusEReason = StatusEReasonOtherClass;
             }
 
             slot.StatusE = statusE;
+            slot.StatusEReason = statusEReason;
             UpdateStatusEText(slot);
         }
 
@@ -735,7 +762,7 @@ namespace LaunchPlugin
             {
                 slot.LastLap = currentLap;
                 slot.CompromisedThisLap = false;
-                slot.CompromisedLap = currentLap;
+                slot.CompromisedLap = int.MinValue;
                 if (slot.OutLapActive && slot.OutLapLap != currentLap)
                 {
                     slot.OutLapActive = false;
@@ -755,8 +782,11 @@ namespace LaunchPlugin
 
             if (IsCompromisedEvidence(slot))
             {
-                slot.CompromisedThisLap = true;
-                slot.CompromisedLap = currentLap;
+                if (!slot.CompromisedThisLap)
+                {
+                    slot.CompromisedThisLap = true;
+                    slot.CompromisedLap = currentLap;
+                }
             }
 
             slot.WasOnPitRoad = slot.IsOnPitRoad;
@@ -779,11 +809,69 @@ namespace LaunchPlugin
                 return false;
             }
 
-            bool offTrackEvidence = !slot.IsOnTrack && !slot.IsOnPitRoad && slot.TrackSurfaceRaw != TrackSurfaceUnknown;
-            bool materialOffTrack = slot.TrackSurfaceMaterialRaw >= 0 && slot.TrackSurfaceMaterialRaw >= 15;
-            bool sessionFlagged = slot.SessionFlagsRaw >= 0
-                && (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
+            GetCompromisedEvidenceDetails(slot, out bool offTrackEvidence, out bool materialOffTrack, out bool sessionFlagged);
             return offTrackEvidence || materialOffTrack || sessionFlagged;
+        }
+
+        internal static void GetCompromisedEvidenceDetails(
+            CarSASlot slot,
+            out bool offTrackEvidence,
+            out bool materialOffTrack,
+            out bool sessionFlagged)
+        {
+            offTrackEvidence = false;
+            materialOffTrack = false;
+            sessionFlagged = false;
+
+            if (slot == null)
+            {
+                return;
+            }
+
+            if (!slot.IsValid)
+            {
+                return;
+            }
+
+            if (slot.TrackSurfaceRaw == TrackSurfaceNotInWorld)
+            {
+                return;
+            }
+
+            offTrackEvidence = !slot.IsOnTrack && !slot.IsOnPitRoad && slot.TrackSurfaceRaw != TrackSurfaceUnknown;
+            materialOffTrack = slot.TrackSurfaceMaterialRaw >= 0 && slot.TrackSurfaceMaterialRaw >= 15;
+            sessionFlagged = slot.SessionFlagsRaw >= 0
+                && (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
+        }
+
+        internal static void GetCompromisedFlagBits(
+            CarSASlot slot,
+            out bool black,
+            out bool furled,
+            out bool repair,
+            out bool disqualify)
+        {
+            black = false;
+            furled = false;
+            repair = false;
+            disqualify = false;
+
+            if (slot == null || !slot.IsValid || slot.TrackSurfaceRaw == TrackSurfaceNotInWorld)
+            {
+                return;
+            }
+
+            int rawFlags = slot.SessionFlagsRaw;
+            if (rawFlags < 0)
+            {
+                return;
+            }
+
+            uint flags = unchecked((uint)rawFlags);
+            black = (flags & (uint)SessionFlagBlack) != 0;
+            furled = (flags & (uint)SessionFlagFurled) != 0;
+            repair = (flags & (uint)SessionFlagRepair) != 0;
+            disqualify = (flags & (uint)SessionFlagDisqualify) != 0;
         }
 
         private static bool IsRacingFromOpponents(CarSASlot slot, OpponentsEngine.OpponentOutputs opponentOutputs, bool isAhead)

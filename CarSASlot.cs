@@ -39,6 +39,7 @@ namespace LaunchPlugin
         public int StatusE { get; set; } = (int)CarSAStatusE.Unknown;
         public string StatusShort { get; set; } = "UNK";
         public string StatusLong { get; set; } = "Unknown";
+        public string StatusEReason { get; set; } = "unknown";
         public int PaceFlagsRaw { get; set; } = -1;
         public int SessionFlagsRaw { get; set; } = -1;
         public int TrackSurfaceMaterialRaw { get; set; } = -1;
@@ -66,6 +67,9 @@ namespace LaunchPlugin
         internal int OutLapLap { get; set; } = int.MinValue;
         internal bool CompromisedThisLap { get; set; }
         internal int CompromisedLap { get; set; } = int.MinValue;
+        internal bool OutLapLatched => OutLapActive;
+        internal bool CompromisedThisLapLatched => CompromisedThisLap;
+        internal int TrackSurfaceRawDebug => TrackSurfaceRaw;
 
         public void Reset()
         {
@@ -83,6 +87,7 @@ namespace LaunchPlugin
             StatusE = (int)CarSAStatusE.Unknown;
             StatusShort = "UNK";
             StatusLong = "Unknown";
+            StatusEReason = "unknown";
             PaceFlagsRaw = -1;
             SessionFlagsRaw = -1;
             TrackSurfaceMaterialRaw = -1;
