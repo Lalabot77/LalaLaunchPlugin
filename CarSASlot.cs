@@ -14,6 +14,7 @@ namespace LaunchPlugin
         Unknown = 0,
         OutLap = 100,
         InPits = 110,
+        CompromisedThisLap = 120,
         NotRelevant = 190,
         FasterClass = 200,
         SlowerClass = 210,
@@ -57,6 +58,14 @@ namespace LaunchPlugin
         internal double LastRealGapUpdateSessionTimeSec { get; set; } = 0.0;
         internal int LastStatusE { get; set; } = (int)CarSAStatusE.Unknown;
         internal bool StatusETextDirty { get; set; } = true;
+        internal int TrackSurfaceRaw { get; set; } = int.MinValue;
+        internal int CurrentLap { get; set; }
+        internal int LastLap { get; set; } = int.MinValue;
+        internal bool WasOnPitRoad { get; set; }
+        internal bool OutLapActive { get; set; }
+        internal int OutLapLap { get; set; } = int.MinValue;
+        internal bool CompromisedThisLap { get; set; }
+        internal int CompromisedLap { get; set; } = int.MinValue;
 
         public void Reset()
         {
@@ -92,6 +101,14 @@ namespace LaunchPlugin
             LastRealGapUpdateSessionTimeSec = 0.0;
             LastStatusE = (int)CarSAStatusE.Unknown;
             StatusETextDirty = true;
+            TrackSurfaceRaw = int.MinValue;
+            CurrentLap = 0;
+            LastLap = int.MinValue;
+            WasOnPitRoad = false;
+            OutLapActive = false;
+            OutLapLap = int.MinValue;
+            CompromisedThisLap = false;
+            CompromisedLap = int.MinValue;
         }
     }
 

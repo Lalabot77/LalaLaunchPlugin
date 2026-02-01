@@ -4356,6 +4356,8 @@ namespace LaunchPlugin
                 UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
                 WriteCarSaDebugExport(_carSaEngine.Outputs);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
+                string playerClassColor = GetCarClassColorHex(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
+                _carSaEngine.RefreshStatusE(notRelevantGapSec, _opponentsEngine?.Outputs, playerClassColor);
             }
 
             if (pitEntryEdge)
