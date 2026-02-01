@@ -780,8 +780,9 @@ namespace LaunchPlugin
             }
 
             bool offTrackEvidence = !slot.IsOnTrack && !slot.IsOnPitRoad && slot.TrackSurfaceRaw != TrackSurfaceUnknown;
-            bool materialOffTrack = slot.TrackSurfaceMaterialRaw >= 15;
-            bool sessionFlagged = (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
+            bool materialOffTrack = slot.TrackSurfaceMaterialRaw >= 0 && slot.TrackSurfaceMaterialRaw >= 15;
+            bool sessionFlagged = slot.SessionFlagsRaw >= 0
+                && (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
             return offTrackEvidence || materialOffTrack || sessionFlagged;
         }
 
