@@ -5766,10 +5766,11 @@ namespace LaunchPlugin
                     values = Array.ConvertAll(sbytes, v => (int)v);
                     return true;
                 case long[] longs:
-                    values = Array.ConvertAll(longs, v => unchecked((int)v));
+                    // CarIdx bitfield arrays only define the lower 32 bits; mask intentionally.
+                    values = Array.ConvertAll(longs, v => unchecked((int)(v & 0xFFFFFFFF)));
                     return true;
                 case ulong[] ulongs:
-                    values = Array.ConvertAll(ulongs, v => unchecked((int)v));
+                    values = Array.ConvertAll(ulongs, v => unchecked((int)(v & 0xFFFFFFFF)));
                     return true;
                 default:
                     return false;
