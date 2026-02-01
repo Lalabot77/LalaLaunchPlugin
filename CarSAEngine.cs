@@ -515,6 +515,7 @@ namespace LaunchPlugin
                 slot.RealGapAdjSec = double.NaN;
                 slot.LastSeenCheckpointTimeSec = 0.0;
                 slot.HasRealGap = false;
+                slot.BehindWrapApplied = false;
                 slot.LastRealGapUpdateSessionTimeSec = 0.0;
                 slot.JustRebound = true;
                 slot.ReboundTimeSec = sessionTimeSec;
@@ -1036,6 +1037,7 @@ namespace LaunchPlugin
                     slot.GapRealSec = double.NaN;
                     slot.RealGapRawSec = double.NaN;
                     slot.RealGapAdjSec = double.NaN;
+                    slot.BehindWrapApplied = false;
                     slot.LastSeenCheckpointTimeSec = 0.0;
                     slot.HasRealGap = false;
                     slot.LastRealGapUpdateSessionTimeSec = 0.0;
@@ -1057,6 +1059,7 @@ namespace LaunchPlugin
                     slot.GapRealSec = double.NaN;
                     slot.RealGapRawSec = double.NaN;
                     slot.RealGapAdjSec = double.NaN;
+                    slot.BehindWrapApplied = false;
                     slot.ClosingRateSecPerSec = double.NaN;
                     slot.HasRealGap = false;
                     continue;
@@ -1095,21 +1098,26 @@ namespace LaunchPlugin
                 bool allowLapDeltaAdjust = !inRebindSettle && !suppressLapDeltaCorrection;
                 bool allowBehindWrap = !inRebindSettle;
                 double behindWrapThreshold = suppressLapDeltaCorrection ? 0.90 : WrapAdjustThresholdFactor;
+                slot.BehindWrapApplied = false;
 
-                if (lapDelta != 0)
+                if (!isAhead && allowBehindWrap)
                 {
-                    if (allowLapDeltaAdjust)
-                    {
-                        raceGap = trackGap + (lapDelta * lapTimeEstimateSec);
-                    }
-                }
-                else if (!isAhead && rawGap > lapTimeEstimateSec * behindWrapThreshold)
-                {
-                    if (allowBehindWrap)
+                    if (rawGap > lapTimeEstimateSec * behindWrapThreshold)
                     {
                         trackGap = rawGap - lapTimeEstimateSec;
-                        raceGap = trackGap;
+                        slot.BehindWrapApplied = true;
                     }
+                    else if (rawGap < -lapTimeEstimateSec * behindWrapThreshold)
+                    {
+                        trackGap = rawGap + lapTimeEstimateSec;
+                        slot.BehindWrapApplied = true;
+                    }
+                }
+
+                raceGap = trackGap;
+                if (lapDelta != 0 && allowLapDeltaAdjust)
+                {
+                    raceGap = trackGap + (lapDelta * lapTimeEstimateSec);
                 }
 
                 if (trackGap > MaxRealGapSec)

@@ -5119,6 +5119,8 @@ namespace LaunchPlugin
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
                 buffer.Append("0,");
+                buffer.Append("NaN,");
+                buffer.Append("0,");
                 buffer.Append("0,");
                 buffer.Append("0,");
                 buffer.Append("0,");
@@ -5153,6 +5155,8 @@ namespace LaunchPlugin
             buffer.Append(slot.GapRealSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.GapTrackSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.GapRaceSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+            buffer.Append(slot.RealGapRawSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+            buffer.Append(slot.BehindWrapApplied ? 1 : 0).Append(',');
             buffer.Append(slot.ClosingRateSecPerSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.LapDelta).Append(',');
             buffer.Append(slot.IsOnTrack ? 1 : 0).Append(',');
@@ -5292,14 +5296,14 @@ namespace LaunchPlugin
         private static string GetCarSaDebugExportHeader()
         {
             return "SessionTimeSec,PlayerLap,PlayerLapPct,CheckpointIndexNow,CheckpointIndexCrossed,NotRelevantGapSec," +
-                   "Ahead01.CarIdx,Ahead01.ForwardDistPct,Ahead01.GapRealSec,Ahead01.GapTrackSec,Ahead01.GapRaceSec,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad," +
+                   "Ahead01.CarIdx,Ahead01.ForwardDistPct,Ahead01.GapRealSec,Ahead01.GapTrackSec,Ahead01.GapRaceSec,Ahead01.RealGapRawSec,Ahead01.BehindWrapApplied,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad," +
                    "Ahead01.StatusE,Ahead01.StatusShort,Ahead01.StatusLong,Ahead01.OutLapLatched,Ahead01.CompromisedThisLapLatched," +
                    "Ahead01.CurrentLap,Ahead01.LastLap,Ahead01.OutLapActive,Ahead01.OutLapLap,Ahead01.WasOnPitRoad,Ahead01.CompromisedLap," +
                    "Ahead01.CmpFlag_Black,Ahead01.CmpFlag_Furled,Ahead01.CmpFlag_Repair,Ahead01.CmpFlag_Disqualify," +
                    "Ahead01.TrackSurfaceRaw,Ahead01.TrackSurfaceMaterialRaw,Ahead01.SessionFlagsRaw," +
                    "Ahead01.CmpEvidence_OffTrack,Ahead01.CmpEvidence_Material,Ahead01.CmpEvidence_SessionFlags," +
                    "Ahead01.StatusEReason,Ahead01.StatusEChanged,Ahead01.CarIdxChanged," +
-                   "Behind01.CarIdx,Behind01.BackwardDistPct,Behind01.GapRealSec,Behind01.GapTrackSec,Behind01.GapRaceSec,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad," +
+                   "Behind01.CarIdx,Behind01.BackwardDistPct,Behind01.GapRealSec,Behind01.GapTrackSec,Behind01.GapRaceSec,Behind01.RealGapRawSec,Behind01.BehindWrapApplied,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad," +
                    "Behind01.StatusE,Behind01.StatusShort,Behind01.StatusLong,Behind01.OutLapLatched,Behind01.CompromisedThisLapLatched," +
                    "Behind01.CurrentLap,Behind01.LastLap,Behind01.OutLapActive,Behind01.OutLapLap,Behind01.WasOnPitRoad,Behind01.CompromisedLap," +
                    "Behind01.CmpFlag_Black,Behind01.CmpFlag_Furled,Behind01.CmpFlag_Repair,Behind01.CmpFlag_Disqualify," +

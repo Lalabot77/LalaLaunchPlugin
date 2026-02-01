@@ -50,6 +50,7 @@ namespace LaunchPlugin
         public double RealGapRawSec { get; set; } = double.NaN;
         public double RealGapAdjSec { get; set; } = double.NaN;
         public double LastSeenCheckpointTimeSec { get; set; } = 0.0;
+        public bool BehindWrapApplied { get; set; }
         public bool JustRebound { get; set; }
         public double ReboundTimeSec { get; set; } = 0.0;
 
@@ -101,6 +102,7 @@ namespace LaunchPlugin
             RealGapRawSec = double.NaN;
             RealGapAdjSec = double.NaN;
             LastSeenCheckpointTimeSec = 0.0;
+            BehindWrapApplied = false;
             JustRebound = false;
             ReboundTimeSec = 0.0;
             LastGapUpdateTimeSec = 0.0;
