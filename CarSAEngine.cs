@@ -47,7 +47,8 @@ namespace LaunchPlugin
         private const string StatusEReasonCompromised = "cmp";
         private const string StatusEReasonNotRelevantGap = "nr_gap";
         private const string StatusEReasonOutLap = "outlap";
-        private const string StatusEReasonLapping = "lapping";
+        private const string StatusEReasonLappingYou = "lapping_you";
+        private const string StatusEReasonYouAreLapping = "you_are_lapping";
         private const string StatusEReasonRacing = "racing";
         private const string StatusEReasonOtherClass = "otherclass";
         private const string StatusEReasonUnknown = "unknown";
@@ -726,12 +727,12 @@ namespace LaunchPlugin
             else if (slot.LapDelta > 0)
             {
                 statusE = (int)CarSAStatusE.LappingYou;
-                statusEReason = StatusEReasonLapping;
+                statusEReason = StatusEReasonLappingYou;
             }
             else if (slot.LapDelta < 0)
             {
                 statusE = (int)CarSAStatusE.BeingLapped;
-                statusEReason = StatusEReasonLapping;
+                statusEReason = StatusEReasonYouAreLapping;
             }
             else if (IsRacingFromOpponents(slot, opponentOutputs, isAhead))
             {
@@ -761,7 +762,7 @@ namespace LaunchPlugin
             {
                 slot.LastLap = currentLap;
                 slot.CompromisedThisLap = false;
-                slot.CompromisedLap = currentLap;
+                slot.CompromisedLap = int.MinValue;
                 if (slot.OutLapActive && slot.OutLapLap != currentLap)
                 {
                     slot.OutLapActive = false;
@@ -781,8 +782,11 @@ namespace LaunchPlugin
 
             if (IsCompromisedEvidence(slot))
             {
-                slot.CompromisedThisLap = true;
-                slot.CompromisedLap = currentLap;
+                if (!slot.CompromisedThisLap)
+                {
+                    slot.CompromisedThisLap = true;
+                    slot.CompromisedLap = currentLap;
+                }
             }
 
             slot.WasOnPitRoad = slot.IsOnPitRoad;
