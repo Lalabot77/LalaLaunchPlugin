@@ -29,9 +29,9 @@ namespace LaunchPlugin
         private const string StatusShortNotRelevant = "NR";
         private const string StatusShortFasterClass = "F+";
         private const string StatusShortSlowerClass = "S-";
-        private const string StatusShortRacing = "RACE";
-        private const string StatusShortLappingYou = "LAP";
-        private const string StatusShortBeingLapped = "YLP";
+        private const string StatusShortRacing = "RCE";
+        private const string StatusShortLappingYou = "LY";
+        private const string StatusShortBeingLapped = "BL";
         private const string StatusLongUnknown = "Unknown";
         private const string StatusLongOutLap = "Out lap";
         private const string StatusLongInPits = "In pits";
