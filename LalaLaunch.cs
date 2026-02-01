@@ -3480,6 +3480,8 @@ namespace LaunchPlugin
             AttachCore("Car.Debug.HasCarIdxPaceFlags", () => _carSaEngine?.Outputs.Debug.HasCarIdxPaceFlags ?? false);
             AttachCore("Car.Debug.HasCarIdxSessionFlags", () => _carSaEngine?.Outputs.Debug.HasCarIdxSessionFlags ?? false);
             AttachCore("Car.Debug.HasCarIdxTrackSurfaceMaterial", () => _carSaEngine?.Outputs.Debug.HasCarIdxTrackSurfaceMaterial ?? false);
+            AttachCore("Car.Debug.RawTelemetryReadMode", () => _carSaEngine?.Outputs.Debug.RawTelemetryReadMode ?? string.Empty);
+            AttachCore("Car.Debug.RawTelemetryFailReason", () => _carSaEngine?.Outputs.Debug.RawTelemetryFailReason ?? string.Empty);
             AttachCore("Car.Debug.Ahead01.CarIdx", () => _carSaEngine?.Outputs.Debug.Ahead01CarIdx ?? -1);
             AttachCore("Car.Debug.Ahead01.ForwardDistPct", () => _carSaEngine?.Outputs.Debug.Ahead01ForwardDistPct ?? double.NaN);
             AttachCore("Car.Debug.Ahead01.RealGapRawSec", () => _carSaEngine?.Outputs.Debug.Ahead01RealGapRawSec ?? double.NaN);
@@ -4851,7 +4853,7 @@ namespace LaunchPlugin
             }
 
             int rawTelemetryMode = Settings?.CarSARawTelemetryMode ?? 1;
-            if (!debugEnabled || rawTelemetryMode <= 0)
+            if (rawTelemetryMode <= 0)
             {
                 outputs.Debug.HasCarIdxPaceFlags = false;
                 outputs.Debug.HasCarIdxSessionFlags = false;
@@ -4859,18 +4861,26 @@ namespace LaunchPlugin
                 outputs.Debug.PlayerPaceFlagsRaw = -1;
                 outputs.Debug.PlayerSessionFlagsRaw = -1;
                 outputs.Debug.PlayerTrackSurfaceMaterialRaw = -1;
+                outputs.Debug.RawTelemetryReadMode = "disabled";
+                outputs.Debug.RawTelemetryFailReason = string.Empty;
                 ClearCarSaRawSlots(outputs.AheadSlots);
                 ClearCarSaRawSlots(outputs.BehindSlots);
                 return;
             }
 
-            bool hasPaceFlags = TryReadTelemetryIntArray(pluginManager, "CarIdxPaceFlags", out int[] paceFlags);
-            bool hasSessionFlags = TryReadTelemetryIntArray(pluginManager, "CarIdxSessionFlags", out int[] sessionFlags);
-            bool hasTrackSurfaceMaterial = TryReadTelemetryIntArray(pluginManager, "CarIdxTrackSurfaceMaterial", out int[] trackSurfaceMaterial);
+            bool hasPaceFlags = TryReadTelemetryIntArray(pluginManager, "CarIdxPaceFlags", out int[] paceFlags, out string paceReadMode, out string paceFailReason);
+            bool hasSessionFlags = TryReadTelemetryIntArray(pluginManager, "CarIdxSessionFlags", out int[] sessionFlags, out string sessionReadMode, out string sessionFailReason);
+            bool hasTrackSurfaceMaterial = TryReadTelemetryIntArray(pluginManager, "CarIdxTrackSurfaceMaterial", out int[] trackSurfaceMaterial, out string trackReadMode, out string trackFailReason);
 
             outputs.Debug.HasCarIdxPaceFlags = hasPaceFlags;
             outputs.Debug.HasCarIdxSessionFlags = hasSessionFlags;
             outputs.Debug.HasCarIdxTrackSurfaceMaterial = hasTrackSurfaceMaterial;
+            outputs.Debug.RawTelemetryReadMode = ResolveRawTelemetryReadMode(hasPaceFlags, paceReadMode, hasSessionFlags, sessionReadMode, hasTrackSurfaceMaterial, trackReadMode);
+            outputs.Debug.RawTelemetryFailReason = ResolveRawTelemetryFailReason(
+                outputs.Debug.RawTelemetryReadMode,
+                paceFailReason,
+                sessionFailReason,
+                trackFailReason);
 
             outputs.Debug.PlayerPaceFlagsRaw = ReadCarIdxRawValue(paceFlags, hasPaceFlags, playerCarIdx);
             outputs.Debug.PlayerSessionFlagsRaw = ReadCarIdxRawValue(sessionFlags, hasSessionFlags, playerCarIdx);
@@ -4883,7 +4893,7 @@ namespace LaunchPlugin
                 UpdateCarSaRawSlots(outputs.BehindSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
             }
 
-            if (includeSlots)
+            if (includeSlots && debugEnabled)
             {
                 int trackedCount = BuildTrackedCarIdxs(playerCarIdx, outputs, _carSaTrackedCarIdxs);
                 if (hasPaceFlags)
@@ -5569,12 +5579,40 @@ namespace LaunchPlugin
             }
         }
 
-        private static bool TryReadTelemetryIntArray(PluginManager pluginManager, string propertyName, out int[] values)
+        private static bool TryReadTelemetryIntArray(
+            PluginManager pluginManager,
+            string propertyName,
+            out int[] values,
+            out string readMode,
+            out string failReason)
         {
             values = null;
+            readMode = "none";
+            failReason = string.Empty;
             if (pluginManager == null)
             {
+                failReason = "plugin_null";
                 return false;
+            }
+
+            object raw;
+            try
+            {
+                raw = pluginManager.GetPropertyValue($"DataCorePlugin.GameRawData.Telemetry.{propertyName}");
+            }
+            catch
+            {
+                raw = null;
+            }
+
+            if (raw != null)
+            {
+                if (TryConvertToIntArray(raw, out values))
+                {
+                    readMode = "direct";
+                    return true;
+                }
+                failReason = "type_unsupported_direct";
             }
 
             object telemetry;
@@ -5584,31 +5622,124 @@ namespace LaunchPlugin
             }
             catch
             {
+                failReason = string.IsNullOrEmpty(failReason) ? "telemetry_exception" : failReason;
                 return false;
             }
 
             if (telemetry == null)
             {
+                failReason = string.IsNullOrEmpty(failReason) ? "telemetry_null" : failReason;
                 return false;
             }
 
             var prop = telemetry.GetType().GetProperty(propertyName);
-            if (prop == null)
+            if (prop != null)
             {
+                try
+                {
+                    raw = prop.GetValue(telemetry);
+                }
+                catch
+                {
+                    failReason = "property_exception";
+                    raw = null;
+                }
+
+                if (raw != null)
+                {
+                    if (TryConvertToIntArray(raw, out values))
+                    {
+                        readMode = "property";
+                        return true;
+                    }
+
+                    failReason = "type_unsupported_property";
+                }
+            }
+            else if (string.IsNullOrEmpty(failReason))
+            {
+                failReason = "prop_missing";
+            }
+
+            var field = telemetry.GetType().GetField(propertyName);
+            if (field == null)
+            {
+                if (string.IsNullOrEmpty(failReason))
+                {
+                    failReason = "field_missing";
+                }
                 return false;
             }
 
-            object raw;
             try
             {
-                raw = prop.GetValue(telemetry);
+                raw = field.GetValue(telemetry);
             }
             catch
             {
+                failReason = "field_exception";
                 return false;
             }
 
-            return TryConvertToIntArray(raw, out values);
+            if (raw == null)
+            {
+                failReason = "field_null";
+                return false;
+            }
+
+            if (TryConvertToIntArray(raw, out values))
+            {
+                readMode = "field";
+                return true;
+            }
+
+            failReason = "type_unsupported_field";
+            return false;
+        }
+
+        private static string ResolveRawTelemetryReadMode(
+            bool hasPaceFlags,
+            string paceReadMode,
+            bool hasSessionFlags,
+            string sessionReadMode,
+            bool hasTrackSurfaceMaterial,
+            string trackReadMode)
+        {
+            if (hasPaceFlags)
+            {
+                return paceReadMode;
+            }
+            if (hasSessionFlags)
+            {
+                return sessionReadMode;
+            }
+            if (hasTrackSurfaceMaterial)
+            {
+                return trackReadMode;
+            }
+
+            return "none";
+        }
+
+        private static string ResolveRawTelemetryFailReason(string readMode, params string[] reasons)
+        {
+            if (!string.Equals(readMode, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                return string.Empty;
+            }
+
+            if (reasons != null)
+            {
+                foreach (var reason in reasons)
+                {
+                    if (!string.IsNullOrEmpty(reason))
+                    {
+                        return reason;
+                    }
+                }
+            }
+
+            return "unknown";
         }
 
         private static bool TryConvertToIntArray(object raw, out int[] values)
@@ -5630,6 +5761,15 @@ namespace LaunchPlugin
                     return true;
                 case byte[] bytes:
                     values = Array.ConvertAll(bytes, v => (int)v);
+                    return true;
+                case sbyte[] sbytes:
+                    values = Array.ConvertAll(sbytes, v => (int)v);
+                    return true;
+                case long[] longs:
+                    values = Array.ConvertAll(longs, v => unchecked((int)v));
+                    return true;
+                case ulong[] ulongs:
+                    values = Array.ConvertAll(ulongs, v => unchecked((int)v));
                     return true;
                 default:
                     return false;

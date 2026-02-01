@@ -136,6 +136,8 @@ namespace LaunchPlugin
         public int PlayerPaceFlagsRaw { get; set; } = -1;
         public int PlayerSessionFlagsRaw { get; set; } = -1;
         public int PlayerTrackSurfaceMaterialRaw { get; set; } = -1;
+        public string RawTelemetryReadMode { get; set; } = string.Empty;
+        public string RawTelemetryFailReason { get; set; } = string.Empty;
 
         public void Reset()
         {
@@ -174,6 +176,8 @@ namespace LaunchPlugin
             PlayerPaceFlagsRaw = -1;
             PlayerSessionFlagsRaw = -1;
             PlayerTrackSurfaceMaterialRaw = -1;
+            RawTelemetryReadMode = string.Empty;
+            RawTelemetryFailReason = string.Empty;
         }
     }
 
