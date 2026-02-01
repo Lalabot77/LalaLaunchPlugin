@@ -15,6 +15,8 @@ namespace LaunchPlugin
         OutLap = 100,
         InPits = 110,
         CompromisedThisLap = 120,
+        CompromisedOffTrack = 121,
+        CompromisedPenalty = 122,
         NotRelevant = 190,
         FasterClass = 200,
         SlowerClass = 210,
@@ -67,6 +69,8 @@ namespace LaunchPlugin
         internal bool HasGapAbs { get; set; }
         internal int LastStatusE { get; set; } = (int)CarSAStatusE.Unknown;
         internal bool StatusETextDirty { get; set; } = true;
+        internal int LastStatusELapDelta { get; set; } = int.MinValue;
+        internal bool LastStatusEIsAhead { get; set; }
         internal int TrackSurfaceRaw { get; set; } = int.MinValue;
         internal int CurrentLap { get; set; }
         internal int LastLap { get; set; } = int.MinValue;
@@ -75,6 +79,8 @@ namespace LaunchPlugin
         internal int OutLapLap { get; set; } = int.MinValue;
         internal bool CompromisedThisLap { get; set; }
         internal int CompromisedLap { get; set; } = int.MinValue;
+        internal int CompromisedStatusE { get; set; } = (int)CarSAStatusE.Unknown;
+        internal bool SlotIsAhead { get; set; }
         // Deprecated alias (keep for legacy exports; internal state is OutLapActive only).
         internal bool OutLapLatched => OutLapActive;
         internal bool CompromisedThisLapLatched => CompromisedThisLap;
@@ -112,6 +118,8 @@ namespace LaunchPlugin
             HasGapAbs = false;
             LastStatusE = (int)CarSAStatusE.Unknown;
             StatusETextDirty = true;
+            LastStatusELapDelta = int.MinValue;
+            LastStatusEIsAhead = false;
             TrackSurfaceRaw = int.MinValue;
             CurrentLap = 0;
             LastLap = int.MinValue;
@@ -120,6 +128,8 @@ namespace LaunchPlugin
             OutLapLap = int.MinValue;
             CompromisedThisLap = false;
             CompromisedLap = int.MinValue;
+            CompromisedStatusE = (int)CarSAStatusE.Unknown;
+            SlotIsAhead = false;
         }
     }
 
