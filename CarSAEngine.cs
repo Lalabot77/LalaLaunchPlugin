@@ -18,7 +18,7 @@ namespace LaunchPlugin
         private const double HalfLapFilterMax = 0.60;
         private const double RealGapGraceSec = 2.0;
         private const double WrapGuardEdgePct = 0.03;
-        private const double LapDeltaWrapEdgePct = 0.15;
+        private const double LapDeltaWrapEdgePct = 0.05;
         private const int TrackSurfaceUnknown = int.MinValue;
         private const int TrackSurfaceNotInWorld = -1;
         private const int TrackSurfaceOnTrack = 3;
@@ -27,8 +27,8 @@ namespace LaunchPlugin
         private const string StatusShortInPits = "PIT";
         private const string StatusShortCompromised = "CMP";
         private const string StatusShortNotRelevant = "NR";
-        private const string StatusShortFasterClass = "F+";
-        private const string StatusShortSlowerClass = "S-";
+        private const string StatusShortFasterClass = "OC";
+        private const string StatusShortSlowerClass = "OC2";
         private const string StatusShortRacing = "RCE";
         private const string StatusShortLappingYou = "LY";
         private const string StatusShortBeingLapped = "BL";
@@ -37,8 +37,8 @@ namespace LaunchPlugin
         private const string StatusLongInPits = "In pits";
         private const string StatusLongCompromised = "Compromised this lap";
         private const string StatusLongNotRelevant = "Not relevant";
-        private const string StatusLongFasterClass = "Faster class";
-        private const string StatusLongSlowerClass = "Slower class";
+        private const string StatusLongFasterClass = "Other class";
+        private const string StatusLongSlowerClass = "Other class (reserved)";
         private const string StatusLongRacing = "Racing";
         private const string StatusLongLappingYou = "Lapping you";
         private const string StatusLongBeingLapped = "You are lapping";
@@ -270,8 +270,8 @@ namespace LaunchPlugin
             int hysteresisReplacements = 0;
             int slotCarIdxChanged = 0;
 
-            ApplySlots(true, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _aheadCandidateIdx, _aheadCandidateDist, _outputs.AheadSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
-            ApplySlots(false, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _behindCandidateIdx, _behindCandidateDist, _outputs.BehindSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
+            ApplySlots(true, sessionTimeSec, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _aheadCandidateIdx, _aheadCandidateDist, _outputs.AheadSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
+            ApplySlots(false, sessionTimeSec, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _behindCandidateIdx, _behindCandidateDist, _outputs.BehindSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
 
             if (debugEnabled)
             {
@@ -392,6 +392,7 @@ namespace LaunchPlugin
 
         private void ApplySlots(
             bool isAhead,
+            double sessionTimeSec,
             int playerCarIdx,
             double playerLapPct,
             int playerLap,
@@ -430,7 +431,7 @@ namespace LaunchPlugin
 
                     if (!currentValid)
                     {
-                        if (ApplySlotAssignment(slot, newIdx, newDist, isAhead))
+                        if (ApplySlotAssignment(slot, newIdx, newDist, isAhead, sessionTimeSec))
                         {
                             slotCarIdxChanged++;
                         }
@@ -441,7 +442,7 @@ namespace LaunchPlugin
                     }
                     else if (newIdx != -1 && newDist < currentDist * HysteresisFactor)
                     {
-                        if (ApplySlotAssignment(slot, newIdx, newDist, isAhead))
+                        if (ApplySlotAssignment(slot, newIdx, newDist, isAhead, sessionTimeSec))
                         {
                             slotCarIdxChanged++;
                         }
@@ -492,7 +493,7 @@ namespace LaunchPlugin
             return true;
         }
 
-        private static bool ApplySlotAssignment(CarSASlot slot, int carIdx, double dist, bool isAhead)
+        private static bool ApplySlotAssignment(CarSASlot slot, int carIdx, double dist, bool isAhead, double sessionTimeSec)
         {
             bool carIdxChanged = slot.CarIdx != carIdx;
             if (carIdx < 0)
@@ -516,6 +517,7 @@ namespace LaunchPlugin
                 slot.HasRealGap = false;
                 slot.LastRealGapUpdateSessionTimeSec = 0.0;
                 slot.JustRebound = true;
+                slot.ReboundTimeSec = sessionTimeSec;
                 slot.TrackSurfaceRaw = TrackSurfaceUnknown;
                 slot.CurrentLap = 0;
                 slot.LastLap = int.MinValue;
@@ -1061,6 +1063,7 @@ namespace LaunchPlugin
 
                 int lapDelta = slot.LapDelta;
                 const double WrapStraddleClosePct = 0.10;
+                const double WrapStraddleCloseSec = 5.0;
                 double slotLapPct = double.NaN;
                 double distPct = double.NaN;
 
@@ -1081,9 +1084,11 @@ namespace LaunchPlugin
                 bool slotNearEdge = !double.IsNaN(slotLapPct) &&
                     (slotLapPct <= WrapGuardEdgePct || slotLapPct >= (1.0 - WrapGuardEdgePct));
                 bool closeEnough = !double.IsNaN(distPct) && distPct <= WrapStraddleClosePct;
-                bool suppressLapDeltaCorrection = playerNearEdge && slotNearEdge && closeEnough;
-                bool allowLapDeltaAdjust = !slot.JustRebound && !suppressLapDeltaCorrection;
-                bool allowBehindWrap = !slot.JustRebound;
+                bool timeGapCloseEnough = Math.Abs(rawGap) <= WrapStraddleCloseSec;
+                bool suppressLapDeltaCorrection = playerNearEdge && slotNearEdge && closeEnough && timeGapCloseEnough;
+                bool inRebindSettle = slot.JustRebound && (sessionTimeSec - slot.ReboundTimeSec) <= 0.10;
+                bool allowLapDeltaAdjust = !inRebindSettle && !suppressLapDeltaCorrection;
+                bool allowBehindWrap = !inRebindSettle;
                 double behindWrapThreshold = suppressLapDeltaCorrection ? 0.90 : WrapAdjustThresholdFactor;
 
                 if (lapDelta != 0)
@@ -1117,7 +1122,10 @@ namespace LaunchPlugin
                 slot.GapRealSec = isAhead ? Math.Abs(adjustedGap) : -Math.Abs(adjustedGap);
                 slot.HasRealGap = true;
                 slot.LastRealGapUpdateSessionTimeSec = sessionTimeSec;
-                slot.JustRebound = false;
+                if (!inRebindSettle)
+                {
+                    slot.JustRebound = false;
+                }
 
                 UpdateClosingRate(slot, playerCheckpointTimeSec);
             }

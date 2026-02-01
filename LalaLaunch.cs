@@ -4914,6 +4914,11 @@ namespace LaunchPlugin
                 UpdateCarSaRawSlots(outputs.AheadSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
                 UpdateCarSaRawSlots(outputs.BehindSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
             }
+            else
+            {
+                ClearCarSaRawSlots(outputs.AheadSlots);
+                ClearCarSaRawSlots(outputs.BehindSlots);
+            }
 
             if (includeSlots && debugEnabled)
             {
@@ -4972,6 +4977,7 @@ namespace LaunchPlugin
                 slot.PaceFlagsRaw = -1;
                 slot.SessionFlagsRaw = -1;
                 slot.TrackSurfaceMaterialRaw = -1;
+                slot.TrackSurfaceRaw = int.MinValue;
             }
         }
 
