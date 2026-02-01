@@ -85,7 +85,9 @@ namespace LaunchPlugin
             public double ClosingRateSecPerSec { get; set; } = double.NaN;
             public bool HasDeltaPct { get; set; }
             public double LastDeltaPct { get; set; } = double.NaN;
+            public double LastGapPctAbs { get; set; } = double.NaN;
             public double LastDeltaUpdateTime { get; set; } = double.NaN;
+            public double LastValidSessionTime { get; set; } = double.NaN;
             public bool IsOnTrack { get; set; }
             public bool IsOnPitRoad { get; set; }
             public int TrackSurfaceRaw { get; set; } = TrackSurfaceUnknown;
@@ -103,7 +105,9 @@ namespace LaunchPlugin
                 ClosingRateSecPerSec = double.NaN;
                 HasDeltaPct = false;
                 LastDeltaPct = double.NaN;
+                LastGapPctAbs = double.NaN;
                 LastDeltaUpdateTime = double.NaN;
+                LastValidSessionTime = double.NaN;
                 IsOnTrack = false;
                 IsOnPitRoad = false;
                 TrackSurfaceRaw = TrackSurfaceUnknown;
@@ -409,6 +413,7 @@ namespace LaunchPlugin
             double playerLapPct,
             double lapTimeEstimateSec)
         {
+            const double graceWindowSec = 0.5;
             for (int carIdx = 0; carIdx < _carStates.Length; carIdx++)
             {
                 var state = _carStates[carIdx];
@@ -445,17 +450,15 @@ namespace LaunchPlugin
 
                     double signedDelta = ComputeSignedDeltaPct(playerLapPct, state.LapDistPct);
                     state.SignedDeltaPct = signedDelta;
+                    double gapPctAbs = Math.Abs(signedDelta);
 
                     if (state.HasDeltaPct)
                     {
                         double dt = sessionTimeSec - state.LastDeltaUpdateTime;
                         if (dt > 0.0)
                         {
-                            double deltaDelta = signedDelta - state.LastDeltaPct;
-                            if (deltaDelta > 0.5) deltaDelta -= 1.0;
-                            if (deltaDelta < -0.5) deltaDelta += 1.0;
-                            double ratePctPerSec = deltaDelta / dt;
-                            double rateSecPerSec = ratePctPerSec * lapTimeEstimateSec;
+                            double deltaAbs = gapPctAbs - state.LastGapPctAbs;
+                            double rateSecPerSec = -(deltaAbs / dt) * lapTimeEstimateSec;
                             if (rateSecPerSec > ClosingRateClamp) rateSecPerSec = ClosingRateClamp;
                             if (rateSecPerSec < -ClosingRateClamp) rateSecPerSec = -ClosingRateClamp;
                             state.ClosingRateSecPerSec = rateSecPerSec;
@@ -468,17 +471,29 @@ namespace LaunchPlugin
 
                     state.HasDeltaPct = true;
                     state.LastDeltaPct = signedDelta;
+                    state.LastGapPctAbs = gapPctAbs;
                     state.LastDeltaUpdateTime = sessionTimeSec;
+                    state.LastValidSessionTime = sessionTimeSec;
                 }
                 else
                 {
-                    state.SignedDeltaPct = double.NaN;
-                    state.ForwardDistPct = double.NaN;
-                    state.BackwardDistPct = double.NaN;
-                    state.ClosingRateSecPerSec = double.NaN;
-                    state.HasDeltaPct = false;
-                    state.LastDeltaPct = double.NaN;
-                    state.LastDeltaUpdateTime = double.NaN;
+                    double lastValid = state.LastValidSessionTime;
+                    if (!double.IsNaN(lastValid) && (sessionTimeSec - lastValid) <= graceWindowSec)
+                    {
+                        // Grace window: keep last delta/closing values.
+                    }
+                    else
+                    {
+                        state.SignedDeltaPct = double.NaN;
+                        state.ForwardDistPct = double.NaN;
+                        state.BackwardDistPct = double.NaN;
+                        state.ClosingRateSecPerSec = double.NaN;
+                        state.HasDeltaPct = false;
+                        state.LastDeltaPct = double.NaN;
+                        state.LastGapPctAbs = double.NaN;
+                        state.LastDeltaUpdateTime = double.NaN;
+                        state.LastValidSessionTime = double.NaN;
+                    }
                 }
 
                 state.SessionFlagsRaw = -1;
