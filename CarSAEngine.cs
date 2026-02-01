@@ -765,6 +765,16 @@ namespace LaunchPlugin
                 return false;
             }
 
+            if (!slot.IsValid)
+            {
+                return false;
+            }
+
+            if (slot.TrackSurfaceRaw == TrackSurfaceNotInWorld)
+            {
+                return false;
+            }
+
             bool offTrackEvidence = !slot.IsOnTrack && !slot.IsOnPitRoad && slot.TrackSurfaceRaw != TrackSurfaceUnknown;
             bool materialOffTrack = slot.TrackSurfaceMaterialRaw >= 15;
             bool sessionFlagged = (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
