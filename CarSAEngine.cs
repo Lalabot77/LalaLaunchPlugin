@@ -51,6 +51,10 @@ namespace LaunchPlugin
         private const string StatusEReasonRacing = "racing";
         private const string StatusEReasonOtherClass = "otherclass";
         private const string StatusEReasonUnknown = "unknown";
+        private const int SessionFlagBlack = 0x00010000;
+        private const int SessionFlagFurled = 0x00020000;
+        private const int SessionFlagRepair = 0x00080000;
+        private const int SessionFlagDisqualify = 0x00100000;
         private const int SessionFlagMaskCompromised = 0x00010000 | 0x00080000 | 0x00100000 | 0x00020000;
 
         private readonly RealGapStopwatch _stopwatch;
@@ -834,6 +838,36 @@ namespace LaunchPlugin
             materialOffTrack = slot.TrackSurfaceMaterialRaw >= 0 && slot.TrackSurfaceMaterialRaw >= 15;
             sessionFlagged = slot.SessionFlagsRaw >= 0
                 && (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
+        }
+
+        internal static void GetCompromisedFlagBits(
+            CarSASlot slot,
+            out bool black,
+            out bool furled,
+            out bool repair,
+            out bool disqualify)
+        {
+            black = false;
+            furled = false;
+            repair = false;
+            disqualify = false;
+
+            if (slot == null || !slot.IsValid || slot.TrackSurfaceRaw == TrackSurfaceNotInWorld)
+            {
+                return;
+            }
+
+            int rawFlags = slot.SessionFlagsRaw;
+            if (rawFlags < 0)
+            {
+                return;
+            }
+
+            uint flags = unchecked((uint)rawFlags);
+            black = (flags & (uint)SessionFlagBlack) != 0;
+            furled = (flags & (uint)SessionFlagFurled) != 0;
+            repair = (flags & (uint)SessionFlagRepair) != 0;
+            disqualify = (flags & (uint)SessionFlagDisqualify) != 0;
         }
 
         private static bool IsRacingFromOpponents(CarSASlot slot, OpponentsEngine.OpponentOutputs opponentOutputs, bool isAhead)
