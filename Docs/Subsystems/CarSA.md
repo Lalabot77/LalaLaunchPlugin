@@ -1,4 +1,4 @@
-# CarSA (Car System) — Phase 1
+# CarSA (Car System) — Phase 2.2
 
 ## Scope
 CarSA provides **session-agnostic**, **class-agnostic** spatial awareness using iRacing CarIdx telemetry arrays as the source of truth. It publishes the 5 nearest cars ahead and 5 behind on track for Practice, Qualifying, and Race sessions.
@@ -7,6 +7,7 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 
 ## Truth source
 - **Primary:** `CarIdx*` raw telemetry arrays (CarIdxLapDistPct, CarIdxLap, CarIdxTrackSurface, CarIdxOnPitRoad).
+- **Raw flags (optional):** `CarIdxPaceFlags`, `CarIdxSessionFlags`, `CarIdxTrackSurfaceMaterial` when raw telemetry read mode is enabled (drives compromised-lap inference and debug visibility).
 - **Fast-path:** Not enabled in Phase 1 (source remains `CarIdxTruth`).
 - **Identity:** Slot Name/CarNumber/ClassColor are populated on slot rebinds/session reset from `SessionData.DriverInfo.CompetingDrivers` (UserName/CarNumber/CarClassColor).
 
@@ -44,7 +45,7 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 - During this grace hold, `ClosingRateSecPerSec` is frozen to `0` to avoid spikes.
 
 ### ClosingRate definition
-- `ClosingRateSecPerSec` uses **absolute gap magnitude**.
+- `ClosingRateSecPerSec` uses **absolute gap magnitude** derived from `GapTrackSec`.
 - Positive values mean the gap is **shrinking** (closing), negative values mean the gap is growing (dropping back), regardless of ahead/behind sign.
 
 ### Lap time estimate (used for RealGap)
@@ -59,8 +60,8 @@ CarSA defines a minimal, stable status enum:
 - `Normal = 1`
 - `InPits = 2` (set whenever `CarIdxOnPitRoad` is true).
 
-## StatusE ladder (Phase 2.1)
-CarSA now publishes a Traffic SA “E-number” ladder per slot for dash filtering. Values are grouped into LOW/MID/HIGH numeric ranges.
+## StatusE ladder (Phase 2.2)
+CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. Values are grouped into LOW/MID/HIGH numeric ranges, and Phase 2.2 enables real status selection beyond `Unknown`.
 
 **Numeric mapping (locked):**
 
@@ -69,6 +70,7 @@ CarSA now publishes a Traffic SA “E-number” ladder per slot for dash filteri
 | LOW | 0 | Unknown | UNK | Unknown |
 | MID | 100 | OutLap | OUT | Out lap |
 | MID | 110 | InPits | PIT | In pits |
+| MID | 120 | CompromisedThisLap | CMP | Compromised |
 | MID | 190 | NotRelevant | NR | Not relevant |
 | HIGH | 200 | FasterClass | F+ | Faster class |
 | HIGH | 210 | SlowerClass | S- | Slower class |
@@ -76,20 +78,33 @@ CarSA now publishes a Traffic SA “E-number” ladder per slot for dash filteri
 | HIGH | 230 | LappingYou | LY | Lapping you |
 | HIGH | 240 | BeingLapped | BL | Being lapped |
 
-**Range usage notes (Phase 2.1):**
-- LOW range values are reserved for Practice/Open Quali only; Phase 2.1 does not emit PushLap/SlowLap and keeps `Unknown`.
-- HIGH range values are Race-only in the full ladder; Phase 2.1 keeps them at `Unknown`.
-
-**Phase 2.1 logic (per slot, priority order):**
-1. If the slot is not valid **or** not on track ⇒ `NotRelevant` (190).
-2. If `IsOnPitRoad` ⇒ `InPits` (110).
-3. If `abs(GapTrackSec) > NotRelevantGapSec` ⇒ `NotRelevant` (190).
-4. Else ⇒ `Unknown` (0) for Phase 2.1 (OutLap/Faster/Slower/Racing/Lapping/BeingLapped remain inactive).
+**Phase 2.2 logic (per slot, priority order):**
+1. If the slot is invalid or `TrackSurface == NotInWorld` ⇒ `NotRelevant` (190, reason `invalid`).
+2. If `IsOnPitRoad` ⇒ `InPits` (110, reason `pits`).
+3. If not on track ⇒ `NotRelevant` (190, reason `invalid`).
+4. If compromised evidence exists (off-track surface, track material >= 15, or session flags indicate compromised) ⇒ `CompromisedThisLap` (120, reason `cmp`).
+5. If `abs(GapTrackSec) > NotRelevantGapSec` ⇒ `NotRelevant` (190, reason `nr_gap`).
+6. If slot just exited pits and is on the out-lap ⇒ `OutLap` (100, reason `outlap`).
+7. If `LapDelta > 0` ⇒ `LappingYou` (230, reason `lapping_you`).
+8. If `LapDelta < 0` ⇒ `BeingLapped` (240, reason `you_are_lapping`).
+9. If Opponents identifies this slot as a live fight (lap ≥1, `LapsToFight > 0`, identity match) ⇒ `Racing` (220, reason `racing`).
+10. If class color mismatches the player’s class ⇒ `FasterClass` (200, reason `otherclass`). Phase 2.2 uses `FasterClass` as the placeholder for “other class”; `SlowerClass` remains reserved.
+11. Else ⇒ `Unknown` (0, reason `unknown`).
 
 **Configuration:**
 - `NotRelevantGapSec` (double, default **10.0s**) is stored in global plugin settings and persists across sessions.
 
-## Exports (Phase 2.1)
+## Gap semantics (Phase 2.2)
+- **Gap.TrackSec:** proximity gap derived from checkpoint stopwatch without lap-delta adjustment (used for closing-rate).
+- **Gap.RaceSec:** race-style gap with lap-delta adjustment applied.
+- **Gap.RealSec:** current published gap mirror of `Gap.RaceSec` (signed + ahead / - behind).
+
+## Raw telemetry flags (Phase 2.2)
+- Player-level raw flags are published as `Car.Player.PaceFlagsRaw`, `Car.Player.SessionFlagsRaw`, `Car.Player.TrackSurfaceMaterialRaw`.
+- Slot-level raw flags (`PaceFlagsRaw`, `SessionFlagsRaw`, `TrackSurfaceMaterialRaw`) are populated when raw telemetry mode includes slots.
+- Debug outputs report whether each raw array was readable and the read mode/failure reason (see Debug exports below).
+
+## Exports (Phase 2.2)
 Prefix: `Car.*`
 
 System:
@@ -98,15 +113,20 @@ System:
 - `Car.Checkpoints` (60)
 - `Car.SlotsAhead` (5)
 - `Car.SlotsBehind` (5)
+- `Car.Player.PaceFlagsRaw`
+- `Car.Player.SessionFlagsRaw`
+- `Car.Player.TrackSurfaceMaterialRaw`
 
 Slots (Ahead01..Ahead05, Behind01..Behind05):
 - Identity: `CarIdx`, `Name`, `CarNumber`, `ClassColor`
 - State: `IsOnTrack`, `IsOnPitRoad`, `IsValid`
 - Spatial: `LapDelta`, `Gap.RealSec`, `Gap.TrackSec`, `Gap.RaceSec`
 - Derived: `ClosingRateSecPerSec`, `Status`, `StatusE`, `StatusShort`, `StatusLong`
+- Raw telemetry (mode permitting): `PaceFlagsRaw`, `SessionFlagsRaw`, `TrackSurfaceMaterialRaw`
 
 Debug (`Car.Debug.*`):
 - Player: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `PlayerCheckpointIndexNow`, `PlayerCheckpointIndexCrossed`, `PlayerCheckpointCrossed`, `SessionTimeSec`, `SourceFastPathUsed`
+- Raw telemetry: `HasCarIdxPaceFlags`, `HasCarIdxSessionFlags`, `HasCarIdxTrackSurfaceMaterial`, `RawTelemetryReadMode`, `RawTelemetryFailReason`
 - RealGap validation (Ahead01/Behind01 only): `CarIdx`, distance pct, raw/adjusted gap, last checkpoint time
 - Sanity: `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`
 - Timestamp accumulator: `TimestampUpdatesSinceLastPlayerCross` (counts checkpoint timestamp writes since the last player checkpoint crossing).
@@ -117,7 +137,15 @@ Debug (`Car.Debug.*`):
 When `EnableCarSADebugExport` is enabled, CarSA writes a lightweight CSV snapshot on **player checkpoint crossings**:
 - Path: `SimHub/Logs/LalapluginData/CarSA_Debug_YYYY-MM-DD_HH-mm-ss_<TrackName>.csv` (UTC timestamp, sanitized track name; repeated `_` collapsed, trimmed, and clamped to 60 chars)
 - Cadence: **checkpoint crossings only** (same event that updates RealGap).
-- Columns: session time, player lap/pct/checkpoint (now + crossed), Ahead01 and Behind01 slot basics (car idx, distance pct, gap, closing rate, lap delta, on-track/pit flags), plus counters (`TimestampUpdatesThisTick`, `RealGapClampsThisTick`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`, `FilteredHalfLapCountAhead/Behind`).
+- Columns (grouped):
+  - **Player:** `SessionTimeSec`, `PlayerLap`, `PlayerLapPct`, `CheckpointIndexNow`, `CheckpointIndexCrossed`, `NotRelevantGapSec`.
+  - **Ahead01 / Behind01:** `CarIdx`, distance pct, `GapRealSec`, `GapTrackSec`, `GapRaceSec`, `ClosingRateSecPerSec`, `LapDelta`, `IsOnTrack`, `IsOnPitRoad`, `StatusE`, `StatusShort`, `StatusLong`.
+  - **Status latches:** `OutLapLatched`, `CompromisedThisLapLatched`, `CurrentLap`, `LastLap`, `OutLapActive`, `OutLapLap`, `WasOnPitRoad`, `CompromisedLap`.
+  - **Compromised flags:** `CmpFlag_Black`, `CmpFlag_Furled`, `CmpFlag_Repair`, `CmpFlag_Disqualify`.
+  - **Raw flags:** `TrackSurfaceRaw`, `TrackSurfaceMaterialRaw`, `SessionFlagsRaw`.
+  - **Compromised evidence:** `CmpEvidence_OffTrack`, `CmpEvidence_Material`, `CmpEvidence_SessionFlags`.
+  - **Status metadata:** `StatusEReason`, `StatusEChanged`, `CarIdxChanged`.
+  - **Counters:** `TimestampUpdatesThisTick`, `RealGapClampsThisTick`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`, `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`.
 
 ## Performance notes
 - Single-pass candidate selection with fixed arrays (no per-tick allocations).

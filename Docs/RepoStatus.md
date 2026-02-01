@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is the current HEAD with PRs #241–#281 (session summary v2 mapping, profile schema upgrades, JSON storage standardization, live max-fuel handling, preset/live snapshot fixes, messaging signals, dash overlay visibility controls, pit-entry assist manual mode, pit-entry debrief/time-loss outputs, stint burn targets, wet/dry stat gating, and wet-surface detection). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
+- The latest commit on `work` is the current HEAD with PRs #282–#309 (Fuel planner max-fuel percent/preset handling, live snapshot max-tank sync, predictor outputs, Opponents/CarSA documentation, extensive CarSA Phase 2.2 updates including status ladder expansions, raw telemetry flags, debug export improvements, identity refresh hardening, and new track vs race gap outputs). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
@@ -61,13 +61,14 @@
 - **Pit loss locking:** **COMPLETE** — per-track pit loss values can be locked to block auto-updates; blocked candidates are captured and surfaced in the Profiles UI for review before manual unlock.
 - **Pit-exit prediction audit + settled logging:** **COMPLETE** — pit-exit predictor now locks pit-loss and gap inputs at pit entry to avoid drift, logs richer pit-in/out snapshots plus math audit, and emits a one-lap-delayed “pit-out settled” confirmation.
 - **Opponents subsystem:** **COMPLETE** — race-only opponent pace/fight and pit-exit prediction exports with lap gate ≥1, summary strings, and log support.
+- **CarSA Phase 2.2:** **COMPLETE** — slot identity refresh hardening, StatusE ladder (out-lap, compromised, lapping, racing, other-class), raw telemetry flag ingest, track vs race gap outputs, and expanded debug export columns.
 - **Dry/Wet condition lock UI:** **COMPLETE** — per-track dry/wet condition lock toggles persist immediately in profiles (no save prompt).
 - **Session summary + trace v2:** **COMPLETE** — session summary CSV v2, lap trace rows with pit-stop index/phase, corrected pit-stop counting semantics, and explicit CSV column mapping for summary exports.
 - **Profile storage & schema:** **COMPLETE** — car profiles now save in a schema-v2 wrapper with opt-in track stats serialization, normalized track keys, and legacy JSON migration from older filenames/locations.
 - **Fuel + pace live persistence:** **COMPLETE** — dry/wet fuel burn windows and average lap times persist into track profiles once sample thresholds are met, with condition-specific “last updated” metadata.
 - **Profiles UI controls:** **COMPLETE** — base tank litres field with “learn from live” action, plus “relearn” buttons for pit data and dry/wet condition resets.
 - **Pit cycle guards:** **COMPLETE** — pit loss persistence now skips NaN/invalid candidates; PitLite entry arming is gated to avoid false triggers in pit stalls.
-- **Fuel planner max-fuel handling:** **COMPLETE** — profile-mode max fuel override is clamped to per-car base tank; Live Snapshot mode uses live session cap (MaxFuel × BoP, defaulting BoP to 1.0) and raises a clear error when live cap is unavailable. The Live Session panel clears max-fuel displays when the cap is missing.
+- **Fuel planner max-fuel handling:** **COMPLETE** — profile-mode max fuel override is clamped to per-car base tank; preset max fuel values are stored as % of base tank; Live Snapshot mode uses live session cap (MaxFuel × BoP, defaulting BoP to 1.0) and raises a clear error when live cap is unavailable. The Live Session panel clears max-fuel displays when the cap is missing.
 - **Live Snapshot + presets:** **COMPLETE** — changing car/track clears the Live Snapshot UI to avoid stale data; switching back to Profile mode restores the previous profile max-fuel override and re-applies the selected preset.
 - **Messaging signals:** **COMPLETE** — `MSG.OtherClassBehindGap` exported for multi-class approach messaging; no `MSGOtherClassBehindGap` alias remains.
 - **Stint burn targets:** **COMPLETE** — live “current tank” burn guidance exported with banding (SAVE/HOLD/PUSH/OKAY) and a configurable pit-in reserve expressed as % of one lap’s stable burn.
