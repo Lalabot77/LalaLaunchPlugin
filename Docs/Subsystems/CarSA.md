@@ -83,7 +83,7 @@ CarSA now publishes a Traffic SA “E-number” ladder per slot for dash filteri
 **Phase 2.1 logic (per slot, priority order):**
 1. If the slot is not valid **or** not on track ⇒ `NotRelevant` (190).
 2. If `IsOnPitRoad` ⇒ `InPits` (110).
-3. If `abs(GapRealSec) > NotRelevantGapSec` ⇒ `NotRelevant` (190).
+3. If `abs(GapTrackSec) > NotRelevantGapSec` ⇒ `NotRelevant` (190).
 4. Else ⇒ `Unknown` (0) for Phase 2.1 (OutLap/Faster/Slower/Racing/Lapping/BeingLapped remain inactive).
 
 **Configuration:**
@@ -102,7 +102,7 @@ System:
 Slots (Ahead01..Ahead05, Behind01..Behind05):
 - Identity: `CarIdx`, `Name`, `CarNumber`, `ClassColor`
 - State: `IsOnTrack`, `IsOnPitRoad`, `IsValid`
-- Spatial: `LapDelta`, `Gap.RealSec`
+- Spatial: `LapDelta`, `Gap.RealSec`, `Gap.TrackSec`, `Gap.RaceSec`
 - Derived: `ClosingRateSecPerSec`, `Status`, `StatusE`, `StatusShort`, `StatusLong`
 
 Debug (`Car.Debug.*`):
