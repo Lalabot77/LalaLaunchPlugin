@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace LaunchPlugin
 {
@@ -60,6 +61,7 @@ namespace LaunchPlugin
         // === Car-centric shadow state (unused by current logic) =================
         private readonly CarSA_CarState[] _carStates;
         private bool _loggedEnabled;
+        private Dictionary<string, int> _classRankByColor;
 
         private sealed class CarSA_CarState
         {
@@ -121,12 +123,23 @@ namespace LaunchPlugin
 
         public CarSAOutputs Outputs => _outputs;
 
+        public void SetClassRankMap(Dictionary<string, int> classRankByColor)
+        {
+            if (classRankByColor == null || classRankByColor.Count == 0)
+            {
+                _classRankByColor = null;
+                return;
+            }
+
+            _classRankByColor = new Dictionary<string, int>(classRankByColor, StringComparer.OrdinalIgnoreCase);
+        }
+
         // === StatusE logic ======================================================
         public void RefreshStatusE(double notRelevantGapSec, OpponentsEngine.OpponentOutputs opponentOutputs, string playerClassColor)
         {
             double sessionTimeSec = _outputs?.Debug?.SessionTimeSec ?? 0.0;
-            UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec);
-            UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec);
+            UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
+            UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
         }
 
         public void Reset()
@@ -829,7 +842,8 @@ namespace LaunchPlugin
             bool isAhead,
             OpponentsEngine.OpponentOutputs opponentOutputs,
             string playerClassColor,
-            double sessionTimeSec)
+            double sessionTimeSec,
+            Dictionary<string, int> classRankByColor)
         {
             if (slots == null)
             {
@@ -838,7 +852,7 @@ namespace LaunchPlugin
 
             for (int i = 0; i < slots.Length; i++)
             {
-                UpdateStatusE(slots[i], notRelevantGapSec, isAhead, opponentOutputs, playerClassColor, sessionTimeSec);
+                UpdateStatusE(slots[i], notRelevantGapSec, isAhead, opponentOutputs, playerClassColor, sessionTimeSec, classRankByColor);
             }
         }
 
@@ -848,7 +862,8 @@ namespace LaunchPlugin
             bool isAhead,
             OpponentsEngine.OpponentOutputs opponentOutputs,
             string playerClassColor,
-            double sessionTimeSec)
+            double sessionTimeSec,
+            Dictionary<string, int> classRankByColor)
         {
             if (slot == null)
             {
@@ -913,10 +928,16 @@ namespace LaunchPlugin
             }
             else if (IsOtherClass(slot, playerClassColor))
             {
-                statusE = isAhead
-                    ? (int)CarSAStatusE.SlowerClass
-                    : (int)CarSAStatusE.FasterClass;
-                statusEReason = StatusEReasonOtherClass;
+                if (IsFasterClass(slot, playerClassColor, classRankByColor))
+                {
+                    statusE = (int)CarSAStatusE.FasterClass;
+                    statusEReason = StatusEReasonOtherClass;
+                }
+                else if (IsSlowerClass(slot, playerClassColor, classRankByColor))
+                {
+                    statusE = (int)CarSAStatusE.SlowerClass;
+                    statusEReason = StatusEReasonOtherClass;
+                }
             }
 
             if (statusE == (int)CarSAStatusE.NotRelevant)
@@ -1157,6 +1178,50 @@ namespace LaunchPlugin
             }
 
             return string.Equals(slot.ClassColor, playerClassColor, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsFasterClass(CarSASlot slot, string playerClassColor, Dictionary<string, int> classRankByColor)
+        {
+            if (!TryGetClassRanks(slot, playerClassColor, classRankByColor, out int slotRank, out int playerRank))
+            {
+                return false;
+            }
+
+            return slotRank < playerRank;
+        }
+
+        private static bool IsSlowerClass(CarSASlot slot, string playerClassColor, Dictionary<string, int> classRankByColor)
+        {
+            if (!TryGetClassRanks(slot, playerClassColor, classRankByColor, out int slotRank, out int playerRank))
+            {
+                return false;
+            }
+
+            return slotRank > playerRank;
+        }
+
+        private static bool TryGetClassRanks(
+            CarSASlot slot,
+            string playerClassColor,
+            Dictionary<string, int> classRankByColor,
+            out int slotRank,
+            out int playerRank)
+        {
+            slotRank = 0;
+            playerRank = 0;
+
+            if (slot == null || string.IsNullOrWhiteSpace(playerClassColor) || classRankByColor == null)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(slot.ClassColor))
+            {
+                return false;
+            }
+
+            return classRankByColor.TryGetValue(slot.ClassColor, out slotRank)
+                && classRankByColor.TryGetValue(playerClassColor, out playerRank);
         }
 
         private static void UpdateStatusEText(CarSASlot slot)
