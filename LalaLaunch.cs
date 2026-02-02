@@ -5159,6 +5159,14 @@ namespace LaunchPlugin
         private void EnsureCarSaDebugExportFile()
         {
             string token = string.IsNullOrWhiteSpace(_currentSessionToken) ? "na" : _currentSessionToken.Replace(":", "_");
+            if (string.IsNullOrWhiteSpace(CurrentTrackName) && string.IsNullOrWhiteSpace(CurrentTrackKey))
+            {
+                if (_carSaDebugExportBuffer == null)
+                {
+                    _carSaDebugExportBuffer = new StringBuilder(1024);
+                }
+                return;
+            }
             if (!string.Equals(token, _carSaDebugExportToken, StringComparison.Ordinal) || string.IsNullOrWhiteSpace(_carSaDebugExportPath))
             {
                 FlushCarSaDebugExportBuffer();
@@ -5178,6 +5186,7 @@ namespace LaunchPlugin
                     File.WriteAllText(_carSaDebugExportPath, GetCarSaDebugExportHeader() + Environment.NewLine);
                 }
 
+                FlushCarSaDebugExportBuffer();
             }
 
             if (_carSaDebugExportBuffer == null)
