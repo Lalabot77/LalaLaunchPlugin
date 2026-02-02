@@ -4358,6 +4358,16 @@ namespace LaunchPlugin
                 WriteCarSaDebugExport(_carSaEngine.Outputs, notRelevantGapSec);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
                 string playerClassColor = GetCarClassColorHex(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
+                if (string.IsNullOrWhiteSpace(playerClassColor) && playerCarIdx >= 0)
+                {
+                    if (TryGetCarIdentityFromSessionInfo(pluginManager, playerCarIdx, out _, out _, out var fallbackClassColor))
+                    {
+                        if (!string.IsNullOrWhiteSpace(fallbackClassColor))
+                        {
+                            playerClassColor = fallbackClassColor;
+                        }
+                    }
+                }
                 _carSaEngine.RefreshStatusE(notRelevantGapSec, _opponentsEngine?.Outputs, playerClassColor);
             }
 
@@ -5122,7 +5132,10 @@ namespace LaunchPlugin
 
                 string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalapluginData");
                 Directory.CreateDirectory(folder);
-                string trackName = SanitizeCarSaDebugExportName(CurrentTrackName);
+                string trackNameSource = !string.IsNullOrWhiteSpace(CurrentTrackName)
+                    ? CurrentTrackName
+                    : CurrentTrackKey;
+                string trackName = SanitizeCarSaDebugExportName(trackNameSource);
                 string timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
                 _carSaDebugExportPath = Path.Combine(folder, $"CarSA_Debug_{timestamp}_{trackName}.csv");
 
@@ -5284,11 +5297,11 @@ namespace LaunchPlugin
                 _carSaIdentityRefreshRequested = false;
             }
 
-            ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.AheadSlots, _carSaLastAheadIdx, forceRefresh);
-            ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.BehindSlots, _carSaLastBehindIdx, forceRefresh);
+            ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.AheadSlots, _carSaLastAheadIdx, forceRefresh, sessionTimeSec);
+            ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.BehindSlots, _carSaLastBehindIdx, forceRefresh, sessionTimeSec);
         }
 
-        private void ApplyCarSaIdentityRefresh(PluginManager pluginManager, CarSASlot[] slots, int[] lastCarIdx, bool forceRefresh)
+        private void ApplyCarSaIdentityRefresh(PluginManager pluginManager, CarSASlot[] slots, int[] lastCarIdx, bool forceRefresh, double sessionTimeSec)
         {
             if (slots == null || lastCarIdx == null) return;
 
@@ -5302,16 +5315,11 @@ namespace LaunchPlugin
                 if (carIdxChanged)
                 {
                     lastCarIdx[i] = carIdx;
-                }
-
-                if (!forceRefresh && !carIdxChanged)
-                {
-                    continue;
-                }
-
-                if (slot != null)
-                {
-                    slot.StatusETextDirty = true;
+                    if (slot != null)
+                    {
+                        slot.IdentityResolved = false;
+                        slot.LastIdentityAttemptSessionTimeSec = -1.0;
+                    }
                 }
 
                 if (slot == null || carIdx < 0)
@@ -5321,13 +5329,46 @@ namespace LaunchPlugin
                         slot.Name = string.Empty;
                         slot.CarNumber = string.Empty;
                         slot.ClassColor = string.Empty;
+                        slot.IdentityResolved = false;
+                        slot.LastIdentityAttemptSessionTimeSec = -1.0;
+                        slot.StatusETextDirty = true;
                     }
                     continue;
                 }
 
-                slot.Name = string.Empty;
-                slot.CarNumber = string.Empty;
-                slot.ClassColor = string.Empty;
+                bool needsIdentity = string.IsNullOrWhiteSpace(slot.ClassColor)
+                    || string.IsNullOrWhiteSpace(slot.CarNumber)
+                    || string.IsNullOrWhiteSpace(slot.Name);
+                bool allowRetry = !slot.IdentityResolved && needsIdentity;
+                bool shouldAttempt = forceRefresh || carIdxChanged || allowRetry;
+                if (!shouldAttempt)
+                {
+                    continue;
+                }
+
+                if (!forceRefresh && !carIdxChanged && allowRetry)
+                {
+                    if (slot.LastIdentityAttemptSessionTimeSec >= 0.0
+                        && sessionTimeSec - slot.LastIdentityAttemptSessionTimeSec < 0.5)
+                    {
+                        continue;
+                    }
+                }
+
+                slot.LastIdentityAttemptSessionTimeSec = sessionTimeSec;
+
+                if (forceRefresh || carIdxChanged)
+                {
+                    slot.Name = string.Empty;
+                    slot.CarNumber = string.Empty;
+                    slot.ClassColor = string.Empty;
+                    slot.StatusETextDirty = true;
+                }
+
+                bool identityUpdated = false;
+                string previousName = slot.Name;
+                string previousCarNumber = slot.CarNumber;
+                string previousClassColor = slot.ClassColor;
 
                 if (TryGetCarIdentityFromSessionInfo(pluginManager, carIdx, out var name, out var carNumber, out var classColor))
                 {
@@ -5338,6 +5379,29 @@ namespace LaunchPlugin
                 else if (carIdxChanged)
                 {
                     SimHub.Logging.Current.Debug($"[LalaPlugin:CarSA] Identity unresolved for carIdx={carIdx} after slot change.");
+                }
+
+                if (!string.Equals(previousName, slot.Name, StringComparison.Ordinal))
+                {
+                    identityUpdated = true;
+                }
+                if (!string.Equals(previousCarNumber, slot.CarNumber, StringComparison.Ordinal))
+                {
+                    identityUpdated = true;
+                }
+                if (!string.Equals(previousClassColor, slot.ClassColor, StringComparison.Ordinal))
+                {
+                    identityUpdated = true;
+                }
+
+                if (identityUpdated)
+                {
+                    slot.StatusETextDirty = true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(slot.ClassColor))
+                {
+                    slot.IdentityResolved = true;
                 }
             }
         }

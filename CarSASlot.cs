@@ -81,6 +81,8 @@ namespace LaunchPlugin
         internal int CompromisedLap { get; set; } = int.MinValue;
         internal int CompromisedStatusE { get; set; } = (int)CarSAStatusE.Unknown;
         internal bool SlotIsAhead { get; set; }
+        internal double LastIdentityAttemptSessionTimeSec { get; set; } = -1.0;
+        internal bool IdentityResolved { get; set; }
         // Deprecated alias (keep for legacy exports; internal state is OutLapActive only).
         internal bool OutLapLatched => OutLapActive;
         internal bool CompromisedThisLapLatched => CompromisedThisLap;
@@ -130,6 +132,8 @@ namespace LaunchPlugin
             CompromisedLap = int.MinValue;
             CompromisedStatusE = (int)CarSAStatusE.Unknown;
             SlotIsAhead = false;
+            LastIdentityAttemptSessionTimeSec = -1.0;
+            IdentityResolved = false;
         }
     }
 
