@@ -4834,6 +4834,7 @@ namespace LaunchPlugin
                     _carSaDebugBehindDahlRelativeGapSec, _carSaDebugBehindIRacingRelativeGapSec);
 
                 AppendPlayerRawEvidence(buffer, outputs);
+                buffer.Append(',');
                 AppendCarSaClassRankDebug(buffer);
                 buffer.AppendLine();
 
