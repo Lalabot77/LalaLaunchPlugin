@@ -20,6 +20,7 @@ namespace LaunchPlugin
         private const double LapDeltaWrapEdgePct = 0.05;
         private const int TrackSurfaceUnknown = int.MinValue;
         private const int TrackSurfaceNotInWorld = -1;
+        private const int TrackSurfaceOffTrack = 0;
         private const int TrackSurfacePitStallOrTow = 1;
         private const int TrackSurfacePitLane = 2;
         private const int TrackSurfaceOnTrack = 3;
@@ -1105,7 +1106,17 @@ namespace LaunchPlugin
                 return;
             }
 
-            offTrackEvidence = !slot.IsOnTrack && !slot.IsOnPitRoad && slot.TrackSurfaceRaw != TrackSurfaceUnknown;
+            if (slot.TrackSurfaceRaw == TrackSurfaceOffTrack)
+            {
+                offTrackEvidence = true;
+            }
+
+            // Keep any existing material heuristics if present (optional).
+            // Keep session flags evidence if present (black/repair/dq/furled etc).
+            if (!offTrackEvidence)
+            {
+                offTrackEvidence = !slot.IsOnTrack && !slot.IsOnPitRoad && slot.TrackSurfaceRaw != TrackSurfaceUnknown;
+            }
             materialOffTrack = slot.TrackSurfaceMaterialRaw >= 0 && slot.TrackSurfaceMaterialRaw >= 15;
             sessionFlagged = slot.SessionFlagsRaw >= 0
                 && (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
