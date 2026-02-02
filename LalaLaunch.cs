@@ -4834,6 +4834,7 @@ namespace LaunchPlugin
                     _carSaDebugBehindDahlRelativeGapSec, _carSaDebugBehindIRacingRelativeGapSec);
 
                 AppendPlayerRawEvidence(buffer, outputs);
+                AppendCarSaClassRankDebug(buffer);
                 buffer.AppendLine();
 
                 _carSaDebugExportPendingLines++;
@@ -4930,6 +4931,11 @@ namespace LaunchPlugin
 
             _carSaClassRankToken = token;
             _carSaClassRankByColor = BuildCarSaClassRankMap(pluginManager, out _carSaClassRankSource);
+            if (_carSaClassRankByColor != null && _carSaClassRankByColor.Count > 0)
+            {
+                string sourceLabel = string.IsNullOrWhiteSpace(_carSaClassRankSource) ? "unknown" : _carSaClassRankSource;
+                SimHub.Logging.Current.Info($"[LalaPlugin:CarSA] Class rank map built using {sourceLabel} ({_carSaClassRankByColor.Count} classes)");
+            }
         }
 
         private Dictionary<string, int> BuildCarSaClassRankMap(PluginManager pluginManager, out string source)
@@ -5417,7 +5423,14 @@ namespace LaunchPlugin
                    "DahlDesign.CarBehind01Relative,IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer,Behind01.CrossCheckGapSec_DahlNorm,Behind01.CrossCheckGapSec_IRXPNorm," +
                    "Ahead01.TrackSurfaceRaw,Ahead01.TrackSurfaceMaterialRaw,Ahead01.SessionFlagsRaw,Ahead01.PaceFlagsRaw,Ahead01.TrackSurfaceLabel," +
                    "Behind01.TrackSurfaceRaw,Behind01.TrackSurfaceMaterialRaw,Behind01.SessionFlagsRaw,Behind01.PaceFlagsRaw,Behind01.TrackSurfaceLabel," +
-                   "PlayerTrackSurfaceRaw,PlayerTrackSurfaceMaterialRaw,PlayerSessionFlagsRaw,PlayerPaceFlagsRaw";
+                   "PlayerTrackSurfaceRaw,PlayerTrackSurfaceMaterialRaw,PlayerSessionFlagsRaw,PlayerPaceFlagsRaw," +
+                   "CarSA.ClassRankSource,CarSA.ClassRankCount";
+        }
+
+        private void AppendCarSaClassRankDebug(StringBuilder buffer)
+        {
+            buffer.Append(string.IsNullOrWhiteSpace(_carSaClassRankSource) ? "none" : _carSaClassRankSource).Append(',');
+            buffer.Append(_carSaClassRankByColor?.Count ?? 0);
         }
 
         private static int NormalizeTrackSurfaceRaw(int raw)

@@ -45,6 +45,7 @@ namespace LaunchPlugin
         private const string StatusEReasonLapBehind = "lap_behind";
         private const string StatusEReasonRacing = "racing";
         private const string StatusEReasonOtherClass = "otherclass";
+        private const string StatusEReasonOtherClassUnknownRank = "otherclass_unknownrank";
         private const string StatusEReasonUnknown = "unknown";
         private const int SessionFlagBlack = 0x00010000;
         private const int SessionFlagFurled = 0x00020000;
@@ -937,6 +938,11 @@ namespace LaunchPlugin
                 {
                     statusE = (int)CarSAStatusE.SlowerClass;
                     statusEReason = StatusEReasonOtherClass;
+                }
+                else
+                {
+                    statusE = (int)CarSAStatusE.Unknown;
+                    statusEReason = StatusEReasonOtherClassUnknownRank;
                 }
             }
 
