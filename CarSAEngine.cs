@@ -941,7 +941,10 @@ namespace LaunchPlugin
                 }
                 else
                 {
-                    statusE = (int)CarSAStatusE.Unknown;
+                    // Fallback to legacy heuristic when rank is unknown/missing.
+                    statusE = isAhead
+                        ? (int)CarSAStatusE.SlowerClass
+                        : (int)CarSAStatusE.FasterClass;
                     statusEReason = StatusEReasonOtherClassUnknownRank;
                 }
             }
