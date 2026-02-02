@@ -4828,6 +4828,7 @@ namespace LaunchPlugin
                 AppendSlotDebugRow(buffer, behind, isAhead: false,
                     _carSaDebugBehindDahlRelativeGapSec, _carSaDebugBehindIRacingRelativeGapSec);
 
+                AppendPlayerRawEvidence(buffer, outputs);
                 buffer.AppendLine();
 
                 _carSaDebugExportPendingLines++;
@@ -5102,6 +5103,7 @@ namespace LaunchPlugin
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
+                AppendSlotRawEvidence(buffer, null);
                 return;
             }
 
@@ -5120,6 +5122,38 @@ namespace LaunchPlugin
             buffer.Append(FormatDoubleOrNaN(iRacingRelativeGapSec)).Append(',');
             buffer.Append(FormatDoubleOrNaN(dahlNorm)).Append(',');
             buffer.Append(FormatDoubleOrNaN(irxpNorm)).Append(',');
+            AppendSlotRawEvidence(buffer, slot);
+        }
+
+        private static void AppendSlotRawEvidence(StringBuilder buffer, CarSASlot slot)
+        {
+            int trackSurfaceRaw = NormalizeTrackSurfaceRaw(slot?.TrackSurfaceRawDebug ?? int.MinValue);
+            int trackSurfaceMaterialRaw = slot?.TrackSurfaceMaterialRaw ?? -1;
+            int sessionFlagsRaw = slot?.SessionFlagsRaw ?? -1;
+            int paceFlagsRaw = slot?.PaceFlagsRaw ?? -1;
+            buffer.Append(trackSurfaceRaw).Append(',');
+            buffer.Append(trackSurfaceMaterialRaw).Append(',');
+            buffer.Append(sessionFlagsRaw).Append(',');
+            buffer.Append(paceFlagsRaw).Append(',');
+            buffer.Append(FormatTrackSurfaceLabel(trackSurfaceRaw)).Append(',');
+        }
+
+        private static void AppendPlayerRawEvidence(StringBuilder buffer, CarSAOutputs outputs)
+        {
+            if (outputs?.Debug == null)
+            {
+                buffer.Append("-1,");
+                buffer.Append("-1,");
+                buffer.Append("-1,");
+                buffer.Append("-1");
+                return;
+            }
+
+            int playerTrackSurfaceRaw = NormalizeTrackSurfaceRaw(outputs.Debug.PlayerTrackSurfaceRaw);
+            buffer.Append(playerTrackSurfaceRaw).Append(',');
+            buffer.Append(outputs.Debug.PlayerTrackSurfaceMaterialRaw).Append(',');
+            buffer.Append(outputs.Debug.PlayerSessionFlagsRaw).Append(',');
+            buffer.Append(outputs.Debug.PlayerPaceFlagsRaw);
         }
 
         private void EnsureCarSaDebugExportFile()
@@ -5230,7 +5264,29 @@ namespace LaunchPlugin
                    "Ahead01.CarIdx,Ahead01.DistPct,Ahead01.GapTrackSec,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad,Ahead01.StatusE,Ahead01.StatusEReason," +
                    "DahlDesign.CarAhead01Relative,IRacingExtraProperties.iRacing_DriverAhead_00_RelativeGapToPlayer,Ahead01.CrossCheckGapSec_DahlNorm,Ahead01.CrossCheckGapSec_IRXPNorm," +
                    "Behind01.CarIdx,Behind01.DistPct,Behind01.GapTrackSec,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad,Behind01.StatusE,Behind01.StatusEReason," +
-                   "DahlDesign.CarBehind01Relative,IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer,Behind01.CrossCheckGapSec_DahlNorm,Behind01.CrossCheckGapSec_IRXPNorm";
+                   "DahlDesign.CarBehind01Relative,IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer,Behind01.CrossCheckGapSec_DahlNorm,Behind01.CrossCheckGapSec_IRXPNorm," +
+                   "Ahead01.TrackSurfaceRaw,Ahead01.TrackSurfaceMaterialRaw,Ahead01.SessionFlagsRaw,Ahead01.PaceFlagsRaw,Ahead01.TrackSurfaceLabel," +
+                   "Behind01.TrackSurfaceRaw,Behind01.TrackSurfaceMaterialRaw,Behind01.SessionFlagsRaw,Behind01.PaceFlagsRaw,Behind01.TrackSurfaceLabel," +
+                   "PlayerTrackSurfaceRaw,PlayerTrackSurfaceMaterialRaw,PlayerSessionFlagsRaw,PlayerPaceFlagsRaw";
+        }
+
+        private static int NormalizeTrackSurfaceRaw(int raw)
+        {
+            return raw == int.MinValue ? -1 : raw;
+        }
+
+        private static string FormatTrackSurfaceLabel(int raw)
+        {
+            if (raw == -1)
+            {
+                return "NIW";
+            }
+            if (raw == 3)
+            {
+                return "ON";
+            }
+
+            return $"S{raw}";
         }
 
         private static string FormatDoubleOrNaN(double value)

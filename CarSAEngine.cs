@@ -173,6 +173,14 @@ namespace LaunchPlugin
                 playerLapPctValid = !double.IsNaN(playerLapPct) && playerLapPct >= 0.0 && playerLapPct < 1.0;
             }
 
+            int playerTrackSurfaceRaw = -1;
+            if (carIdxTrackSurface != null && playerCarIdx >= 0 && playerCarIdx < carIdxTrackSurface.Length)
+            {
+                int surface = carIdxTrackSurface[playerCarIdx];
+                playerTrackSurfaceRaw = surface == TrackSurfaceUnknown ? -1 : surface;
+            }
+            _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
+
             UpdateCarStates(sessionTimeSec, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed);
 
             if (carCount <= 0 || playerCarIdx < 0 || playerCarIdx >= carCount)
@@ -344,6 +352,7 @@ namespace LaunchPlugin
             _outputs.Debug.SourceFastPathUsed = false;
             _outputs.Debug.HysteresisReplacementsThisTick = 0;
             _outputs.Debug.SlotCarIdxChangedThisTick = 0;
+            _outputs.Debug.PlayerTrackSurfaceRaw = -1;
             if (debugEnabled)
             {
                 _outputs.Debug.LapTimeEstimateSec = lapTimeEstimateSec;
