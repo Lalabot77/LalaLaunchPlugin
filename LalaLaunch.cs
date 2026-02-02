@@ -4896,7 +4896,9 @@ namespace LaunchPlugin
             outputs.Debug.PlayerSessionFlagsRaw = ReadCarIdxRawValue(sessionFlags, hasSessionFlags, playerCarIdx);
             outputs.Debug.PlayerTrackSurfaceMaterialRaw = ReadCarIdxRawValue(trackSurfaceMaterial, hasTrackSurfaceMaterial, playerCarIdx);
 
-            bool includeSlots = rawTelemetryMode >= 2;
+            // Always populate slot raw telemetry when raw telemetry is enabled.
+            // Mode >= 2 is reserved for verbose change logging only.
+            bool includeSlots = rawTelemetryMode >= 1;
             if (includeSlots)
             {
                 UpdateCarSaRawSlots(outputs.AheadSlots, paceFlags, sessionFlags, trackSurfaceMaterial, hasPaceFlags, hasSessionFlags, hasTrackSurfaceMaterial);
@@ -4908,7 +4910,8 @@ namespace LaunchPlugin
                 ClearCarSaRawSlots(outputs.BehindSlots);
             }
 
-            if (includeSlots && debugEnabled)
+            bool enableRawLogging = rawTelemetryMode >= 2 && debugEnabled;
+            if (enableRawLogging)
             {
                 int trackedCount = BuildTrackedCarIdxs(playerCarIdx, outputs, _carSaTrackedCarIdxs);
                 if (hasPaceFlags)
@@ -5444,6 +5447,14 @@ namespace LaunchPlugin
             if (raw == -1)
             {
                 return "NIW";
+            }
+            if (raw == 1)
+            {
+                return "PSTALL";
+            }
+            if (raw == 2)
+            {
+                return "PIT";
             }
             if (raw == 3)
             {
