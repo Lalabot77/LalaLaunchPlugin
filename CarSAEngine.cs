@@ -866,7 +866,12 @@ namespace LaunchPlugin
                     statusEReason = StatusEReasonCompromisedOffTrack;
                 }
             }
-            else if (!slot.IsValid || slot.TrackSurfaceRaw == TrackSurfaceNotInWorld || !slot.IsOnTrack)
+            else if (!slot.IsValid || slot.TrackSurfaceRaw == TrackSurfaceNotInWorld)
+            {
+                statusE = (int)CarSAStatusE.Unknown;
+                statusEReason = StatusEReasonUnknown;
+            }
+            else if (!slot.IsOnTrack)
             {
                 statusE = (int)CarSAStatusE.Unknown;
                 statusEReason = StatusEReasonUnknown;
