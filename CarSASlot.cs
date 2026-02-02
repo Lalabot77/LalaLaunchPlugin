@@ -75,6 +75,7 @@ namespace LaunchPlugin
         internal int CurrentLap { get; set; }
         internal int LastLap { get; set; } = int.MinValue;
         internal bool WasOnPitRoad { get; set; }
+        internal bool WasInPitArea { get; set; }
         internal bool OutLapActive { get; set; }
         internal int OutLapLap { get; set; } = int.MinValue;
         internal bool CompromisedThisLap { get; set; }
@@ -128,6 +129,7 @@ namespace LaunchPlugin
             CurrentLap = 0;
             LastLap = int.MinValue;
             WasOnPitRoad = false;
+            WasInPitArea = false;
             OutLapActive = false;
             OutLapLap = int.MinValue;
             CompromisedThisLap = false;

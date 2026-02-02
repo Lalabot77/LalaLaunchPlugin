@@ -5445,6 +5445,14 @@ namespace LaunchPlugin
             {
                 return "NIW";
             }
+            if (raw == 1)
+            {
+                return "PSTALL";
+            }
+            if (raw == 2)
+            {
+                return "PIT";
+            }
             if (raw == 3)
             {
                 return "ON";

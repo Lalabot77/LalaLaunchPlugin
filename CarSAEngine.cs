@@ -20,6 +20,8 @@ namespace LaunchPlugin
         private const double LapDeltaWrapEdgePct = 0.05;
         private const int TrackSurfaceUnknown = int.MinValue;
         private const int TrackSurfaceNotInWorld = -1;
+        private const int TrackSurfacePitStallOrTow = 1;
+        private const int TrackSurfacePitLane = 2;
         private const int TrackSurfaceOnTrack = 3;
         private const string StatusShortUnknown = "UNK";
         private const string StatusShortOutLap = "OUT";
@@ -52,6 +54,36 @@ namespace LaunchPlugin
         private const int SessionFlagRepair = 0x00080000;
         private const int SessionFlagDisqualify = 0x00100000;
         private const int SessionFlagMaskCompromised = 0x00010000 | 0x00080000 | 0x00100000 | 0x00020000;
+
+        private static int NormalizeTrackSurfaceRaw(int raw)
+        {
+            return raw == TrackSurfaceUnknown ? TrackSurfaceNotInWorld : raw;
+        }
+
+        private static bool IsPitAreaSurface(int raw)
+        {
+            return raw == TrackSurfacePitStallOrTow || raw == TrackSurfacePitLane;
+        }
+
+        private static bool IsOnTrackSurface(int raw)
+        {
+            return raw == TrackSurfaceOnTrack;
+        }
+
+        private static bool IsNotInWorldSurface(int raw)
+        {
+            return raw == TrackSurfaceNotInWorld;
+        }
+
+        private static bool IsPitStallOrTowSurface(int raw)
+        {
+            return raw == TrackSurfacePitStallOrTow;
+        }
+
+        private static bool IsPitLaneSurface(int raw)
+        {
+            return raw == TrackSurfacePitLane;
+        }
 
         private readonly CarSAOutputs _outputs;
         private readonly int[] _aheadCandidateIdx;
@@ -192,7 +224,7 @@ namespace LaunchPlugin
             if (carIdxTrackSurface != null && playerCarIdx >= 0 && playerCarIdx < carIdxTrackSurface.Length)
             {
                 int surface = carIdxTrackSurface[playerCarIdx];
-                playerTrackSurfaceRaw = surface == TrackSurfaceUnknown ? -1 : surface;
+                playerTrackSurfaceRaw = NormalizeTrackSurfaceRaw(surface);
             }
             _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
 
@@ -419,9 +451,9 @@ namespace LaunchPlugin
                     && carIdxOnPitRoad[carIdx];
                 if (carIdxTrackSurface != null && carIdx < carIdxTrackSurface.Length)
                 {
-                    int surface = carIdxTrackSurface[carIdx];
+                    int surface = NormalizeTrackSurfaceRaw(carIdxTrackSurface[carIdx]);
                     state.TrackSurfaceRaw = surface;
-                    state.IsOnTrack = surface == TrackSurfaceOnTrack;
+                    state.IsOnTrack = IsOnTrackSurface(surface);
                 }
                 else
                 {
@@ -693,6 +725,7 @@ namespace LaunchPlugin
                 slot.CurrentLap = 0;
                 slot.LastLap = int.MinValue;
                 slot.WasOnPitRoad = false;
+                slot.WasInPitArea = false;
                 slot.OutLapActive = false;
                 slot.OutLapLap = int.MinValue;
                 slot.CompromisedThisLap = false;
@@ -756,9 +789,9 @@ namespace LaunchPlugin
             int trackSurfaceRaw = TrackSurfaceUnknown;
             if (carIdxTrackSurface != null && slot.CarIdx < carIdxTrackSurface.Length)
             {
-                int surface = carIdxTrackSurface[slot.CarIdx];
+                int surface = NormalizeTrackSurfaceRaw(carIdxTrackSurface[slot.CarIdx]);
                 trackSurfaceRaw = surface;
-                if (surface == TrackSurfaceNotInWorld)
+                if (IsNotInWorldSurface(surface))
                 {
                     slot.IsValid = false;
                     slot.IsOnTrack = false;
@@ -770,7 +803,7 @@ namespace LaunchPlugin
                     return;
                 }
 
-                slot.IsOnTrack = surface == TrackSurfaceOnTrack;
+                slot.IsOnTrack = IsOnTrackSurface(surface);
             }
 
             if (carIdxOnPitRoad != null && slot.CarIdx < carIdxOnPitRoad.Length)
@@ -878,7 +911,10 @@ namespace LaunchPlugin
             slot.SlotIsAhead = isAhead;
             int statusE = (int)CarSAStatusE.Unknown;
             string statusEReason = StatusEReasonUnknown;
-            if (slot.IsOnPitRoad)
+            int trackSurfaceRaw = slot.TrackSurfaceRaw == TrackSurfaceUnknown
+                ? TrackSurfaceUnknown
+                : NormalizeTrackSurfaceRaw(slot.TrackSurfaceRaw);
+            if (slot.IsOnPitRoad || IsPitAreaSurface(trackSurfaceRaw))
             {
                 statusE = (int)CarSAStatusE.InPits;
                 statusEReason = StatusEReasonPits;
@@ -983,12 +1019,20 @@ namespace LaunchPlugin
                 slot.OutLapLap = currentLap;
             }
 
-            if (slot.WasOnPitRoad && !slot.IsOnPitRoad)
+            int trackSurfaceRaw = slot.TrackSurfaceRaw == TrackSurfaceUnknown
+                ? TrackSurfaceUnknown
+                : NormalizeTrackSurfaceRaw(slot.TrackSurfaceRaw);
+            bool isPitArea = IsPitAreaSurface(trackSurfaceRaw);
+            bool isOnTrackSurface = IsOnTrackSurface(trackSurfaceRaw);
+            bool wasPit = slot.WasOnPitRoad || slot.WasInPitArea;
+            bool isPitNow = slot.IsOnPitRoad || isPitArea;
+
+            if (wasPit && !isPitNow && isOnTrackSurface)
             {
                 slot.OutLapActive = true;
                 slot.OutLapLap = currentLap;
             }
-            else if (slot.OutLapActive && slot.IsOnPitRoad && currentLap == slot.OutLapLap)
+            else if (slot.OutLapActive && isPitNow && currentLap == slot.OutLapLap)
             {
                 slot.OutLapActive = false;
             }
@@ -1033,6 +1077,7 @@ namespace LaunchPlugin
             }
 
             slot.WasOnPitRoad = slot.IsOnPitRoad;
+            slot.WasInPitArea = isPitArea;
         }
 
         internal static void GetCompromisedEvidenceDetails(
