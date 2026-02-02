@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace LaunchPlugin
 {
@@ -44,6 +45,7 @@ namespace LaunchPlugin
         private const string StatusEReasonLapBehind = "lap_behind";
         private const string StatusEReasonRacing = "racing";
         private const string StatusEReasonOtherClass = "otherclass";
+        private const string StatusEReasonOtherClassUnknownRank = "otherclass_unknownrank";
         private const string StatusEReasonUnknown = "unknown";
         private const int SessionFlagBlack = 0x00010000;
         private const int SessionFlagFurled = 0x00020000;
@@ -60,6 +62,7 @@ namespace LaunchPlugin
         // === Car-centric shadow state (unused by current logic) =================
         private readonly CarSA_CarState[] _carStates;
         private bool _loggedEnabled;
+        private Dictionary<string, int> _classRankByColor;
 
         private sealed class CarSA_CarState
         {
@@ -121,11 +124,23 @@ namespace LaunchPlugin
 
         public CarSAOutputs Outputs => _outputs;
 
+        public void SetClassRankMap(Dictionary<string, int> classRankByColor)
+        {
+            if (classRankByColor == null || classRankByColor.Count == 0)
+            {
+                _classRankByColor = null;
+                return;
+            }
+
+            _classRankByColor = new Dictionary<string, int>(classRankByColor, StringComparer.OrdinalIgnoreCase);
+        }
+
         // === StatusE logic ======================================================
         public void RefreshStatusE(double notRelevantGapSec, OpponentsEngine.OpponentOutputs opponentOutputs, string playerClassColor)
         {
-            UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor);
-            UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor);
+            double sessionTimeSec = _outputs?.Debug?.SessionTimeSec ?? 0.0;
+            UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
+            UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
         }
 
         public void Reset()
@@ -172,6 +187,14 @@ namespace LaunchPlugin
                 playerLapPct = carIdxLapDistPct[playerCarIdx];
                 playerLapPctValid = !double.IsNaN(playerLapPct) && playerLapPct >= 0.0 && playerLapPct < 1.0;
             }
+
+            int playerTrackSurfaceRaw = -1;
+            if (carIdxTrackSurface != null && playerCarIdx >= 0 && playerCarIdx < carIdxTrackSurface.Length)
+            {
+                int surface = carIdxTrackSurface[playerCarIdx];
+                playerTrackSurfaceRaw = surface == TrackSurfaceUnknown ? -1 : surface;
+            }
+            _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
 
             UpdateCarStates(sessionTimeSec, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed);
 
@@ -344,6 +367,7 @@ namespace LaunchPlugin
             _outputs.Debug.SourceFastPathUsed = false;
             _outputs.Debug.HysteresisReplacementsThisTick = 0;
             _outputs.Debug.SlotCarIdxChangedThisTick = 0;
+            _outputs.Debug.PlayerTrackSurfaceRaw = -1;
             if (debugEnabled)
             {
                 _outputs.Debug.LapTimeEstimateSec = lapTimeEstimateSec;
@@ -673,6 +697,8 @@ namespace LaunchPlugin
                 slot.OutLapLap = int.MinValue;
                 slot.CompromisedThisLap = false;
                 slot.CompromisedLap = int.MinValue;
+                slot.LastCompEvidenceSessionTimeSec = -1.0;
+                slot.CompEvidenceStreak = 0;
 
                        // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;
@@ -816,7 +842,9 @@ namespace LaunchPlugin
             double notRelevantGapSec,
             bool isAhead,
             OpponentsEngine.OpponentOutputs opponentOutputs,
-            string playerClassColor)
+            string playerClassColor,
+            double sessionTimeSec,
+            Dictionary<string, int> classRankByColor)
         {
             if (slots == null)
             {
@@ -825,7 +853,7 @@ namespace LaunchPlugin
 
             for (int i = 0; i < slots.Length; i++)
             {
-                UpdateStatusE(slots[i], notRelevantGapSec, isAhead, opponentOutputs, playerClassColor);
+                UpdateStatusE(slots[i], notRelevantGapSec, isAhead, opponentOutputs, playerClassColor, sessionTimeSec, classRankByColor);
             }
         }
 
@@ -834,7 +862,9 @@ namespace LaunchPlugin
             double notRelevantGapSec,
             bool isAhead,
             OpponentsEngine.OpponentOutputs opponentOutputs,
-            string playerClassColor)
+            string playerClassColor,
+            double sessionTimeSec,
+            Dictionary<string, int> classRankByColor)
         {
             if (slot == null)
             {
@@ -843,7 +873,7 @@ namespace LaunchPlugin
 
             _ = notRelevantGapSec;
             _ = opponentOutputs;
-            UpdateStatusELatches(slot);
+            UpdateStatusELatches(slot, sessionTimeSec);
 
             slot.SlotIsAhead = isAhead;
             int statusE = (int)CarSAStatusE.Unknown;
@@ -899,10 +929,21 @@ namespace LaunchPlugin
             }
             else if (IsOtherClass(slot, playerClassColor))
             {
-                statusE = isAhead
-                    ? (int)CarSAStatusE.SlowerClass
-                    : (int)CarSAStatusE.FasterClass;
-                statusEReason = StatusEReasonOtherClass;
+                if (IsFasterClass(slot, playerClassColor, classRankByColor))
+                {
+                    statusE = (int)CarSAStatusE.FasterClass;
+                    statusEReason = StatusEReasonOtherClass;
+                }
+                else if (IsSlowerClass(slot, playerClassColor, classRankByColor))
+                {
+                    statusE = (int)CarSAStatusE.SlowerClass;
+                    statusEReason = StatusEReasonOtherClass;
+                }
+                else
+                {
+                    statusE = (int)CarSAStatusE.Unknown;
+                    statusEReason = StatusEReasonOtherClassUnknownRank;
+                }
             }
 
             if (statusE == (int)CarSAStatusE.NotRelevant)
@@ -916,7 +957,7 @@ namespace LaunchPlugin
             UpdateStatusEText(slot);
         }
 
-        private static void UpdateStatusELatches(CarSASlot slot)
+        private static void UpdateStatusELatches(CarSASlot slot, double sessionTimeSec)
         {
             if (slot == null)
             {
@@ -930,6 +971,8 @@ namespace LaunchPlugin
                 slot.CompromisedThisLap = false;
                 slot.CompromisedLap = int.MinValue;
                 slot.CompromisedStatusE = (int)CarSAStatusE.Unknown;
+                slot.LastCompEvidenceSessionTimeSec = -1.0;
+                slot.CompEvidenceStreak = 0;
                 if (slot.OutLapActive && slot.OutLapLap != currentLap)
                 {
                     slot.OutLapActive = false;
@@ -948,22 +991,42 @@ namespace LaunchPlugin
             }
 
             GetCompromisedEvidenceDetails(slot, out bool offTrackEvidence, out bool materialOffTrack, out bool sessionFlagged);
-            if (offTrackEvidence || materialOffTrack || sessionFlagged)
+            bool hasEvidence = offTrackEvidence || materialOffTrack || sessionFlagged;
+            if (hasEvidence)
             {
-                if (!slot.CompromisedThisLap)
+                if (slot.CompEvidenceStreak == 0)
                 {
-                    slot.CompromisedThisLap = true;
-                    slot.CompromisedLap = currentLap;
+                    slot.LastCompEvidenceSessionTimeSec = sessionTimeSec;
                 }
+                slot.CompEvidenceStreak++;
 
-                if (offTrackEvidence || materialOffTrack)
+                bool allowLatch = slot.CompromisedThisLap
+                    || slot.CompEvidenceStreak >= 2
+                    || (slot.LastCompEvidenceSessionTimeSec >= 0.0
+                        && (sessionTimeSec - slot.LastCompEvidenceSessionTimeSec) >= 0.20);
+
+                if (allowLatch)
                 {
-                    slot.CompromisedStatusE = (int)CarSAStatusE.CompromisedOffTrack;
+                    if (!slot.CompromisedThisLap)
+                    {
+                        slot.CompromisedThisLap = true;
+                        slot.CompromisedLap = currentLap;
+                    }
+
+                    if (offTrackEvidence || materialOffTrack)
+                    {
+                        slot.CompromisedStatusE = (int)CarSAStatusE.CompromisedOffTrack;
+                    }
+                    else if (sessionFlagged && slot.CompromisedStatusE != (int)CarSAStatusE.CompromisedOffTrack)
+                    {
+                        slot.CompromisedStatusE = (int)CarSAStatusE.CompromisedPenalty;
+                    }
                 }
-                else if (sessionFlagged && slot.CompromisedStatusE != (int)CarSAStatusE.CompromisedOffTrack)
-                {
-                    slot.CompromisedStatusE = (int)CarSAStatusE.CompromisedPenalty;
-                }
+            }
+            else
+            {
+                slot.CompEvidenceStreak = 0;
+                slot.LastCompEvidenceSessionTimeSec = -1.0;
             }
 
             slot.WasOnPitRoad = slot.IsOnPitRoad;
@@ -1121,6 +1184,50 @@ namespace LaunchPlugin
             }
 
             return string.Equals(slot.ClassColor, playerClassColor, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsFasterClass(CarSASlot slot, string playerClassColor, Dictionary<string, int> classRankByColor)
+        {
+            if (!TryGetClassRanks(slot, playerClassColor, classRankByColor, out int slotRank, out int playerRank))
+            {
+                return false;
+            }
+
+            return slotRank < playerRank;
+        }
+
+        private static bool IsSlowerClass(CarSASlot slot, string playerClassColor, Dictionary<string, int> classRankByColor)
+        {
+            if (!TryGetClassRanks(slot, playerClassColor, classRankByColor, out int slotRank, out int playerRank))
+            {
+                return false;
+            }
+
+            return slotRank > playerRank;
+        }
+
+        private static bool TryGetClassRanks(
+            CarSASlot slot,
+            string playerClassColor,
+            Dictionary<string, int> classRankByColor,
+            out int slotRank,
+            out int playerRank)
+        {
+            slotRank = 0;
+            playerRank = 0;
+
+            if (slot == null || string.IsNullOrWhiteSpace(playerClassColor) || classRankByColor == null)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(slot.ClassColor))
+            {
+                return false;
+            }
+
+            return classRankByColor.TryGetValue(slot.ClassColor, out slotRank)
+                && classRankByColor.TryGetValue(playerClassColor, out playerRank);
         }
 
         private static void UpdateStatusEText(CarSASlot slot)

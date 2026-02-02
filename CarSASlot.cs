@@ -80,6 +80,8 @@ namespace LaunchPlugin
         internal bool CompromisedThisLap { get; set; }
         internal int CompromisedLap { get; set; } = int.MinValue;
         internal int CompromisedStatusE { get; set; } = (int)CarSAStatusE.Unknown;
+        internal double LastCompEvidenceSessionTimeSec { get; set; } = -1.0;
+        internal int CompEvidenceStreak { get; set; }
         internal bool SlotIsAhead { get; set; }
         internal double LastIdentityAttemptSessionTimeSec { get; set; } = -1.0;
         internal bool IdentityResolved { get; set; }
@@ -131,6 +133,8 @@ namespace LaunchPlugin
             CompromisedThisLap = false;
             CompromisedLap = int.MinValue;
             CompromisedStatusE = (int)CarSAStatusE.Unknown;
+            LastCompEvidenceSessionTimeSec = -1.0;
+            CompEvidenceStreak = 0;
             SlotIsAhead = false;
             LastIdentityAttemptSessionTimeSec = -1.0;
             IdentityResolved = false;
@@ -167,6 +171,7 @@ namespace LaunchPlugin
         public int PlayerPaceFlagsRaw { get; set; } = -1;
         public int PlayerSessionFlagsRaw { get; set; } = -1;
         public int PlayerTrackSurfaceMaterialRaw { get; set; } = -1;
+        public int PlayerTrackSurfaceRaw { get; set; } = -1;
         public string RawTelemetryReadMode { get; set; } = string.Empty;
         public string RawTelemetryFailReason { get; set; } = string.Empty;
 
@@ -196,6 +201,7 @@ namespace LaunchPlugin
             PlayerPaceFlagsRaw = -1;
             PlayerSessionFlagsRaw = -1;
             PlayerTrackSurfaceMaterialRaw = -1;
+            PlayerTrackSurfaceRaw = -1;
             RawTelemetryReadMode = string.Empty;
             RawTelemetryFailReason = string.Empty;
         }

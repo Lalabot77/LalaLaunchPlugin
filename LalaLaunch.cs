@@ -2825,6 +2825,9 @@ namespace LaunchPlugin
         private double _carSaDebugBehindDahlRelativeGapSec = double.NaN;
         private double _carSaDebugAheadIRacingRelativeGapSec = double.NaN;
         private double _carSaDebugBehindIRacingRelativeGapSec = double.NaN;
+        private Dictionary<string, int> _carSaClassRankByColor;
+        private string _carSaClassRankToken;
+        private string _carSaClassRankSource;
         private readonly int[] _carSaLastAheadIdx = new int[CarSAEngine.SlotsAhead];
         private readonly int[] _carSaLastBehindIdx = new int[CarSAEngine.SlotsBehind];
         private readonly Dictionary<int, int> _carSaLastPaceFlags = new Dictionary<int, int>();
@@ -4355,7 +4358,7 @@ namespace LaunchPlugin
                 _carSaDebugBehindIRacingRelativeGapSec = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer", double.NaN);
 
                 UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
-                WriteCarSaDebugExport(_carSaEngine.Outputs, notRelevantGapSec);
+                WriteCarSaDebugExport(pluginManager, _carSaEngine.Outputs, notRelevantGapSec);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
                 string playerClassColor = GetCarClassColorHex(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
                 if (string.IsNullOrWhiteSpace(playerClassColor) && playerCarIdx >= 0)
@@ -4368,6 +4371,8 @@ namespace LaunchPlugin
                         }
                     }
                 }
+                UpdateCarSaClassRankMap(pluginManager);
+                _carSaEngine.SetClassRankMap(_carSaClassRankByColor);
                 _carSaEngine.RefreshStatusE(notRelevantGapSec, _opponentsEngine?.Outputs, playerClassColor);
             }
 
@@ -4804,7 +4809,7 @@ namespace LaunchPlugin
 
         #region Private Helper Methods for DataUpdate
 
-        private void WriteCarSaDebugExport(CarSAOutputs outputs, double notRelevantGapSec)
+        private void WriteCarSaDebugExport(PluginManager pluginManager, CarSAOutputs outputs, double notRelevantGapSec)
         {
             if (outputs == null || Settings?.EnableCarSADebugExport != true)
             {
@@ -4813,7 +4818,7 @@ namespace LaunchPlugin
 
             try
             {
-                EnsureCarSaDebugExportFile();
+                EnsureCarSaDebugExportFile(pluginManager);
 
                 CarSASlot ahead = outputs.AheadSlots.Length > 0 ? outputs.AheadSlots[0] : null;
                 CarSASlot behind = outputs.BehindSlots.Length > 0 ? outputs.BehindSlots[0] : null;
@@ -4828,6 +4833,8 @@ namespace LaunchPlugin
                 AppendSlotDebugRow(buffer, behind, isAhead: false,
                     _carSaDebugBehindDahlRelativeGapSec, _carSaDebugBehindIRacingRelativeGapSec);
 
+                AppendPlayerRawEvidence(buffer, outputs);
+                AppendCarSaClassRankDebug(buffer);
                 buffer.AppendLine();
 
                 _carSaDebugExportPendingLines++;
@@ -4912,6 +4919,124 @@ namespace LaunchPlugin
                     LogFlagChanges("SessionFlags", sessionFlags, _carSaTrackedCarIdxs, trackedCount);
                 }
             }
+        }
+
+        private void UpdateCarSaClassRankMap(PluginManager pluginManager)
+        {
+            string token = string.IsNullOrWhiteSpace(_currentSessionToken) ? "na" : _currentSessionToken;
+            if (_carSaClassRankByColor != null && string.Equals(_carSaClassRankToken, token, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _carSaClassRankToken = token;
+            _carSaClassRankByColor = BuildCarSaClassRankMap(pluginManager, out _carSaClassRankSource);
+            if (_carSaClassRankByColor != null && _carSaClassRankByColor.Count > 0)
+            {
+                string sourceLabel = string.IsNullOrWhiteSpace(_carSaClassRankSource) ? "unknown" : _carSaClassRankSource;
+                SimHub.Logging.Current.Info($"[LalaPlugin:CarSA] Class rank map built using {sourceLabel} ({_carSaClassRankByColor.Count} classes)");
+            }
+        }
+
+        private Dictionary<string, int> BuildCarSaClassRankMap(PluginManager pluginManager, out string source)
+        {
+            source = string.Empty;
+            if (pluginManager == null)
+            {
+                return null;
+            }
+
+            var relSpeedByColor = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}]";
+                int carIdx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (carIdx == int.MinValue)
+                {
+                    break;
+                }
+
+                string classColor = GetCarClassColorHex(pluginManager, $"{basePath}.CarClassColor");
+                if (string.IsNullOrWhiteSpace(classColor))
+                {
+                    continue;
+                }
+
+                double relSpeed = SafeReadDouble(pluginManager, $"{basePath}.CarClassRelSpeed", double.NaN);
+                if (double.IsNaN(relSpeed) || double.IsInfinity(relSpeed))
+                {
+                    continue;
+                }
+
+                if (!relSpeedByColor.ContainsKey(classColor))
+                {
+                    relSpeedByColor[classColor] = relSpeed;
+                }
+            }
+
+            if (relSpeedByColor.Count > 0)
+            {
+                source = "DriverInfo.CompetingDrivers.CarClassRelSpeed";
+                return BuildCarSaClassRankMap(relSpeedByColor, descending: true);
+            }
+
+            var estLapByColor = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}]";
+                int carIdx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (carIdx == int.MinValue)
+                {
+                    break;
+                }
+
+                string classColor = GetCarClassColorHex(pluginManager, $"{basePath}.CarClassColor");
+                if (string.IsNullOrWhiteSpace(classColor))
+                {
+                    continue;
+                }
+
+                double estLap = SafeReadDouble(pluginManager, $"{basePath}.CarClassEstLapTime", double.NaN);
+                if (double.IsNaN(estLap) || double.IsInfinity(estLap) || estLap <= 0.0)
+                {
+                    continue;
+                }
+
+                if (!estLapByColor.ContainsKey(classColor))
+                {
+                    estLapByColor[classColor] = estLap;
+                }
+            }
+
+            if (estLapByColor.Count > 0)
+            {
+                source = "DriverInfo.CompetingDrivers.CarClassEstLapTime";
+                return BuildCarSaClassRankMap(estLapByColor, descending: false);
+            }
+
+            return null;
+        }
+
+        private static Dictionary<string, int> BuildCarSaClassRankMap(Dictionary<string, double> values, bool descending)
+        {
+            if (values == null || values.Count == 0)
+            {
+                return null;
+            }
+
+            var ordered = descending
+                ? values.OrderByDescending(kvp => kvp.Value)
+                : values.OrderBy(kvp => kvp.Value);
+
+            var ranks = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            int rank = 1;
+            foreach (var kvp in ordered)
+            {
+                ranks[kvp.Key] = rank;
+                rank++;
+            }
+
+            return ranks;
         }
 
         private static void UpdateCarSaRawSlots(
@@ -5102,6 +5227,7 @@ namespace LaunchPlugin
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
+                AppendSlotRawEvidence(buffer, null);
                 return;
             }
 
@@ -5120,11 +5246,54 @@ namespace LaunchPlugin
             buffer.Append(FormatDoubleOrNaN(iRacingRelativeGapSec)).Append(',');
             buffer.Append(FormatDoubleOrNaN(dahlNorm)).Append(',');
             buffer.Append(FormatDoubleOrNaN(irxpNorm)).Append(',');
+            AppendSlotRawEvidence(buffer, slot);
         }
 
-        private void EnsureCarSaDebugExportFile()
+        private static void AppendSlotRawEvidence(StringBuilder buffer, CarSASlot slot)
+        {
+            int trackSurfaceRaw = NormalizeTrackSurfaceRaw(slot?.TrackSurfaceRawDebug ?? int.MinValue);
+            int trackSurfaceMaterialRaw = slot?.TrackSurfaceMaterialRaw ?? -1;
+            int sessionFlagsRaw = slot?.SessionFlagsRaw ?? -1;
+            int paceFlagsRaw = slot?.PaceFlagsRaw ?? -1;
+            buffer.Append(trackSurfaceRaw).Append(',');
+            buffer.Append(trackSurfaceMaterialRaw).Append(',');
+            buffer.Append(sessionFlagsRaw).Append(',');
+            buffer.Append(paceFlagsRaw).Append(',');
+            buffer.Append(FormatTrackSurfaceLabel(trackSurfaceRaw)).Append(',');
+        }
+
+        private static void AppendPlayerRawEvidence(StringBuilder buffer, CarSAOutputs outputs)
+        {
+            if (outputs?.Debug == null)
+            {
+                buffer.Append("-1,");
+                buffer.Append("-1,");
+                buffer.Append("-1,");
+                buffer.Append("-1");
+                return;
+            }
+
+            int playerTrackSurfaceRaw = NormalizeTrackSurfaceRaw(outputs.Debug.PlayerTrackSurfaceRaw);
+            buffer.Append(playerTrackSurfaceRaw).Append(',');
+            buffer.Append(outputs.Debug.PlayerTrackSurfaceMaterialRaw).Append(',');
+            buffer.Append(outputs.Debug.PlayerSessionFlagsRaw).Append(',');
+            buffer.Append(outputs.Debug.PlayerPaceFlagsRaw);
+        }
+
+        private void EnsureCarSaDebugExportFile(PluginManager pluginManager)
         {
             string token = string.IsNullOrWhiteSpace(_currentSessionToken) ? "na" : _currentSessionToken.Replace(":", "_");
+            string trackNameSource = !string.IsNullOrWhiteSpace(CurrentTrackName)
+                ? CurrentTrackName
+                : CurrentTrackKey;
+            if (string.IsNullOrWhiteSpace(trackNameSource))
+            {
+                trackNameSource = GetSessionInfoTrackName(pluginManager);
+            }
+            if (string.IsNullOrWhiteSpace(trackNameSource))
+            {
+                trackNameSource = "Unknown";
+            }
             if (!string.Equals(token, _carSaDebugExportToken, StringComparison.Ordinal) || string.IsNullOrWhiteSpace(_carSaDebugExportPath))
             {
                 FlushCarSaDebugExportBuffer();
@@ -5132,9 +5301,6 @@ namespace LaunchPlugin
 
                 string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalapluginData");
                 Directory.CreateDirectory(folder);
-                string trackNameSource = !string.IsNullOrWhiteSpace(CurrentTrackName)
-                    ? CurrentTrackName
-                    : CurrentTrackKey;
                 string trackName = SanitizeCarSaDebugExportName(trackNameSource);
                 string timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
                 _carSaDebugExportPath = Path.Combine(folder, $"CarSA_Debug_{timestamp}_{trackName}.csv");
@@ -5144,12 +5310,36 @@ namespace LaunchPlugin
                     File.WriteAllText(_carSaDebugExportPath, GetCarSaDebugExportHeader() + Environment.NewLine);
                 }
 
+                FlushCarSaDebugExportBuffer();
             }
 
             if (_carSaDebugExportBuffer == null)
             {
                 _carSaDebugExportBuffer = new StringBuilder(1024);
             }
+        }
+
+        private static string GetSessionInfoTrackName(PluginManager pluginManager)
+        {
+            string trackDisplay = GetString(pluginManager, "DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackDisplayName");
+            if (!string.IsNullOrWhiteSpace(trackDisplay))
+            {
+                return trackDisplay;
+            }
+
+            string trackName = GetString(pluginManager, "DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackName");
+            if (!string.IsNullOrWhiteSpace(trackName))
+            {
+                return trackName;
+            }
+
+            string trackConfig = GetString(pluginManager, "DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackConfigName");
+            if (!string.IsNullOrWhiteSpace(trackConfig))
+            {
+                return trackConfig;
+            }
+
+            return null;
         }
 
         private static string SanitizeCarSaDebugExportName(string input)
@@ -5230,7 +5420,36 @@ namespace LaunchPlugin
                    "Ahead01.CarIdx,Ahead01.DistPct,Ahead01.GapTrackSec,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad,Ahead01.StatusE,Ahead01.StatusEReason," +
                    "DahlDesign.CarAhead01Relative,IRacingExtraProperties.iRacing_DriverAhead_00_RelativeGapToPlayer,Ahead01.CrossCheckGapSec_DahlNorm,Ahead01.CrossCheckGapSec_IRXPNorm," +
                    "Behind01.CarIdx,Behind01.DistPct,Behind01.GapTrackSec,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad,Behind01.StatusE,Behind01.StatusEReason," +
-                   "DahlDesign.CarBehind01Relative,IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer,Behind01.CrossCheckGapSec_DahlNorm,Behind01.CrossCheckGapSec_IRXPNorm";
+                   "DahlDesign.CarBehind01Relative,IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer,Behind01.CrossCheckGapSec_DahlNorm,Behind01.CrossCheckGapSec_IRXPNorm," +
+                   "Ahead01.TrackSurfaceRaw,Ahead01.TrackSurfaceMaterialRaw,Ahead01.SessionFlagsRaw,Ahead01.PaceFlagsRaw,Ahead01.TrackSurfaceLabel," +
+                   "Behind01.TrackSurfaceRaw,Behind01.TrackSurfaceMaterialRaw,Behind01.SessionFlagsRaw,Behind01.PaceFlagsRaw,Behind01.TrackSurfaceLabel," +
+                   "PlayerTrackSurfaceRaw,PlayerTrackSurfaceMaterialRaw,PlayerSessionFlagsRaw,PlayerPaceFlagsRaw," +
+                   "CarSA.ClassRankSource,CarSA.ClassRankCount";
+        }
+
+        private void AppendCarSaClassRankDebug(StringBuilder buffer)
+        {
+            buffer.Append(string.IsNullOrWhiteSpace(_carSaClassRankSource) ? "none" : _carSaClassRankSource).Append(',');
+            buffer.Append(_carSaClassRankByColor?.Count ?? 0);
+        }
+
+        private static int NormalizeTrackSurfaceRaw(int raw)
+        {
+            return raw == int.MinValue ? -1 : raw;
+        }
+
+        private static string FormatTrackSurfaceLabel(int raw)
+        {
+            if (raw == -1)
+            {
+                return "NIW";
+            }
+            if (raw == 3)
+            {
+                return "ON";
+            }
+
+            return $"S{raw}";
         }
 
         private static string FormatDoubleOrNaN(double value)
