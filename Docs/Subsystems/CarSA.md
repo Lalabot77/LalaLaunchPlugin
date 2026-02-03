@@ -53,16 +53,16 @@ CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. 
 
 | Range | Value | Status | Short | Long |
 | --- | --- | --- | --- | --- |
-| LOW | 0 | Unknown | UNK | Unknown |
+| LOW | 0 | Unknown | UNK |  |
 | MID | 100 | OutLap | OUT | Out lap |
 | MID | 110 | InPits | PIT | In pits |
-| MID | 121 | CompromisedOffTrack | OFF | Off track |
-| MID | 122 | CompromisedPenalty | PEN | Penalty/Flag |
+| MID | 121 | CompromisedOffTrack | OFF | Lap Invalid |
+| MID | 122 | CompromisedPenalty | PEN | Penalty |
 | HIGH | 200 | FasterClass | FCL | Faster class |
 | HIGH | 210 | SlowerClass | SCL | Slower class |
 | HIGH | 220 | Racing | RCE | Racing |
-| HIGH | 230 | LappingYou | +nL | Ahead +n laps |
-| HIGH | 240 | BeingLapped | -nL | Behind -n laps |
+| HIGH | 230 | LappingYou | +nL | Up +n Laps |
+| HIGH | 240 | BeingLapped | -nL | Down -n Laps |
 
 **StatusE logic (per slot, priority order):**
 1. If the slot is on pit road or in a pit-area surface ⇒ `InPits` (reason `pits`).
@@ -76,7 +76,7 @@ CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. 
 9. If other class and class ranks exist ⇒ `FasterClass` or `SlowerClass` (reason `otherclass`).
 10. If other class but rank is unavailable ⇒ fallback based on ahead/behind direction (`FasterClass` when behind, `SlowerClass` when ahead; reason `otherclass_unknownrank`).
 
-`NotRelevant` is reserved but unused in SA-Core v2 (gap-based relevance gating is disabled).
+Gap-based relevance gating is disabled in SA-Core v2.
 
 ## Raw telemetry flags
 - Player-level raw flags are published as `Car.Player.PaceFlagsRaw`, `Car.Player.SessionFlagsRaw`, `Car.Player.TrackSurfaceMaterialRaw`.
