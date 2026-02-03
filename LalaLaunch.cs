@@ -1138,17 +1138,27 @@ namespace LaunchPlugin
             }
         }
 
-        private bool IsSessionRunningForLapDetector(string sessionStateToken)
+        // Returns true only when the session is actually running (iRacing SessionState == 4).
+        // NOTE: iRacing SessionState is numeric. If parsing fails, we fail safe (return false).
+        private static bool IsSessionRunningForLapDetector(string sessionStateToken)
         {
             if (string.IsNullOrWhiteSpace(sessionStateToken))
-                return true; // assume running if we can't read state
+            {
+                // Fail safe: unknown state should NOT be treated as running.
+                return false;
+            }
 
-            if (int.TryParse(sessionStateToken, out int numericState))
-                return numericState == 4; // iRacing "racing"
+            // Numeric path (authoritative for iRacing)
+            if (int.TryParse(sessionStateToken, NumberStyles.Integer, CultureInfo.InvariantCulture, out int numericState))
+            {
+                return numericState == 4;
+            }
 
-            string normalized = sessionStateToken.Trim().ToLowerInvariant();
-            return normalized.Contains("race") || normalized.Contains("running") || normalized.Contains("green");
+            // Non-numeric fallback is intentionally disabled to avoid
+            // bugs like "practice" containing "race".
+            return false;
         }
+
 
         private bool DetectLapCrossing(GameData data, double curPctNormalized, double lastPctNormalized)
         {
