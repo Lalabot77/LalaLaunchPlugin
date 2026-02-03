@@ -2821,10 +2821,43 @@ namespace LaunchPlugin
         private string _carSaDebugExportPath;
         private string _carSaDebugExportToken;
         private int _carSaDebugExportPendingLines;
-        private double _carSaDebugAheadDahlRelativeGapSec = double.NaN;
-        private double _carSaDebugBehindDahlRelativeGapSec = double.NaN;
-        private double _carSaDebugAheadIRacingRelativeGapSec = double.NaN;
-        private double _carSaDebugBehindIRacingRelativeGapSec = double.NaN;
+        private const int CarSaDebugExportSlotCount = 5;
+        private static readonly string[] CarSaDebugAheadDahlProperties =
+        {
+            "DahlDesign.CarAhead01Relative",
+            "DahlDesign.CarAhead02Relative",
+            "DahlDesign.CarAhead03Relative",
+            "DahlDesign.CarAhead04Relative",
+            "DahlDesign.CarAhead05Relative"
+        };
+        private static readonly string[] CarSaDebugBehindDahlProperties =
+        {
+            "DahlDesign.CarBehind01Relative",
+            "DahlDesign.CarBehind02Relative",
+            "DahlDesign.CarBehind03Relative",
+            "DahlDesign.CarBehind04Relative",
+            "DahlDesign.CarBehind05Relative"
+        };
+        private static readonly string[] CarSaDebugAheadIRacingProperties =
+        {
+            "IRacingExtraProperties.iRacing_DriverAhead_00_RelativeGapToPlayer",
+            "IRacingExtraProperties.iRacing_DriverAhead_01_RelativeGapToPlayer",
+            "IRacingExtraProperties.iRacing_DriverAhead_02_RelativeGapToPlayer",
+            "IRacingExtraProperties.iRacing_DriverAhead_03_RelativeGapToPlayer",
+            "IRacingExtraProperties.iRacing_DriverAhead_04_RelativeGapToPlayer"
+        };
+        private static readonly string[] CarSaDebugBehindIRacingProperties =
+        {
+            "IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer",
+            "IRacingExtraProperties.iRacing_DriverBehind_01_RelativeGapToPlayer",
+            "IRacingExtraProperties.iRacing_DriverBehind_02_RelativeGapToPlayer",
+            "IRacingExtraProperties.iRacing_DriverBehind_03_RelativeGapToPlayer",
+            "IRacingExtraProperties.iRacing_DriverBehind_04_RelativeGapToPlayer"
+        };
+        private readonly double[] _carSaDebugAheadDahlRelativeGapSec = new double[CarSaDebugExportSlotCount];
+        private readonly double[] _carSaDebugBehindDahlRelativeGapSec = new double[CarSaDebugExportSlotCount];
+        private readonly double[] _carSaDebugAheadIRacingRelativeGapSec = new double[CarSaDebugExportSlotCount];
+        private readonly double[] _carSaDebugBehindIRacingRelativeGapSec = new double[CarSaDebugExportSlotCount];
         private Dictionary<string, int> _carSaClassRankByColor;
         private string _carSaClassRankToken;
         private string _carSaClassRankSource;
@@ -4354,10 +4387,13 @@ namespace LaunchPlugin
             _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
             if (_carSaEngine != null)
             {
-                _carSaDebugAheadDahlRelativeGapSec = SafeReadDouble(pluginManager, "DahlDesign.CarAhead01Relative", double.NaN);
-                _carSaDebugBehindDahlRelativeGapSec = SafeReadDouble(pluginManager, "DahlDesign.CarBehind01Relative", double.NaN);
-                _carSaDebugAheadIRacingRelativeGapSec = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_DriverAhead_00_RelativeGapToPlayer", double.NaN);
-                _carSaDebugBehindIRacingRelativeGapSec = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer", double.NaN);
+                for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                {
+                    _carSaDebugAheadDahlRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugAheadDahlProperties[i], double.NaN);
+                    _carSaDebugBehindDahlRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugBehindDahlProperties[i], double.NaN);
+                    _carSaDebugAheadIRacingRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugAheadIRacingProperties[i], double.NaN);
+                    _carSaDebugBehindIRacingRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugBehindIRacingProperties[i], double.NaN);
+                }
 
                 UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
                 WriteCarSaDebugExport(pluginManager, _carSaEngine.Outputs, notRelevantGapSec);
@@ -4822,18 +4858,25 @@ namespace LaunchPlugin
             {
                 EnsureCarSaDebugExportFile(pluginManager);
 
-                CarSASlot ahead = outputs.AheadSlots.Length > 0 ? outputs.AheadSlots[0] : null;
-                CarSASlot behind = outputs.BehindSlots.Length > 0 ? outputs.BehindSlots[0] : null;
                 StringBuilder buffer = _carSaDebugExportBuffer ?? (_carSaDebugExportBuffer = new StringBuilder(1024));
                 buffer.Append(outputs.Debug.SessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
                 buffer.Append(outputs.Debug.PlayerLap).Append(',');
                 buffer.Append(outputs.Debug.PlayerLapPct.ToString("F6", CultureInfo.InvariantCulture)).Append(',');
                 buffer.Append(notRelevantGapSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
 
-                AppendSlotDebugRow(buffer, ahead, isAhead: true,
-                    _carSaDebugAheadDahlRelativeGapSec, _carSaDebugAheadIRacingRelativeGapSec);
-                AppendSlotDebugRow(buffer, behind, isAhead: false,
-                    _carSaDebugBehindDahlRelativeGapSec, _carSaDebugBehindIRacingRelativeGapSec);
+                for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                {
+                    CarSASlot ahead = outputs.AheadSlots.Length > i ? outputs.AheadSlots[i] : null;
+                    AppendSlotDebugRow(buffer, ahead, isAhead: true,
+                        _carSaDebugAheadDahlRelativeGapSec[i], _carSaDebugAheadIRacingRelativeGapSec[i]);
+                }
+
+                for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                {
+                    CarSASlot behind = outputs.BehindSlots.Length > i ? outputs.BehindSlots[i] : null;
+                    AppendSlotDebugRow(buffer, behind, isAhead: false,
+                        _carSaDebugBehindDahlRelativeGapSec[i], _carSaDebugBehindIRacingRelativeGapSec[i]);
+                }
 
                 AppendPlayerRawEvidence(buffer, outputs);
                 buffer.Append(',');
@@ -5422,15 +5465,67 @@ namespace LaunchPlugin
 
         private static string GetCarSaDebugExportHeader()
         {
-            return "SessionTimeSec,PlayerLap,PlayerLapPct,NotRelevantGapSec," +
-                   "Ahead01.CarIdx,Ahead01.DistPct,Ahead01.GapTrackSec,Ahead01.ClosingRateSecPerSec,Ahead01.LapDelta,Ahead01.IsOnTrack,Ahead01.IsOnPitRoad,Ahead01.StatusE,Ahead01.StatusEReason," +
-                   "DahlDesign.CarAhead01Relative,IRacingExtraProperties.iRacing_DriverAhead_00_RelativeGapToPlayer,Ahead01.CrossCheckGapSec_DahlNorm,Ahead01.CrossCheckGapSec_IRXPNorm," +
-                   "Behind01.CarIdx,Behind01.DistPct,Behind01.GapTrackSec,Behind01.ClosingRateSecPerSec,Behind01.LapDelta,Behind01.IsOnTrack,Behind01.IsOnPitRoad,Behind01.StatusE,Behind01.StatusEReason," +
-                   "DahlDesign.CarBehind01Relative,IRacingExtraProperties.iRacing_DriverBehind_00_RelativeGapToPlayer,Behind01.CrossCheckGapSec_DahlNorm,Behind01.CrossCheckGapSec_IRXPNorm," +
-                   "Ahead01.TrackSurfaceRaw,Ahead01.TrackSurfaceMaterialRaw,Ahead01.SessionFlagsRaw,Ahead01.PaceFlagsRaw,Ahead01.TrackSurfaceLabel," +
-                   "Behind01.TrackSurfaceRaw,Behind01.TrackSurfaceMaterialRaw,Behind01.SessionFlagsRaw,Behind01.PaceFlagsRaw,Behind01.TrackSurfaceLabel," +
-                   "PlayerTrackSurfaceRaw,PlayerTrackSurfaceMaterialRaw,PlayerSessionFlagsRaw,PlayerPaceFlagsRaw," +
-                   "CarSA.ClassRankSource,CarSA.ClassRankCount";
+            StringBuilder buffer = new StringBuilder(2048);
+            AppendCarSaDebugHeaderColumn(buffer, "SessionTimeSec");
+            AppendCarSaDebugHeaderColumn(buffer, "PlayerLap");
+            AppendCarSaDebugHeaderColumn(buffer, "PlayerLapPct");
+            AppendCarSaDebugHeaderColumn(buffer, "NotRelevantGapSec");
+
+            for (int i = 1; i <= CarSaDebugExportSlotCount; i++)
+            {
+                AppendCarSaDebugSlotHeader(buffer, isAhead: true, slotIndex: i);
+            }
+
+            for (int i = 1; i <= CarSaDebugExportSlotCount; i++)
+            {
+                AppendCarSaDebugSlotHeader(buffer, isAhead: false, slotIndex: i);
+            }
+
+            AppendCarSaDebugHeaderColumn(buffer, "PlayerTrackSurfaceRaw");
+            AppendCarSaDebugHeaderColumn(buffer, "PlayerTrackSurfaceMaterialRaw");
+            AppendCarSaDebugHeaderColumn(buffer, "PlayerSessionFlagsRaw");
+            AppendCarSaDebugHeaderColumn(buffer, "PlayerPaceFlagsRaw");
+            AppendCarSaDebugHeaderColumn(buffer, "CarSA.ClassRankSource");
+            AppendCarSaDebugHeaderColumn(buffer, "CarSA.ClassRankCount");
+
+            if (buffer.Length > 0)
+            {
+                buffer.Length -= 1;
+            }
+
+            return buffer.ToString();
+        }
+
+        private static void AppendCarSaDebugHeaderColumn(StringBuilder buffer, string columnName)
+        {
+            buffer.Append(columnName).Append(',');
+        }
+
+        private static void AppendCarSaDebugSlotHeader(StringBuilder buffer, bool isAhead, int slotIndex)
+        {
+            string slotLabel = (isAhead ? "Ahead" : "Behind") + slotIndex.ToString("00", CultureInfo.InvariantCulture);
+            string dahlLabel = "DahlDesign.Car" + (isAhead ? "Ahead" : "Behind") + slotIndex.ToString("00", CultureInfo.InvariantCulture) + "Relative";
+            string irxpLabel = "IRacingExtraProperties.iRacing_Driver" + (isAhead ? "Ahead" : "Behind") +
+                               "_" + (slotIndex - 1).ToString("00", CultureInfo.InvariantCulture) + "_RelativeGapToPlayer";
+
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".CarIdx");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".DistPct");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".GapTrackSec");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".ClosingRateSecPerSec");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".LapDelta");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".IsOnTrack");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".IsOnPitRoad");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".StatusE");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".StatusEReason");
+            AppendCarSaDebugHeaderColumn(buffer, dahlLabel);
+            AppendCarSaDebugHeaderColumn(buffer, irxpLabel);
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".CrossCheckGapSec_DahlNorm");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".CrossCheckGapSec_IRXPNorm");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".TrackSurfaceRaw");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".TrackSurfaceMaterialRaw");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".SessionFlagsRaw");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".PaceFlagsRaw");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".TrackSurfaceLabel");
         }
 
         private void AppendCarSaClassRankDebug(StringBuilder buffer)
