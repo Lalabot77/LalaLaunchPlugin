@@ -1014,6 +1014,16 @@ namespace LaunchPlugin
                 carState = _carStates[slot.CarIdx];
             }
 
+            // Phase 2: penalty/outlap/compromised latches are car-centric in _carStates; slot fields are mirrors for exporters/helpers.
+            if (carState != null)
+            {
+                slot.SessionFlagsRaw = carState.SessionFlagsRaw;
+            }
+            else
+            {
+                slot.SessionFlagsRaw = -1;
+            }
+
             slot.SlotIsAhead = isAhead;
             int statusE = (int)CarSAStatusE.Unknown;
             string statusEReason = StatusEReasonUnknown;

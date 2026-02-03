@@ -4336,11 +4336,7 @@ namespace LaunchPlugin
             int[] carIdxTrackSurface = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxTrackSurface");
             bool[] carIdxOnPitRoad = SafeReadBoolArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxOnPitRoad");
             int[] carIdxSessionFlags = null;
-            int rawTelemetryMode = Settings?.CarSARawTelemetryMode ?? 1;
-            if (rawTelemetryMode >= 1)
-            {
-                _ = TryReadTelemetryIntArray(pluginManager, "CarIdxSessionFlags", out carIdxSessionFlags, out _, out _);
-            }
+            _ = TryReadTelemetryIntArray(pluginManager, "CarIdxSessionFlags", out carIdxSessionFlags, out _, out _);
             double lapTimeEstimateSec = myPaceSec;
             if (!(lapTimeEstimateSec > 0.0) || double.IsNaN(lapTimeEstimateSec) || double.IsInfinity(lapTimeEstimateSec))
             {
