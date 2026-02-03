@@ -5587,6 +5587,23 @@ namespace LaunchPlugin
             _carSaDebugExportPath = null;
             _carSaDebugExportToken = null;
             _carSaDebugExportPendingLines = 0;
+            ResetCarSaDebugGapArray(_carSaDebugAheadDahlRelativeGapSec);
+            ResetCarSaDebugGapArray(_carSaDebugBehindDahlRelativeGapSec);
+            ResetCarSaDebugGapArray(_carSaDebugAheadIRacingRelativeGapSec);
+            ResetCarSaDebugGapArray(_carSaDebugBehindIRacingRelativeGapSec);
+        }
+
+        private static void ResetCarSaDebugGapArray(double[] values)
+        {
+            if (values == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < values.Length; i++)
+            {
+                values[i] = double.NaN;
+            }
         }
 
         private void ResetCarSaIdentityState()
