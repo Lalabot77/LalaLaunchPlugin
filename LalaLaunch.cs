@@ -2825,6 +2825,10 @@ namespace LaunchPlugin
         private string _carSaDebugExportToken;
         private int _carSaDebugExportPendingLines;
         private const int CarSaDebugExportSlotCount = 5;
+        private const int CarSaDebugCheckpointCount = 100;
+        private int _carSaDebugCheckpointIndexNow = -1;
+        private int _carSaDebugCheckpointIndexCrossed = -1;
+        private int _carSaDebugCheckpointIndexLast = -1;
         private static readonly string[] CarSaDebugAheadDahlProperties =
         {
             "DahlDesign.CarAhead01Relative",
@@ -4402,6 +4406,7 @@ namespace LaunchPlugin
                     _carSaDebugBehindIRacingRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugBehindIRacingProperties[i], double.NaN);
                 }
 
+                UpdateCarSaDebugCheckpointIndices(trackPct);
                 UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
                 WriteCarSaDebugExport(pluginManager, _carSaEngine.Outputs, notRelevantGapSec, sessionState, sessionTypeName);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
@@ -4873,6 +4878,8 @@ namespace LaunchPlugin
                 buffer.Append(outputs.Debug.PlayerCarIdx).Append(',');
                 buffer.Append(outputs.Debug.PlayerLap).Append(',');
                 buffer.Append(outputs.Debug.PlayerLapPct.ToString("F6", CultureInfo.InvariantCulture)).Append(',');
+                buffer.Append(_carSaDebugCheckpointIndexNow).Append(',');
+                buffer.Append(_carSaDebugCheckpointIndexCrossed).Append(',');
                 buffer.Append(notRelevantGapSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
 
                 for (int i = 0; i < CarSaDebugExportSlotCount; i++)
@@ -4904,6 +4911,37 @@ namespace LaunchPlugin
                 {
                     _carSaDebugExportBuffer.Clear();
                 }
+            }
+        }
+
+        private void UpdateCarSaDebugCheckpointIndices(double lapPctRaw)
+        {
+            int checkpointNow = -1;
+            int checkpointCrossed = -1;
+
+            if (!double.IsNaN(lapPctRaw) && !double.IsInfinity(lapPctRaw))
+            {
+                double lapPct = lapPctRaw > 1.5 ? lapPctRaw * 0.01 : lapPctRaw;
+                if (lapPct >= 0.0 && lapPct < 1.0)
+                {
+                    checkpointNow = (int)Math.Floor(lapPct * CarSaDebugCheckpointCount);
+                    if (checkpointNow >= CarSaDebugCheckpointCount)
+                    {
+                        checkpointNow = CarSaDebugCheckpointCount - 1;
+                    }
+                }
+            }
+
+            if (checkpointNow >= 0 && _carSaDebugCheckpointIndexLast >= 0 && checkpointNow != _carSaDebugCheckpointIndexLast)
+            {
+                checkpointCrossed = checkpointNow;
+            }
+
+            _carSaDebugCheckpointIndexNow = checkpointNow;
+            _carSaDebugCheckpointIndexCrossed = checkpointCrossed;
+            if (checkpointNow >= 0)
+            {
+                _carSaDebugCheckpointIndexLast = checkpointNow;
             }
         }
 
@@ -5270,6 +5308,9 @@ namespace LaunchPlugin
             if (slot == null)
             {
                 buffer.Append("-1,");
+                buffer.Append(',');
+                buffer.Append(',');
+                buffer.Append(',');
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
                 buffer.Append("NaN,");
@@ -5282,6 +5323,12 @@ namespace LaunchPlugin
             }
 
             buffer.Append(slot.CarIdx).Append(',');
+            AppendCsvSafeValue(buffer, slot.CarNumber, string.Empty);
+            buffer.Append(',');
+            AppendCsvSafeValue(buffer, slot.Name, string.Empty);
+            buffer.Append(',');
+            AppendCsvSafeValue(buffer, slot.ClassColor, string.Empty);
+            buffer.Append(',');
             buffer.Append((isAhead ? slot.ForwardDistPct : slot.BackwardDistPct).ToString("F6", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.GapTrackSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.ClosingRateSecPerSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
@@ -5298,7 +5345,6 @@ namespace LaunchPlugin
             {
                 buffer.Append("-1,");
                 buffer.Append("-1,");
-                buffer.Append("unknown,");
                 return;
             }
 
@@ -5306,7 +5352,6 @@ namespace LaunchPlugin
             int sessionFlagsRaw = slot.SessionFlagsRaw;
             buffer.Append(trackSurfaceRaw).Append(',');
             buffer.Append(sessionFlagsRaw).Append(',');
-            buffer.Append(FormatTrackSurfaceLabel(trackSurfaceRaw)).Append(',');
         }
 
         private static void AppendPlayerRawEvidence(StringBuilder buffer, CarSAOutputs outputs)
@@ -5466,6 +5511,8 @@ namespace LaunchPlugin
             AppendCarSaDebugHeaderColumn(buffer, "PlayerCarIdx");
             AppendCarSaDebugHeaderColumn(buffer, "PlayerLap");
             AppendCarSaDebugHeaderColumn(buffer, "PlayerLapPct");
+            AppendCarSaDebugHeaderColumn(buffer, "PlayerCheckpointIndexNow");
+            AppendCarSaDebugHeaderColumn(buffer, "PlayerCheckpointIndexCrossed");
             AppendCarSaDebugHeaderColumn(buffer, "NotRelevantGapSec");
 
             for (int i = 1; i <= CarSaDebugExportSlotCount; i++)
@@ -5499,6 +5546,9 @@ namespace LaunchPlugin
             string slotLabel = (isAhead ? "Ahead" : "Behind") + slotIndex.ToString("00", CultureInfo.InvariantCulture);
 
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".CarIdx");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".CarNumber");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".Name");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".ClassColor");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".DistPct");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".GapTrackSec");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".ClosingRateSecPerSec");
@@ -5508,34 +5558,11 @@ namespace LaunchPlugin
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".StatusEReason");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".TrackSurfaceRaw");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".SessionFlagsRaw");
-            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".TrackSurfaceLabel");
         }
 
         private static int NormalizeTrackSurfaceRaw(int raw)
         {
             return raw == int.MinValue ? -1 : raw;
-        }
-
-        private static string FormatTrackSurfaceLabel(int raw)
-        {
-            if (raw == -1)
-            {
-                return "NIW";
-            }
-            if (raw == 1)
-            {
-                return "PSTALL";
-            }
-            if (raw == 2)
-            {
-                return "PIT";
-            }
-            if (raw == 3)
-            {
-                return "ON";
-            }
-
-            return $"S{raw}";
         }
 
         private static void AppendCsvSafeValue(StringBuilder buffer, string value, string fallback)
@@ -5569,6 +5596,9 @@ namespace LaunchPlugin
             _carSaDebugExportPath = null;
             _carSaDebugExportToken = null;
             _carSaDebugExportPendingLines = 0;
+            _carSaDebugCheckpointIndexNow = -1;
+            _carSaDebugCheckpointIndexCrossed = -1;
+            _carSaDebugCheckpointIndexLast = -1;
             ResetCarSaDebugGapArray(_carSaDebugAheadDahlRelativeGapSec);
             ResetCarSaDebugGapArray(_carSaDebugBehindDahlRelativeGapSec);
             ResetCarSaDebugGapArray(_carSaDebugAheadIRacingRelativeGapSec);

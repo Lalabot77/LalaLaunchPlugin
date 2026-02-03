@@ -113,8 +113,8 @@ Debug (`Car.Debug.*`):
 When `EnableCarSADebugExport` is enabled, CarSA writes a lightweight CSV snapshot on **every DataUpdate tick** (buffered, flushed every 20 lines or 4 KB):
 - Path: `SimHub/Logs/LalapluginData/CarSA_Debug_YYYY-MM-DD_HH-mm-ss_<TrackName>.csv` (UTC timestamp, sanitized track name; repeated `_` collapsed, trimmed, clamped to 60 chars)
 - Columns (grouped, validation export; expect HotLap/CoolLap extensions later):
-  - **Top-level context:** `SessionTimeSec`, `SessionState`, `SessionTypeName`, `PlayerCarIdx`, `PlayerLap`, `PlayerLapPct`, `NotRelevantGapSec`.
-  - **Per-slot (Ahead01..Ahead05, Behind01..Behind05):** `CarIdx`, `DistPct`, `GapTrackSec`, `ClosingRateSecPerSec`, `LapDelta`, `IsOnPitRoad`, `StatusE`, `StatusEReason`, `TrackSurfaceRaw`, `SessionFlagsRaw`, `TrackSurfaceLabel`.
+  - **Top-level context:** `SessionTimeSec`, `SessionState`, `SessionTypeName`, `PlayerCarIdx`, `PlayerLap`, `PlayerLapPct`, `PlayerCheckpointIndexNow`, `PlayerCheckpointIndexCrossed`, `NotRelevantGapSec`.
+  - **Per-slot (Ahead01..Ahead05, Behind01..Behind05):** `CarIdx`, `CarNumber`, `Name`, `ClassColor`, `DistPct`, `GapTrackSec`, `ClosingRateSecPerSec`, `LapDelta`, `IsOnPitRoad`, `StatusE`, `StatusEReason`, `TrackSurfaceRaw`, `SessionFlagsRaw`.
   - **Player tail:** `PlayerTrackSurfaceRaw`, `PlayerSessionFlagsRaw`.
 
 ## Performance notes
