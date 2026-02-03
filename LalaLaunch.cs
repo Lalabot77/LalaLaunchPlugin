@@ -4360,6 +4360,10 @@ namespace LaunchPlugin
             double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
             double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+            int sessionState = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionState", 0);
+            string sessionTypeName = !string.IsNullOrWhiteSpace(currentSessionTypeForConfidence)
+                ? currentSessionTypeForConfidence
+                : (data.NewData?.SessionTypeName ?? string.Empty);
             bool debugEnabled = Settings?.EnableDebugLogging == true;
             _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, inLane, trackPct, sessionTimeSec, sessionTimeRemainingSec, debugEnabled);
 
@@ -4384,7 +4388,7 @@ namespace LaunchPlugin
             {
                 notRelevantGapSec = CarSANotRelevantGapSecDefault;
             }
-            _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
+            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
             if (_carSaEngine != null)
             {
                 for (int i = 0; i < CarSaDebugExportSlotCount; i++)

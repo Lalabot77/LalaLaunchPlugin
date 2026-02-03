@@ -96,6 +96,11 @@ namespace LaunchPlugin
         private readonly CarSA_CarState[] _carStates;
         private bool _loggedEnabled;
         private Dictionary<string, int> _classRankByColor;
+        private int _lastSessionState = -1;
+        private string _lastSessionTypeName = null;
+        private double _sessionTypeStartTimeSec = double.NaN;
+        private double _lastSessionTimeSec = double.NaN;
+        private bool _allowStatusEThisTick = true;
 
         private sealed class CarSA_CarState
         {
@@ -124,6 +129,8 @@ namespace LaunchPlugin
             public bool CompromisedOffTrackActive { get; set; }
             public bool OutLapActive { get; set; }
             public bool CompromisedPenaltyActive { get; set; }
+            public int OffTrackStreak { get; set; }
+            public double OffTrackFirstSeenTimeSec { get; set; } = double.NaN;
 
             public void Reset(int carIdx)
             {
@@ -152,6 +159,8 @@ namespace LaunchPlugin
                 CompromisedOffTrackActive = false;
                 OutLapActive = false;
                 CompromisedPenaltyActive = false;
+                OffTrackStreak = 0;
+                OffTrackFirstSeenTimeSec = double.NaN;
             }
         }
 
@@ -188,6 +197,12 @@ namespace LaunchPlugin
         public void RefreshStatusE(double notRelevantGapSec, OpponentsEngine.OpponentOutputs opponentOutputs, string playerClassColor)
         {
             double sessionTimeSec = _outputs?.Debug?.SessionTimeSec ?? 0.0;
+            if (!_allowStatusEThisTick)
+            {
+                ApplyGatedStatusE(_outputs.AheadSlots);
+                ApplyGatedStatusE(_outputs.BehindSlots);
+                return;
+            }
             UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
             UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
         }
@@ -197,11 +212,18 @@ namespace LaunchPlugin
             _loggedEnabled = false;
             _outputs.ResetAll();
             ResetCarStates();
+            _lastSessionState = -1;
+            _lastSessionTypeName = null;
+            _sessionTypeStartTimeSec = double.NaN;
+            _lastSessionTimeSec = double.NaN;
+            _allowStatusEThisTick = true;
         }
 
         // === SA / track-awareness + slot assignment =============================
         public void Update(
             double sessionTimeSec,
+            int sessionState,
+            string sessionTypeName,
             int playerCarIdx,
             float[] carIdxLapDistPct,
             int[] carIdxLap,
@@ -231,6 +253,46 @@ namespace LaunchPlugin
                 lapTimeUsed = DefaultLapTimeEstimateSec;
             }
 
+            bool sessionTypeChanged = !string.Equals(sessionTypeName ?? string.Empty, _lastSessionTypeName ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            if (sessionTypeChanged)
+            {
+                _sessionTypeStartTimeSec = sessionTimeSec;
+            }
+            if (!double.IsNaN(_lastSessionTimeSec) && (_lastSessionTimeSec - sessionTimeSec) > 1.0)
+            {
+                _sessionTypeStartTimeSec = sessionTimeSec;
+            }
+            _lastSessionTimeSec = sessionTimeSec;
+            _lastSessionTypeName = sessionTypeName;
+
+            bool isRace = IsRaceSessionType(sessionTypeName);
+            bool isPracticeOrQual = IsPracticeOrQualSessionType(sessionTypeName);
+            bool allowStatusE = true;
+            bool allowLatches = true;
+            if (isRace && sessionState < 4)
+            {
+                allowStatusE = false;
+                allowLatches = false;
+            }
+            if (isRace && _lastSessionState < 4 && sessionState >= 4)
+            {
+                ResetCarLatchesOnly();
+            }
+            if (isPracticeOrQual)
+            {
+                if (double.IsNaN(_sessionTypeStartTimeSec))
+                {
+                    _sessionTypeStartTimeSec = sessionTimeSec;
+                }
+                double age = sessionTimeSec - _sessionTypeStartTimeSec;
+                if (age < 30.0)
+                {
+                    allowStatusE = false;
+                    allowLatches = false;
+                }
+            }
+            _allowStatusEThisTick = allowStatusE;
+
             double playerLapPct = double.NaN;
             bool playerLapPctValid = false;
             if (carCount > 0 && playerCarIdx >= 0 && playerCarIdx < carCount)
@@ -247,11 +309,12 @@ namespace LaunchPlugin
             }
             _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
 
-            UpdateCarStates(sessionTimeSec, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed);
+            UpdateCarStates(sessionTimeSec, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed, allowLatches);
 
             if (carCount <= 0 || playerCarIdx < 0 || playerCarIdx >= carCount)
             {
                 InvalidateOutputs(playerCarIdx, sessionTimeSec, invalidLapPctCount, onPitRoadCount, onTrackCount, timestampUpdates, debugEnabled, lapTimeEstimateSec);
+                _lastSessionState = sessionState;
                 return;
             }
 
@@ -259,6 +322,7 @@ namespace LaunchPlugin
             {
                 invalidLapPctCount++;
                 InvalidateOutputs(playerCarIdx, sessionTimeSec, invalidLapPctCount, onPitRoadCount, onTrackCount, timestampUpdates, debugEnabled, lapTimeEstimateSec);
+                _lastSessionState = sessionState;
                 return;
             }
 
@@ -384,6 +448,8 @@ namespace LaunchPlugin
             UpdateSlotDebug(_outputs.AheadSlots.Length > 0 ? _outputs.AheadSlots[0] : null, true);
             UpdateSlotDebug(_outputs.BehindSlots.Length > 0 ? _outputs.BehindSlots[0] : null, false);
 
+            _lastSessionState = sessionState;
+
             if (!_loggedEnabled)
             {
                 SimHub.Logging.Current.Info("[LalaPlugin:CarSA] CarSA enabled (source=CarIdxTruth, slots=5/5)");
@@ -456,7 +522,8 @@ namespace LaunchPlugin
             int[] carIdxSessionFlags,
             int[] carIdxPaceFlags,
             double playerLapPct,
-            double lapTimeEstimateSec)
+            double lapTimeEstimateSec,
+            bool allowLatches)
         {
             _ = carIdxPaceFlags;
             const double graceWindowSec = 0.5;
@@ -521,6 +588,8 @@ namespace LaunchPlugin
                         state.OutLapActive = false;
                         state.SessionFlagsRaw = -1;
                         state.CompromisedPenaltyActive = false;
+                        state.OffTrackStreak = 0;
+                        state.OffTrackFirstSeenTimeSec = double.NaN;
                         continue;
                     }
 
@@ -540,17 +609,33 @@ namespace LaunchPlugin
                     }
                 }
 
-                if (offTrackNow && inWorldNow)
+                if (allowLatches && offTrackNow && inWorldNow)
                 {
-                    int untilLap = state.Lap + 1;
-                    if (state.CompromisedUntilLap < untilLap)
+                    if (state.OffTrackStreak == 0)
                     {
-                        state.CompromisedUntilLap = untilLap;
+                        state.OffTrackFirstSeenTimeSec = sessionTimeSec;
                     }
+                    state.OffTrackStreak++;
+                    bool allowLatch = state.OffTrackStreak >= 3
+                        || (!double.IsNaN(state.OffTrackFirstSeenTimeSec)
+                            && (sessionTimeSec - state.OffTrackFirstSeenTimeSec) >= 0.20);
+                    if (allowLatch)
+                    {
+                        int untilLap = state.Lap + 1;
+                        if (state.CompromisedUntilLap < untilLap)
+                        {
+                            state.CompromisedUntilLap = untilLap;
+                        }
+                    }
+                }
+                else
+                {
+                    state.OffTrackStreak = 0;
+                    state.OffTrackFirstSeenTimeSec = double.NaN;
                 }
 
                 bool pitExitToTrack = prevWasPitArea && !pitAreaNow && onTrackNow;
-                if (pitExitToTrack && inWorldNow)
+                if (pitExitToTrack && inWorldNow && allowLatches)
                 {
                     int untilLap = state.Lap + 1;
                     if (state.OutLapUntilLap < untilLap)
@@ -623,6 +708,22 @@ namespace LaunchPlugin
                 }
 
             }
+        }
+
+        private static bool IsRaceSessionType(string name)
+        {
+            return string.Equals(name, "Race", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsPracticeOrQualSessionType(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return false;
+            }
+
+            return name.IndexOf("Practice", StringComparison.OrdinalIgnoreCase) >= 0
+                || name.IndexOf("Qualify", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static double ComputeSignedDeltaPct(double playerLapPct, double carLapPct)
@@ -1125,6 +1226,70 @@ namespace LaunchPlugin
             slot.StatusE = statusE;
             slot.StatusEReason = statusEReason;
             UpdateStatusEText(slot);
+        }
+
+        private static void ApplyGatedStatusE(CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                CarSASlot slot = slots[i];
+                if (slot == null)
+                {
+                    continue;
+                }
+
+                slot.StatusE = (int)CarSAStatusE.Unknown;
+                slot.StatusEReason = "gated";
+                slot.StatusETextDirty = true;
+                UpdateStatusEText(slot);
+            }
+        }
+
+        private void ResetCarLatchesOnly()
+        {
+            for (int i = 0; i < _carStates.Length; i++)
+            {
+                var state = _carStates[i];
+                state.WasInPitArea = false;
+                state.CompromisedUntilLap = int.MinValue;
+                state.OutLapUntilLap = int.MinValue;
+                state.CompromisedOffTrackActive = false;
+                state.OutLapActive = false;
+                state.OffTrackStreak = 0;
+                state.OffTrackFirstSeenTimeSec = double.NaN;
+            }
+
+            ClearSlotLatchStates(_outputs?.AheadSlots);
+            ClearSlotLatchStates(_outputs?.BehindSlots);
+        }
+
+        private static void ClearSlotLatchStates(CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            foreach (var slot in slots)
+            {
+                if (slot == null)
+                {
+                    continue;
+                }
+
+                slot.OutLapActive = false;
+                slot.CompromisedThisLap = false;
+                slot.CompromisedStatusE = (int)CarSAStatusE.Unknown;
+                slot.SessionFlagsRaw = -1;
+                slot.StatusE = (int)CarSAStatusE.Unknown;
+                slot.StatusEReason = "gated";
+                slot.StatusETextDirty = true;
+            }
         }
 
         internal static void GetCompromisedFlagBits(
