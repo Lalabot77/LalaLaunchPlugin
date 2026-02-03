@@ -4360,7 +4360,7 @@ namespace LaunchPlugin
             double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
             double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
-            int sessionState = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionState", 0);
+            int sessionState = ReadSessionStateInt(pluginManager);
             string sessionTypeName = !string.IsNullOrWhiteSpace(currentSessionTypeForConfidence)
                 ? currentSessionTypeForConfidence
                 : (data.NewData?.SessionTypeName ?? string.Empty);
@@ -6412,7 +6412,19 @@ namespace LaunchPlugin
                 if (raw is float f) return (int)f;
 
                 var s = Convert.ToString(raw, CultureInfo.InvariantCulture);
-                return int.TryParse(s, out var parsed) ? parsed : 0;
+                if (int.TryParse(s, out var parsed)) return parsed;
+
+                if (string.IsNullOrWhiteSpace(s)) return 0;
+
+                string normalized = s.Trim().ToLowerInvariant();
+                if (normalized.Contains("race") || normalized.Contains("running") || normalized.Contains("green"))
+                    return 4;
+                if (normalized.Contains("pace") || normalized.Contains("formation"))
+                    return 3;
+                if (normalized.Contains("grid"))
+                    return normalized.Contains("car") ? 2 : 1;
+
+                return 0;
             }
             catch
             {
