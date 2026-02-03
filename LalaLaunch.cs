@@ -1138,24 +1138,17 @@ namespace LaunchPlugin
             }
         }
 
-        // Returns true only when the session is actually running (iRacing SessionState == 4).
-        // NOTE: iRacing SessionState is numeric. If parsing fails, we fail safe (return false).
-        private static bool IsSessionRunningForLapDetector(string sessionStateToken)
+        private bool IsSessionRunningForLapDetector(string sessionStateToken)
         {
+            // iRacing SessionState is numeric.
+            // If we can't parse it, fail safe and assume NOT running.
             if (string.IsNullOrWhiteSpace(sessionStateToken))
-            {
-                // Fail safe: unknown state should NOT be treated as running.
                 return false;
-            }
 
-            // Numeric path (authoritative for iRacing)
             if (int.TryParse(sessionStateToken, NumberStyles.Integer, CultureInfo.InvariantCulture, out int numericState))
-            {
-                return numericState == 4;
-            }
+                return numericState == 4; // iRacing "racing"
 
-            // Non-numeric fallback is intentionally disabled to avoid
-            // bugs like "practice" containing "race".
+            // Non-numeric values are unexpected in iRacing; do not guess.
             return false;
         }
 
