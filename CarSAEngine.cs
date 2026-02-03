@@ -207,6 +207,8 @@ namespace LaunchPlugin
             int[] carIdxLap,
             int[] carIdxTrackSurface,
             bool[] carIdxOnPitRoad,
+            int[] carIdxSessionFlags,
+            int[] carIdxPaceFlags,
             double lapTimeEstimateSec,
             double notRelevantGapSec,
             bool debugEnabled)
@@ -245,7 +247,7 @@ namespace LaunchPlugin
             }
             _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
 
-            UpdateCarStates(sessionTimeSec, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed);
+            UpdateCarStates(sessionTimeSec, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed);
 
             if (carCount <= 0 || playerCarIdx < 0 || playerCarIdx >= carCount)
             {
@@ -451,9 +453,12 @@ namespace LaunchPlugin
             int[] carIdxLap,
             int[] carIdxTrackSurface,
             bool[] carIdxOnPitRoad,
+            int[] carIdxSessionFlags,
+            int[] carIdxPaceFlags,
             double playerLapPct,
             double lapTimeEstimateSec)
         {
+            _ = carIdxPaceFlags;
             const double graceWindowSec = 0.5;
             const double niwGraceSec = 3.0;
             for (int carIdx = 0; carIdx < _carStates.Length; carIdx++)
@@ -494,6 +499,11 @@ namespace LaunchPlugin
                 if (inWorldNow)
                 {
                     state.LastInWorldSessionTimeSec = sessionTimeSec;
+                    state.SessionFlagsRaw = (carIdxSessionFlags != null && carIdx < carIdxSessionFlags.Length)
+                        ? carIdxSessionFlags[carIdx]
+                        : -1;
+                    state.CompromisedPenaltyActive = state.SessionFlagsRaw >= 0
+                        && (unchecked((uint)state.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
                 }
                 else
                 {
@@ -509,6 +519,7 @@ namespace LaunchPlugin
                         state.WasInPitArea = false;
                         state.CompromisedOffTrackActive = false;
                         state.OutLapActive = false;
+                        state.SessionFlagsRaw = -1;
                         state.CompromisedPenaltyActive = false;
                         continue;
                     }
@@ -554,15 +565,6 @@ namespace LaunchPlugin
                     && state.Lap < state.CompromisedUntilLap;
                 state.OutLapActive = state.OutLapUntilLap != int.MinValue
                     && state.Lap < state.OutLapUntilLap;
-                if (state.SessionFlagsRaw >= 0)
-                {
-                    state.CompromisedPenaltyActive = (unchecked((uint)state.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
-                }
-                else
-                {
-                    state.CompromisedPenaltyActive = false;
-                }
-
                 if (hasLapPct && hasPlayerPct)
                 {
                     double forwardDist = state.LapDistPct - playerLapPct;
@@ -620,7 +622,6 @@ namespace LaunchPlugin
                     }
                 }
 
-                state.SessionFlagsRaw = -1;
             }
         }
 
@@ -1011,11 +1012,6 @@ namespace LaunchPlugin
             if (slot.CarIdx >= 0 && slot.CarIdx < _carStates.Length)
             {
                 carState = _carStates[slot.CarIdx];
-                if (carState != null && slot.SessionFlagsRaw >= 0)
-                {
-                    carState.SessionFlagsRaw = slot.SessionFlagsRaw;
-                    carState.CompromisedPenaltyActive = (unchecked((uint)slot.SessionFlagsRaw) & (uint)SessionFlagMaskCompromised) != 0;
-                }
             }
 
             slot.SlotIsAhead = isAhead;

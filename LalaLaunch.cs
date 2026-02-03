@@ -4335,6 +4335,12 @@ namespace LaunchPlugin
             int[] carIdxLap = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLap");
             int[] carIdxTrackSurface = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxTrackSurface");
             bool[] carIdxOnPitRoad = SafeReadBoolArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxOnPitRoad");
+            int[] carIdxSessionFlags = null;
+            int rawTelemetryMode = Settings?.CarSARawTelemetryMode ?? 1;
+            if (rawTelemetryMode >= 1)
+            {
+                _ = TryReadTelemetryIntArray(pluginManager, "CarIdxSessionFlags", out carIdxSessionFlags, out _, out _);
+            }
             double lapTimeEstimateSec = myPaceSec;
             if (!(lapTimeEstimateSec > 0.0) || double.IsNaN(lapTimeEstimateSec) || double.IsInfinity(lapTimeEstimateSec))
             {
@@ -4349,7 +4355,7 @@ namespace LaunchPlugin
             {
                 notRelevantGapSec = CarSANotRelevantGapSecDefault;
             }
-            _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
+            _carSaEngine?.Update(sessionTimeSec, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
             if (_carSaEngine != null)
             {
                 _carSaDebugAheadDahlRelativeGapSec = SafeReadDouble(pluginManager, "DahlDesign.CarAhead01Relative", double.NaN);
