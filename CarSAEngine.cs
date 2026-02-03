@@ -32,11 +32,11 @@ namespace LaunchPlugin
         private const string StatusShortFasterClass = "FCL";
         private const string StatusShortSlowerClass = "SCL";
         private const string StatusShortRacing = "RCE";
-        private const string StatusLongUnknown = "Unknown";
+        private const string StatusLongUnknown = "";
         private const string StatusLongOutLap = "Out lap";
         private const string StatusLongInPits = "In pits";
-        private const string StatusLongCompromisedOffTrack = "Off track";
-        private const string StatusLongCompromisedPenalty = "Penalty/Flag";
+        private const string StatusLongCompromisedOffTrack = "Lap Invalid";
+        private const string StatusLongCompromisedPenalty = "Penalty";
         private const string StatusLongFasterClass = "Faster class";
         private const string StatusLongSlowerClass = "Slower class";
         private const string StatusLongRacing = "Racing";
@@ -1202,12 +1202,6 @@ namespace LaunchPlugin
                 }
             }
 
-            if (statusE == (int)CarSAStatusE.NotRelevant)
-            {
-                statusE = (int)CarSAStatusE.Unknown;
-                statusEReason = StatusEReasonUnknown;
-            }
-
             if (carState != null)
             {
                 slot.OutLapActive = carState.OutLapActive;
@@ -1521,9 +1515,9 @@ namespace LaunchPlugin
 
                     string lapSignShort = lapDelta >= 0 ? "+" : "-";
                     slot.StatusShort = $"{lapSignShort}{lapDeltaAbs}L";
-                    string directionLabel = slot.SlotIsAhead ? "Ahead" : "Behind";
                     string lapSign = lapDelta >= 0 ? "+" : "-";
-                    slot.StatusLong = $"{directionLabel} {lapSign}{Math.Abs(lapDelta)} laps";
+                    string directionLabel = lapDelta >= 0 ? "Up" : "Down";
+                    slot.StatusLong = $"{directionLabel} {lapSign}{Math.Abs(lapDelta)} Laps";
                     break;
                 default:
                     slot.StatusShort = StatusShortUnknown;
