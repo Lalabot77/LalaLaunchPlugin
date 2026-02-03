@@ -10,3 +10,6 @@
 - **Fuel math updates**: stint fuel margin expressed as a percentage and refined stops-required calculations for cleaner strategy guidance.
 - **Profile storage & schema updates**: standardized JSON storage, normalized track keys, and base-tank litres stored per car profile.
 - **New predictor exports** for fuel burn and pace so dashboards can show consistent “next lap” guidance even before long stints are built up.
+- **CarSA SA-Core v2 upgrades**: car-centric distance gaps, status memory (out-lap/compromised/penalty), and replay-safe identity refresh for slots.
+- **CarSA StatusE redesign**: penalty vs off-track labels, pit-area classification, class-rank-aware Faster/Slower class tagging, and lapping text output.
+- **CarSA debug export improvements**: aligned CSV columns with cross-check gaps, StatusE reason fields, and class-rank metadata for multi-class auditing.

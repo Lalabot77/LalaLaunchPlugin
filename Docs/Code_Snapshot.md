@@ -2,16 +2,16 @@
 
 # Code Snapshot
 
-- Source commit/PR: a5f6580 (current HEAD; CarSA PR312 follow-ups)
-- Generated date: 2026-02-01 (updated)
+- Source commit/PR: f4cd1fe (current HEAD; PRs 310–320 CarSA status + CSV/identity updates)
+- Generated date: 2026-02-03 (updated)
 - Regeneration: manual snapshot; no regen pipeline defined
 - Branch: work
 
 If this conflicts with Project_Index.md or contract docs, treat this as stale.
 
 ## Snapshot metadata (legacy)
-- Commit: a5f6580 (current HEAD)
-- Date: 2026-02-01 (updated)
+- Commit: f4cd1fe (current HEAD)
+- Date: 2026-02-03 (updated)
 
 ## Architectural notes (profiles, storage, fuel persistence)
 - **Standardized JSON storage** now resolves all plugin JSON data into `PluginsData/Common/LalaPlugin/` via `PluginStorage`, with built-in legacy migration helpers. Car profiles, race presets, message definitions, global settings, and track markers all use this storage helper for consistent locations and one-time migrations.【F:PluginStorage.cs†L1-L76】【F:ProfilesManagerViewModel.cs†L545-L936】【F:RacePresetStore.cs†L11-L140】【F:Messaging/MessageDefinitionStore.cs†L10-L120】【F:LalaLaunch.cs†L3469-L3510】
@@ -23,13 +23,14 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - **Fuel planner max-fuel override** is clamped to the profile base tank in Profile mode; switching into Live Snapshot captures the prior override and uses the live cap (or 0 if missing), while switching back restores the profile value and re-applies any selected preset.【F:FuelCalcs.cs†L300-L405】【F:FuelCalcs.cs†L1821-L1884】
 - **Live Snapshot resets** clear live fuel/pace summaries when the car/track changes, ensuring the Live Session panel never shows profile fallback values during a new live session startup.【F:FuelCalcs.cs†L3270-L3703】
 - **Messaging signals** include `MSG.OtherClassBehindGap` (seconds behind a faster-class car) alongside `MSG.OvertakeApproachLine`, for use in message catalog evaluators.【F:MessagingSystem.cs†L13-L214】【F:LalaLaunch.cs†L3123-L3129】
-- **CarSA SA-Core v2** now computes distance-based gaps and player-centric closing rates from car-centric LapDistPct deltas, with a 0.5s grace window to avoid resets on brief telemetry blips. Slot gaps mirror this model; checkpoint-based RealGap no longer drives SA outputs.【F:CarSAEngine.cs†L70-L590】
-- **CarSA CSV debug cleanup** removes legacy gap columns and adds raw cross-check fields from DahlDesign and iRacing extras for Ahead01/Behind01 while preserving sign conventions as reported.【F:LalaLaunch.cs†L4366-L5321】
+- **CarSA SA-Core v2** uses car-centric LapDistPct deltas for distance-based gaps/closing with a 0.5s grace window, car-centric status memory for out-lap/compromised/penalty detection, and replay-safe identity refreshes for slot names/classes.【F:CarSAEngine.cs†L70-L590】【F:LalaLaunch.cs†L5485-L5692】
+- **CarSA StatusE + class rank** now distinguishes penalty vs off-track compromises, uses pit-surface classification, and prefers class-rank (CarClassRelSpeed/CarClassEstLapTime) for Faster/Slower class labels with a safe fallback when rank data is missing.【F:CarSAEngine.cs†L930-L1372】【F:LalaLaunch.cs†L4943-L5039】
+- **CarSA CSV debug export** adds StatusE reason + class-rank metadata and normalizes cross-check gap columns, with alignment fixes to keep headers and rows consistent.【F:LalaLaunch.cs†L4814-L5440】
 
 ## Included .cs Files
 - CarProfiles.cs — last modified 2026-02-08T00:00:00+00:00
-- CarSAEngine.cs — last modified 2026-02-01 (updated)
-- CarSASlot.cs — last modified 2026-02-01 (updated)
+- CarSAEngine.cs — last modified 2026-02-03 (updated)
+- CarSASlot.cs — last modified 2026-02-03 (updated)
 - CopyProfileDialog.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - DashesTabView.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - EnumEqualsConverter.cs — last modified 2025-11-04T19:13:41-06:00
@@ -37,7 +38,7 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - FuelCalculatorView.xaml.cs — last modified 2025-11-27T07:30:04-06:00
 - FuelProjectionMath.cs — last modified 2025-12-27T12:32:10+00:00
 - InvertBooleanConverter.cs — last modified 2025-09-14T19:32:49+01:00
-- LalaLaunch.cs — last modified 2026-02-01
+- LalaLaunch.cs — last modified 2026-02-03
 - LapTimeValidationRule.cs — last modified 2025-09-14T19:32:49+01:00
 - LaunchAnalysisControl.xaml.cs — last modified 2025-11-27T11:49:07-06:00
 - LaunchPluginCombinedSettingsControl.xaml.cs — last modified 2025-11-04T19:13:41-06:00
