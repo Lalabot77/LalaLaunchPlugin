@@ -2,9 +2,9 @@
 
 **CANONICAL CONTRACT**
 
-Validated against: a5f6580  
-Last reviewed: 2026-02-01  
-Last updated: 2026-02-01  
+Validated against: f4cd1fe  
+Last reviewed: 2026-02-03  
+Last updated: 2026-02-03  
 Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
@@ -91,12 +91,12 @@ Branch: work
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |
 | Car.Valid | bool | True when CarSA has a valid player index and CarIdx lap pct truth for the tick. | Per tick. | `CarSAEngine.cs` + `AttachCore`【F:CarSAEngine.cs†L74-L233】【F:LalaLaunch.cs†L3414-L3418】 |
-| Car.Source | string | Source label (Phase 1: `CarIdxTruth`). | Per tick. | `CarSAEngine.cs` + `AttachCore`【F:CarSAEngine.cs†L74-L87】【F:LalaLaunch.cs†L3414-L3418】 |
-| Car.Checkpoints / Car.SlotsAhead / Car.SlotsBehind | int | Checkpoint count (60) and slot counts (5/5). | Per tick. | `CarSAEngine.cs` + `AttachCore`【F:CarSAEngine.cs†L7-L11】【F:LalaLaunch.cs†L3414-L3418】 |
+| Car.Source | string | Source label (`CarIdxTruth`). | Per tick. | `CarSAEngine.cs` + `AttachCore`【F:CarSAEngine.cs†L74-L87】【F:LalaLaunch.cs†L3414-L3418】 |
+| Car.SlotsAhead / Car.SlotsBehind | int | Slot counts (5/5). | Per tick. | `CarSAEngine.cs` + `AttachCore`【F:CarSAEngine.cs†L7-L11】【F:LalaLaunch.cs†L3414-L3418】 |
 | Car.Player.PaceFlagsRaw / SessionFlagsRaw / TrackSurfaceMaterialRaw | int | Raw telemetry flags for the player CarIdx row (or -1 if missing). Only populated when raw-telemetry mode is enabled. | Per tick. | `LalaLaunch.cs` raw telemetry debug + `AttachCore`【F:LalaLaunch.cs†L3429-L3431】【F:LalaLaunch.cs†L4874-L4917】 |
-| Car.Ahead01..Ahead05.* | mixed | Slot outputs for nearest ahead cars: CarIdx, Name, CarNumber, ClassColor, IsOnTrack, IsOnPitRoad, IsValid, LapDelta, Gap.RealSec (legacy mirror of Gap.RaceSec), Gap.TrackSec (distance-based proximity), Gap.RaceSec (distance-based time gap), ClosingRateSecPerSec (player-centric; positive = closing), Status, StatusE, StatusShort, StatusLong, PaceFlagsRaw, SessionFlagsRaw, TrackSurfaceMaterialRaw. | Per tick; distance gaps derived from car-centric LapDistPct deltas. | `CarSAEngine.cs` slot update + `AttachCore`【F:CarSAEngine.cs†L248-L709】【F:LalaLaunch.cs†L3419-L3446】 |
-| Car.Behind01..Behind05.* | mixed | Slot outputs for nearest behind cars: CarIdx, Name, CarNumber, ClassColor, IsOnTrack, IsOnPitRoad, IsValid, LapDelta, Gap.RealSec (legacy mirror of Gap.RaceSec), Gap.TrackSec (distance-based proximity), Gap.RaceSec (distance-based time gap), ClosingRateSecPerSec (player-centric; positive = closing), Status, StatusE, StatusShort, StatusLong, PaceFlagsRaw, SessionFlagsRaw, TrackSurfaceMaterialRaw. | Per tick; distance gaps derived from car-centric LapDistPct deltas. | `CarSAEngine.cs` slot update + `AttachCore`【F:CarSAEngine.cs†L248-L709】【F:LalaLaunch.cs†L3448-L3470】 |
-| Car.Debug.* | mixed | Debug telemetry for player checkpoint indices (`PlayerCheckpointIndexNow`, `PlayerCheckpointIndexCrossed`, `PlayerCheckpointCrossed`), slot validation, half-lap filter counters, timestamp update counters (`TimestampUpdatesThisTick`, `TimestampUpdatesSinceLastPlayerCross`), slot swap counts (`SlotCarIdxChangedThisTick`), raw telemetry availability (`HasCarIdxPaceFlags`, `HasCarIdxSessionFlags`, `HasCarIdxTrackSurfaceMaterial`), and read diagnostics (`RawTelemetryReadMode`, `RawTelemetryFailReason`). | Per tick. | `CarSAEngine.cs` debug fields + `AttachCore`【F:CarSAEngine.cs†L85-L283】【F:LalaLaunch.cs†L3458-L3487】 |
+| Car.Ahead01..Ahead05.* | mixed | Slot outputs for nearest ahead cars: CarIdx, Name, CarNumber, ClassColor, IsOnTrack, IsOnPitRoad, IsValid, LapDelta, Gap.TrackSec (distance-based proximity), Gap.RealSec (legacy alias of TrackSec), ClosingRateSecPerSec (player-centric; positive = closing), Status, StatusE, StatusShort, StatusLong, StatusEReason, PaceFlagsRaw, SessionFlagsRaw, TrackSurfaceMaterialRaw. | Per tick; distance gaps derived from car-centric LapDistPct deltas. | `CarSAEngine.cs` slot update + `AttachCore`【F:CarSAEngine.cs†L248-L709】【F:LalaLaunch.cs†L3419-L3455】 |
+| Car.Behind01..Behind05.* | mixed | Slot outputs for nearest behind cars: CarIdx, Name, CarNumber, ClassColor, IsOnTrack, IsOnPitRoad, IsValid, LapDelta, Gap.TrackSec (distance-based proximity), Gap.RealSec (legacy alias of TrackSec), ClosingRateSecPerSec (player-centric; positive = closing), Status, StatusE, StatusShort, StatusLong, StatusEReason, PaceFlagsRaw, SessionFlagsRaw, TrackSurfaceMaterialRaw. | Per tick; distance gaps derived from car-centric LapDistPct deltas. | `CarSAEngine.cs` slot update + `AttachCore`【F:CarSAEngine.cs†L248-L709】【F:LalaLaunch.cs†L3461-L3479】 |
+| Car.Debug.* | mixed | Debug telemetry for player/slot identity, raw telemetry availability, and slot filtering: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `SessionTimeSec`, `SourceFastPathUsed`, `HasCarIdxPaceFlags`, `HasCarIdxSessionFlags`, `HasCarIdxTrackSurfaceMaterial`, `RawTelemetryReadMode`, `RawTelemetryFailReason`, `Ahead01.CarIdx`, `Ahead01.ForwardDistPct`, `Behind01.CarIdx`, `Behind01.BackwardDistPct`, `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`, `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`, `LapTimeEstimateSec`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`. | Per tick. | `CarSAEngine.cs` debug fields + `AttachCore`【F:CarSAEngine.cs†L85-L283】【F:LalaLaunch.cs†L3482-L3510】 |
 
 ## Pit timing and PitLite
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
