@@ -2881,6 +2881,7 @@ namespace LaunchPlugin
         private readonly double[] _carSaLastLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly double[] _carSaEstTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly int[] _carSaClassPositionByIdx = new int[CarSAEngine.MaxCars];
+        private readonly int[] _carSaIRatingByIdx = new int[CarSAEngine.MaxCars];
 
         private enum LaunchState
         {
@@ -3471,9 +3472,23 @@ namespace LaunchPlugin
             AttachCore("Car.Source", () => _carSaEngine?.Outputs.Source ?? string.Empty);
             AttachCore("Car.SlotsAhead", () => _carSaEngine?.Outputs.SlotsAhead ?? 0);
             AttachCore("Car.SlotsBehind", () => _carSaEngine?.Outputs.SlotsBehind ?? 0);
+            AttachCore("Car.iRatingSOF", () => _carSaEngine?.Outputs.IRatingSOF ?? 0.0);
             AttachCore("Car.Player.PaceFlagsRaw", () => _carSaEngine?.Outputs.Debug.PlayerPaceFlagsRaw ?? -1);
             AttachCore("Car.Player.SessionFlagsRaw", () => _carSaEngine?.Outputs.Debug.PlayerSessionFlagsRaw ?? -1);
             AttachCore("Car.Player.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.Debug.PlayerTrackSurfaceMaterialRaw ?? -1);
+            AttachCore("Car.Player.CarIdx", () => _carSaEngine?.Outputs.PlayerSlot.CarIdx ?? -1);
+            AttachCore("Car.Player.ClassName", () => _carSaEngine?.Outputs.PlayerSlot.ClassName ?? string.Empty);
+            AttachCore("Car.Player.ClassColor", () => _carSaEngine?.Outputs.PlayerSlot.ClassColor ?? string.Empty);
+            AttachCore("Car.Player.ClassColorHex", () => _carSaEngine?.Outputs.PlayerSlot.ClassColorHex ?? string.Empty);
+            AttachCore("Car.Player.IRating", () => _carSaEngine?.Outputs.PlayerSlot.IRating ?? 0);
+            AttachCore("Car.Player.Licence", () => _carSaEngine?.Outputs.PlayerSlot.Licence ?? string.Empty);
+            AttachCore("Car.Player.SafetyRating", () => _carSaEngine?.Outputs.PlayerSlot.SafetyRating ?? double.NaN);
+            AttachCore("Car.Player.LapsSincePit", () => _carSaEngine?.Outputs.PlayerSlot.LapsSincePit ?? -1);
+            AttachCore("Car.Player.Status", () => _carSaEngine?.Outputs.PlayerSlot.Status ?? 0);
+            AttachCore("Car.Player.StatusE", () => _carSaEngine?.Outputs.PlayerSlot.StatusE ?? 0);
+            AttachCore("Car.Player.StatusShort", () => _carSaEngine?.Outputs.PlayerSlot.StatusShort ?? string.Empty);
+            AttachCore("Car.Player.StatusLong", () => _carSaEngine?.Outputs.PlayerSlot.StatusLong ?? string.Empty);
+            AttachCore("Car.Player.StatusEReason", () => _carSaEngine?.Outputs.PlayerSlot.StatusEReason ?? string.Empty);
             for (int i = 0; i < CarSAEngine.SlotsAhead; i++)
             {
                 int slotIndex = i;
@@ -4447,6 +4462,7 @@ namespace LaunchPlugin
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.AheadSlots, carIdxLapDistPct, sessionTimeSec);
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.BehindSlots, carIdxLapDistPct, sessionTimeSec);
+                UpdateCarSaPlayerTelemetry(pluginManager, playerCarIdx);
                 string playerClassColor = GetCarClassColorHex(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
                 if (string.IsNullOrWhiteSpace(playerClassColor) && playerCarIdx >= 0)
                 {
@@ -4457,6 +4473,10 @@ namespace LaunchPlugin
                             playerClassColor = fallbackClassColor;
                         }
                     }
+                }
+                if (string.IsNullOrWhiteSpace(playerClassColor))
+                {
+                    playerClassColor = _carSaEngine.Outputs.PlayerSlot.ClassColor;
                 }
                 UpdateCarSaClassRankMap(pluginManager);
                 _carSaEngine.SetClassRankMap(_carSaClassRankByColor);
@@ -5686,6 +5706,58 @@ namespace LaunchPlugin
                 _carSaEstTimeSecByIdx[i] = ReadCarIdxTime(estTimes, i);
                 _carSaClassPositionByIdx[i] = (classPositions != null && i < classPositions.Length) ? classPositions[i] : 0;
             }
+
+            UpdateCarSaDriverInfoCache(pluginManager);
+            _carSaEngine?.UpdateIRatingSof(_carSaIRatingByIdx);
+        }
+
+        private void UpdateCarSaDriverInfoCache(PluginManager pluginManager)
+        {
+            for (int i = 0; i < _carSaIRatingByIdx.Length; i++)
+            {
+                _carSaIRatingByIdx[i] = 0;
+            }
+
+            bool populated = false;
+            for (int i = 1; i <= 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.Drivers{i:00}";
+                int idx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (idx == int.MinValue)
+                {
+                    continue;
+                }
+
+                populated = true;
+                if (idx < 0 || idx >= CarSAEngine.MaxCars)
+                {
+                    continue;
+                }
+
+                _carSaIRatingByIdx[idx] = GetInt(pluginManager, $"{basePath}.IRating", 0);
+            }
+
+            if (populated)
+            {
+                return;
+            }
+
+            for (int i = 0; i < 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}]";
+                int idx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (idx == int.MinValue)
+                {
+                    break;
+                }
+
+                if (idx < 0 || idx >= CarSAEngine.MaxCars)
+                {
+                    continue;
+                }
+
+                _carSaIRatingByIdx[idx] = GetInt(pluginManager, $"{basePath}.IRating", 0);
+            }
         }
 
         private void RefreshCarSaSlotIdentities(PluginManager pluginManager, double sessionTimeSec)
@@ -5788,6 +5860,56 @@ namespace LaunchPlugin
                 {
                     slot.ClassColorHex = NormalizeClassColorHex(slot.ClassColor);
                 }
+            }
+        }
+
+        private void UpdateCarSaPlayerTelemetry(PluginManager pluginManager, int playerCarIdx)
+        {
+            if (_carSaEngine?.Outputs?.PlayerSlot == null)
+            {
+                return;
+            }
+
+            CarSASlot playerSlot = _carSaEngine.Outputs.PlayerSlot;
+            if (playerCarIdx < 0 || playerCarIdx >= CarSAEngine.MaxCars)
+            {
+                playerSlot.ClassName = string.Empty;
+                playerSlot.ClassColor = string.Empty;
+                playerSlot.ClassColorHex = string.Empty;
+                playerSlot.IRating = 0;
+                playerSlot.Licence = string.Empty;
+                playerSlot.SafetyRating = double.NaN;
+                return;
+            }
+
+            if (TryGetCarIdentityFromSessionInfo(pluginManager, playerCarIdx, out _, out _, out string classColor))
+            {
+                if (!string.IsNullOrWhiteSpace(classColor))
+                {
+                    playerSlot.ClassColor = classColor;
+                }
+            }
+
+            if (TryGetCarDriverInfo(pluginManager, playerCarIdx, out string className, out string classColorHex, out int iRating, out string licString))
+            {
+                playerSlot.ClassName = className ?? string.Empty;
+                playerSlot.ClassColorHex = classColorHex ?? string.Empty;
+                playerSlot.IRating = iRating;
+                if (TryParseLicenseString(licString, out string licence, out double safetyRating))
+                {
+                    playerSlot.Licence = licence;
+                    playerSlot.SafetyRating = safetyRating;
+                }
+                else
+                {
+                    playerSlot.Licence = string.Empty;
+                    playerSlot.SafetyRating = double.NaN;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(playerSlot.ClassColorHex) && !string.IsNullOrWhiteSpace(playerSlot.ClassColor))
+            {
+                playerSlot.ClassColorHex = NormalizeClassColorHex(playerSlot.ClassColor);
             }
         }
 
