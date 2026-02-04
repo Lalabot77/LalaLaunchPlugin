@@ -404,7 +404,10 @@ namespace LaunchPlugin
             }
 
             UpdatePlayerCheckpointIndices(playerLapPctValid ? playerLapPct : double.NaN);
-            _miniSectorTickId++;
+            if (_playerCheckpointChangedThisTick)
+            {
+                _miniSectorTickId++;
+            }
 
             int playerTrackSurfaceRaw = -1;
             if (carIdxTrackSurface != null && playerCarIdx >= 0 && playerCarIdx < carIdxTrackSurface.Length)
@@ -1202,8 +1205,9 @@ namespace LaunchPlugin
                 slot.HotScore = 0.0;
                 slot.HotVia = string.Empty;
                 slot.HotCoolIntent = 0;
+                slot.HotCoolPendingIntent = 0;
                 slot.HotCoolStreak = 0;
-                slot.HotCoolLastMiniSectorTickId = -1;
+                slot.HotCoolLastMiniSectorTickId = 0;
 
                        // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;
@@ -1609,40 +1613,37 @@ namespace LaunchPlugin
             }
 
             int candidateIntent = ComputeHotCoolCandidateIntent(slot, isAhead);
+            if (candidateIntent == slot.HotCoolIntent)
+            {
+                slot.HotCoolPendingIntent = HotCoolIntentNeutral;
+                slot.HotCoolStreak = 0;
+                slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
+                return;
+            }
+
             if (candidateIntent == HotCoolIntentNeutral)
             {
-                slot.HotCoolIntent = HotCoolIntentNeutral;
+                slot.HotCoolPendingIntent = HotCoolIntentNeutral;
                 slot.HotCoolStreak = 0;
                 slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
                 return;
             }
 
-            if (slot.HotCoolIntent == candidateIntent)
+            if (slot.HotCoolPendingIntent == candidateIntent)
             {
-                slot.HotCoolStreak = 0;
-                slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
-                return;
-            }
-
-            int candidateSign = candidateIntent == HotCoolIntentHot ? 1 : -1;
-            int pendingSign = Math.Sign(slot.HotCoolStreak);
-            int pendingCount = Math.Abs(slot.HotCoolStreak);
-            if (pendingSign != candidateSign)
-            {
-                slot.HotCoolStreak = candidateSign;
+                slot.HotCoolStreak++;
             }
             else
             {
-                pendingCount++;
-                if (pendingCount >= 2)
-                {
-                    slot.HotCoolIntent = candidateIntent;
-                    slot.HotCoolStreak = 0;
-                }
-                else
-                {
-                    slot.HotCoolStreak = candidateSign * pendingCount;
-                }
+                slot.HotCoolPendingIntent = candidateIntent;
+                slot.HotCoolStreak = 1;
+            }
+
+            if (slot.HotCoolStreak >= 2)
+            {
+                slot.HotCoolIntent = candidateIntent;
+                slot.HotCoolPendingIntent = HotCoolIntentNeutral;
+                slot.HotCoolStreak = 0;
             }
 
             slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
@@ -1661,7 +1662,12 @@ namespace LaunchPlugin
                 return HotCoolIntentNeutral;
             }
 
-            if (deltaBest >= HotCoolPrimaryBandMin && deltaBest <= HotCoolPrimaryBandMax)
+            if (deltaBest <= HotCoolPrimaryBandMin)
+            {
+                return HotCoolIntentHot;
+            }
+
+            if (deltaBest <= HotCoolPrimaryBandMax)
             {
                 return HotCoolIntentHot;
             }
@@ -1694,8 +1700,9 @@ namespace LaunchPlugin
             }
 
             slot.HotCoolIntent = HotCoolIntentNeutral;
+            slot.HotCoolPendingIntent = HotCoolIntentNeutral;
             slot.HotCoolStreak = 0;
-            slot.HotCoolLastMiniSectorTickId = -1;
+            slot.HotCoolLastMiniSectorTickId = 0;
         }
 
         private static void ResetHotCoolState(CarSASlot[] slots)

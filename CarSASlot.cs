@@ -74,7 +74,8 @@ namespace LaunchPlugin
         public double ReboundTimeSec { get; set; } = 0.0;
         public int HotCoolIntent { get; set; }
         public int HotCoolStreak { get; set; }
-        public int HotCoolLastMiniSectorTickId { get; set; } = -1;
+        public int HotCoolPendingIntent { get; set; }
+        public int HotCoolLastMiniSectorTickId { get; set; }
 
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
         internal double LastGapSec { get; set; } = double.NaN;
@@ -149,8 +150,9 @@ namespace LaunchPlugin
             JustRebound = false;
             ReboundTimeSec = 0.0;
             HotCoolIntent = 0;
+            HotCoolPendingIntent = 0;
             HotCoolStreak = 0;
-            HotCoolLastMiniSectorTickId = -1;
+            HotCoolLastMiniSectorTickId = 0;
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
             HasGap = false;
