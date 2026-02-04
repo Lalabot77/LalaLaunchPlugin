@@ -20,6 +20,14 @@ namespace LaunchPlugin
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
         private const int MiniSectorCheckpointCount = 60;
+        private const double HotCoolPrimaryBandMin = -0.20;
+        private const double HotCoolPrimaryBandMax = 0.20;
+        private const double HotCoolSecondaryBandMax = 0.50;
+        private const double HotCoolClosingRateThreshold = 0.10;
+        private const double HotCoolGapMaxSec = 10.0;
+        private const int HotCoolIntentNeutral = 0;
+        private const int HotCoolIntentHot = 1;
+        private const int HotCoolIntentCool = 2;
         private const int TrackSurfaceUnknown = int.MinValue;
         private const int TrackSurfaceNotInWorld = -1;
         private const int TrackSurfaceOffTrack = 0;
@@ -34,8 +42,10 @@ namespace LaunchPlugin
         private const string StatusShortFasterClass = "FCL";
         private const string StatusShortSlowerClass = "SCL";
         private const string StatusShortRacing = "RCE";
-        private const string StatusShortHotLap = "HOT";
-        private const string StatusShortCoolLap = "COL";
+        private const string StatusShortHotlapWarning = "HLW";
+        private const string StatusShortHotlapCaution = "HLC";
+        private const string StatusShortCoolLapWarning = "CLW";
+        private const string StatusShortCoolLapCaution = "CLC";
         private const string StatusLongUnknown = "";
         private const string StatusLongOutLap = "Out lap";
         private const string StatusLongInPits = "In pits";
@@ -44,8 +54,10 @@ namespace LaunchPlugin
         private const string StatusLongFasterClass = "Faster class";
         private const string StatusLongSlowerClass = "Slower class";
         private const string StatusLongRacing = "Racing";
-        private const string StatusLongHotLap = "Hot lap";
-        private const string StatusLongCoolLap = "Cool lap";
+        private const string StatusLongHotlapWarning = "FAST CONFLICT";
+        private const string StatusLongHotlapCaution = "Push Lap";
+        private const string StatusLongCoolLapWarning = "SLOW CONFLICT";
+        private const string StatusLongCoolLapCaution = "Cool Lap";
         private const string StatusEReasonPits = "pits";
         private const string StatusEReasonCompromisedOffTrack = "cmp_off";
         private const string StatusEReasonCompromisedPenalty = "cmp_pen";
@@ -55,6 +67,10 @@ namespace LaunchPlugin
         private const string StatusEReasonRacing = "racing";
         private const string StatusEReasonOtherClass = "otherclass";
         private const string StatusEReasonOtherClassUnknownRank = "otherclass_unknownrank";
+        private const string StatusEReasonHotWarning = "hot_warning";
+        private const string StatusEReasonHotCaution = "hot_caution";
+        private const string StatusEReasonCoolWarning = "cool_warning";
+        private const string StatusEReasonCoolCaution = "cool_caution";
         private const string StatusEReasonUnknown = "unknown";
         private const int SessionFlagBlack = 0x00010000;
         private const int SessionFlagFurled = 0x00020000;
@@ -111,6 +127,7 @@ namespace LaunchPlugin
         private int _playerCheckpointIndexLast = -1;
         private int _playerCheckpointIndexCrossed = -1;
         private bool _playerCheckpointChangedThisTick;
+        private int _miniSectorTickId;
 
         private sealed class CarSA_CarState
         {
@@ -269,10 +286,12 @@ namespace LaunchPlugin
                     ApplyGatedStatusE(_outputs.BehindSlots);
                     ForceStatusE(_outputs.PlayerSlot, (int)CarSAStatusE.Unknown, "gated");
                 }
+                ResetHotCoolState(_outputs.AheadSlots);
+                ResetHotCoolState(_outputs.BehindSlots);
                 return;
             }
-            UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
-            UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
+            UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor, allowHotCool: true);
+            UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor, allowHotCool: true);
             UpdatePlayerStatusE(notRelevantGapSec, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
             ApplySessionTypeStatusEPolicy(_outputs.AheadSlots);
             ApplySessionTypeStatusEPolicy(_outputs.BehindSlots);
@@ -293,6 +312,7 @@ namespace LaunchPlugin
             _playerCheckpointIndexLast = -1;
             _playerCheckpointIndexCrossed = -1;
             _playerCheckpointChangedThisTick = false;
+            _miniSectorTickId = 0;
         }
 
         // === SA / track-awareness + slot assignment =============================
@@ -384,6 +404,7 @@ namespace LaunchPlugin
             }
 
             UpdatePlayerCheckpointIndices(playerLapPctValid ? playerLapPct : double.NaN);
+            _miniSectorTickId++;
 
             int playerTrackSurfaceRaw = -1;
             if (carIdxTrackSurface != null && playerCarIdx >= 0 && playerCarIdx < carIdxTrackSurface.Length)
@@ -893,6 +914,17 @@ namespace LaunchPlugin
                 || name.IndexOf("Qualify", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        private static bool IsHotCoolSessionType(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return false;
+            }
+
+            return string.Equals(name, "Practice", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "Open Qualify", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool IsUnknownSessionType(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
@@ -1169,6 +1201,9 @@ namespace LaunchPlugin
                 slot.EstLapTime = "-";
                 slot.HotScore = 0.0;
                 slot.HotVia = string.Empty;
+                slot.HotCoolIntent = 0;
+                slot.HotCoolStreak = 0;
+                slot.HotCoolLastMiniSectorTickId = -1;
 
                        // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;
@@ -1314,7 +1349,8 @@ namespace LaunchPlugin
             OpponentsEngine.OpponentOutputs opponentOutputs,
             string playerClassColor,
             double sessionTimeSec,
-            Dictionary<string, int> classRankByColor)
+            Dictionary<string, int> classRankByColor,
+            bool allowHotCool)
         {
             if (slots == null)
             {
@@ -1323,7 +1359,7 @@ namespace LaunchPlugin
 
             for (int i = 0; i < slots.Length; i++)
             {
-                UpdateStatusE(slots[i], notRelevantGapSec, isAhead, opponentOutputs, playerClassColor, sessionTimeSec, classRankByColor);
+                UpdateStatusE(slots[i], notRelevantGapSec, isAhead, opponentOutputs, playerClassColor, sessionTimeSec, classRankByColor, allowHotCool);
             }
         }
 
@@ -1334,7 +1370,8 @@ namespace LaunchPlugin
             OpponentsEngine.OpponentOutputs opponentOutputs,
             string playerClassColor,
             double sessionTimeSec,
-            Dictionary<string, int> classRankByColor)
+            Dictionary<string, int> classRankByColor,
+            bool allowHotCool)
         {
             if (slot == null)
             {
@@ -1452,9 +1489,301 @@ namespace LaunchPlugin
                 slot.CompromisedStatusE = (int)CarSAStatusE.Unknown;
             }
 
+            if (allowHotCool)
+            {
+                if (IsHotCoolSessionActive())
+                {
+                    ApplyHotCoolOverrides(slot, carState, isAhead, sessionTimeSec, ref statusE, ref statusEReason);
+                }
+                else
+                {
+                    ResetHotCoolState(slot);
+                }
+            }
+
             slot.StatusE = statusE;
             slot.StatusEReason = statusEReason;
             UpdateStatusEText(slot);
+        }
+
+        private bool IsHotCoolSessionActive()
+        {
+            return _lastSessionState == 4 && IsHotCoolSessionType(_lastSessionTypeName);
+        }
+
+        private void ApplyHotCoolOverrides(
+            CarSASlot slot,
+            CarSA_CarState carState,
+            bool isAhead,
+            double sessionTimeSec,
+            ref int statusE,
+            ref string statusEReason)
+        {
+            if (slot == null)
+            {
+                return;
+            }
+
+            if (!IsGapEligibleForHotCool(slot.GapTrackSec))
+            {
+                ResetHotCoolState(slot);
+                return;
+            }
+
+            UpdateHotCoolIntent(slot, isAhead);
+
+            if (IsHardStatusE(statusE))
+            {
+                return;
+            }
+
+            int intent = slot.HotCoolIntent;
+            if (intent == HotCoolIntentNeutral)
+            {
+                return;
+            }
+
+            double gapAbs = Math.Abs(slot.GapTrackSec);
+            bool conflict = IsHotCoolConflict(slot, carState, sessionTimeSec, gapAbs);
+            if (intent == HotCoolIntentHot)
+            {
+                if (!isAhead && conflict)
+                {
+                    statusE = (int)CarSAStatusE.HotlapWarning;
+                    statusEReason = StatusEReasonHotWarning;
+                }
+                else
+                {
+                    statusE = (int)CarSAStatusE.HotlapCaution;
+                    statusEReason = StatusEReasonHotCaution;
+                }
+            }
+            else if (intent == HotCoolIntentCool)
+            {
+                if (isAhead && conflict)
+                {
+                    statusE = (int)CarSAStatusE.CoolLapWarning;
+                    statusEReason = StatusEReasonCoolWarning;
+                }
+                else
+                {
+                    statusE = (int)CarSAStatusE.CoolLapCaution;
+                    statusEReason = StatusEReasonCoolCaution;
+                }
+            }
+        }
+
+        private static bool IsGapEligibleForHotCool(double gapSec)
+        {
+            if (double.IsNaN(gapSec) || double.IsInfinity(gapSec))
+            {
+                return false;
+            }
+
+            return Math.Abs(gapSec) <= HotCoolGapMaxSec;
+        }
+
+        private static bool IsHardStatusE(int statusE)
+        {
+            return statusE == (int)CarSAStatusE.OutLap
+                || statusE == (int)CarSAStatusE.InPits
+                || statusE == (int)CarSAStatusE.CompromisedOffTrack
+                || statusE == (int)CarSAStatusE.CompromisedPenalty;
+        }
+
+        private void UpdateHotCoolIntent(CarSASlot slot, bool isAhead)
+        {
+            if (slot == null)
+            {
+                return;
+            }
+
+            if (!ShouldUpdateMiniSectorForCar(slot.CarIdx))
+            {
+                return;
+            }
+
+            if (slot.HotCoolLastMiniSectorTickId == _miniSectorTickId)
+            {
+                return;
+            }
+
+            int candidateIntent = ComputeHotCoolCandidateIntent(slot, isAhead);
+            if (candidateIntent == HotCoolIntentNeutral)
+            {
+                slot.HotCoolIntent = HotCoolIntentNeutral;
+                slot.HotCoolStreak = 0;
+                slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
+                return;
+            }
+
+            if (slot.HotCoolIntent == candidateIntent)
+            {
+                slot.HotCoolStreak = 0;
+                slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
+                return;
+            }
+
+            int candidateSign = candidateIntent == HotCoolIntentHot ? 1 : -1;
+            int pendingSign = Math.Sign(slot.HotCoolStreak);
+            int pendingCount = Math.Abs(slot.HotCoolStreak);
+            if (pendingSign != candidateSign)
+            {
+                slot.HotCoolStreak = candidateSign;
+            }
+            else
+            {
+                pendingCount++;
+                if (pendingCount >= 2)
+                {
+                    slot.HotCoolIntent = candidateIntent;
+                    slot.HotCoolStreak = 0;
+                }
+                else
+                {
+                    slot.HotCoolStreak = candidateSign * pendingCount;
+                }
+            }
+
+            slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
+        }
+
+        private static int ComputeHotCoolCandidateIntent(CarSASlot slot, bool isAhead)
+        {
+            if (slot == null)
+            {
+                return HotCoolIntentNeutral;
+            }
+
+            double deltaBest = slot.DeltaBestSec;
+            if (double.IsNaN(deltaBest) || double.IsInfinity(deltaBest))
+            {
+                return HotCoolIntentNeutral;
+            }
+
+            if (deltaBest >= HotCoolPrimaryBandMin && deltaBest <= HotCoolPrimaryBandMax)
+            {
+                return HotCoolIntentHot;
+            }
+
+            if (deltaBest > HotCoolPrimaryBandMax && deltaBest <= HotCoolSecondaryBandMax)
+            {
+                if (!isAhead && slot.ClosingRateSecPerSec >= HotCoolClosingRateThreshold
+                    && !double.IsNaN(slot.ClosingRateSecPerSec)
+                    && !double.IsInfinity(slot.ClosingRateSecPerSec))
+                {
+                    return HotCoolIntentHot;
+                }
+
+                return HotCoolIntentNeutral;
+            }
+
+            if (deltaBest > HotCoolSecondaryBandMax)
+            {
+                return HotCoolIntentCool;
+            }
+
+            return HotCoolIntentNeutral;
+        }
+
+        private static void ResetHotCoolState(CarSASlot slot)
+        {
+            if (slot == null)
+            {
+                return;
+            }
+
+            slot.HotCoolIntent = HotCoolIntentNeutral;
+            slot.HotCoolStreak = 0;
+            slot.HotCoolLastMiniSectorTickId = -1;
+        }
+
+        private static void ResetHotCoolState(CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                ResetHotCoolState(slots[i]);
+            }
+        }
+
+        private static bool IsHotCoolConflict(
+            CarSASlot slot,
+            CarSA_CarState carState,
+            double sessionTimeSec,
+            double gapSec)
+        {
+            if (slot == null)
+            {
+                return false;
+            }
+
+            double closingRate = slot.ClosingRateSecPerSec;
+            if (double.IsNaN(closingRate) || double.IsInfinity(closingRate))
+            {
+                return false;
+            }
+
+            if (closingRate < HotCoolClosingRateThreshold)
+            {
+                return false;
+            }
+
+            if (gapSec <= 0.0)
+            {
+                return false;
+            }
+
+            double timeRemaining = EstimateRemainingLapSec(slot, carState, sessionTimeSec);
+            if (timeRemaining <= 0.0)
+            {
+                return false;
+            }
+
+            double timeToCatch = gapSec / closingRate;
+            return timeToCatch <= timeRemaining;
+        }
+
+        private static double EstimateRemainingLapSec(CarSASlot slot, CarSA_CarState carState, double sessionTimeSec)
+        {
+            if (slot == null)
+            {
+                return 0.0;
+            }
+
+            double lapTimeEstimateSec = slot.EstLapTimeSec;
+            if (!(lapTimeEstimateSec > 0.0) || double.IsNaN(lapTimeEstimateSec) || double.IsInfinity(lapTimeEstimateSec))
+            {
+                lapTimeEstimateSec = DefaultLapTimeEstimateSec;
+            }
+
+            if (slot.BestLapTimeSec > 0.0 && carState != null && !double.IsNaN(carState.LapStartTimeSec))
+            {
+                double elapsed = sessionTimeSec - carState.LapStartTimeSec;
+                if (elapsed < 0.0)
+                {
+                    elapsed = 0.0;
+                }
+
+                double remaining = slot.BestLapTimeSec - elapsed;
+                return remaining > 0.0 ? remaining : 0.0;
+            }
+
+            if (carState != null)
+            {
+                double lapPct = carState.LapDistPct;
+                if (!double.IsNaN(lapPct) && lapPct >= 0.0 && lapPct < 1.0)
+                {
+                    double remaining = lapTimeEstimateSec * (1.0 - lapPct);
+                    return remaining > 0.0 ? remaining : 0.0;
+                }
+            }
+
+            return lapTimeEstimateSec;
         }
 
         private void ApplySessionTypeStatusEPolicy(CarSASlot[] slots)
@@ -1499,8 +1828,10 @@ namespace LaunchPlugin
 
             if (IsRaceSessionType(sessionTypeName))
             {
-                if (slot.StatusE == (int)CarSAStatusE.HotLap
-                    || slot.StatusE == (int)CarSAStatusE.CoolLap)
+                if (slot.StatusE == (int)CarSAStatusE.HotlapWarning
+                    || slot.StatusE == (int)CarSAStatusE.HotlapCaution
+                    || slot.StatusE == (int)CarSAStatusE.CoolLapWarning
+                    || slot.StatusE == (int)CarSAStatusE.CoolLapCaution)
                 {
                     ForceStatusE(slot, (int)CarSAStatusE.Unknown, "sess_suppress");
                 }
@@ -1740,7 +2071,7 @@ namespace LaunchPlugin
                 slot.ClassColor = playerClassColor;
             }
 
-            UpdateStatusE(slot, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, classRankByColor);
+            UpdateStatusE(slot, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, classRankByColor, allowHotCool: false);
         }
 
         internal static void GetCompromisedFlagBits(
@@ -1961,13 +2292,21 @@ namespace LaunchPlugin
                     slot.StatusShort = StatusShortRacing;
                     slot.StatusLong = StatusLongRacing;
                     break;
-                case (int)CarSAStatusE.HotLap:
-                    slot.StatusShort = StatusShortHotLap;
-                    slot.StatusLong = StatusLongHotLap;
+                case (int)CarSAStatusE.HotlapWarning:
+                    slot.StatusShort = StatusShortHotlapWarning;
+                    slot.StatusLong = StatusLongHotlapWarning;
                     break;
-                case (int)CarSAStatusE.CoolLap:
-                    slot.StatusShort = StatusShortCoolLap;
-                    slot.StatusLong = StatusLongCoolLap;
+                case (int)CarSAStatusE.HotlapCaution:
+                    slot.StatusShort = StatusShortHotlapCaution;
+                    slot.StatusLong = StatusLongHotlapCaution;
+                    break;
+                case (int)CarSAStatusE.CoolLapWarning:
+                    slot.StatusShort = StatusShortCoolLapWarning;
+                    slot.StatusLong = StatusLongCoolLapWarning;
+                    break;
+                case (int)CarSAStatusE.CoolLapCaution:
+                    slot.StatusShort = StatusShortCoolLapCaution;
+                    slot.StatusLong = StatusLongCoolLapCaution;
                     break;
                 case (int)CarSAStatusE.LappingYou:
                 case (int)CarSAStatusE.BeingLapped:

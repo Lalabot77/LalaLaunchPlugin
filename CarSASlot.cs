@@ -16,8 +16,10 @@ namespace LaunchPlugin
         InPits = 110,
         CompromisedOffTrack = 121,
         CompromisedPenalty = 122,
-        HotLap = 130,
-        CoolLap = 140,
+        HotlapWarning = 130,
+        HotlapCaution = 131,
+        CoolLapWarning = 140,
+        CoolLapCaution = 141,
         FasterClass = 200,
         SlowerClass = 210,
         Racing = 220,
@@ -70,6 +72,9 @@ namespace LaunchPlugin
         public double BackwardDistPct { get; set; } = double.NaN;
         public bool JustRebound { get; set; }
         public double ReboundTimeSec { get; set; } = 0.0;
+        public int HotCoolIntent { get; set; }
+        public int HotCoolStreak { get; set; }
+        public int HotCoolLastMiniSectorTickId { get; set; } = -1;
 
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
         internal double LastGapSec { get; set; } = double.NaN;
@@ -143,6 +148,9 @@ namespace LaunchPlugin
             BackwardDistPct = double.NaN;
             JustRebound = false;
             ReboundTimeSec = 0.0;
+            HotCoolIntent = 0;
+            HotCoolStreak = 0;
+            HotCoolLastMiniSectorTickId = -1;
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
             HasGap = false;
