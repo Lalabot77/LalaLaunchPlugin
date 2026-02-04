@@ -979,7 +979,7 @@ namespace LaunchPlugin
                 slot.ReboundTimeSec = sessionTimeSec;
                 slot.TrackSurfaceRaw = TrackSurfaceUnknown;
                 slot.CurrentLap = 0;
-                slot.LastLap = int.MinValue;
+                slot.LastLapNumber = int.MinValue;
                 slot.WasOnPitRoad = false;
                 slot.WasInPitArea = false;
                 slot.OutLapActive = false;

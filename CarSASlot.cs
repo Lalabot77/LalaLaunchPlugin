@@ -80,7 +80,7 @@ namespace LaunchPlugin
         internal bool LastStatusEIsAhead { get; set; }
         internal int TrackSurfaceRaw { get; set; } = int.MinValue;
         internal int CurrentLap { get; set; }
-        internal int LastLap { get; set; } = int.MinValue;
+        internal int LastLapNumber { get; set; } = int.MinValue;
         // Legacy latch fields retained for exporters; authoritative state lives in CarSAEngine._carStates.
         internal bool WasOnPitRoad { get; set; }
         internal bool WasInPitArea { get; set; }
@@ -148,7 +148,7 @@ namespace LaunchPlugin
             LastStatusEIsAhead = false;
             TrackSurfaceRaw = int.MinValue;
             CurrentLap = 0;
-            LastLap = int.MinValue;
+            LastLapNumber = int.MinValue;
             WasOnPitRoad = false;
             WasInPitArea = false;
             OutLapActive = false;
