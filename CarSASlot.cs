@@ -100,7 +100,7 @@ namespace LaunchPlugin
         internal bool OutLapLatched => OutLapActive;
         internal bool CompromisedThisLapLatched => CompromisedThisLap;
         internal int TrackSurfaceRawDebug => TrackSurfaceRaw;
-        internal double ClosingRateSmoothed { get; set; } = double.NaN;
+        internal double ClosingRateSmoothed { get; set; }
         internal bool ClosingRateHasSample { get; set; }
 
         public void Reset()
@@ -167,7 +167,7 @@ namespace LaunchPlugin
             SlotIsAhead = false;
             LastIdentityAttemptSessionTimeSec = -1.0;
             IdentityResolved = false;
-            ClosingRateSmoothed = double.NaN;
+            ClosingRateSmoothed = 0.0;
             ClosingRateHasSample = false;
         }
     }
