@@ -18,6 +18,7 @@ namespace LaunchPlugin
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
+        private const int MiniSectorCheckpointCount = 60;
         private const int TrackSurfaceUnknown = int.MinValue;
         private const int TrackSurfaceNotInWorld = -1;
         private const int TrackSurfaceOffTrack = 0;
@@ -105,6 +106,10 @@ namespace LaunchPlugin
         private double _sessionTypeStartTimeSec = double.NaN;
         private double _lastSessionTimeSec = double.NaN;
         private bool _allowStatusEThisTick = true;
+        private int _playerCheckpointIndexNow = -1;
+        private int _playerCheckpointIndexLast = -1;
+        private int _playerCheckpointIndexCrossed = -1;
+        private bool _playerCheckpointChangedThisTick;
 
         private sealed class CarSA_CarState
         {
@@ -136,6 +141,15 @@ namespace LaunchPlugin
             public int OffTrackStreak { get; set; }
             public double OffTrackFirstSeenTimeSec { get; set; } = double.NaN;
             public int LapsSincePit { get; set; } = -1;
+            public int StartLapAtGreen { get; set; } = int.MinValue;
+            public bool HasStartLap { get; set; }
+            public bool HasSeenPitExit { get; set; }
+            public int LapsSinceStart { get; set; }
+            public int CheckpointIndexNow { get; set; } = -1;
+            public int CheckpointIndexLast { get; set; } = -1;
+            public int CheckpointIndexCrossed { get; set; } = -1;
+            public double LapStartTimeSec { get; set; } = double.NaN;
+            public int LapStartLap { get; set; } = int.MinValue;
 
             public void Reset(int carIdx)
             {
@@ -167,6 +181,15 @@ namespace LaunchPlugin
                 OffTrackStreak = 0;
                 OffTrackFirstSeenTimeSec = double.NaN;
                 LapsSincePit = -1;
+                StartLapAtGreen = int.MinValue;
+                HasStartLap = false;
+                HasSeenPitExit = false;
+                LapsSinceStart = 0;
+                CheckpointIndexNow = -1;
+                CheckpointIndexLast = -1;
+                CheckpointIndexCrossed = -1;
+                LapStartTimeSec = double.NaN;
+                LapStartLap = int.MinValue;
             }
         }
 
@@ -236,6 +259,10 @@ namespace LaunchPlugin
             _sessionTypeStartTimeSec = double.NaN;
             _lastSessionTimeSec = double.NaN;
             _allowStatusEThisTick = true;
+            _playerCheckpointIndexNow = -1;
+            _playerCheckpointIndexLast = -1;
+            _playerCheckpointIndexCrossed = -1;
+            _playerCheckpointChangedThisTick = false;
         }
 
         // === SA / track-awareness + slot assignment =============================
@@ -326,6 +353,8 @@ namespace LaunchPlugin
                 playerLapPctValid = !double.IsNaN(playerLapPct) && playerLapPct >= 0.0 && playerLapPct < 1.0;
             }
 
+            UpdatePlayerCheckpointIndices(playerLapPctValid ? playerLapPct : double.NaN);
+
             int playerTrackSurfaceRaw = -1;
             if (carIdxTrackSurface != null && playerCarIdx >= 0 && playerCarIdx < carIdxTrackSurface.Length)
             {
@@ -334,7 +363,7 @@ namespace LaunchPlugin
             }
             _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
 
-            UpdateCarStates(sessionTimeSec, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed, allowLatches);
+            UpdateCarStates(sessionTimeSec, sessionState, isRace, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed, allowLatches);
 
             if (carCount <= 0 || playerCarIdx < 0 || playerCarIdx >= carCount)
             {
@@ -456,8 +485,8 @@ namespace LaunchPlugin
 
             ApplySlots(true, sessionTimeSec, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _aheadCandidateIdx, _aheadCandidateDist, _outputs.AheadSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
             ApplySlots(false, sessionTimeSec, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _behindCandidateIdx, _behindCandidateDist, _outputs.BehindSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
-            UpdateSlotGapsFromCarStates(_outputs.AheadSlots, lapTimeUsed, isAhead: true);
-            UpdateSlotGapsFromCarStates(_outputs.BehindSlots, lapTimeUsed, isAhead: false);
+            UpdateSlotGapsFromCarStates(_outputs.AheadSlots, lapTimeUsed, isRace, isAhead: true);
+            UpdateSlotGapsFromCarStates(_outputs.BehindSlots, lapTimeUsed, isRace, isAhead: false);
 
             if (debugEnabled)
             {
@@ -540,6 +569,8 @@ namespace LaunchPlugin
 
         private void UpdateCarStates(
             double sessionTimeSec,
+            int sessionState,
+            bool isRace,
             float[] carIdxLapDistPct,
             int[] carIdxLap,
             int[] carIdxTrackSurface,
@@ -587,6 +618,13 @@ namespace LaunchPlugin
                     || IsPitStallOrTowSurface(state.TrackSurfaceRaw);
                 bool onTrackNow = IsOnTrackSurface(state.TrackSurfaceRaw);
                 bool offTrackNow = state.TrackSurfaceRaw == TrackSurfaceOffTrack;
+
+                if (isRace && sessionState == 4 && inWorldNow && !state.HasStartLap)
+                {
+                    state.StartLapAtGreen = state.Lap;
+                    state.HasStartLap = true;
+                    state.LapsSinceStart = 0;
+                }
 
                 if (inWorldNow)
                 {
@@ -639,6 +677,16 @@ namespace LaunchPlugin
                     }
                 }
 
+                if (state.HasStartLap && state.StartLapAtGreen != int.MinValue)
+                {
+                    int lapsSinceStart = state.Lap - state.StartLapAtGreen;
+                    state.LapsSinceStart = lapsSinceStart > 0 ? lapsSinceStart : 0;
+                }
+                else
+                {
+                    state.LapsSinceStart = 0;
+                }
+
                 if (allowLatches && offTrackNow && inWorldNow)
                 {
                     if (state.OffTrackStreak == 0)
@@ -673,6 +721,7 @@ namespace LaunchPlugin
                         state.OutLapUntilLap = untilLap;
                     }
                     state.LapsSincePit = 0;
+                    state.HasSeenPitExit = true;
                 }
 
                 state.WasInPitArea = pitAreaNow;
@@ -681,6 +730,52 @@ namespace LaunchPlugin
                     && state.Lap < state.CompromisedUntilLap;
                 state.OutLapActive = state.OutLapUntilLap != int.MinValue
                     && state.Lap < state.OutLapUntilLap;
+                if (hasLapPct)
+                {
+                    int checkpointNow = ComputeCheckpointIndex(state.LapDistPct);
+                    if (checkpointNow >= 0)
+                    {
+                        int checkpointCrossed = -1;
+                        if (state.CheckpointIndexLast >= 0 && checkpointNow != state.CheckpointIndexLast)
+                        {
+                            checkpointCrossed = checkpointNow;
+                        }
+                        state.CheckpointIndexNow = checkpointNow;
+                        state.CheckpointIndexCrossed = checkpointCrossed;
+                        state.CheckpointIndexLast = checkpointNow;
+
+                        if (checkpointCrossed == 0)
+                        {
+                            state.LapStartTimeSec = sessionTimeSec;
+                            state.LapStartLap = state.Lap;
+                        }
+                    }
+                    else
+                    {
+                        state.CheckpointIndexNow = -1;
+                        state.CheckpointIndexCrossed = -1;
+                    }
+                }
+                else
+                {
+                    state.CheckpointIndexNow = -1;
+                    state.CheckpointIndexCrossed = -1;
+                }
+
+                if (lapAdvanced)
+                {
+                    bool checkpoint0ObservedThisTick = state.CheckpointIndexCrossed == 0;
+                    bool lapStartAlreadyUpdatedForThisLap = state.LapStartLap == state.Lap;
+                    if (!checkpoint0ObservedThisTick && !lapStartAlreadyUpdatedForThisLap)
+                    {
+                        state.LapStartTimeSec = sessionTimeSec;
+                        state.LapStartLap = state.Lap;
+                        state.CheckpointIndexLast = -1;
+                        state.CheckpointIndexNow = -1;
+                        state.CheckpointIndexCrossed = -1;
+                    }
+                }
+
                 if (hasLapPct && hasPlayerPct)
                 {
                     double forwardDist = state.LapDistPct - playerLapPct;
@@ -788,7 +883,7 @@ namespace LaunchPlugin
             return delta;
         }
 
-        private void UpdateSlotGapsFromCarStates(CarSASlot[] slots, double lapTimeEstimateSec, bool isAhead)
+        private void UpdateSlotGapsFromCarStates(CarSASlot[] slots, double lapTimeEstimateSec, bool isRace, bool isAhead)
         {
             if (slots == null)
             {
@@ -804,6 +899,8 @@ namespace LaunchPlugin
                         slot.GapTrackSec = double.NaN;
                         slot.ClosingRateSecPerSec = double.NaN;
                         slot.LapsSincePit = -1;
+                        slot.ClosingRateSmoothed = double.NaN;
+                        slot.ClosingRateHasSample = false;
                     }
                     continue;
                 }
@@ -819,10 +916,39 @@ namespace LaunchPlugin
                 {
                     double gapSec = distPct * lapTimeEstimateSec;
                     slot.GapTrackSec = gapSec;
-                    slot.ClosingRateSecPerSec = state.ClosingRateSecPerSec;
+                    bool shouldUpdate = _playerCheckpointChangedThisTick || state.CheckpointIndexCrossed >= 0;
+                    if (shouldUpdate)
+                    {
+                        double rawClosing = state.ClosingRateSecPerSec;
+                        if (double.IsNaN(rawClosing) || double.IsInfinity(rawClosing))
+                        {
+                            slot.ClosingRateSmoothed = double.NaN;
+                            slot.ClosingRateHasSample = false;
+                            slot.ClosingRateSecPerSec = double.NaN;
+                        }
+                        else if (!slot.ClosingRateHasSample || double.IsNaN(slot.ClosingRateSmoothed))
+                        {
+                            slot.ClosingRateSmoothed = rawClosing;
+                            slot.ClosingRateHasSample = true;
+                            slot.ClosingRateSecPerSec = rawClosing;
+                        }
+                        else
+                        {
+                            const double alpha = 0.25;
+                            slot.ClosingRateSmoothed = (alpha * rawClosing) + ((1.0 - alpha) * slot.ClosingRateSmoothed);
+                            slot.ClosingRateSecPerSec = slot.ClosingRateSmoothed;
+                        }
+                    }
                 }
 
-                slot.LapsSincePit = state.LapsSincePit;
+                if (isRace && !state.HasSeenPitExit)
+                {
+                    slot.LapsSincePit = state.LapsSinceStart;
+                }
+                else
+                {
+                    slot.LapsSincePit = state.LapsSincePit;
+                }
             }
         }
 
@@ -974,6 +1100,8 @@ namespace LaunchPlugin
                 slot.HasGapAbs = false;
                 slot.LastGapAbs = double.NaN;
                 slot.ClosingRateSecPerSec = double.NaN;
+                slot.ClosingRateSmoothed = double.NaN;
+                slot.ClosingRateHasSample = false;
                 slot.LapsSincePit = -1;
                 slot.JustRebound = true;
                 slot.ReboundTimeSec = sessionTimeSec;
@@ -999,7 +1127,9 @@ namespace LaunchPlugin
                 slot.BestLap = string.Empty;
                 slot.LastLap = string.Empty;
                 slot.DeltaBestSec = double.NaN;
-                slot.DeltaBest = string.Empty;
+                slot.DeltaBest = "-";
+                slot.EstLapTimeSec = double.NaN;
+                slot.EstLapTime = "-";
                 slot.HotScore = 0.0;
                 slot.HotVia = string.Empty;
 
@@ -1409,10 +1539,74 @@ namespace LaunchPlugin
                 state.OutLapActive = false;
                 state.OffTrackStreak = 0;
                 state.OffTrackFirstSeenTimeSec = double.NaN;
+                state.StartLapAtGreen = int.MinValue;
+                state.HasStartLap = false;
+                state.HasSeenPitExit = false;
+                state.LapsSinceStart = 0;
+                state.CheckpointIndexNow = -1;
+                state.CheckpointIndexLast = -1;
+                state.CheckpointIndexCrossed = -1;
+                state.LapStartTimeSec = double.NaN;
+                state.LapStartLap = int.MinValue;
             }
 
             ClearSlotLatchStates(_outputs?.AheadSlots);
             ClearSlotLatchStates(_outputs?.BehindSlots);
+        }
+
+        private static int ComputeCheckpointIndex(double lapPct)
+        {
+            if (double.IsNaN(lapPct) || lapPct < 0.0 || lapPct >= 1.0)
+            {
+                return -1;
+            }
+
+            int checkpointNow = (int)Math.Floor(lapPct * MiniSectorCheckpointCount);
+            if (checkpointNow >= MiniSectorCheckpointCount)
+            {
+                checkpointNow = MiniSectorCheckpointCount - 1;
+            }
+
+            return checkpointNow;
+        }
+
+        private void UpdatePlayerCheckpointIndices(double lapPct)
+        {
+            int checkpointNow = ComputeCheckpointIndex(lapPct);
+            int checkpointCrossed = -1;
+            if (checkpointNow >= 0 && _playerCheckpointIndexLast >= 0 && checkpointNow != _playerCheckpointIndexLast)
+            {
+                checkpointCrossed = checkpointNow;
+            }
+            _playerCheckpointIndexNow = checkpointNow;
+            _playerCheckpointIndexCrossed = checkpointCrossed;
+            _playerCheckpointChangedThisTick = checkpointCrossed >= 0;
+            if (checkpointNow >= 0)
+            {
+                _playerCheckpointIndexLast = checkpointNow;
+            }
+        }
+
+        public bool ShouldUpdateMiniSectorForCar(int carIdx)
+        {
+            if (carIdx < 0 || carIdx >= _carStates.Length)
+            {
+                return _playerCheckpointChangedThisTick;
+            }
+
+            return _playerCheckpointChangedThisTick || _carStates[carIdx].CheckpointIndexCrossed >= 0;
+        }
+
+        public bool TryGetLapStartTimeSec(int carIdx, out double lapStartTimeSec)
+        {
+            lapStartTimeSec = double.NaN;
+            if (carIdx < 0 || carIdx >= _carStates.Length)
+            {
+                return false;
+            }
+
+            lapStartTimeSec = _carStates[carIdx].LapStartTimeSec;
+            return !double.IsNaN(lapStartTimeSec);
         }
 
         private static void ClearSlotLatchStates(CarSASlot[] slots)

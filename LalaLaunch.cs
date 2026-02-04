@@ -3508,6 +3508,8 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.LastLap", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLap ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.DeltaBestSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].DeltaBestSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.DeltaBest", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].DeltaBest ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.EstLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].EstLapTimeSec ?? double.NaN);
+                AttachCore($"Car.Ahead{label}.EstLapTime", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].EstLapTime ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.HotScore", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].HotScore ?? 0.0);
                 AttachCore($"Car.Ahead{label}.HotVia", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].HotVia ?? string.Empty);
             }
@@ -3545,6 +3547,8 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.LastLap", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLap ?? string.Empty);
                 AttachCore($"Car.Behind{label}.DeltaBestSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].DeltaBestSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.DeltaBest", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].DeltaBest ?? string.Empty);
+                AttachCore($"Car.Behind{label}.EstLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].EstLapTimeSec ?? double.NaN);
+                AttachCore($"Car.Behind{label}.EstLapTime", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].EstLapTime ?? string.Empty);
                 AttachCore($"Car.Behind{label}.HotScore", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].HotScore ?? 0.0);
                 AttachCore($"Car.Behind{label}.HotVia", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].HotVia ?? string.Empty);
             }
@@ -4441,8 +4445,8 @@ namespace LaunchPlugin
                 UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
                 WriteCarSaDebugExport(pluginManager, _carSaEngine.Outputs, notRelevantGapSec, sessionState, sessionTypeName);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
-                UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.AheadSlots);
-                UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.BehindSlots);
+                UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.AheadSlots, carIdxLapDistPct, sessionTimeSec);
+                UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.BehindSlots, carIdxLapDistPct, sessionTimeSec);
                 string playerClassColor = GetCarClassColorHex(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
                 if (string.IsNullOrWhiteSpace(playerClassColor) && playerCarIdx >= 0)
                 {
@@ -5710,7 +5714,9 @@ namespace LaunchPlugin
             ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.BehindSlots, _carSaLastBehindIdx, forceRefresh, sessionTimeSec);
         }
 
-        private void UpdateCarSaSlotTelemetry(PluginManager pluginManager, CarSASlot[] slots)
+        private const double LiveDeltaClampSec = 30.0;
+
+        private void UpdateCarSaSlotTelemetry(PluginManager pluginManager, CarSASlot[] slots, float[] carIdxLapDistPct, double sessionTimeSec)
         {
             if (slots == null)
             {
@@ -5740,6 +5746,8 @@ namespace LaunchPlugin
                     slot.LastLap = "-";
                     slot.DeltaBestSec = double.NaN;
                     slot.DeltaBest = "-";
+                    slot.EstLapTimeSec = double.NaN;
+                    slot.EstLapTime = "-";
                     slot.HotScore = 0.0;
                     slot.HotVia = string.Empty;
                     continue;
@@ -5748,10 +5756,15 @@ namespace LaunchPlugin
                 slot.PositionInClass = _carSaClassPositionByIdx[carIdx] > 0 ? _carSaClassPositionByIdx[carIdx] : 0;
                 slot.BestLapTimeSec = _carSaBestLapTimeSecByIdx[carIdx];
                 slot.LastLapTimeSec = _carSaLastLapTimeSecByIdx[carIdx];
+                slot.EstLapTimeSec = _carSaEstTimeSecByIdx[carIdx];
                 slot.BestLap = FormatLapTime(slot.BestLapTimeSec);
                 slot.LastLap = FormatLapTime(slot.LastLapTimeSec);
-                slot.DeltaBestSec = ComputeDeltaBestSec(carIdx);
-                slot.DeltaBest = FormatDeltaTime(slot.DeltaBestSec);
+                slot.EstLapTime = FormatEstLapTime(slot.EstLapTimeSec);
+                if (_carSaEngine != null && _carSaEngine.ShouldUpdateMiniSectorForCar(carIdx))
+                {
+                    slot.DeltaBestSec = ComputeLiveDeltaBestSec(carIdx, carIdxLapDistPct, sessionTimeSec);
+                    slot.DeltaBest = FormatLiveDelta(slot.DeltaBestSec);
+                }
                 slot.HotScore = 0.0;
                 slot.HotVia = string.Empty;
 
@@ -5778,7 +5791,7 @@ namespace LaunchPlugin
             }
         }
 
-        private double ComputeDeltaBestSec(int carIdx)
+        private double ComputeLiveDeltaBestSec(int carIdx, float[] carIdxLapDistPct, double sessionTimeSec)
         {
             if (carIdx < 0 || carIdx >= CarSAEngine.MaxCars)
             {
@@ -5791,19 +5804,39 @@ namespace LaunchPlugin
                 return double.NaN;
             }
 
-            double estTime = _carSaEstTimeSecByIdx[carIdx];
-            if (estTime > 0.0 && !double.IsNaN(estTime) && !double.IsInfinity(estTime))
+            double lapPct = double.NaN;
+            if (carIdxLapDistPct != null && carIdx < carIdxLapDistPct.Length)
             {
-                return estTime - bestLap;
+                lapPct = carIdxLapDistPct[carIdx];
             }
 
-            double lastLap = _carSaLastLapTimeSecByIdx[carIdx];
-            if (lastLap > 0.0 && !double.IsNaN(lastLap) && !double.IsInfinity(lastLap))
+            if (double.IsNaN(lapPct) || lapPct < 0.0 || lapPct > 1.0)
             {
-                return lastLap - bestLap;
+                return double.NaN;
             }
 
-            return double.NaN;
+            if (_carSaEngine == null || !_carSaEngine.TryGetLapStartTimeSec(carIdx, out double lapStartTimeSec))
+            {
+                return double.NaN;
+            }
+
+            if (double.IsNaN(sessionTimeSec) || sessionTimeSec < lapStartTimeSec)
+            {
+                return double.NaN;
+            }
+
+            double elapsed = sessionTimeSec - lapStartTimeSec;
+            double expected = bestLap * lapPct;
+            double delta = elapsed - expected;
+            if (delta < -LiveDeltaClampSec)
+            {
+                delta = -LiveDeltaClampSec;
+            }
+            else if (delta > LiveDeltaClampSec)
+            {
+                delta = LiveDeltaClampSec;
+            }
+            return delta;
         }
 
         private static double ReadCarIdxTime(float[] values, int index)
@@ -5836,15 +5869,24 @@ namespace LaunchPlugin
             return $"{minutes}:{secondsPart:00}.{hundredths:00}";
         }
 
-        private static string FormatDeltaTime(double seconds)
+        private static string FormatEstLapTime(double seconds)
+        {
+            if (!(seconds > 0.0) || double.IsNaN(seconds) || double.IsInfinity(seconds))
+            {
+                return "-";
+            }
+
+            return TimeSpan.FromSeconds(seconds).ToString(@"m\:ss\.ff", CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatLiveDelta(double seconds)
         {
             if (double.IsNaN(seconds) || double.IsInfinity(seconds))
             {
                 return "-";
             }
 
-            string sign = seconds >= 0.0 ? "+" : "-";
-            return $"{sign}{Math.Abs(seconds):0.00}";
+            return seconds.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture);
         }
 
         private static bool TryParseLicenseString(string licString, out string licence, out double safetyRating)
