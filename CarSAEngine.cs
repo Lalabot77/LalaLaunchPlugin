@@ -212,6 +212,30 @@ namespace LaunchPlugin
 
         public CarSAOutputs Outputs => _outputs;
 
+        public void UpdateIRatingSof(int[] iRatingsByIdx)
+        {
+            if (iRatingsByIdx == null || iRatingsByIdx.Length == 0)
+            {
+                _outputs.IRatingSOF = 0.0;
+                return;
+            }
+
+            long sum = 0;
+            int count = 0;
+            int limit = Math.Min(iRatingsByIdx.Length, MaxCars);
+            for (int i = 0; i < limit; i++)
+            {
+                int rating = iRatingsByIdx[i];
+                if (rating > 0)
+                {
+                    sum += rating;
+                    count++;
+                }
+            }
+
+            _outputs.IRatingSOF = count > 0 ? sum / (double)count : 0.0;
+        }
+
         public void SetClassRankMap(Dictionary<string, int> classRankByColor)
         {
             if (classRankByColor == null || classRankByColor.Count == 0)
@@ -227,6 +251,7 @@ namespace LaunchPlugin
         public void RefreshStatusE(double notRelevantGapSec, OpponentsEngine.OpponentOutputs opponentOutputs, string playerClassColor)
         {
             double sessionTimeSec = _outputs?.Debug?.SessionTimeSec ?? 0.0;
+            UpdatePlayerBaseState();
             if (!_allowStatusEThisTick)
             {
                 bool isHardOff = IsHardOffSessionType(_lastSessionTypeName);
@@ -236,18 +261,22 @@ namespace LaunchPlugin
                     string reason = isUnknownSession ? "sess_unknown" : "sess_off";
                     ApplyForcedStatusE(_outputs.AheadSlots, reason);
                     ApplyForcedStatusE(_outputs.BehindSlots, reason);
+                    ForceStatusE(_outputs.PlayerSlot, (int)CarSAStatusE.Unknown, reason);
                 }
                 else
                 {
                     ApplyGatedStatusE(_outputs.AheadSlots);
                     ApplyGatedStatusE(_outputs.BehindSlots);
+                    ForceStatusE(_outputs.PlayerSlot, (int)CarSAStatusE.Unknown, "gated");
                 }
                 return;
             }
             UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
             UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
+            UpdatePlayerStatusE(notRelevantGapSec, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
             ApplySessionTypeStatusEPolicy(_outputs.AheadSlots);
             ApplySessionTypeStatusEPolicy(_outputs.BehindSlots);
+            ApplySessionTypeStatusEPolicy(_outputs.PlayerSlot);
         }
 
         public void Reset()
@@ -1639,6 +1668,79 @@ namespace LaunchPlugin
                 slot.StatusEReason = "gated";
                 slot.StatusETextDirty = true;
             }
+        }
+
+        private void UpdatePlayerBaseState()
+        {
+            CarSASlot slot = _outputs?.PlayerSlot;
+            if (slot == null)
+            {
+                return;
+            }
+
+            int playerCarIdx = _outputs.Debug.PlayerCarIdx;
+            slot.CarIdx = playerCarIdx;
+            slot.LapDelta = 0;
+
+            if (playerCarIdx < 0 || playerCarIdx >= _carStates.Length)
+            {
+                slot.IsValid = false;
+                slot.IsOnTrack = false;
+                slot.IsOnPitRoad = false;
+                slot.TrackSurfaceRaw = TrackSurfaceUnknown;
+                slot.Status = (int)CarSAStatus.Unknown;
+                slot.LapsSincePit = -1;
+                return;
+            }
+
+            CarSA_CarState carState = _carStates[playerCarIdx];
+            int trackSurfaceRaw = NormalizeTrackSurfaceRaw(carState.TrackSurfaceRaw);
+            slot.TrackSurfaceRaw = trackSurfaceRaw;
+            if (IsNotInWorldSurface(trackSurfaceRaw))
+            {
+                slot.IsValid = false;
+                slot.IsOnTrack = false;
+                slot.IsOnPitRoad = false;
+                slot.Status = (int)CarSAStatus.Unknown;
+                slot.LapsSincePit = -1;
+                return;
+            }
+
+            slot.IsValid = true;
+            slot.IsOnTrack = IsOnTrackSurface(trackSurfaceRaw);
+            slot.IsOnPitRoad = carState.IsOnPitRoad;
+            slot.Status = slot.IsOnPitRoad ? (int)CarSAStatus.InPits : (int)CarSAStatus.Normal;
+
+            bool isRace = IsRaceSessionType(_lastSessionTypeName);
+            if (isRace && !carState.HasSeenPitExit)
+            {
+                slot.LapsSincePit = carState.LapsSinceStart;
+            }
+            else
+            {
+                slot.LapsSincePit = carState.LapsSincePit;
+            }
+        }
+
+        private void UpdatePlayerStatusE(
+            double notRelevantGapSec,
+            OpponentsEngine.OpponentOutputs opponentOutputs,
+            string playerClassColor,
+            double sessionTimeSec,
+            Dictionary<string, int> classRankByColor)
+        {
+            CarSASlot slot = _outputs?.PlayerSlot;
+            if (slot == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(slot.ClassColor) && !string.IsNullOrWhiteSpace(playerClassColor))
+            {
+                slot.ClassColor = playerClassColor;
+            }
+
+            UpdateStatusE(slot, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, classRankByColor);
         }
 
         internal static void GetCompromisedFlagBits(

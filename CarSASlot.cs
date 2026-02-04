@@ -254,6 +254,7 @@ namespace LaunchPlugin
             {
                 BehindSlots[i] = new CarSASlot();
             }
+            PlayerSlot = new CarSASlot();
             Debug = new CarSADebug();
         }
 
@@ -263,7 +264,9 @@ namespace LaunchPlugin
         public int SlotsBehind { get; }
         public CarSASlot[] AheadSlots { get; }
         public CarSASlot[] BehindSlots { get; }
+        public CarSASlot PlayerSlot { get; }
         public CarSADebug Debug { get; }
+        public double IRatingSOF { get; set; }
 
         public void ResetSlots()
         {
@@ -275,6 +278,7 @@ namespace LaunchPlugin
             {
                 BehindSlots[i].Reset();
             }
+            PlayerSlot.Reset();
         }
 
         public void ResetAll()
@@ -282,6 +286,8 @@ namespace LaunchPlugin
             Valid = false;
             Source = string.Empty;
             ResetSlots();
+            PlayerSlot.Reset();
+            IRatingSOF = 0.0;
             Debug.Reset();
         }
     }
