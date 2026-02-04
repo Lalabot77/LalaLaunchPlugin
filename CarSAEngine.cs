@@ -284,7 +284,7 @@ namespace LaunchPlugin
 
             bool isRace = IsRaceSessionType(sessionTypeName);
             bool isPracticeOrQual = IsPracticeOrQualSessionType(sessionTypeName);
-            bool isHardOff = IsHardOffSessionType(sessionTypeName) || IsUnknownSessionType(sessionTypeName);
+            bool isHardOff = IsHardOffSessionType(sessionTypeName);
             bool allowStatusE = true;
             bool allowLatches = true;
             if (isHardOff)
