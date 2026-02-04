@@ -15,6 +15,7 @@ namespace LaunchPlugin
         private const double DefaultLapTimeEstimateSec = 120.0;
         private const double HysteresisFactor = 0.90;
         private const double ClosingRateClamp = 5.0;
+        private const double ClosingRateEmaAlpha = 0.35;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
@@ -899,7 +900,7 @@ namespace LaunchPlugin
                         slot.GapTrackSec = double.NaN;
                         slot.ClosingRateSecPerSec = double.NaN;
                         slot.LapsSincePit = -1;
-                        slot.ClosingRateSmoothed = double.NaN;
+                        slot.ClosingRateSmoothed = 0.0;
                         slot.ClosingRateHasSample = false;
                     }
                     continue;
@@ -916,13 +917,13 @@ namespace LaunchPlugin
                 {
                     double gapSec = distPct * lapTimeEstimateSec;
                     slot.GapTrackSec = gapSec;
-                    bool shouldUpdate = _playerCheckpointChangedThisTick || state.CheckpointIndexCrossed >= 0;
+                    bool shouldUpdate = ShouldUpdateMiniSectorForCar(slot.CarIdx);
                     if (shouldUpdate)
                     {
                         double rawClosing = state.ClosingRateSecPerSec;
                         if (double.IsNaN(rawClosing) || double.IsInfinity(rawClosing))
                         {
-                            slot.ClosingRateSmoothed = double.NaN;
+                            slot.ClosingRateSmoothed = 0.0;
                             slot.ClosingRateHasSample = false;
                             slot.ClosingRateSecPerSec = double.NaN;
                         }
@@ -934,8 +935,8 @@ namespace LaunchPlugin
                         }
                         else
                         {
-                            const double alpha = 0.25;
-                            slot.ClosingRateSmoothed = (alpha * rawClosing) + ((1.0 - alpha) * slot.ClosingRateSmoothed);
+                            slot.ClosingRateSmoothed = (ClosingRateEmaAlpha * rawClosing)
+                                + ((1.0 - ClosingRateEmaAlpha) * slot.ClosingRateSmoothed);
                             slot.ClosingRateSecPerSec = slot.ClosingRateSmoothed;
                         }
                     }
@@ -1100,7 +1101,7 @@ namespace LaunchPlugin
                 slot.HasGapAbs = false;
                 slot.LastGapAbs = double.NaN;
                 slot.ClosingRateSecPerSec = double.NaN;
-                slot.ClosingRateSmoothed = double.NaN;
+                slot.ClosingRateSmoothed = 0.0;
                 slot.ClosingRateHasSample = false;
                 slot.LapsSincePit = -1;
                 slot.JustRebound = true;
