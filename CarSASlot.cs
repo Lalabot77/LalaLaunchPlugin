@@ -62,6 +62,8 @@ namespace LaunchPlugin
         public string LastLap { get; set; } = string.Empty;
         public double DeltaBestSec { get; set; } = double.NaN;
         public string DeltaBest { get; set; } = string.Empty;
+        public double EstLapTimeSec { get; set; } = double.NaN;
+        public string EstLapTime { get; set; } = string.Empty;
         public double HotScore { get; set; }
         public string HotVia { get; set; } = string.Empty;
         public double ForwardDistPct { get; set; } = double.NaN;
@@ -98,6 +100,8 @@ namespace LaunchPlugin
         internal bool OutLapLatched => OutLapActive;
         internal bool CompromisedThisLapLatched => CompromisedThisLap;
         internal int TrackSurfaceRawDebug => TrackSurfaceRaw;
+        internal double ClosingRateSmoothed { get; set; } = double.NaN;
+        internal bool ClosingRateHasSample { get; set; }
 
         public void Reset()
         {
@@ -130,7 +134,9 @@ namespace LaunchPlugin
             BestLap = string.Empty;
             LastLap = string.Empty;
             DeltaBestSec = double.NaN;
-            DeltaBest = string.Empty;
+            DeltaBest = "-";
+            EstLapTimeSec = double.NaN;
+            EstLapTime = "-";
             HotScore = 0.0;
             HotVia = string.Empty;
             ForwardDistPct = double.NaN;
@@ -161,6 +167,8 @@ namespace LaunchPlugin
             SlotIsAhead = false;
             LastIdentityAttemptSessionTimeSec = -1.0;
             IdentityResolved = false;
+            ClosingRateSmoothed = double.NaN;
+            ClosingRateHasSample = false;
         }
     }
 
