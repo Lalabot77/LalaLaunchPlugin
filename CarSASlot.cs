@@ -278,6 +278,7 @@ namespace LaunchPlugin
             {
                 BehindSlots[i].Reset();
             }
+            PlayerSlot.Reset();
         }
 
         public void ResetAll()
