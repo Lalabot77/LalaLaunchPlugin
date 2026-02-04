@@ -5714,6 +5714,8 @@ namespace LaunchPlugin
             ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.BehindSlots, _carSaLastBehindIdx, forceRefresh, sessionTimeSec);
         }
 
+        private const double LiveDeltaClampSec = 30.0;
+
         private void UpdateCarSaSlotTelemetry(PluginManager pluginManager, CarSASlot[] slots, float[] carIdxLapDistPct, double sessionTimeSec)
         {
             if (slots == null)
@@ -5825,7 +5827,16 @@ namespace LaunchPlugin
 
             double elapsed = sessionTimeSec - lapStartTimeSec;
             double expected = bestLap * lapPct;
-            return elapsed - expected;
+            double delta = elapsed - expected;
+            if (delta < -LiveDeltaClampSec)
+            {
+                delta = -LiveDeltaClampSec;
+            }
+            else if (delta > LiveDeltaClampSec)
+            {
+                delta = LiveDeltaClampSec;
+            }
+            return delta;
         }
 
         private static double ReadCarIdxTime(float[] values, int index)

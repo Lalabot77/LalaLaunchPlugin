@@ -762,6 +762,20 @@ namespace LaunchPlugin
                     state.CheckpointIndexCrossed = -1;
                 }
 
+                if (lapAdvanced)
+                {
+                    bool checkpoint0ObservedThisTick = state.CheckpointIndexCrossed == 0;
+                    bool lapStartAlreadyUpdatedForThisLap = state.LapStartLap == state.Lap;
+                    if (!checkpoint0ObservedThisTick && !lapStartAlreadyUpdatedForThisLap)
+                    {
+                        state.LapStartTimeSec = sessionTimeSec;
+                        state.LapStartLap = state.Lap;
+                        state.CheckpointIndexLast = -1;
+                        state.CheckpointIndexNow = -1;
+                        state.CheckpointIndexCrossed = -1;
+                    }
+                }
+
                 if (hasLapPct && hasPlayerPct)
                 {
                     double forwardDist = state.LapDistPct - playerLapPct;
