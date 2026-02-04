@@ -308,7 +308,7 @@ namespace LaunchPlugin
                     _sessionTypeStartTimeSec = sessionTimeSec;
                 }
                 double age = sessionTimeSec - _sessionTypeStartTimeSec;
-                if (age < 30.0)
+                if (age < 5.0)
                 {
                     allowStatusE = false;
                     allowLatches = false;
