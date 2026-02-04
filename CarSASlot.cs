@@ -16,6 +16,8 @@ namespace LaunchPlugin
         InPits = 110,
         CompromisedOffTrack = 121,
         CompromisedPenalty = 122,
+        HotLap = 130,
+        CoolLap = 140,
         FasterClass = 200,
         SlowerClass = 210,
         Racing = 220,

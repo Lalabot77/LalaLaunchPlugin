@@ -58,6 +58,8 @@ CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. 
 | MID | 110 | InPits | PIT | In pits |
 | MID | 121 | CompromisedOffTrack | OFF | Lap Invalid |
 | MID | 122 | CompromisedPenalty | PEN | Penalty |
+| MID | 130 | HotLap | HOT | Hot lap |
+| MID | 140 | CoolLap | COL | Cool lap |
 | HIGH | 200 | FasterClass | FCL | Faster class |
 | HIGH | 210 | SlowerClass | SCL | Slower class |
 | HIGH | 220 | Racing | RCE | Racing |
@@ -77,6 +79,11 @@ CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. 
 10. If other class but rank is unavailable ⇒ fallback based on ahead/behind direction (`FasterClass` when behind, `SlowerClass` when ahead; reason `otherclass_unknownrank`).
 
 Gap-based relevance gating is disabled in SA-Core v2.
+
+## SessionType policy
+- **Practice/Open Qualify:** suppress `Racing`/`LappingYou`/`BeingLapped` (220/230/240). Hot/Cool placeholders are allowed for future use. StatusE remains gated by `SessionState == 4` with the existing settle delay.
+- **Race:** normal ladder behavior; Hot/Cool (130/140) are suppressed.
+- **Lone Qualify + Offline Testing:** StatusE is forced to `Unknown` for all slots.
 
 ## Raw telemetry flags
 - Player-level raw flags are published as `Car.Player.PaceFlagsRaw`, `Car.Player.SessionFlagsRaw`, `Car.Player.TrackSurfaceMaterialRaw`.
