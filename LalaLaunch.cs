@@ -2877,6 +2877,10 @@ namespace LaunchPlugin
         private readonly int[] _carSaTrackedCarIdxs = new int[CarSAEngine.SlotsAhead + CarSAEngine.SlotsBehind + 1];
         private bool _carSaIdentityRefreshRequested;
         private double _carSaIdentityLastRetrySessionTimeSec = -1.0;
+        private readonly double[] _carSaBestLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
+        private readonly double[] _carSaLastLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
+        private readonly double[] _carSaEstTimeSecByIdx = new double[CarSAEngine.MaxCars];
+        private readonly int[] _carSaClassPositionByIdx = new int[CarSAEngine.MaxCars];
 
         private enum LaunchState
         {
@@ -3482,7 +3486,6 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.IsOnPitRoad", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsOnPitRoad ?? false);
                 AttachCore($"Car.Ahead{label}.IsValid", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsValid ?? false);
                 AttachCore($"Car.Ahead{label}.LapDelta", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapDelta ?? 0);
-                AttachCore($"Car.Ahead{label}.Gap.RealSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapRealSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapTrackSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Status", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Status ?? 0);
@@ -3490,9 +3493,23 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.StatusShort", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusShort ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.StatusLong", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusLong ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.StatusEReason", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusEReason ?? string.Empty);
-                AttachCore($"Car.Ahead{label}.PaceFlagsRaw", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].PaceFlagsRaw ?? -1);
                 AttachCore($"Car.Ahead{label}.SessionFlagsRaw", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].SessionFlagsRaw ?? -1);
                 AttachCore($"Car.Ahead{label}.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TrackSurfaceMaterialRaw ?? -1);
+                AttachCore($"Car.Ahead{label}.PositionInClass", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].PositionInClass ?? 0);
+                AttachCore($"Car.Ahead{label}.ClassName", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClassName ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.ClassColorHex", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClassColorHex ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.IRating", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IRating ?? 0);
+                AttachCore($"Car.Ahead{label}.Licence", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Licence ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.SafetyRating", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].SafetyRating ?? double.NaN);
+                AttachCore($"Car.Ahead{label}.LapsSincePit", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapsSincePit ?? -1);
+                AttachCore($"Car.Ahead{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLapTimeSec ?? double.NaN);
+                AttachCore($"Car.Ahead{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLapTimeSec ?? double.NaN);
+                AttachCore($"Car.Ahead{label}.BestLap", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLap ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.LastLap", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLap ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.DeltaBestSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].DeltaBestSec ?? double.NaN);
+                AttachCore($"Car.Ahead{label}.DeltaBest", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].DeltaBest ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.HotScore", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].HotScore ?? 0.0);
+                AttachCore($"Car.Ahead{label}.HotVia", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].HotVia ?? string.Empty);
             }
             for (int i = 0; i < CarSAEngine.SlotsBehind; i++)
             {
@@ -3506,7 +3523,6 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.IsOnPitRoad", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsOnPitRoad ?? false);
                 AttachCore($"Car.Behind{label}.IsValid", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsValid ?? false);
                 AttachCore($"Car.Behind{label}.LapDelta", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapDelta ?? 0);
-                AttachCore($"Car.Behind{label}.Gap.RealSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapRealSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapTrackSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Status", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Status ?? 0);
@@ -3514,9 +3530,23 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.StatusShort", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusShort ?? string.Empty);
                 AttachCore($"Car.Behind{label}.StatusLong", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusLong ?? string.Empty);
                 AttachCore($"Car.Behind{label}.StatusEReason", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusEReason ?? string.Empty);
-                AttachCore($"Car.Behind{label}.PaceFlagsRaw", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].PaceFlagsRaw ?? -1);
                 AttachCore($"Car.Behind{label}.SessionFlagsRaw", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].SessionFlagsRaw ?? -1);
                 AttachCore($"Car.Behind{label}.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TrackSurfaceMaterialRaw ?? -1);
+                AttachCore($"Car.Behind{label}.PositionInClass", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].PositionInClass ?? 0);
+                AttachCore($"Car.Behind{label}.ClassName", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClassName ?? string.Empty);
+                AttachCore($"Car.Behind{label}.ClassColorHex", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClassColorHex ?? string.Empty);
+                AttachCore($"Car.Behind{label}.IRating", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IRating ?? 0);
+                AttachCore($"Car.Behind{label}.Licence", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Licence ?? string.Empty);
+                AttachCore($"Car.Behind{label}.SafetyRating", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].SafetyRating ?? double.NaN);
+                AttachCore($"Car.Behind{label}.LapsSincePit", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapsSincePit ?? -1);
+                AttachCore($"Car.Behind{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLapTimeSec ?? double.NaN);
+                AttachCore($"Car.Behind{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLapTimeSec ?? double.NaN);
+                AttachCore($"Car.Behind{label}.BestLap", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLap ?? string.Empty);
+                AttachCore($"Car.Behind{label}.LastLap", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLap ?? string.Empty);
+                AttachCore($"Car.Behind{label}.DeltaBestSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].DeltaBestSec ?? double.NaN);
+                AttachCore($"Car.Behind{label}.DeltaBest", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].DeltaBest ?? string.Empty);
+                AttachCore($"Car.Behind{label}.HotScore", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].HotScore ?? 0.0);
+                AttachCore($"Car.Behind{label}.HotVia", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].HotVia ?? string.Empty);
             }
 
             AttachCore("Car.Debug.PlayerCarIdx", () => _carSaEngine?.Outputs.Debug.PlayerCarIdx ?? -1);
@@ -4398,6 +4428,7 @@ namespace LaunchPlugin
             _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
             if (_carSaEngine != null)
             {
+                UpdateCarSaTelemetryCaches(pluginManager);
                 for (int i = 0; i < CarSaDebugExportSlotCount; i++)
                 {
                     _carSaDebugAheadDahlRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugAheadDahlProperties[i], double.NaN);
@@ -4410,6 +4441,8 @@ namespace LaunchPlugin
                 UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
                 WriteCarSaDebugExport(pluginManager, _carSaEngine.Outputs, notRelevantGapSec, sessionState, sessionTypeName);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
+                UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.AheadSlots);
+                UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.BehindSlots);
                 string playerClassColor = GetCarClassColorHex(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
                 if (string.IsNullOrWhiteSpace(playerClassColor) && playerCarIdx >= 0)
                 {
@@ -5154,7 +5187,6 @@ namespace LaunchPlugin
                     continue;
                 }
                 int carIdx = slot.CarIdx;
-                slot.PaceFlagsRaw = ReadCarIdxRawValue(paceFlags, hasPaceFlags, carIdx);
                 slot.SessionFlagsRaw = ReadCarIdxRawValue(sessionFlags, hasSessionFlags, carIdx);
                 slot.TrackSurfaceMaterialRaw = ReadCarIdxRawValue(trackSurfaceMaterial, hasTrackSurfaceMaterial, carIdx);
             }
@@ -5173,7 +5205,6 @@ namespace LaunchPlugin
                 {
                     continue;
                 }
-                slot.PaceFlagsRaw = -1;
                 slot.SessionFlagsRaw = -1;
                 slot.TrackSurfaceMaterialRaw = -1;
                 slot.TrackSurfaceRaw = int.MinValue;
@@ -5632,6 +5663,27 @@ namespace LaunchPlugin
             }
         }
 
+        private void UpdateCarSaTelemetryCaches(PluginManager pluginManager)
+        {
+            if (pluginManager == null)
+            {
+                return;
+            }
+
+            float[] bestLapTimes = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxBestLapTime");
+            float[] lastLapTimes = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLastLapTime");
+            float[] estTimes = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxEstTime");
+            int[] classPositions = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxClassPosition");
+
+            for (int i = 0; i < CarSAEngine.MaxCars; i++)
+            {
+                _carSaBestLapTimeSecByIdx[i] = ReadCarIdxTime(bestLapTimes, i);
+                _carSaLastLapTimeSecByIdx[i] = ReadCarIdxTime(lastLapTimes, i);
+                _carSaEstTimeSecByIdx[i] = ReadCarIdxTime(estTimes, i);
+                _carSaClassPositionByIdx[i] = (classPositions != null && i < classPositions.Length) ? classPositions[i] : 0;
+            }
+        }
+
         private void RefreshCarSaSlotIdentities(PluginManager pluginManager, double sessionTimeSec)
         {
             if (_carSaEngine == null || pluginManager == null)
@@ -5656,6 +5708,194 @@ namespace LaunchPlugin
 
             ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.AheadSlots, _carSaLastAheadIdx, forceRefresh, sessionTimeSec);
             ApplyCarSaIdentityRefresh(pluginManager, _carSaEngine.Outputs.BehindSlots, _carSaLastBehindIdx, forceRefresh, sessionTimeSec);
+        }
+
+        private void UpdateCarSaSlotTelemetry(PluginManager pluginManager, CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            foreach (var slot in slots)
+            {
+                if (slot == null)
+                {
+                    continue;
+                }
+
+                int carIdx = slot.CarIdx;
+                if (carIdx < 0 || carIdx >= CarSAEngine.MaxCars)
+                {
+                    slot.PositionInClass = 0;
+                    slot.ClassName = string.Empty;
+                    slot.ClassColorHex = string.Empty;
+                    slot.IRating = 0;
+                    slot.Licence = string.Empty;
+                    slot.SafetyRating = double.NaN;
+                    slot.LapsSincePit = -1;
+                    slot.BestLapTimeSec = double.NaN;
+                    slot.LastLapTimeSec = double.NaN;
+                    slot.BestLap = "-";
+                    slot.LastLap = "-";
+                    slot.DeltaBestSec = double.NaN;
+                    slot.DeltaBest = "-";
+                    slot.HotScore = 0.0;
+                    slot.HotVia = string.Empty;
+                    continue;
+                }
+
+                slot.PositionInClass = _carSaClassPositionByIdx[carIdx] > 0 ? _carSaClassPositionByIdx[carIdx] : 0;
+                slot.BestLapTimeSec = _carSaBestLapTimeSecByIdx[carIdx];
+                slot.LastLapTimeSec = _carSaLastLapTimeSecByIdx[carIdx];
+                slot.BestLap = FormatLapTime(slot.BestLapTimeSec);
+                slot.LastLap = FormatLapTime(slot.LastLapTimeSec);
+                slot.DeltaBestSec = ComputeDeltaBestSec(carIdx);
+                slot.DeltaBest = FormatDeltaTime(slot.DeltaBestSec);
+                slot.HotScore = 0.0;
+                slot.HotVia = string.Empty;
+
+                if (TryGetCarDriverInfo(pluginManager, carIdx, out string className, out string classColorHex, out int iRating, out string licString))
+                {
+                    slot.ClassName = className ?? string.Empty;
+                    slot.ClassColorHex = classColorHex ?? string.Empty;
+                    slot.IRating = iRating;
+                    if (TryParseLicenseString(licString, out string licence, out double safetyRating))
+                    {
+                        slot.Licence = licence;
+                        slot.SafetyRating = safetyRating;
+                    }
+                    else
+                    {
+                        slot.Licence = string.Empty;
+                        slot.SafetyRating = double.NaN;
+                    }
+                }
+                if (string.IsNullOrWhiteSpace(slot.ClassColorHex) && !string.IsNullOrWhiteSpace(slot.ClassColor))
+                {
+                    slot.ClassColorHex = NormalizeClassColorHex(slot.ClassColor);
+                }
+            }
+        }
+
+        private double ComputeDeltaBestSec(int carIdx)
+        {
+            if (carIdx < 0 || carIdx >= CarSAEngine.MaxCars)
+            {
+                return double.NaN;
+            }
+
+            double bestLap = _carSaBestLapTimeSecByIdx[carIdx];
+            if (!(bestLap > 0.0) || double.IsNaN(bestLap) || double.IsInfinity(bestLap))
+            {
+                return double.NaN;
+            }
+
+            double estTime = _carSaEstTimeSecByIdx[carIdx];
+            if (estTime > 0.0 && !double.IsNaN(estTime) && !double.IsInfinity(estTime))
+            {
+                return estTime - bestLap;
+            }
+
+            double lastLap = _carSaLastLapTimeSecByIdx[carIdx];
+            if (lastLap > 0.0 && !double.IsNaN(lastLap) && !double.IsInfinity(lastLap))
+            {
+                return lastLap - bestLap;
+            }
+
+            return double.NaN;
+        }
+
+        private static double ReadCarIdxTime(float[] values, int index)
+        {
+            if (values == null || index < 0 || index >= values.Length)
+            {
+                return double.NaN;
+            }
+
+            double value = values[index];
+            if (!(value > 0.0) || double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return double.NaN;
+            }
+
+            return value;
+        }
+
+        private static string FormatLapTime(double seconds)
+        {
+            if (!(seconds > 0.0) || double.IsNaN(seconds) || double.IsInfinity(seconds))
+            {
+                return "-";
+            }
+
+            int totalMs = (int)Math.Round(seconds * 1000.0, MidpointRounding.AwayFromZero);
+            int minutes = totalMs / 60000;
+            int secondsPart = (totalMs / 1000) % 60;
+            int hundredths = (totalMs % 1000) / 10;
+            return $"{minutes}:{secondsPart:00}.{hundredths:00}";
+        }
+
+        private static string FormatDeltaTime(double seconds)
+        {
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds))
+            {
+                return "-";
+            }
+
+            string sign = seconds >= 0.0 ? "+" : "-";
+            return $"{sign}{Math.Abs(seconds):0.00}";
+        }
+
+        private static bool TryParseLicenseString(string licString, out string licence, out double safetyRating)
+        {
+            licence = string.Empty;
+            safetyRating = double.NaN;
+
+            if (string.IsNullOrWhiteSpace(licString))
+            {
+                return false;
+            }
+
+            string trimmed = licString.Trim();
+            string[] parts = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 0)
+            {
+                licence = parts[0];
+            }
+
+            if (parts.Length > 1 && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
+            {
+                safetyRating = parsed;
+                return true;
+            }
+
+            int numericStart = -1;
+            for (int i = 0; i < trimmed.Length; i++)
+            {
+                char c = trimmed[i];
+                if ((c >= '0' && c <= '9') || c == '.')
+                {
+                    numericStart = i;
+                    break;
+                }
+            }
+
+            if (numericStart >= 0)
+            {
+                string numeric = trimmed.Substring(numericStart);
+                if (double.TryParse(numeric, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed))
+                {
+                    safetyRating = parsed;
+                    if (string.IsNullOrWhiteSpace(licence))
+                    {
+                        licence = trimmed.Substring(0, numericStart).Trim();
+                    }
+                    return true;
+                }
+            }
+
+            return !string.IsNullOrWhiteSpace(licence);
         }
 
         private void ApplyCarSaIdentityRefresh(PluginManager pluginManager, CarSASlot[] slots, int[] lastCarIdx, bool forceRefresh, double sessionTimeSec)
@@ -5853,6 +6093,93 @@ namespace LaunchPlugin
             return false;
         }
 
+        private bool TryGetCarDriverInfo(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating, out string licString)
+        {
+            className = string.Empty;
+            classColorHex = string.Empty;
+            iRating = 0;
+            licString = string.Empty;
+
+            if (pluginManager == null || carIdx < 0)
+            {
+                return false;
+            }
+
+            if (TryGetCarDriverInfoFromDriversTable(pluginManager, carIdx, out className, out classColorHex, out iRating, out licString))
+            {
+                return true;
+            }
+
+            return TryGetCarDriverInfoFromCompetingDrivers(pluginManager, carIdx, out className, out classColorHex, out iRating, out licString);
+        }
+
+        private bool TryGetCarDriverInfoFromDriversTable(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating, out string licString)
+        {
+            className = string.Empty;
+            classColorHex = string.Empty;
+            iRating = 0;
+            licString = string.Empty;
+
+            for (int i = 1; i <= 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.Drivers{i:00}";
+                int idx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (idx == int.MinValue || idx != carIdx)
+                {
+                    continue;
+                }
+
+                className = GetString(pluginManager, $"{basePath}.CarClassShortName") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(className))
+                {
+                    className = GetString(pluginManager, $"{basePath}.CarClassName") ?? string.Empty;
+                }
+
+                classColorHex = GetCarClassColorHexHash(pluginManager, $"{basePath}.CarClassColor");
+                iRating = GetInt(pluginManager, $"{basePath}.IRating", 0);
+                licString = GetString(pluginManager, $"{basePath}.LicString") ?? string.Empty;
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool TryGetCarDriverInfoFromCompetingDrivers(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating, out string licString)
+        {
+            className = string.Empty;
+            classColorHex = string.Empty;
+            iRating = 0;
+            licString = string.Empty;
+
+            for (int i = 0; i < 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.CompetingDrivers[{i}]";
+                int idx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (idx == int.MinValue)
+                {
+                    break;
+                }
+
+                if (idx != carIdx)
+                {
+                    continue;
+                }
+
+                className = GetString(pluginManager, $"{basePath}.CarClassShortName") ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(className))
+                {
+                    className = GetString(pluginManager, $"{basePath}.CarClassName") ?? string.Empty;
+                }
+
+                classColorHex = GetCarClassColorHexHash(pluginManager, $"{basePath}.CarClassColor");
+                iRating = GetInt(pluginManager, $"{basePath}.IRating", 0);
+                licString = GetString(pluginManager, $"{basePath}.LicString") ?? string.Empty;
+                return true;
+            }
+
+            return false;
+        }
+
         private static string GetCarClassColorHex(PluginManager pluginManager, string propertyName)
         {
             if (pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
@@ -5907,10 +6234,109 @@ namespace LaunchPlugin
             }
         }
 
+        private static string GetCarClassColorHexHash(PluginManager pluginManager, string propertyName)
+        {
+            if (pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                var raw = pluginManager.GetPropertyValue(propertyName);
+                if (raw == null) return string.Empty;
+
+                if (raw is int intValue)
+                {
+                    return FormatCarClassColorHex(intValue);
+                }
+
+                if (raw is long longValue)
+                {
+                    return FormatCarClassColorHex((int)longValue);
+                }
+
+                if (raw is uint uintValue)
+                {
+                    return FormatCarClassColorHex((int)uintValue);
+                }
+
+                string rawText = Convert.ToString(raw, CultureInfo.InvariantCulture);
+                if (string.IsNullOrWhiteSpace(rawText)) return string.Empty;
+
+                rawText = rawText.Trim();
+                if (rawText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                {
+                    rawText = rawText.Substring(2);
+                }
+                if (rawText.StartsWith("#", StringComparison.OrdinalIgnoreCase))
+                {
+                    rawText = rawText.Substring(1);
+                }
+
+                if (int.TryParse(rawText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int parsedHex))
+                {
+                    return FormatCarClassColorHex(parsedHex);
+                }
+
+                if (int.TryParse(rawText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedInt))
+                {
+                    return FormatCarClassColorHex(parsedInt);
+                }
+
+                return string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
         private static string FormatCarClassColor(int colorRaw)
         {
             int rgb = colorRaw & 0xFFFFFF;
             return $"0x{rgb:X6}";
+        }
+
+        private static string FormatCarClassColorHex(int colorRaw)
+        {
+            int rgb = colorRaw & 0xFFFFFF;
+            return $"#{rgb:X6}";
+        }
+
+        private static string NormalizeClassColorHex(string classColor)
+        {
+            if (string.IsNullOrWhiteSpace(classColor))
+            {
+                return string.Empty;
+            }
+
+            string trimmed = classColor.Trim();
+            if (trimmed.StartsWith("#", StringComparison.OrdinalIgnoreCase) && trimmed.Length == 7)
+            {
+                return trimmed.ToUpperInvariant();
+            }
+
+            string rawText = trimmed;
+            if (rawText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                rawText = rawText.Substring(2);
+            }
+            if (rawText.StartsWith("#", StringComparison.OrdinalIgnoreCase))
+            {
+                rawText = rawText.Substring(1);
+            }
+
+            if (int.TryParse(rawText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int parsedHex))
+            {
+                return FormatCarClassColorHex(parsedHex);
+            }
+            if (int.TryParse(rawText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedInt))
+            {
+                return FormatCarClassColorHex(parsedInt);
+            }
+
+            return string.Empty;
         }
 
         private bool IsCarSaIdentitySourceReady(PluginManager pluginManager)

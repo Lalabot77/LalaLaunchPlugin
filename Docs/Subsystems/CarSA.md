@@ -35,7 +35,6 @@ CarSA keeps a car-centric shadow state per `CarIdx` that is authoritative for St
 
 ## Gap & closing semantics
 - **Gap.TrackSec:** `distPct * lapTimeEstimateSec` (distance-based proximity gap).
-- **Gap.RealSec:** legacy alias of `Gap.TrackSec` for backward compatibility.
 - **ClosingRateSecPerSec:** derived from change in absolute delta pct over time; **positive values mean closing**; clamped to ±5 s/s.
 - **Lap time estimate:** player average pace, else last lap, else 120 s fallback.
 - **LapDelta:** computed from CarIdx lap counters with S/F straddle guards to avoid one-tick spikes when cars are physically close around the line.
@@ -87,7 +86,7 @@ Gap-based relevance gating is disabled in SA-Core v2.
 
 ## Raw telemetry flags
 - Player-level raw flags are published as `Car.Player.PaceFlagsRaw`, `Car.Player.SessionFlagsRaw`, `Car.Player.TrackSurfaceMaterialRaw`.
-- Slot-level raw flags (`PaceFlagsRaw`, `SessionFlagsRaw`, `TrackSurfaceMaterialRaw`) are populated when raw telemetry mode includes slots.
+- Slot-level raw flags (`SessionFlagsRaw`, `TrackSurfaceMaterialRaw`) are populated when raw telemetry mode includes slots.
 - Debug outputs report whether each raw array was readable and the read mode/failure reason.
 
 ## Exports (SA-Core v2)
@@ -103,11 +102,11 @@ System:
 - `Car.Player.TrackSurfaceMaterialRaw`
 
 Slots (Ahead01..Ahead05, Behind01..Behind05):
-- Identity: `CarIdx`, `Name`, `CarNumber`, `ClassColor`
+- Identity: `CarIdx`, `Name`, `CarNumber`, `ClassColor`, `ClassColorHex`, `ClassName`, `PositionInClass`, `IRating`, `Licence`, `SafetyRating`
 - State: `IsOnTrack`, `IsOnPitRoad`, `IsValid`
-- Spatial: `LapDelta`, `Gap.TrackSec`, `Gap.RealSec`
-- Derived: `ClosingRateSecPerSec`, `Status`, `StatusE`, `StatusShort`, `StatusLong`, `StatusEReason`
-- Raw telemetry (mode permitting): `PaceFlagsRaw`, `SessionFlagsRaw`, `TrackSurfaceMaterialRaw`
+- Spatial: `LapDelta`, `Gap.TrackSec`, `LapsSincePit`, `BestLapTimeSec`, `LastLapTimeSec`, `BestLap`, `LastLap`, `DeltaBestSec`, `DeltaBest`
+- Derived: `ClosingRateSecPerSec`, `Status`, `StatusE`, `StatusShort`, `StatusLong`, `StatusEReason`, `HotScore`, `HotVia`
+- Raw telemetry (mode permitting): `SessionFlagsRaw`, `TrackSurfaceMaterialRaw`
 
 Debug (`Car.Debug.*`):
 - `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `SessionTimeSec`, `SourceFastPathUsed`

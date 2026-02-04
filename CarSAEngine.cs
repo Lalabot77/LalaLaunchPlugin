@@ -135,6 +135,7 @@ namespace LaunchPlugin
             public bool CompromisedPenaltyActive { get; set; }
             public int OffTrackStreak { get; set; }
             public double OffTrackFirstSeenTimeSec { get; set; } = double.NaN;
+            public int LapsSincePit { get; set; } = -1;
 
             public void Reset(int carIdx)
             {
@@ -165,6 +166,7 @@ namespace LaunchPlugin
                 CompromisedPenaltyActive = false;
                 OffTrackStreak = 0;
                 OffTrackFirstSeenTimeSec = double.NaN;
+                LapsSincePit = -1;
             }
         }
 
@@ -613,6 +615,7 @@ namespace LaunchPlugin
                         state.CompromisedPenaltyActive = false;
                         state.OffTrackStreak = 0;
                         state.OffTrackFirstSeenTimeSec = double.NaN;
+                        state.LapsSincePit = -1;
                         continue;
                     }
 
@@ -629,6 +632,10 @@ namespace LaunchPlugin
                     if (state.Lap >= state.OutLapUntilLap)
                     {
                         state.OutLapUntilLap = int.MinValue;
+                    }
+                    if (state.LapsSincePit >= 0)
+                    {
+                        state.LapsSincePit += 1;
                     }
                 }
 
@@ -665,6 +672,7 @@ namespace LaunchPlugin
                     {
                         state.OutLapUntilLap = untilLap;
                     }
+                    state.LapsSincePit = 0;
                 }
 
                 state.WasInPitArea = pitAreaNow;
@@ -794,8 +802,8 @@ namespace LaunchPlugin
                     if (slot != null)
                     {
                         slot.GapTrackSec = double.NaN;
-                        slot.GapRealSec = double.NaN;
                         slot.ClosingRateSecPerSec = double.NaN;
+                        slot.LapsSincePit = -1;
                     }
                     continue;
                 }
@@ -805,16 +813,16 @@ namespace LaunchPlugin
                 if (double.IsNaN(distPct))
                 {
                     slot.GapTrackSec = double.NaN;
-                    slot.GapRealSec = double.NaN;
                     slot.ClosingRateSecPerSec = double.NaN;
                 }
                 else
                 {
                     double gapSec = distPct * lapTimeEstimateSec;
                     slot.GapTrackSec = gapSec;
-                    slot.GapRealSec = gapSec;
                     slot.ClosingRateSecPerSec = state.ClosingRateSecPerSec;
                 }
+
+                slot.LapsSincePit = state.LapsSincePit;
             }
         }
 
@@ -966,12 +974,12 @@ namespace LaunchPlugin
                 slot.HasGapAbs = false;
                 slot.LastGapAbs = double.NaN;
                 slot.ClosingRateSecPerSec = double.NaN;
-                slot.GapRealSec = double.NaN;
+                slot.LapsSincePit = -1;
                 slot.JustRebound = true;
                 slot.ReboundTimeSec = sessionTimeSec;
                 slot.TrackSurfaceRaw = TrackSurfaceUnknown;
                 slot.CurrentLap = 0;
-                slot.LastLap = int.MinValue;
+                slot.LastLapNumber = int.MinValue;
                 slot.WasOnPitRoad = false;
                 slot.WasInPitArea = false;
                 slot.OutLapActive = false;
@@ -980,6 +988,20 @@ namespace LaunchPlugin
                 slot.CompromisedLap = int.MinValue;
                 slot.LastCompEvidenceSessionTimeSec = -1.0;
                 slot.CompEvidenceStreak = 0;
+                slot.PositionInClass = 0;
+                slot.ClassName = string.Empty;
+                slot.ClassColorHex = string.Empty;
+                slot.IRating = 0;
+                slot.Licence = string.Empty;
+                slot.SafetyRating = double.NaN;
+                slot.BestLapTimeSec = double.NaN;
+                slot.LastLapTimeSec = double.NaN;
+                slot.BestLap = string.Empty;
+                slot.LastLap = string.Empty;
+                slot.DeltaBestSec = double.NaN;
+                slot.DeltaBest = string.Empty;
+                slot.HotScore = 0.0;
+                slot.HotVia = string.Empty;
 
                        // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;

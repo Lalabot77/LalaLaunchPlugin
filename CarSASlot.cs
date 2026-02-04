@@ -41,22 +41,29 @@ namespace LaunchPlugin
         public int LapDelta { get; set; }
         // SA / track-awareness gap (used by StatusE relevance + closing rate).
         public double GapTrackSec { get; set; } = double.NaN;
-        // Deprecated alias for backward compatibility (maps directly to GapTrackSec).
-        [Obsolete("Deprecated: alias of GapTrackSec; kept for backward compatibility.")]
-        public double GapRealSec
-        {
-            get => GapTrackSec;
-            set => GapTrackSec = value;
-        }
         public double ClosingRateSecPerSec { get; set; } = double.NaN;
         public int Status { get; set; } = (int)CarSAStatus.Unknown;
         public int StatusE { get; set; } = (int)CarSAStatusE.Unknown;
         public string StatusShort { get; set; } = "UNK";
         public string StatusLong { get; set; } = "Unknown";
         public string StatusEReason { get; set; } = "unknown";
-        public int PaceFlagsRaw { get; set; } = -1;
         public int SessionFlagsRaw { get; set; } = -1;
         public int TrackSurfaceMaterialRaw { get; set; } = -1;
+        public int PositionInClass { get; set; }
+        public string ClassName { get; set; } = string.Empty;
+        public string ClassColorHex { get; set; } = string.Empty;
+        public int IRating { get; set; }
+        public string Licence { get; set; } = string.Empty;
+        public double SafetyRating { get; set; } = double.NaN;
+        public int LapsSincePit { get; set; } = -1;
+        public double BestLapTimeSec { get; set; } = double.NaN;
+        public double LastLapTimeSec { get; set; } = double.NaN;
+        public string BestLap { get; set; } = string.Empty;
+        public string LastLap { get; set; } = string.Empty;
+        public double DeltaBestSec { get; set; } = double.NaN;
+        public string DeltaBest { get; set; } = string.Empty;
+        public double HotScore { get; set; }
+        public string HotVia { get; set; } = string.Empty;
         public double ForwardDistPct { get; set; } = double.NaN;
         public double BackwardDistPct { get; set; } = double.NaN;
         public bool JustRebound { get; set; }
@@ -73,7 +80,7 @@ namespace LaunchPlugin
         internal bool LastStatusEIsAhead { get; set; }
         internal int TrackSurfaceRaw { get; set; } = int.MinValue;
         internal int CurrentLap { get; set; }
-        internal int LastLap { get; set; } = int.MinValue;
+        internal int LastLapNumber { get; set; } = int.MinValue;
         // Legacy latch fields retained for exporters; authoritative state lives in CarSAEngine._carStates.
         internal bool WasOnPitRoad { get; set; }
         internal bool WasInPitArea { get; set; }
@@ -103,16 +110,29 @@ namespace LaunchPlugin
             IsValid = false;
             LapDelta = 0;
             GapTrackSec = double.NaN;
-            GapRealSec = double.NaN;
             ClosingRateSecPerSec = double.NaN;
             Status = (int)CarSAStatus.Unknown;
             StatusE = (int)CarSAStatusE.Unknown;
             StatusShort = "UNK";
             StatusLong = "Unknown";
             StatusEReason = "unknown";
-            PaceFlagsRaw = -1;
             SessionFlagsRaw = -1;
             TrackSurfaceMaterialRaw = -1;
+            PositionInClass = 0;
+            ClassName = string.Empty;
+            ClassColorHex = string.Empty;
+            IRating = 0;
+            Licence = string.Empty;
+            SafetyRating = double.NaN;
+            LapsSincePit = -1;
+            BestLapTimeSec = double.NaN;
+            LastLapTimeSec = double.NaN;
+            BestLap = string.Empty;
+            LastLap = string.Empty;
+            DeltaBestSec = double.NaN;
+            DeltaBest = string.Empty;
+            HotScore = 0.0;
+            HotVia = string.Empty;
             ForwardDistPct = double.NaN;
             BackwardDistPct = double.NaN;
             JustRebound = false;
@@ -128,7 +148,7 @@ namespace LaunchPlugin
             LastStatusEIsAhead = false;
             TrackSurfaceRaw = int.MinValue;
             CurrentLap = 0;
-            LastLap = int.MinValue;
+            LastLapNumber = int.MinValue;
             WasOnPitRoad = false;
             WasInPitArea = false;
             OutLapActive = false;
