@@ -32,6 +32,8 @@ namespace LaunchPlugin
         private const string StatusShortFasterClass = "FCL";
         private const string StatusShortSlowerClass = "SCL";
         private const string StatusShortRacing = "RCE";
+        private const string StatusShortHotLap = "HOT";
+        private const string StatusShortCoolLap = "COL";
         private const string StatusLongUnknown = "";
         private const string StatusLongOutLap = "Out lap";
         private const string StatusLongInPits = "In pits";
@@ -40,6 +42,8 @@ namespace LaunchPlugin
         private const string StatusLongFasterClass = "Faster class";
         private const string StatusLongSlowerClass = "Slower class";
         private const string StatusLongRacing = "Racing";
+        private const string StatusLongHotLap = "Hot lap";
+        private const string StatusLongCoolLap = "Cool lap";
         private const string StatusEReasonPits = "pits";
         private const string StatusEReasonCompromisedOffTrack = "cmp_off";
         private const string StatusEReasonCompromisedPenalty = "cmp_pen";
@@ -199,12 +203,25 @@ namespace LaunchPlugin
             double sessionTimeSec = _outputs?.Debug?.SessionTimeSec ?? 0.0;
             if (!_allowStatusEThisTick)
             {
-                ApplyGatedStatusE(_outputs.AheadSlots);
-                ApplyGatedStatusE(_outputs.BehindSlots);
+                bool isHardOff = IsHardOffSessionType(_lastSessionTypeName);
+                bool isUnknownSession = IsUnknownSessionType(_lastSessionTypeName);
+                if (isHardOff || isUnknownSession)
+                {
+                    string reason = isUnknownSession ? "sess_unknown" : "sess_off";
+                    ApplyForcedStatusE(_outputs.AheadSlots, reason);
+                    ApplyForcedStatusE(_outputs.BehindSlots, reason);
+                }
+                else
+                {
+                    ApplyGatedStatusE(_outputs.AheadSlots);
+                    ApplyGatedStatusE(_outputs.BehindSlots);
+                }
                 return;
             }
             UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
             UpdateStatusE(_outputs.BehindSlots, notRelevantGapSec, false, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor);
+            ApplySessionTypeStatusEPolicy(_outputs.AheadSlots);
+            ApplySessionTypeStatusEPolicy(_outputs.BehindSlots);
         }
 
         public void Reset()
@@ -267,9 +284,15 @@ namespace LaunchPlugin
 
             bool isRace = IsRaceSessionType(sessionTypeName);
             bool isPracticeOrQual = IsPracticeOrQualSessionType(sessionTypeName);
+            bool isHardOff = IsHardOffSessionType(sessionTypeName);
             bool allowStatusE = true;
             bool allowLatches = true;
-            if (isRace && sessionState < 4)
+            if (isHardOff)
+            {
+                allowStatusE = false;
+                allowLatches = false;
+            }
+            if (!isHardOff && isRace && sessionState < 4)
             {
                 allowStatusE = false;
                 allowLatches = false;
@@ -278,7 +301,7 @@ namespace LaunchPlugin
             {
                 ResetCarLatchesOnly();
             }
-            if (isPracticeOrQual)
+            if (!isHardOff && isPracticeOrQual)
             {
                 if (double.IsNaN(_sessionTypeStartTimeSec))
                 {
@@ -715,6 +738,12 @@ namespace LaunchPlugin
             return string.Equals(name, "Race", StringComparison.OrdinalIgnoreCase);
         }
 
+        private static bool IsHardOffSessionType(string name)
+        {
+            return string.Equals(name, "Offline Testing", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "Lone Qualify", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool IsPracticeOrQualSessionType(string name)
         {
             if (string.IsNullOrWhiteSpace(name))
@@ -722,8 +751,25 @@ namespace LaunchPlugin
                 return false;
             }
 
+            if (IsHardOffSessionType(name))
+            {
+                return false;
+            }
+
             return name.IndexOf("Practice", StringComparison.OrdinalIgnoreCase) >= 0
                 || name.IndexOf("Qualify", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsUnknownSessionType(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return true;
+            }
+
+            return !IsRaceSessionType(name)
+                && !IsPracticeOrQualSessionType(name)
+                && !IsHardOffSessionType(name);
         }
 
         private static double ComputeSignedDeltaPct(double playerLapPct, double carLapPct)
@@ -1222,6 +1268,56 @@ namespace LaunchPlugin
             UpdateStatusEText(slot);
         }
 
+        private void ApplySessionTypeStatusEPolicy(CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                ApplySessionTypeStatusEPolicy(slots[i]);
+            }
+        }
+
+        private void ApplySessionTypeStatusEPolicy(CarSASlot slot)
+        {
+            if (slot == null)
+            {
+                return;
+            }
+
+            string sessionTypeName = _lastSessionTypeName;
+            bool isHardOff = IsHardOffSessionType(sessionTypeName);
+            bool isUnknownSession = IsUnknownSessionType(sessionTypeName);
+            if (isHardOff || isUnknownSession)
+            {
+                ForceStatusE(slot, (int)CarSAStatusE.Unknown, isUnknownSession ? "sess_unknown" : "sess_off");
+                return;
+            }
+
+            if (IsPracticeOrQualSessionType(sessionTypeName))
+            {
+                if (slot.StatusE == (int)CarSAStatusE.Racing
+                    || slot.StatusE == (int)CarSAStatusE.LappingYou
+                    || slot.StatusE == (int)CarSAStatusE.BeingLapped)
+                {
+                    ForceStatusE(slot, (int)CarSAStatusE.Unknown, "sess_suppress");
+                }
+                return;
+            }
+
+            if (IsRaceSessionType(sessionTypeName))
+            {
+                if (slot.StatusE == (int)CarSAStatusE.HotLap
+                    || slot.StatusE == (int)CarSAStatusE.CoolLap)
+                {
+                    ForceStatusE(slot, (int)CarSAStatusE.Unknown, "sess_suppress");
+                }
+            }
+        }
+
         private static void ApplyGatedStatusE(CarSASlot[] slots)
         {
             if (slots == null)
@@ -1242,6 +1338,41 @@ namespace LaunchPlugin
                 slot.StatusETextDirty = true;
                 UpdateStatusEText(slot);
             }
+        }
+
+        private static void ApplyForcedStatusE(CarSASlot[] slots, string reason)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                ForceStatusE(slots[i], (int)CarSAStatusE.Unknown, reason);
+            }
+        }
+
+        private static void ForceStatusE(CarSASlot slot, int statusE, string reason)
+        {
+            if (slot == null)
+            {
+                return;
+            }
+
+            if (slot.StatusE == statusE && string.Equals(slot.StatusEReason, reason, StringComparison.Ordinal))
+            {
+                if (slot.StatusETextDirty)
+                {
+                    UpdateStatusEText(slot);
+                }
+                return;
+            }
+
+            slot.StatusE = statusE;
+            slot.StatusEReason = reason;
+            slot.StatusETextDirty = true;
+            UpdateStatusEText(slot);
         }
 
         private void ResetCarLatchesOnly()
@@ -1503,6 +1634,14 @@ namespace LaunchPlugin
                 case (int)CarSAStatusE.Racing:
                     slot.StatusShort = StatusShortRacing;
                     slot.StatusLong = StatusLongRacing;
+                    break;
+                case (int)CarSAStatusE.HotLap:
+                    slot.StatusShort = StatusShortHotLap;
+                    slot.StatusLong = StatusLongHotLap;
+                    break;
+                case (int)CarSAStatusE.CoolLap:
+                    slot.StatusShort = StatusShortCoolLap;
+                    slot.StatusLong = StatusLongCoolLap;
                     break;
                 case (int)CarSAStatusE.LappingYou:
                 case (int)CarSAStatusE.BeingLapped:
