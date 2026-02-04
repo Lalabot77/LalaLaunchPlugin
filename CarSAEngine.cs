@@ -923,9 +923,16 @@ namespace LaunchPlugin
                         double rawClosing = state.ClosingRateSecPerSec;
                         if (double.IsNaN(rawClosing) || double.IsInfinity(rawClosing))
                         {
-                            slot.ClosingRateSmoothed = 0.0;
-                            slot.ClosingRateHasSample = false;
-                            slot.ClosingRateSecPerSec = double.NaN;
+                            if (slot.ClosingRateHasSample)
+                            {
+                                slot.ClosingRateSecPerSec = slot.ClosingRateSmoothed;
+                            }
+                            else
+                            {
+                                slot.ClosingRateSmoothed = 0.0;
+                                slot.ClosingRateHasSample = false;
+                                slot.ClosingRateSecPerSec = double.NaN;
+                            }
                         }
                         else if (!slot.ClosingRateHasSample || double.IsNaN(slot.ClosingRateSmoothed))
                         {
