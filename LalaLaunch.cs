@@ -3483,6 +3483,8 @@ namespace LaunchPlugin
             AttachCore("Car.Player.IRating", () => _carSaEngine?.Outputs.PlayerSlot.IRating ?? 0);
             AttachCore("Car.Player.Licence", () => _carSaEngine?.Outputs.PlayerSlot.Licence ?? string.Empty);
             AttachCore("Car.Player.SafetyRating", () => _carSaEngine?.Outputs.PlayerSlot.SafetyRating ?? double.NaN);
+            AttachCore("Car.Player.LicLevel", () => _carSaEngine?.Outputs.PlayerSlot.LicLevel ?? 0);
+            AttachCore("Car.Player.TeamID", () => _carSaEngine?.Outputs.PlayerSlot.TeamID ?? 0);
             AttachCore("Car.Player.LapsSincePit", () => _carSaEngine?.Outputs.PlayerSlot.LapsSincePit ?? -1);
             AttachCore("Car.Player.Status", () => _carSaEngine?.Outputs.PlayerSlot.Status ?? 0);
             AttachCore("Car.Player.StatusE", () => _carSaEngine?.Outputs.PlayerSlot.StatusE ?? 0);
@@ -3513,9 +3515,15 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.PositionInClass", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].PositionInClass ?? 0);
                 AttachCore($"Car.Ahead{label}.ClassName", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClassName ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.ClassColorHex", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClassColorHex ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.CarClassShortName", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].CarClassShortName ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.Initials", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Initials ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.AbbrevName", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].AbbrevName ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.IRating", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IRating ?? 0);
                 AttachCore($"Car.Ahead{label}.Licence", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Licence ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.SafetyRating", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].SafetyRating ?? double.NaN);
+                AttachCore($"Car.Ahead{label}.LicLevel", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LicLevel ?? 0);
+                AttachCore($"Car.Ahead{label}.UserID", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].UserID ?? 0);
+                AttachCore($"Car.Ahead{label}.TeamID", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TeamID ?? 0);
                 AttachCore($"Car.Ahead{label}.LapsSincePit", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapsSincePit ?? -1);
                 AttachCore($"Car.Ahead{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLapTimeSec ?? double.NaN);
@@ -3552,9 +3560,15 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.PositionInClass", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].PositionInClass ?? 0);
                 AttachCore($"Car.Behind{label}.ClassName", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClassName ?? string.Empty);
                 AttachCore($"Car.Behind{label}.ClassColorHex", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClassColorHex ?? string.Empty);
+                AttachCore($"Car.Behind{label}.CarClassShortName", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].CarClassShortName ?? string.Empty);
+                AttachCore($"Car.Behind{label}.Initials", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Initials ?? string.Empty);
+                AttachCore($"Car.Behind{label}.AbbrevName", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].AbbrevName ?? string.Empty);
                 AttachCore($"Car.Behind{label}.IRating", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IRating ?? 0);
                 AttachCore($"Car.Behind{label}.Licence", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Licence ?? string.Empty);
                 AttachCore($"Car.Behind{label}.SafetyRating", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].SafetyRating ?? double.NaN);
+                AttachCore($"Car.Behind{label}.LicLevel", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LicLevel ?? 0);
+                AttachCore($"Car.Behind{label}.UserID", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].UserID ?? 0);
+                AttachCore($"Car.Behind{label}.TeamID", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TeamID ?? 0);
                 AttachCore($"Car.Behind{label}.LapsSincePit", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapsSincePit ?? -1);
                 AttachCore($"Car.Behind{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLapTimeSec ?? double.NaN);
@@ -5808,9 +5822,15 @@ namespace LaunchPlugin
                     slot.PositionInClass = 0;
                     slot.ClassName = string.Empty;
                     slot.ClassColorHex = string.Empty;
+                    slot.CarClassShortName = string.Empty;
+                    slot.Initials = string.Empty;
+                    slot.AbbrevName = string.Empty;
                     slot.IRating = 0;
                     slot.Licence = string.Empty;
                     slot.SafetyRating = double.NaN;
+                    slot.LicLevel = 0;
+                    slot.UserID = 0;
+                    slot.TeamID = 0;
                     slot.LapsSincePit = -1;
                     slot.BestLapTimeSec = double.NaN;
                     slot.LastLapTimeSec = double.NaN;
@@ -5840,10 +5860,14 @@ namespace LaunchPlugin
                 slot.HotScore = 0.0;
                 slot.HotVia = string.Empty;
 
-                if (TryGetCarDriverInfo(pluginManager, carIdx, out string className, out string classColorHex, out int iRating, out string licString))
+                if (TryGetCarDriverInfo(pluginManager, carIdx, out string className, out string classColorHex, out int iRating, out string licString,
+                    out string classShortName, out string initials, out string abbrevName, out int licLevel, out int userId, out int teamId))
                 {
                     slot.ClassName = className ?? string.Empty;
                     slot.ClassColorHex = classColorHex ?? string.Empty;
+                    slot.CarClassShortName = classShortName ?? string.Empty;
+                    slot.Initials = initials ?? string.Empty;
+                    slot.AbbrevName = abbrevName ?? string.Empty;
                     slot.IRating = iRating;
                     if (TryParseLicenseString(licString, out string licence, out double safetyRating))
                     {
@@ -5855,6 +5879,9 @@ namespace LaunchPlugin
                         slot.Licence = string.Empty;
                         slot.SafetyRating = double.NaN;
                     }
+                    slot.LicLevel = licLevel;
+                    slot.UserID = userId;
+                    slot.TeamID = teamId;
                 }
                 if (string.IsNullOrWhiteSpace(slot.ClassColorHex) && !string.IsNullOrWhiteSpace(slot.ClassColor))
                 {
@@ -5876,9 +5903,15 @@ namespace LaunchPlugin
                 playerSlot.ClassName = string.Empty;
                 playerSlot.ClassColor = string.Empty;
                 playerSlot.ClassColorHex = string.Empty;
+                playerSlot.CarClassShortName = string.Empty;
+                playerSlot.Initials = string.Empty;
+                playerSlot.AbbrevName = string.Empty;
                 playerSlot.IRating = 0;
                 playerSlot.Licence = string.Empty;
                 playerSlot.SafetyRating = double.NaN;
+                playerSlot.LicLevel = 0;
+                playerSlot.UserID = 0;
+                playerSlot.TeamID = 0;
                 return;
             }
 
@@ -5890,10 +5923,14 @@ namespace LaunchPlugin
                 }
             }
 
-            if (TryGetCarDriverInfo(pluginManager, playerCarIdx, out string className, out string classColorHex, out int iRating, out string licString))
+            if (TryGetCarDriverInfo(pluginManager, playerCarIdx, out string className, out string classColorHex, out int iRating, out string licString,
+                out string classShortName, out string initials, out string abbrevName, out int licLevel, out int userId, out int teamId))
             {
                 playerSlot.ClassName = className ?? string.Empty;
                 playerSlot.ClassColorHex = classColorHex ?? string.Empty;
+                playerSlot.CarClassShortName = classShortName ?? string.Empty;
+                playerSlot.Initials = initials ?? string.Empty;
+                playerSlot.AbbrevName = abbrevName ?? string.Empty;
                 playerSlot.IRating = iRating;
                 if (TryParseLicenseString(licString, out string licence, out double safetyRating))
                 {
@@ -5905,6 +5942,9 @@ namespace LaunchPlugin
                     playerSlot.Licence = string.Empty;
                     playerSlot.SafetyRating = double.NaN;
                 }
+                playerSlot.LicLevel = licLevel;
+                playerSlot.UserID = userId;
+                playerSlot.TeamID = teamId;
             }
 
             if (string.IsNullOrWhiteSpace(playerSlot.ClassColorHex) && !string.IsNullOrWhiteSpace(playerSlot.ClassColor))
@@ -6257,32 +6297,48 @@ namespace LaunchPlugin
             return false;
         }
 
-        private bool TryGetCarDriverInfo(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating, out string licString)
+        private bool TryGetCarDriverInfo(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating, out string licString,
+            out string classShortName, out string initials, out string abbrevName, out int licLevel, out int userId, out int teamId)
         {
             className = string.Empty;
             classColorHex = string.Empty;
             iRating = 0;
             licString = string.Empty;
+            classShortName = string.Empty;
+            initials = string.Empty;
+            abbrevName = string.Empty;
+            licLevel = 0;
+            userId = 0;
+            teamId = 0;
 
             if (pluginManager == null || carIdx < 0)
             {
                 return false;
             }
 
-            if (TryGetCarDriverInfoFromDriversTable(pluginManager, carIdx, out className, out classColorHex, out iRating, out licString))
+            if (TryGetCarDriverInfoFromDriversTable(pluginManager, carIdx, out className, out classColorHex, out iRating, out licString,
+                out classShortName, out initials, out abbrevName, out licLevel, out userId, out teamId))
             {
                 return true;
             }
 
-            return TryGetCarDriverInfoFromCompetingDrivers(pluginManager, carIdx, out className, out classColorHex, out iRating, out licString);
+            return TryGetCarDriverInfoFromCompetingDrivers(pluginManager, carIdx, out className, out classColorHex, out iRating, out licString,
+                out classShortName, out initials, out abbrevName, out licLevel, out userId, out teamId);
         }
 
-        private bool TryGetCarDriverInfoFromDriversTable(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating, out string licString)
+        private bool TryGetCarDriverInfoFromDriversTable(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating,
+            out string licString, out string classShortName, out string initials, out string abbrevName, out int licLevel, out int userId, out int teamId)
         {
             className = string.Empty;
             classColorHex = string.Empty;
             iRating = 0;
             licString = string.Empty;
+            classShortName = string.Empty;
+            initials = string.Empty;
+            abbrevName = string.Empty;
+            licLevel = 0;
+            userId = 0;
+            teamId = 0;
 
             for (int i = 1; i <= 64; i++)
             {
@@ -6293,7 +6349,8 @@ namespace LaunchPlugin
                     continue;
                 }
 
-                className = GetString(pluginManager, $"{basePath}.CarClassShortName") ?? string.Empty;
+                classShortName = GetString(pluginManager, $"{basePath}.CarClassShortName") ?? string.Empty;
+                className = classShortName;
                 if (string.IsNullOrWhiteSpace(className))
                 {
                     className = GetString(pluginManager, $"{basePath}.CarClassName") ?? string.Empty;
@@ -6302,18 +6359,30 @@ namespace LaunchPlugin
                 classColorHex = GetCarClassColorHexHash(pluginManager, $"{basePath}.CarClassColor");
                 iRating = GetInt(pluginManager, $"{basePath}.IRating", 0);
                 licString = GetString(pluginManager, $"{basePath}.LicString") ?? string.Empty;
+                initials = GetString(pluginManager, $"{basePath}.Initials") ?? string.Empty;
+                abbrevName = GetString(pluginManager, $"{basePath}.AbbrevName") ?? string.Empty;
+                licLevel = GetInt(pluginManager, $"{basePath}.LicLevel", 0);
+                userId = GetInt(pluginManager, $"{basePath}.UserID", 0);
+                teamId = GetInt(pluginManager, $"{basePath}.TeamID", 0);
                 return true;
             }
 
             return false;
         }
 
-        private bool TryGetCarDriverInfoFromCompetingDrivers(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating, out string licString)
+        private bool TryGetCarDriverInfoFromCompetingDrivers(PluginManager pluginManager, int carIdx, out string className, out string classColorHex, out int iRating,
+            out string licString, out string classShortName, out string initials, out string abbrevName, out int licLevel, out int userId, out int teamId)
         {
             className = string.Empty;
             classColorHex = string.Empty;
             iRating = 0;
             licString = string.Empty;
+            classShortName = string.Empty;
+            initials = string.Empty;
+            abbrevName = string.Empty;
+            licLevel = 0;
+            userId = 0;
+            teamId = 0;
 
             for (int i = 0; i < 64; i++)
             {
@@ -6329,7 +6398,8 @@ namespace LaunchPlugin
                     continue;
                 }
 
-                className = GetString(pluginManager, $"{basePath}.CarClassShortName") ?? string.Empty;
+                classShortName = GetString(pluginManager, $"{basePath}.CarClassShortName") ?? string.Empty;
+                className = classShortName;
                 if (string.IsNullOrWhiteSpace(className))
                 {
                     className = GetString(pluginManager, $"{basePath}.CarClassName") ?? string.Empty;
@@ -6338,6 +6408,11 @@ namespace LaunchPlugin
                 classColorHex = GetCarClassColorHexHash(pluginManager, $"{basePath}.CarClassColor");
                 iRating = GetInt(pluginManager, $"{basePath}.IRating", 0);
                 licString = GetString(pluginManager, $"{basePath}.LicString") ?? string.Empty;
+                initials = GetString(pluginManager, $"{basePath}.Initials") ?? string.Empty;
+                abbrevName = GetString(pluginManager, $"{basePath}.AbbrevName") ?? string.Empty;
+                licLevel = GetInt(pluginManager, $"{basePath}.LicLevel", 0);
+                userId = GetInt(pluginManager, $"{basePath}.UserID", 0);
+                teamId = GetInt(pluginManager, $"{basePath}.TeamID", 0);
                 return true;
             }
 

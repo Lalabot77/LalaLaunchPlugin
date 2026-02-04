@@ -46,17 +46,23 @@ namespace LaunchPlugin
         public double ClosingRateSecPerSec { get; set; } = double.NaN;
         public int Status { get; set; } = (int)CarSAStatus.Unknown;
         public int StatusE { get; set; } = (int)CarSAStatusE.Unknown;
-        public string StatusShort { get; set; } = "UNK";
-        public string StatusLong { get; set; } = "Unknown";
+        public string StatusShort { get; set; } = "---";
+        public string StatusLong { get; set; } = string.Empty;
         public string StatusEReason { get; set; } = "unknown";
         public int SessionFlagsRaw { get; set; } = -1;
         public int TrackSurfaceMaterialRaw { get; set; } = -1;
         public int PositionInClass { get; set; }
         public string ClassName { get; set; } = string.Empty;
         public string ClassColorHex { get; set; } = string.Empty;
+        public string CarClassShortName { get; set; } = string.Empty;
+        public string Initials { get; set; } = string.Empty;
+        public string AbbrevName { get; set; } = string.Empty;
         public int IRating { get; set; }
         public string Licence { get; set; } = string.Empty;
         public double SafetyRating { get; set; } = double.NaN;
+        public int LicLevel { get; set; }
+        public int UserID { get; set; }
+        public int TeamID { get; set; }
         public int LapsSincePit { get; set; } = -1;
         public double BestLapTimeSec { get; set; } = double.NaN;
         public double LastLapTimeSec { get; set; } = double.NaN;
@@ -123,17 +129,23 @@ namespace LaunchPlugin
             ClosingRateSecPerSec = double.NaN;
             Status = (int)CarSAStatus.Unknown;
             StatusE = (int)CarSAStatusE.Unknown;
-            StatusShort = "UNK";
-            StatusLong = "Unknown";
+            StatusShort = "---";
+            StatusLong = string.Empty;
             StatusEReason = "unknown";
             SessionFlagsRaw = -1;
             TrackSurfaceMaterialRaw = -1;
             PositionInClass = 0;
             ClassName = string.Empty;
             ClassColorHex = string.Empty;
+            CarClassShortName = string.Empty;
+            Initials = string.Empty;
+            AbbrevName = string.Empty;
             IRating = 0;
             Licence = string.Empty;
             SafetyRating = double.NaN;
+            LicLevel = 0;
+            UserID = 0;
+            TeamID = 0;
             LapsSincePit = -1;
             BestLapTimeSec = double.NaN;
             LastLapTimeSec = double.NaN;

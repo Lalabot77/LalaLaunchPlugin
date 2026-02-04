@@ -34,29 +34,29 @@ namespace LaunchPlugin
         private const int TrackSurfacePitStallOrTow = 1;
         private const int TrackSurfacePitLane = 2;
         private const int TrackSurfaceOnTrack = 3;
-        private const string StatusShortUnknown = "UNK";
-        private const string StatusShortOutLap = "OUT";
+        private const string StatusShortUnknown = "---";
+        private const string StatusShortOutLap = "OUTLP";
         private const string StatusShortInPits = "PIT";
-        private const string StatusShortCompromisedOffTrack = "OFF";
+        private const string StatusShortCompromisedOffTrack = "OFFTK";
         private const string StatusShortCompromisedPenalty = "PEN";
         private const string StatusShortFasterClass = "FCL";
         private const string StatusShortSlowerClass = "SCL";
-        private const string StatusShortRacing = "RCE";
-        private const string StatusShortHotlapWarning = "HLW";
-        private const string StatusShortHotlapCaution = "HLC";
-        private const string StatusShortCoolLapWarning = "CLW";
-        private const string StatusShortCoolLapCaution = "CLC";
+        private const string StatusShortRacing = "FIGHT";
+        private const string StatusShortHotlapWarning = "FAST!";
+        private const string StatusShortHotlapCaution = "PUSH";
+        private const string StatusShortCoolLapWarning = "SLOW!";
+        private const string StatusShortCoolLapCaution = "COOL";
         private const string StatusLongUnknown = "";
-        private const string StatusLongOutLap = "Out lap";
-        private const string StatusLongInPits = "In pits";
+        private const string StatusLongOutLap = "Out Lap";
+        private const string StatusLongInPits = "In Pits";
         private const string StatusLongCompromisedOffTrack = "Lap Invalid";
         private const string StatusLongCompromisedPenalty = "Penalty";
-        private const string StatusLongFasterClass = "Faster class";
-        private const string StatusLongSlowerClass = "Slower class";
-        private const string StatusLongRacing = "Racing";
-        private const string StatusLongHotlapWarning = "FAST CONFLICT";
+        private const string StatusLongFasterClass = "Faster Class";
+        private const string StatusLongSlowerClass = "Slower Class";
+        private const string StatusLongRacing = "Racing You";
+        private const string StatusLongHotlapWarning = "Push Conflict";
         private const string StatusLongHotlapCaution = "Push Lap";
-        private const string StatusLongCoolLapWarning = "SLOW CONFLICT";
+        private const string StatusLongCoolLapWarning = "Slow Conflict";
         private const string StatusLongCoolLapCaution = "Cool Lap";
         private const string StatusEReasonPits = "pits";
         private const string StatusEReasonCompromisedOffTrack = "cmp_off";
@@ -1191,9 +1191,15 @@ namespace LaunchPlugin
                 slot.PositionInClass = 0;
                 slot.ClassName = string.Empty;
                 slot.ClassColorHex = string.Empty;
+                slot.CarClassShortName = string.Empty;
+                slot.Initials = string.Empty;
+                slot.AbbrevName = string.Empty;
                 slot.IRating = 0;
                 slot.Licence = string.Empty;
                 slot.SafetyRating = double.NaN;
+                slot.LicLevel = 0;
+                slot.UserID = 0;
+                slot.TeamID = 0;
                 slot.BestLapTimeSec = double.NaN;
                 slot.LastLapTimeSec = double.NaN;
                 slot.BestLap = string.Empty;
@@ -1213,8 +1219,8 @@ namespace LaunchPlugin
                 slot.StatusE = (int)CarSAStatusE.Unknown;
                 slot.LastStatusE = int.MinValue;     // force UpdateStatusEText to run
                 slot.StatusETextDirty = true;
-                slot.StatusShort = "UNK";
-                slot.StatusLong = "Unknown";
+                slot.StatusShort = StatusShortUnknown;
+                slot.StatusLong = StatusLongUnknown;
                 slot.StatusEReason = "unknown";
             }
 
@@ -2325,10 +2331,10 @@ namespace LaunchPlugin
                     }
 
                     string lapSignShort = lapDelta >= 0 ? "+" : "-";
-                    slot.StatusShort = $"{lapSignShort}{lapDeltaAbs}L";
+                    slot.StatusShort = $"{lapSignShort} {lapDeltaAbs}L";
                     string lapSign = lapDelta >= 0 ? "+" : "-";
                     string directionLabel = lapDelta >= 0 ? "Up" : "Down";
-                    slot.StatusLong = $"{directionLabel} {lapSign}{Math.Abs(lapDelta)} Laps";
+                    slot.StatusLong = $"{directionLabel} {lapSign} {Math.Abs(lapDelta)} Laps";
                     break;
                 default:
                     slot.StatusShort = StatusShortUnknown;
