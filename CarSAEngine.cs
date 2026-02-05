@@ -1000,7 +1000,10 @@ namespace LaunchPlugin
                 if (double.IsNaN(distPct))
                 {
                     slot.GapTrackSec = double.NaN;
-                    slot.ClosingRateSecPerSec = double.NaN;
+                    if (!slot.ClosingRateHasSample)
+                    {
+                        slot.ClosingRateSecPerSec = double.NaN;
+                    }
                 }
                 else
                 {
