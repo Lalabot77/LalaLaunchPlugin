@@ -422,12 +422,15 @@ namespace LaunchPlugin
                 playerTrackSurfaceRaw = NormalizeTrackSurfaceRaw(surface);
             }
             _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
+            _outputs.Debug.PlayerCheckpointIndexNow = _playerCheckpointIndexNow;
+            _outputs.Debug.PlayerCheckpointIndexCrossed = _playerCheckpointIndexCrossed;
 
             UpdateCarStates(sessionTimeSec, sessionState, isRace, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed, allowLatches);
             if (_playerCheckpointChangedThisTick || _anyCheckpointCrossedThisTick)
             {
                 _miniSectorTickId++;
             }
+            _outputs.Debug.MiniSectorTickId = _miniSectorTickId;
 
             if (carCount <= 0 || playerCarIdx < 0 || playerCarIdx >= carCount)
             {
@@ -1049,23 +1052,32 @@ namespace LaunchPlugin
                                 }
 
                                 slot.RelativeBaseSec = normalized;
-                                slot.RelativeBaseTrackSec = slot.GapTrackSec;
+                                if (!double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec))
+                                {
+                                    slot.RelativeBaseTrackSec = slot.GapTrackSec;
+                                }
                             }
                         }
                     }
                 }
 
-                if (!double.IsNaN(slot.RelativeBaseSec) && !double.IsNaN(slot.GapTrackSec) && !double.IsNaN(slot.RelativeBaseTrackSec))
+                bool hasRelativeBaseSec = !double.IsNaN(slot.RelativeBaseSec) && !double.IsInfinity(slot.RelativeBaseSec);
+                bool hasTrackSec = !double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec);
+                bool hasRelativeBaseTrackSec = !double.IsNaN(slot.RelativeBaseTrackSec) && !double.IsInfinity(slot.RelativeBaseTrackSec);
+                if (hasRelativeBaseSec)
                 {
-                    slot.GapRelativeSec = slot.RelativeBaseSec + (slot.GapTrackSec - slot.RelativeBaseTrackSec);
+                    if (hasTrackSec && hasRelativeBaseTrackSec)
+                    {
+                        slot.GapRelativeSec = slot.RelativeBaseSec + (slot.GapTrackSec - slot.RelativeBaseTrackSec);
+                    }
+                    else
+                    {
+                        slot.GapRelativeSec = slot.RelativeBaseSec;
+                    }
                 }
-                else if (double.IsNaN(slot.RelativeBaseSec) && !double.IsNaN(slot.GapTrackSec))
+                else if (hasTrackSec)
                 {
                     slot.GapRelativeSec = slot.GapTrackSec;
-                }
-                else if (!double.IsNaN(slot.RelativeBaseSec) && double.IsNaN(slot.GapTrackSec))
-                {
-                    slot.GapRelativeSec = slot.RelativeBaseSec;
                 }
                 else
                 {
