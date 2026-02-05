@@ -27,6 +27,7 @@ namespace LaunchPlugin
         private const double HotCoolSecondaryBandMax = 0.50;
         private const double HotCoolClosingRateThreshold = 0.10;
         private const double HotCoolGapMaxSec = 10.0;
+        private const double RelativeGapEmaAlpha = 0.25;
         private const int HotCoolIntentNeutral = 0;
         private const int HotCoolIntentHot = 1;
         private const int HotCoolIntentCool = 2;
@@ -129,6 +130,10 @@ namespace LaunchPlugin
         private int _playerCheckpointIndexLast = -1;
         private int _playerCheckpointIndexCrossed = -1;
         private bool _playerCheckpointChangedThisTick;
+        private bool _anyCheckpointCrossedThisTick;
+        private int _miniSectorTickId;
+        private readonly double[] _playerCheckpointTimeSec = new double[MiniSectorCheckpointCount];
+        private readonly double[,] _carCheckpointTimeSec = new double[MaxCars, MiniSectorCheckpointCount];
 
         private sealed class CarSA_CarState
         {
@@ -169,6 +174,8 @@ namespace LaunchPlugin
             public int CheckpointIndexCrossed { get; set; } = -1;
             public double LapStartTimeSec { get; set; } = double.NaN;
             public int LapStartLap { get; set; } = int.MinValue;
+            public double RelativeGapSec { get; set; } = double.NaN;
+            public bool RelativeGapHasSample { get; set; }
 
             public void Reset(int carIdx)
             {
@@ -209,6 +216,8 @@ namespace LaunchPlugin
                 CheckpointIndexCrossed = -1;
                 LapStartTimeSec = double.NaN;
                 LapStartLap = int.MinValue;
+                RelativeGapSec = double.NaN;
+                RelativeGapHasSample = false;
             }
         }
 
@@ -226,6 +235,8 @@ namespace LaunchPlugin
                 _carStates[i] = new CarSA_CarState();
                 _carStates[i].Reset(i);
             }
+
+            ClearCheckpointTimes();
         }
 
         public CarSAOutputs Outputs => _outputs;
@@ -313,6 +324,9 @@ namespace LaunchPlugin
             _playerCheckpointIndexLast = -1;
             _playerCheckpointIndexCrossed = -1;
             _playerCheckpointChangedThisTick = false;
+            _anyCheckpointCrossedThisTick = false;
+            _miniSectorTickId = 0;
+            ClearCheckpointTimes();
         }
 
         // === SA / track-awareness + slot assignment =============================
@@ -403,7 +417,8 @@ namespace LaunchPlugin
                 playerLapPctValid = !double.IsNaN(playerLapPct) && playerLapPct >= 0.0 && playerLapPct < 1.0;
             }
 
-            UpdatePlayerCheckpointIndices(playerLapPctValid ? playerLapPct : double.NaN);
+            UpdatePlayerCheckpointIndices(playerLapPctValid ? playerLapPct : double.NaN, sessionTimeSec);
+            _anyCheckpointCrossedThisTick = false;
 
             int playerTrackSurfaceRaw = -1;
             if (carIdxTrackSurface != null && playerCarIdx >= 0 && playerCarIdx < carIdxTrackSurface.Length)
@@ -414,6 +429,10 @@ namespace LaunchPlugin
             _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
 
             UpdateCarStates(sessionTimeSec, sessionState, isRace, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed, allowLatches);
+            if (_playerCheckpointChangedThisTick || _anyCheckpointCrossedThisTick)
+            {
+                _miniSectorTickId++;
+            }
 
             if (carCount <= 0 || playerCarIdx < 0 || playerCarIdx >= carCount)
             {
@@ -704,6 +723,8 @@ namespace LaunchPlugin
                         state.OffTrackStreak = 0;
                         state.OffTrackFirstSeenTimeSec = double.NaN;
                         state.LapsSincePit = -1;
+                        state.RelativeGapSec = double.NaN;
+                        state.RelativeGapHasSample = false;
                         continue;
                     }
 
@@ -793,6 +814,11 @@ namespace LaunchPlugin
                         state.CheckpointIndexNow = checkpointNow;
                         state.CheckpointIndexCrossed = checkpointCrossed;
                         state.CheckpointIndexLast = checkpointNow;
+                        if (checkpointCrossed >= 0 && checkpointCrossed < MiniSectorCheckpointCount)
+                        {
+                            _anyCheckpointCrossedThisTick = true;
+                            _carCheckpointTimeSec[carIdx, checkpointCrossed] = sessionTimeSec;
+                        }
 
                         if (checkpointCrossed == 0)
                         {
@@ -958,6 +984,7 @@ namespace LaunchPlugin
                     if (slot != null)
                     {
                         slot.GapTrackSec = double.NaN;
+                        slot.GapRelativeSec = double.NaN;
                         slot.ClosingRateSecPerSec = double.NaN;
                         slot.LapsSincePit = -1;
                         slot.ClosingRateSmoothed = 0.0;
@@ -1006,8 +1033,42 @@ namespace LaunchPlugin
                                 + ((1.0 - ClosingRateEmaAlpha) * slot.ClosingRateSmoothed);
                             slot.ClosingRateSecPerSec = slot.ClosingRateSmoothed;
                         }
+
+                        int checkpointIdx = state.CheckpointIndexNow;
+                        if (checkpointIdx >= 0 && checkpointIdx < MiniSectorCheckpointCount)
+                        {
+                            double playerCpTime = _playerCheckpointTimeSec[checkpointIdx];
+                            double carCpTime = _carCheckpointTimeSec[slot.CarIdx, checkpointIdx];
+                            if (!double.IsNaN(playerCpTime) && !double.IsNaN(carCpTime))
+                            {
+                                double rawRelative = carCpTime - playerCpTime;
+                                double normalized = rawRelative - (slot.LapDelta * lapTimeEstimateSec);
+                                double wrapWindow = 0.5 * lapTimeEstimateSec;
+                                if (normalized > wrapWindow)
+                                {
+                                    normalized -= lapTimeEstimateSec;
+                                }
+                                else if (normalized < -wrapWindow)
+                                {
+                                    normalized += lapTimeEstimateSec;
+                                }
+
+                                if (!state.RelativeGapHasSample || double.IsNaN(state.RelativeGapSec))
+                                {
+                                    state.RelativeGapSec = normalized;
+                                    state.RelativeGapHasSample = true;
+                                }
+                                else
+                                {
+                                    state.RelativeGapSec = (RelativeGapEmaAlpha * normalized)
+                                        + ((1.0 - RelativeGapEmaAlpha) * state.RelativeGapSec);
+                                }
+                            }
+                        }
                     }
                 }
+
+                slot.GapRelativeSec = state.RelativeGapSec;
 
                 if (isRace && !state.HasSeenPitExit)
                 {
@@ -1208,6 +1269,8 @@ namespace LaunchPlugin
                 slot.HotVia = string.Empty;
                 slot.HotCoolIntent = 0;
                 slot.HotCoolLastCoarseIdx = -1;
+                slot.HotCoolConflictCached = false;
+                slot.HotCoolConflictLastTickId = -1;
                 slot.GapRelativeSec = double.NaN;
 
                        // Phase 2: prevent stale StatusE labels carrying across car rebinds
@@ -1529,13 +1592,20 @@ namespace LaunchPlugin
                 return;
             }
 
+            if (slot.CarIdx < 0 || slot.CarIdx >= _carStates.Length)
+            {
+                slot.HotCoolConflictCached = false;
+                slot.HotCoolConflictLastTickId = -1;
+                return;
+            }
+
             if (!IsGapEligibleForHotCool(slot.GapTrackSec))
             {
                 ResetHotCoolState(slot);
                 return;
             }
 
-            UpdateHotCoolIntent(slot);
+            UpdateHotCoolIntent(slot, isAhead);
 
             if (IsHardStatusE(statusE))
             {
@@ -1549,7 +1619,17 @@ namespace LaunchPlugin
             }
 
             double gapAbs = Math.Abs(slot.GapTrackSec);
-            bool conflict = IsHotCoolConflict(slot, carState, sessionTimeSec, gapAbs);
+            bool conflict;
+            if (ShouldUpdateMiniSectorForCar(slot.CarIdx) && slot.HotCoolConflictLastTickId != _miniSectorTickId)
+            {
+                conflict = IsHotCoolConflict(slot, carState, sessionTimeSec, gapAbs);
+                slot.HotCoolConflictCached = conflict;
+                slot.HotCoolConflictLastTickId = _miniSectorTickId;
+            }
+            else
+            {
+                conflict = slot.HotCoolConflictCached;
+            }
             if (intent == HotCoolIntentHot)
             {
                 if (!isAhead && conflict)
@@ -1596,7 +1676,7 @@ namespace LaunchPlugin
                 || statusE == (int)CarSAStatusE.CompromisedPenalty;
         }
 
-        private void UpdateHotCoolIntent(CarSASlot slot)
+        private void UpdateHotCoolIntent(CarSASlot slot, bool isAhead)
         {
             if (slot == null)
             {
@@ -1617,7 +1697,7 @@ namespace LaunchPlugin
             slot.HotCoolLastCoarseIdx = coarseIdx;
 
             bool hasDeltaBest;
-            int candidateIntent = ComputeHotCoolCandidateIntent(slot, out hasDeltaBest);
+            int candidateIntent = ComputeHotCoolCandidateIntent(slot, isAhead, out hasDeltaBest);
             if (!hasDeltaBest)
             {
                 return;
@@ -1653,7 +1733,7 @@ namespace LaunchPlugin
             return coarseIdx;
         }
 
-        private static int ComputeHotCoolCandidateIntent(CarSASlot slot, out bool hasDeltaBest)
+        private static int ComputeHotCoolCandidateIntent(CarSASlot slot, bool isAhead, out bool hasDeltaBest)
         {
             if (slot == null)
             {
@@ -1682,7 +1762,7 @@ namespace LaunchPlugin
 
             if (deltaBest > HotCoolPrimaryBandMax && deltaBest <= HotCoolSecondaryBandMax)
             {
-                if (slot.ClosingRateSecPerSec >= HotCoolClosingRateThreshold
+                if (!isAhead && slot.ClosingRateSecPerSec >= HotCoolClosingRateThreshold
                     && !double.IsNaN(slot.ClosingRateSecPerSec)
                     && !double.IsInfinity(slot.ClosingRateSecPerSec))
                 {
@@ -1709,6 +1789,8 @@ namespace LaunchPlugin
 
             slot.HotCoolIntent = HotCoolIntentNeutral;
             slot.HotCoolLastCoarseIdx = -1;
+            slot.HotCoolConflictCached = false;
+            slot.HotCoolConflictLastTickId = -1;
         }
 
         private static void ResetHotCoolState(CarSASlot[] slots)
@@ -1908,6 +1990,22 @@ namespace LaunchPlugin
             UpdateStatusEText(slot);
         }
 
+        private void ClearCheckpointTimes()
+        {
+            for (int i = 0; i < _playerCheckpointTimeSec.Length; i++)
+            {
+                _playerCheckpointTimeSec[i] = double.NaN;
+            }
+
+            for (int carIdx = 0; carIdx < _carStates.Length; carIdx++)
+            {
+                for (int cp = 0; cp < MiniSectorCheckpointCount; cp++)
+                {
+                    _carCheckpointTimeSec[carIdx, cp] = double.NaN;
+                }
+            }
+        }
+
         private void ResetCarLatchesOnly()
         {
             for (int i = 0; i < _carStates.Length; i++)
@@ -1951,7 +2049,7 @@ namespace LaunchPlugin
             return checkpointNow;
         }
 
-        private void UpdatePlayerCheckpointIndices(double lapPct)
+        private void UpdatePlayerCheckpointIndices(double lapPct, double sessionTimeSec)
         {
             int checkpointNow = ComputeCheckpointIndex(lapPct);
             int checkpointCrossed = -1;
@@ -1965,6 +2063,11 @@ namespace LaunchPlugin
             if (checkpointNow >= 0)
             {
                 _playerCheckpointIndexLast = checkpointNow;
+            }
+
+            if (checkpointCrossed >= 0 && checkpointCrossed < _playerCheckpointTimeSec.Length)
+            {
+                _playerCheckpointTimeSec[checkpointCrossed] = sessionTimeSec;
             }
         }
 

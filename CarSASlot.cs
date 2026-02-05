@@ -80,6 +80,8 @@ namespace LaunchPlugin
         public double ReboundTimeSec { get; set; } = 0.0;
         public int HotCoolIntent { get; set; }
         public int HotCoolLastCoarseIdx { get; set; } = -1;
+        public bool HotCoolConflictCached { get; set; }
+        public int HotCoolConflictLastTickId { get; set; } = -1;
         public double GapRelativeSec { get; set; } = double.NaN;
 
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
@@ -162,6 +164,8 @@ namespace LaunchPlugin
             ReboundTimeSec = 0.0;
             HotCoolIntent = 0;
             HotCoolLastCoarseIdx = -1;
+            HotCoolConflictCached = false;
+            HotCoolConflictLastTickId = -1;
             GapRelativeSec = double.NaN;
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
