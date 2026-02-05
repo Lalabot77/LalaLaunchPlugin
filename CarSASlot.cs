@@ -79,9 +79,8 @@ namespace LaunchPlugin
         public bool JustRebound { get; set; }
         public double ReboundTimeSec { get; set; } = 0.0;
         public int HotCoolIntent { get; set; }
-        public int HotCoolStreak { get; set; }
-        public int HotCoolPendingIntent { get; set; }
-        public int HotCoolLastMiniSectorTickId { get; set; }
+        public int HotCoolLastCoarseIdx { get; set; } = -1;
+        public double GapRelativeSec { get; set; } = double.NaN;
 
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
         internal double LastGapSec { get; set; } = double.NaN;
@@ -162,9 +161,8 @@ namespace LaunchPlugin
             JustRebound = false;
             ReboundTimeSec = 0.0;
             HotCoolIntent = 0;
-            HotCoolPendingIntent = 0;
-            HotCoolStreak = 0;
-            HotCoolLastMiniSectorTickId = 0;
+            HotCoolLastCoarseIdx = -1;
+            GapRelativeSec = double.NaN;
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
             HasGap = false;

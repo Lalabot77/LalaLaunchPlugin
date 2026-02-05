@@ -20,6 +20,8 @@ namespace LaunchPlugin
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
         private const int MiniSectorCheckpointCount = 60;
+        private const int HotCoolCoarseSectorCount = 6;
+        private const int HotCoolMiniSectorsPerCoarse = 10;
         private const double HotCoolPrimaryBandMin = -0.20;
         private const double HotCoolPrimaryBandMax = 0.20;
         private const double HotCoolSecondaryBandMax = 0.50;
@@ -127,7 +129,6 @@ namespace LaunchPlugin
         private int _playerCheckpointIndexLast = -1;
         private int _playerCheckpointIndexCrossed = -1;
         private bool _playerCheckpointChangedThisTick;
-        private int _miniSectorTickId;
 
         private sealed class CarSA_CarState
         {
@@ -312,7 +313,6 @@ namespace LaunchPlugin
             _playerCheckpointIndexLast = -1;
             _playerCheckpointIndexCrossed = -1;
             _playerCheckpointChangedThisTick = false;
-            _miniSectorTickId = 0;
         }
 
         // === SA / track-awareness + slot assignment =============================
@@ -404,10 +404,6 @@ namespace LaunchPlugin
             }
 
             UpdatePlayerCheckpointIndices(playerLapPctValid ? playerLapPct : double.NaN);
-            if (_playerCheckpointChangedThisTick)
-            {
-                _miniSectorTickId++;
-            }
 
             int playerTrackSurfaceRaw = -1;
             if (carIdxTrackSurface != null && playerCarIdx >= 0 && playerCarIdx < carIdxTrackSurface.Length)
@@ -750,7 +746,7 @@ namespace LaunchPlugin
                     state.OffTrackStreak++;
                     bool allowLatch = state.OffTrackStreak >= 3
                         || (!double.IsNaN(state.OffTrackFirstSeenTimeSec)
-                            && (sessionTimeSec - state.OffTrackFirstSeenTimeSec) >= 0.20);
+                            && (sessionTimeSec - state.OffTrackFirstSeenTimeSec) >= 0.25);
                     if (allowLatch)
                     {
                         int untilLap = state.Lap + 1;
@@ -1211,9 +1207,8 @@ namespace LaunchPlugin
                 slot.HotScore = 0.0;
                 slot.HotVia = string.Empty;
                 slot.HotCoolIntent = 0;
-                slot.HotCoolPendingIntent = 0;
-                slot.HotCoolStreak = 0;
-                slot.HotCoolLastMiniSectorTickId = 0;
+                slot.HotCoolLastCoarseIdx = -1;
+                slot.GapRelativeSec = double.NaN;
 
                        // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;
@@ -1540,7 +1535,7 @@ namespace LaunchPlugin
                 return;
             }
 
-            UpdateHotCoolIntent(slot, isAhead);
+            UpdateHotCoolIntent(slot);
 
             if (IsHardStatusE(statusE))
             {
@@ -1601,72 +1596,79 @@ namespace LaunchPlugin
                 || statusE == (int)CarSAStatusE.CompromisedPenalty;
         }
 
-        private void UpdateHotCoolIntent(CarSASlot slot, bool isAhead)
+        private void UpdateHotCoolIntent(CarSASlot slot)
         {
             if (slot == null)
             {
                 return;
             }
 
-            if (!ShouldUpdateMiniSectorForCar(slot.CarIdx))
+            int coarseIdx = GetHotCoolCoarseIdx(slot);
+            if (coarseIdx < 0)
             {
                 return;
             }
 
-            if (slot.HotCoolLastMiniSectorTickId == _miniSectorTickId)
+            if (slot.HotCoolLastCoarseIdx == coarseIdx)
             {
                 return;
             }
 
-            int candidateIntent = ComputeHotCoolCandidateIntent(slot, isAhead);
-            if (candidateIntent == slot.HotCoolIntent)
+            slot.HotCoolLastCoarseIdx = coarseIdx;
+
+            bool hasDeltaBest;
+            int candidateIntent = ComputeHotCoolCandidateIntent(slot, out hasDeltaBest);
+            if (!hasDeltaBest)
             {
-                slot.HotCoolPendingIntent = HotCoolIntentNeutral;
-                slot.HotCoolStreak = 0;
-                slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
                 return;
             }
 
-            if (candidateIntent == HotCoolIntentNeutral)
-            {
-                slot.HotCoolPendingIntent = HotCoolIntentNeutral;
-                slot.HotCoolStreak = 0;
-                slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
-                return;
-            }
-
-            if (slot.HotCoolPendingIntent == candidateIntent)
-            {
-                slot.HotCoolStreak++;
-            }
-            else
-            {
-                slot.HotCoolPendingIntent = candidateIntent;
-                slot.HotCoolStreak = 1;
-            }
-
-            if (slot.HotCoolStreak >= 2)
-            {
-                slot.HotCoolIntent = candidateIntent;
-                slot.HotCoolPendingIntent = HotCoolIntentNeutral;
-                slot.HotCoolStreak = 0;
-            }
-
-            slot.HotCoolLastMiniSectorTickId = _miniSectorTickId;
+            slot.HotCoolIntent = candidateIntent;
         }
 
-        private static int ComputeHotCoolCandidateIntent(CarSASlot slot, bool isAhead)
+        private int GetHotCoolCoarseIdx(CarSASlot slot)
+        {
+            if (slot == null || slot.CarIdx < 0 || slot.CarIdx >= _carStates.Length)
+            {
+                return -1;
+            }
+
+            int miniSectorIdx = _carStates[slot.CarIdx].CheckpointIndexNow;
+            if (miniSectorIdx < 0)
+            {
+                return -1;
+            }
+
+            int coarseIdx = miniSectorIdx / HotCoolMiniSectorsPerCoarse;
+            if (coarseIdx < 0)
+            {
+                return 0;
+            }
+
+            if (coarseIdx >= HotCoolCoarseSectorCount)
+            {
+                return HotCoolCoarseSectorCount - 1;
+            }
+
+            return coarseIdx;
+        }
+
+        private static int ComputeHotCoolCandidateIntent(CarSASlot slot, out bool hasDeltaBest)
         {
             if (slot == null)
             {
+                hasDeltaBest = false;
                 return HotCoolIntentNeutral;
             }
 
             double deltaBest = slot.DeltaBestSec;
             if (double.IsNaN(deltaBest) || double.IsInfinity(deltaBest))
             {
+                hasDeltaBest = false;
                 return HotCoolIntentNeutral;
             }
+
+            hasDeltaBest = true;
 
             if (deltaBest <= HotCoolPrimaryBandMin)
             {
@@ -1680,7 +1682,7 @@ namespace LaunchPlugin
 
             if (deltaBest > HotCoolPrimaryBandMax && deltaBest <= HotCoolSecondaryBandMax)
             {
-                if (!isAhead && slot.ClosingRateSecPerSec >= HotCoolClosingRateThreshold
+                if (slot.ClosingRateSecPerSec >= HotCoolClosingRateThreshold
                     && !double.IsNaN(slot.ClosingRateSecPerSec)
                     && !double.IsInfinity(slot.ClosingRateSecPerSec))
                 {
@@ -1706,9 +1708,7 @@ namespace LaunchPlugin
             }
 
             slot.HotCoolIntent = HotCoolIntentNeutral;
-            slot.HotCoolPendingIntent = HotCoolIntentNeutral;
-            slot.HotCoolStreak = 0;
-            slot.HotCoolLastMiniSectorTickId = 0;
+            slot.HotCoolLastCoarseIdx = -1;
         }
 
         private static void ResetHotCoolState(CarSASlot[] slots)
