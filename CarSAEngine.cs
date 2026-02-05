@@ -1694,8 +1694,6 @@ namespace LaunchPlugin
                 return;
             }
 
-            slot.HotCoolLastCoarseIdx = coarseIdx;
-
             bool hasDeltaBest;
             int candidateIntent = ComputeHotCoolCandidateIntent(slot, isAhead, out hasDeltaBest);
             if (!hasDeltaBest)
@@ -1703,6 +1701,7 @@ namespace LaunchPlugin
                 return;
             }
 
+            slot.HotCoolLastCoarseIdx = coarseIdx;
             slot.HotCoolIntent = candidateIntent;
         }
 
