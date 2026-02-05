@@ -16,7 +16,8 @@ namespace LaunchPlugin
         private const double HysteresisFactor = 0.90;
         private const double ClosingRateClamp = 5.0;
         private const double ClosingRateEmaAlpha = 0.35;
-        private const double RelativeGapEmaAlpha = 0.10;
+        private const double RelativeGapCorrectionGain = 0.10;
+        private const double RelativeFilterMaxPredictionDtSec = 0.10;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
@@ -983,7 +984,8 @@ namespace LaunchPlugin
                         slot.GapTrackSec = double.NaN;
                         slot.GapRelativeSec = double.NaN;
                         slot.RelativeTargetSec = double.NaN;
-                        slot.RelativeSmoothedSec = double.NaN;
+                        slot.RelativeFilterSec = double.NaN;
+                        slot.RelativeFilterLastTimeSec = double.NaN;
                         slot.ClosingRateSecPerSec = double.NaN;
                         slot.LapsSincePit = -1;
                         slot.ClosingRateSmoothed = 0.0;
@@ -998,7 +1000,10 @@ namespace LaunchPlugin
                 if (double.IsNaN(distPct))
                 {
                     slot.GapTrackSec = double.NaN;
-                    slot.ClosingRateSecPerSec = double.NaN;
+                    if (!slot.ClosingRateHasSample)
+                    {
+                        slot.ClosingRateSecPerSec = double.NaN;
+                    }
                 }
                 else
                 {
@@ -1057,35 +1062,62 @@ namespace LaunchPlugin
                             }
 
                             slot.RelativeTargetSec = normalized;
-                            if (double.IsNaN(slot.RelativeSmoothedSec) || double.IsInfinity(slot.RelativeSmoothedSec))
-                            {
-                                slot.RelativeSmoothedSec = slot.RelativeTargetSec;
-                            }
                         }
                     }
                 }
 
+                bool hasRelativeFilterSec = !double.IsNaN(slot.RelativeFilterSec) && !double.IsInfinity(slot.RelativeFilterSec);
                 bool hasRelativeTargetSec = !double.IsNaN(slot.RelativeTargetSec) && !double.IsInfinity(slot.RelativeTargetSec);
-                bool hasRelativeSmoothedSec = !double.IsNaN(slot.RelativeSmoothedSec) && !double.IsInfinity(slot.RelativeSmoothedSec);
-                bool hasTrackSec = !double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec);
-                if (hasRelativeTargetSec)
+                if (shouldUpdate && hasRelativeTargetSec)
                 {
-                    if (!hasRelativeSmoothedSec)
+                    if (!hasRelativeFilterSec)
                     {
-                        slot.RelativeSmoothedSec = slot.RelativeTargetSec;
+                        slot.RelativeFilterSec = slot.RelativeTargetSec;
                     }
                     else
                     {
-                        slot.RelativeSmoothedSec = slot.RelativeSmoothedSec
-                            + (RelativeGapEmaAlpha * (slot.RelativeTargetSec - slot.RelativeSmoothedSec));
+                        slot.RelativeFilterSec = slot.RelativeFilterSec
+                            + (RelativeGapCorrectionGain * (slot.RelativeTargetSec - slot.RelativeFilterSec));
                     }
 
-                    hasRelativeSmoothedSec = !double.IsNaN(slot.RelativeSmoothedSec) && !double.IsInfinity(slot.RelativeSmoothedSec);
+                    hasRelativeFilterSec = !double.IsNaN(slot.RelativeFilterSec) && !double.IsInfinity(slot.RelativeFilterSec);
                 }
 
-                if (hasRelativeSmoothedSec)
+                bool hasClosingRateSec = !double.IsNaN(slot.ClosingRateSecPerSec) && !double.IsInfinity(slot.ClosingRateSecPerSec);
+                if (hasRelativeFilterSec && hasClosingRateSec)
                 {
-                    slot.GapRelativeSec = slot.RelativeSmoothedSec;
+                    double dtSec = slot.RelativeFilterLastTimeSec;
+                    if (double.IsNaN(dtSec) || double.IsInfinity(dtSec))
+                    {
+                        dtSec = 0.0;
+                    }
+                    else
+                    {
+                        dtSec = sessionTimeSec - dtSec;
+                        if (dtSec <= 0.0 || dtSec > 0.5)
+                        {
+                            dtSec = 0.0;
+                        }
+                        else if (dtSec > RelativeFilterMaxPredictionDtSec)
+                        {
+                            dtSec = RelativeFilterMaxPredictionDtSec;
+                        }
+                    }
+
+                    slot.RelativeFilterSec = slot.RelativeFilterSec - (slot.ClosingRateSecPerSec * dtSec);
+                    hasRelativeFilterSec = !double.IsNaN(slot.RelativeFilterSec) && !double.IsInfinity(slot.RelativeFilterSec);
+                }
+
+                slot.RelativeFilterLastTimeSec = sessionTimeSec;
+
+                bool hasTrackSec = !double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec);
+                if (hasRelativeFilterSec)
+                {
+                    slot.GapRelativeSec = slot.RelativeFilterSec;
+                }
+                else if (hasRelativeTargetSec)
+                {
+                    slot.GapRelativeSec = slot.RelativeTargetSec;
                 }
                 else if (hasTrackSec)
                 {
@@ -1300,7 +1332,8 @@ namespace LaunchPlugin
                 slot.HotCoolConflictLastTickId = -1;
                 slot.GapRelativeSec = double.NaN;
                 slot.RelativeTargetSec = double.NaN;
-                slot.RelativeSmoothedSec = double.NaN;
+                slot.RelativeFilterSec = double.NaN;
+                slot.RelativeFilterLastTimeSec = double.NaN;
 
                 // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;

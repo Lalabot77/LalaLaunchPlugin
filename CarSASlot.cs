@@ -85,7 +85,8 @@ namespace LaunchPlugin
         public int HotCoolConflictLastTickId { get; set; } = -1;
         public double GapRelativeSec { get; set; } = double.NaN;
         public double RelativeTargetSec { get; set; } = double.NaN;
-        public double RelativeSmoothedSec { get; set; } = double.NaN;
+        public double RelativeFilterSec { get; set; } = double.NaN;
+        public double RelativeFilterLastTimeSec { get; set; } = double.NaN;
 
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
         internal double LastGapSec { get; set; } = double.NaN;
@@ -172,7 +173,8 @@ namespace LaunchPlugin
             HotCoolConflictLastTickId = -1;
             GapRelativeSec = double.NaN;
             RelativeTargetSec = double.NaN;
-            RelativeSmoothedSec = double.NaN;
+            RelativeFilterSec = double.NaN;
+            RelativeFilterLastTimeSec = double.NaN;
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
             HasGap = false;
