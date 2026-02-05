@@ -67,6 +67,7 @@ namespace LaunchPlugin
         public double BestLapTimeSec { get; set; } = double.NaN;
         public double LastLapTimeSec { get; set; } = double.NaN;
         public string BestLap { get; set; } = string.Empty;
+        public bool BestLapIsEstimated { get; set; }
         public string LastLap { get; set; } = string.Empty;
         public double DeltaBestSec { get; set; } = double.NaN;
         public string DeltaBest { get; set; } = string.Empty;
@@ -83,6 +84,8 @@ namespace LaunchPlugin
         public bool HotCoolConflictCached { get; set; }
         public int HotCoolConflictLastTickId { get; set; } = -1;
         public double GapRelativeSec { get; set; } = double.NaN;
+        public double RelativeBaseSec { get; set; } = double.NaN;
+        public double RelativeBaseTrackSec { get; set; } = double.NaN;
 
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
         internal double LastGapSec { get; set; } = double.NaN;
@@ -151,6 +154,7 @@ namespace LaunchPlugin
             BestLapTimeSec = double.NaN;
             LastLapTimeSec = double.NaN;
             BestLap = string.Empty;
+            BestLapIsEstimated = false;
             LastLap = string.Empty;
             DeltaBestSec = double.NaN;
             DeltaBest = "-";
@@ -167,6 +171,8 @@ namespace LaunchPlugin
             HotCoolConflictCached = false;
             HotCoolConflictLastTickId = -1;
             GapRelativeSec = double.NaN;
+            RelativeBaseSec = double.NaN;
+            RelativeBaseTrackSec = double.NaN;
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
             HasGap = false;

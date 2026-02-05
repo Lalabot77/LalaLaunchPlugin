@@ -27,7 +27,6 @@ namespace LaunchPlugin
         private const double HotCoolSecondaryBandMax = 0.50;
         private const double HotCoolClosingRateThreshold = 0.10;
         private const double HotCoolGapMaxSec = 10.0;
-        private const double RelativeGapEmaAlpha = 0.25;
         private const int HotCoolIntentNeutral = 0;
         private const int HotCoolIntentHot = 1;
         private const int HotCoolIntentCool = 2;
@@ -174,8 +173,6 @@ namespace LaunchPlugin
             public int CheckpointIndexCrossed { get; set; } = -1;
             public double LapStartTimeSec { get; set; } = double.NaN;
             public int LapStartLap { get; set; } = int.MinValue;
-            public double RelativeGapSec { get; set; } = double.NaN;
-            public bool RelativeGapHasSample { get; set; }
 
             public void Reset(int carIdx)
             {
@@ -216,8 +213,6 @@ namespace LaunchPlugin
                 CheckpointIndexCrossed = -1;
                 LapStartTimeSec = double.NaN;
                 LapStartLap = int.MinValue;
-                RelativeGapSec = double.NaN;
-                RelativeGapHasSample = false;
             }
         }
 
@@ -723,8 +718,6 @@ namespace LaunchPlugin
                         state.OffTrackStreak = 0;
                         state.OffTrackFirstSeenTimeSec = double.NaN;
                         state.LapsSincePit = -1;
-                        state.RelativeGapSec = double.NaN;
-                        state.RelativeGapHasSample = false;
                         continue;
                     }
 
@@ -985,6 +978,8 @@ namespace LaunchPlugin
                     {
                         slot.GapTrackSec = double.NaN;
                         slot.GapRelativeSec = double.NaN;
+                        slot.RelativeBaseSec = double.NaN;
+                        slot.RelativeBaseTrackSec = double.NaN;
                         slot.ClosingRateSecPerSec = double.NaN;
                         slot.LapsSincePit = -1;
                         slot.ClosingRateSmoothed = 0.0;
@@ -1053,22 +1048,29 @@ namespace LaunchPlugin
                                     normalized += lapTimeEstimateSec;
                                 }
 
-                                if (!state.RelativeGapHasSample || double.IsNaN(state.RelativeGapSec))
-                                {
-                                    state.RelativeGapSec = normalized;
-                                    state.RelativeGapHasSample = true;
-                                }
-                                else
-                                {
-                                    state.RelativeGapSec = (RelativeGapEmaAlpha * normalized)
-                                        + ((1.0 - RelativeGapEmaAlpha) * state.RelativeGapSec);
-                                }
+                                slot.RelativeBaseSec = normalized;
+                                slot.RelativeBaseTrackSec = slot.GapTrackSec;
                             }
                         }
                     }
                 }
 
-                slot.GapRelativeSec = state.RelativeGapSec;
+                if (!double.IsNaN(slot.RelativeBaseSec) && !double.IsNaN(slot.GapTrackSec) && !double.IsNaN(slot.RelativeBaseTrackSec))
+                {
+                    slot.GapRelativeSec = slot.RelativeBaseSec + (slot.GapTrackSec - slot.RelativeBaseTrackSec);
+                }
+                else if (double.IsNaN(slot.RelativeBaseSec) && !double.IsNaN(slot.GapTrackSec))
+                {
+                    slot.GapRelativeSec = slot.GapTrackSec;
+                }
+                else if (!double.IsNaN(slot.RelativeBaseSec) && double.IsNaN(slot.GapTrackSec))
+                {
+                    slot.GapRelativeSec = slot.RelativeBaseSec;
+                }
+                else
+                {
+                    slot.GapRelativeSec = double.NaN;
+                }
 
                 if (isRace && !state.HasSeenPitExit)
                 {
@@ -1260,6 +1262,7 @@ namespace LaunchPlugin
                 slot.BestLapTimeSec = double.NaN;
                 slot.LastLapTimeSec = double.NaN;
                 slot.BestLap = string.Empty;
+                slot.BestLapIsEstimated = false;
                 slot.LastLap = string.Empty;
                 slot.DeltaBestSec = double.NaN;
                 slot.DeltaBest = "-";
@@ -1272,8 +1275,10 @@ namespace LaunchPlugin
                 slot.HotCoolConflictCached = false;
                 slot.HotCoolConflictLastTickId = -1;
                 slot.GapRelativeSec = double.NaN;
+                slot.RelativeBaseSec = double.NaN;
+                slot.RelativeBaseTrackSec = double.NaN;
 
-                       // Phase 2: prevent stale StatusE labels carrying across car rebinds
+                // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;
                 slot.LastStatusE = int.MinValue;     // force UpdateStatusEText to run
                 slot.StatusETextDirty = true;
