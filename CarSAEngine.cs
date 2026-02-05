@@ -554,8 +554,8 @@ namespace LaunchPlugin
 
             ApplySlots(true, sessionTimeSec, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _aheadCandidateIdx, _aheadCandidateDist, _outputs.AheadSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
             ApplySlots(false, sessionTimeSec, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _behindCandidateIdx, _behindCandidateDist, _outputs.BehindSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
-            UpdateSlotGapsFromCarStates(_outputs.AheadSlots, lapTimeUsed, isRace, isAhead: true);
-            UpdateSlotGapsFromCarStates(_outputs.BehindSlots, lapTimeUsed, isRace, isAhead: false);
+            UpdateSlotGapsFromCarStates(_outputs.AheadSlots, sessionTimeSec, lapTimeEstimateSec, isRace, true);
+            UpdateSlotGapsFromCarStates(_outputs.BehindSlots, sessionTimeSec, lapTimeEstimateSec, isRace, false);
 
             if (debugEnabled)
             {
@@ -968,7 +968,8 @@ namespace LaunchPlugin
             return delta;
         }
 
-        private void UpdateSlotGapsFromCarStates(CarSASlot[] slots, double lapTimeEstimateSec, bool isRace, bool isAhead)
+        private void UpdateSlotGapsFromCarStates(CarSASlot[] slots, double sessionTimeSec, double lapTimeEstimateSec, bool isRace, bool isAhead)
+
         {
             if (slots == null)
             {
