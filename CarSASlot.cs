@@ -233,6 +233,9 @@ namespace LaunchPlugin
         public int PlayerSessionFlagsRaw { get; set; } = -1;
         public int PlayerTrackSurfaceMaterialRaw { get; set; } = -1;
         public int PlayerTrackSurfaceRaw { get; set; } = -1;
+        public int PlayerCheckpointIndexNow { get; set; } = -1;
+        public int PlayerCheckpointIndexCrossed { get; set; } = -1;
+        public int MiniSectorTickId { get; set; }
         public string RawTelemetryReadMode { get; set; } = string.Empty;
         public string RawTelemetryFailReason { get; set; } = string.Empty;
 
@@ -263,6 +266,9 @@ namespace LaunchPlugin
             PlayerSessionFlagsRaw = -1;
             PlayerTrackSurfaceMaterialRaw = -1;
             PlayerTrackSurfaceRaw = -1;
+            PlayerCheckpointIndexNow = -1;
+            PlayerCheckpointIndexCrossed = -1;
+            MiniSectorTickId = 0;
             RawTelemetryReadMode = string.Empty;
             RawTelemetryFailReason = string.Empty;
         }
