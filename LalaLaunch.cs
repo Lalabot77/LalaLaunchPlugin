@@ -2826,9 +2826,26 @@ namespace LaunchPlugin
         private int _carSaDebugExportPendingLines;
         private const int CarSaDebugExportSlotCount = 5;
         private const int CarSaDebugCheckpointCount = 100;
+        private const int CarSaDebugCadenceTick = 0;
+        private const int CarSaDebugCadenceMiniSector = 1;
+        private const int CarSaDebugCadenceEventOnly = 2;
         private int _carSaDebugCheckpointIndexNow = -1;
         private int _carSaDebugCheckpointIndexCrossed = -1;
         private int _carSaDebugCheckpointIndexLast = -1;
+        private double _carSaDebugLastWriteSessionTimeSec = double.NaN;
+        private string _carSaEventsExportPath;
+        private string _carSaEventsExportToken;
+        private readonly StringBuilder _carSaEventsExportBuffer = new StringBuilder(1024);
+        private int _carSaEventsExportPendingLines;
+        private readonly int[] _carSaEventLastAheadCarIdx = new int[CarSaDebugExportSlotCount];
+        private readonly int[] _carSaEventLastBehindCarIdx = new int[CarSaDebugExportSlotCount];
+        private readonly int[] _carSaEventLastAheadStatusE = new int[CarSaDebugExportSlotCount];
+        private readonly int[] _carSaEventLastBehindStatusE = new int[CarSaDebugExportSlotCount];
+        private readonly int[] _carSaEventLastAheadHotCoolIntent = new int[CarSaDebugExportSlotCount];
+        private readonly int[] _carSaEventLastBehindHotCoolIntent = new int[CarSaDebugExportSlotCount];
+        private readonly bool[] _carSaEventLastAheadConflict = new bool[CarSaDebugExportSlotCount];
+        private readonly bool[] _carSaEventLastBehindConflict = new bool[CarSaDebugExportSlotCount];
+        private bool _carSaEventLastStateInitialized;
         private static readonly string[] CarSaDebugAheadDahlProperties =
         {
             "DahlDesign.CarAhead01Relative",
@@ -3529,6 +3546,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.BestLap", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLap ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.BestLapIsEstimated", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLapIsEstimated ?? false);
                 AttachCore($"Car.Ahead{label}.LastLap", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLap ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.DeltaBestSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].DeltaBestSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.DeltaBest", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].DeltaBest ?? string.Empty);
@@ -3575,6 +3593,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.BestLap", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLap ?? string.Empty);
+                AttachCore($"Car.Behind{label}.BestLapIsEstimated", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLapIsEstimated ?? false);
                 AttachCore($"Car.Behind{label}.LastLap", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLap ?? string.Empty);
                 AttachCore($"Car.Behind{label}.DeltaBestSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].DeltaBestSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.DeltaBest", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].DeltaBest ?? string.Empty);
@@ -4941,50 +4960,223 @@ namespace LaunchPlugin
 
             try
             {
-                EnsureCarSaDebugExportFile(pluginManager);
-
-                StringBuilder buffer = _carSaDebugExportBuffer ?? (_carSaDebugExportBuffer = new StringBuilder(1024));
-                buffer.Append(outputs.Debug.SessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
-                buffer.Append(sessionState).Append(',');
-                AppendCsvSafeValue(buffer, sessionTypeName, "unknown");
-                buffer.Append(',');
-                buffer.Append(outputs.Debug.PlayerCarIdx).Append(',');
-                buffer.Append(outputs.Debug.PlayerLap).Append(',');
-                buffer.Append(outputs.Debug.PlayerLapPct.ToString("F6", CultureInfo.InvariantCulture)).Append(',');
-                buffer.Append(_carSaDebugCheckpointIndexNow).Append(',');
-                buffer.Append(_carSaDebugCheckpointIndexCrossed).Append(',');
-                buffer.Append(notRelevantGapSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
-
-                for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                bool hasEvents = CaptureCarSaDebugEvents(outputs, outputs.Debug.SessionTimeSec);
+                int cadenceMode = Settings?.CarSADebugExportCadence ?? CarSaDebugCadenceMiniSector;
+                bool shouldWriteDebugRow;
+                if (cadenceMode == CarSaDebugCadenceTick)
                 {
-                    CarSASlot ahead = outputs.AheadSlots.Length > i ? outputs.AheadSlots[i] : null;
-                    AppendSlotDebugRow(buffer, ahead, isAhead: true);
+                    int maxHz = Settings?.CarSADebugExportTickMaxHz ?? 20;
+                    if (maxHz < 1)
+                    {
+                        maxHz = 1;
+                    }
+
+                    double minInterval = 1.0 / maxHz;
+                    shouldWriteDebugRow = double.IsNaN(_carSaDebugLastWriteSessionTimeSec)
+                        || outputs.Debug.SessionTimeSec >= (_carSaDebugLastWriteSessionTimeSec + minInterval);
+                }
+                else if (cadenceMode == CarSaDebugCadenceEventOnly)
+                {
+                    shouldWriteDebugRow = hasEvents;
+                }
+                else
+                {
+                    shouldWriteDebugRow = _carSaDebugCheckpointIndexCrossed >= 0;
                 }
 
-                for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                if (shouldWriteDebugRow)
                 {
-                    CarSASlot behind = outputs.BehindSlots.Length > i ? outputs.BehindSlots[i] : null;
-                    AppendSlotDebugRow(buffer, behind, isAhead: false);
+                    EnsureCarSaDebugExportFile(pluginManager);
+
+                    StringBuilder buffer = _carSaDebugExportBuffer ?? (_carSaDebugExportBuffer = new StringBuilder(1024));
+                    buffer.Append(outputs.Debug.SessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+                    buffer.Append(sessionState).Append(',');
+                    AppendCsvSafeValue(buffer, sessionTypeName, "unknown");
+                    buffer.Append(',');
+                    buffer.Append(outputs.Debug.PlayerCarIdx).Append(',');
+                    buffer.Append(outputs.Debug.PlayerLap).Append(',');
+                    buffer.Append(outputs.Debug.PlayerLapPct.ToString("F6", CultureInfo.InvariantCulture)).Append(',');
+                    buffer.Append(_carSaDebugCheckpointIndexNow).Append(',');
+                    buffer.Append(_carSaDebugCheckpointIndexCrossed).Append(',');
+                    buffer.Append(notRelevantGapSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+
+                    for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                    {
+                        CarSASlot ahead = outputs.AheadSlots.Length > i ? outputs.AheadSlots[i] : null;
+                        AppendSlotDebugRow(buffer, ahead, isAhead: true);
+                    }
+
+                    for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                    {
+                        CarSASlot behind = outputs.BehindSlots.Length > i ? outputs.BehindSlots[i] : null;
+                        AppendSlotDebugRow(buffer, behind, isAhead: false);
+                    }
+
+                    AppendPlayerRawEvidence(buffer, outputs);
+                    buffer.AppendLine();
+
+                    _carSaDebugLastWriteSessionTimeSec = outputs.Debug.SessionTimeSec;
+                    _carSaDebugExportPendingLines++;
+                    if (_carSaDebugExportPendingLines >= 20 || buffer.Length >= 4096)
+                    {
+                        FlushCarSaDebugExportBuffer();
+                    }
                 }
 
-                AppendPlayerRawEvidence(buffer, outputs);
-                buffer.AppendLine();
-
-                _carSaDebugExportPendingLines++;
-                if (_carSaDebugExportPendingLines >= 20 || buffer.Length >= 4096)
+                if (hasEvents && cadenceMode == CarSaDebugCadenceEventOnly && Settings?.CarSADebugExportWriteEventsCsv == true)
                 {
-                    FlushCarSaDebugExportBuffer();
+                    FlushCarSaEventsExportBuffer();
                 }
             }
             catch (Exception)
             {
                 _carSaDebugExportPath = null;
                 _carSaDebugExportPendingLines = 0;
+                _carSaDebugLastWriteSessionTimeSec = double.NaN;
                 if (_carSaDebugExportBuffer != null)
                 {
                     _carSaDebugExportBuffer.Clear();
                 }
             }
+        }
+
+        private bool CaptureCarSaDebugEvents(CarSAOutputs outputs, double sessionTimeSec)
+        {
+            if (outputs == null)
+            {
+                return false;
+            }
+
+            bool any = false;
+            any |= CaptureCarSaDebugEventsForSide(outputs.AheadSlots, true, sessionTimeSec);
+            any |= CaptureCarSaDebugEventsForSide(outputs.BehindSlots, false, sessionTimeSec);
+            _carSaEventLastStateInitialized = true;
+            return any;
+        }
+
+        private bool CaptureCarSaDebugEventsForSide(CarSASlot[] slots, bool isAhead, double sessionTimeSec)
+        {
+            if (slots == null)
+            {
+                return false;
+            }
+
+            bool any = false;
+            for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+            {
+                CarSASlot slot = slots.Length > i ? slots[i] : null;
+                int carIdx = slot?.CarIdx ?? -1;
+                int statusE = slot?.StatusE ?? (int)CarSAStatusE.Unknown;
+                int hotCoolIntent = slot?.HotCoolIntent ?? 0;
+                bool conflict = slot?.HotCoolConflictCached == true;
+                any |= CaptureCarSaDebugEventValueChange(sessionTimeSec, isAhead, i, carIdx, "CarIdx", _carSaEventLastStateInitialized ? GetEventStateInt(isAhead, i, 0) : int.MinValue, carIdx, slot?.StatusEReason ?? string.Empty);
+                any |= CaptureCarSaDebugEventValueChange(sessionTimeSec, isAhead, i, carIdx, "StatusE", _carSaEventLastStateInitialized ? GetEventStateInt(isAhead, i, 1) : int.MinValue, statusE, slot?.StatusEReason ?? string.Empty);
+                any |= CaptureCarSaDebugEventValueChange(sessionTimeSec, isAhead, i, carIdx, "HotCoolIntent", _carSaEventLastStateInitialized ? GetEventStateInt(isAhead, i, 2) : int.MinValue, hotCoolIntent, string.Empty);
+                any |= CaptureCarSaDebugEventValueChange(sessionTimeSec, isAhead, i, carIdx, "Conflict", _carSaEventLastStateInitialized ? (GetEventStateBool(isAhead, i) ? 1 : 0) : int.MinValue, conflict ? 1 : 0, string.Empty);
+                SetEventState(isAhead, i, carIdx, statusE, hotCoolIntent, conflict);
+            }
+
+            return any;
+        }
+
+        private int GetEventStateInt(bool isAhead, int index, int kind)
+        {
+            if (kind == 0) return isAhead ? _carSaEventLastAheadCarIdx[index] : _carSaEventLastBehindCarIdx[index];
+            if (kind == 1) return isAhead ? _carSaEventLastAheadStatusE[index] : _carSaEventLastBehindStatusE[index];
+            return isAhead ? _carSaEventLastAheadHotCoolIntent[index] : _carSaEventLastBehindHotCoolIntent[index];
+        }
+
+        private bool GetEventStateBool(bool isAhead, int index)
+        {
+            return isAhead ? _carSaEventLastAheadConflict[index] : _carSaEventLastBehindConflict[index];
+        }
+
+        private void SetEventState(bool isAhead, int index, int carIdx, int statusE, int hotCoolIntent, bool conflict)
+        {
+            if (isAhead)
+            {
+                _carSaEventLastAheadCarIdx[index] = carIdx;
+                _carSaEventLastAheadStatusE[index] = statusE;
+                _carSaEventLastAheadHotCoolIntent[index] = hotCoolIntent;
+                _carSaEventLastAheadConflict[index] = conflict;
+            }
+            else
+            {
+                _carSaEventLastBehindCarIdx[index] = carIdx;
+                _carSaEventLastBehindStatusE[index] = statusE;
+                _carSaEventLastBehindHotCoolIntent[index] = hotCoolIntent;
+                _carSaEventLastBehindConflict[index] = conflict;
+            }
+        }
+
+        private bool CaptureCarSaDebugEventValueChange(double sessionTimeSec, bool isAhead, int slotIndex, int carIdx, string eventType, int oldValue, int newValue, string reason)
+        {
+            if (oldValue == newValue)
+            {
+                return false;
+            }
+
+            if (!_carSaEventLastStateInitialized)
+            {
+                return false;
+            }
+
+            if ((Settings?.CarSADebugExportCadence ?? CarSaDebugCadenceMiniSector) != CarSaDebugCadenceEventOnly
+                || Settings?.CarSADebugExportWriteEventsCsv != true)
+            {
+                return true;
+            }
+
+            EnsureCarSaEventsExportFile();
+            string slotLabel = (isAhead ? "Ahead" : "Behind") + (slotIndex + 1).ToString("00", CultureInfo.InvariantCulture);
+            _carSaEventsExportBuffer.Append(sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+            AppendCsvSafeValue(_carSaEventsExportBuffer, eventType, string.Empty);
+            _carSaEventsExportBuffer.Append(',');
+            AppendCsvSafeValue(_carSaEventsExportBuffer, slotLabel, string.Empty);
+            _carSaEventsExportBuffer.Append(',');
+            _carSaEventsExportBuffer.Append(carIdx).Append(',');
+            _carSaEventsExportBuffer.Append(oldValue).Append(',');
+            _carSaEventsExportBuffer.Append(newValue).Append(',');
+            AppendCsvSafeValue(_carSaEventsExportBuffer, string.IsNullOrWhiteSpace(reason) ? "" : reason, string.Empty);
+            _carSaEventsExportBuffer.AppendLine();
+            _carSaEventsExportPendingLines++;
+            if (_carSaEventsExportPendingLines >= 20 || _carSaEventsExportBuffer.Length >= 4096)
+            {
+                FlushCarSaEventsExportBuffer();
+            }
+
+            return true;
+        }
+
+        private void EnsureCarSaEventsExportFile()
+        {
+            string token = string.IsNullOrWhiteSpace(_currentSessionToken) ? "na" : _currentSessionToken.Replace(":", "_");
+            if (string.Equals(token, _carSaEventsExportToken, StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(_carSaEventsExportPath))
+            {
+                return;
+            }
+
+            _carSaEventsExportToken = token;
+            string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalapluginData");
+            Directory.CreateDirectory(folder);
+            string timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
+            _carSaEventsExportPath = Path.Combine(folder, $"CarSA_Events_{timestamp}.csv");
+            if (!File.Exists(_carSaEventsExportPath))
+            {
+                File.WriteAllText(_carSaEventsExportPath, "SessionTimeSec,EventType,Slot,CarIdx,OldValue,NewValue,Reason" + Environment.NewLine);
+            }
+        }
+
+        private void FlushCarSaEventsExportBuffer()
+        {
+            if (string.IsNullOrWhiteSpace(_carSaEventsExportPath) || _carSaEventsExportBuffer.Length == 0)
+            {
+                return;
+            }
+
+            File.AppendAllText(_carSaEventsExportPath, _carSaEventsExportBuffer.ToString());
+            _carSaEventsExportBuffer.Clear();
+            _carSaEventsExportPendingLines = 0;
         }
 
         private void UpdateCarSaDebugCheckpointIndices(double lapPctRaw)
@@ -5664,12 +5856,19 @@ namespace LaunchPlugin
         private void ResetCarSaDebugExportState()
         {
             FlushCarSaDebugExportBuffer();
+            FlushCarSaEventsExportBuffer();
             _carSaDebugExportPath = null;
             _carSaDebugExportToken = null;
             _carSaDebugExportPendingLines = 0;
             _carSaDebugCheckpointIndexNow = -1;
             _carSaDebugCheckpointIndexCrossed = -1;
             _carSaDebugCheckpointIndexLast = -1;
+            _carSaDebugLastWriteSessionTimeSec = double.NaN;
+            _carSaEventsExportPath = null;
+            _carSaEventsExportToken = null;
+            _carSaEventsExportBuffer.Clear();
+            _carSaEventsExportPendingLines = 0;
+            _carSaEventLastStateInitialized = false;
             ResetCarSaDebugGapArray(_carSaDebugAheadDahlRelativeGapSec);
             ResetCarSaDebugGapArray(_carSaDebugBehindDahlRelativeGapSec);
             ResetCarSaDebugGapArray(_carSaDebugAheadIRacingRelativeGapSec);
@@ -5837,6 +6036,7 @@ namespace LaunchPlugin
                     slot.BestLapTimeSec = double.NaN;
                     slot.LastLapTimeSec = double.NaN;
                     slot.BestLap = "-";
+                    slot.BestLapIsEstimated = false;
                     slot.LastLap = "-";
                     slot.DeltaBestSec = double.NaN;
                     slot.DeltaBest = "-";
@@ -5852,7 +6052,8 @@ namespace LaunchPlugin
                 slot.BestLapTimeSec = _carSaBestLapTimeSecByIdx[carIdx];
                 slot.LastLapTimeSec = _carSaLastLapTimeSecByIdx[carIdx];
                 slot.EstLapTimeSec = _carSaEstTimeSecByIdx[carIdx];
-                slot.BestLap = FormatLapTime(slot.BestLapTimeSec);
+                slot.BestLap = FormatBestLapDisplay(slot.BestLapTimeSec, slot.EstLapTimeSec, out bool bestLapIsEstimated);
+                slot.BestLapIsEstimated = bestLapIsEstimated;
                 slot.LastLap = FormatLapTime(slot.LastLapTimeSec);
                 slot.EstLapTime = FormatEstLapTime(slot.EstLapTimeSec);
                 if (_carSaEngine != null && _carSaEngine.ShouldUpdateMiniSectorForCar(carIdx))
@@ -6032,6 +6233,26 @@ namespace LaunchPlugin
             int secondsPart = (totalMs / 1000) % 60;
             int hundredths = (totalMs % 1000) / 10;
             return $"{minutes}:{secondsPart:00}.{hundredths:00}";
+        }
+
+        private static string FormatBestLapDisplay(double bestLapSeconds, double estLapSeconds, out bool isEstimated)
+        {
+            string best = FormatLapTime(bestLapSeconds);
+            if (!string.Equals(best, "-", StringComparison.Ordinal))
+            {
+                isEstimated = false;
+                return best;
+            }
+
+            string estimated = FormatLapTime(estLapSeconds);
+            if (!string.Equals(estimated, "-", StringComparison.Ordinal))
+            {
+                isEstimated = true;
+                return estimated;
+            }
+
+            isEstimated = false;
+            return "-";
         }
 
         private static string FormatEstLapTime(double seconds)
@@ -8916,6 +9137,9 @@ namespace LaunchPlugin
         // --- Global Settings with Corrected Defaults ---
         public bool EnableDebugLogging { get; set; } = false;
         public bool EnableCarSADebugExport { get; set; } = false;
+        public int CarSADebugExportCadence { get; set; } = 1;
+        public int CarSADebugExportTickMaxHz { get; set; } = 20;
+        public bool CarSADebugExportWriteEventsCsv { get; set; } = true;
         public int CarSARawTelemetryMode { get; set; } = 1;
         public bool PitExitVerboseLogging { get; set; } = false;
         public double ResultsDisplayTime { get; set; } = 5.0; // Corrected to 5 seconds
