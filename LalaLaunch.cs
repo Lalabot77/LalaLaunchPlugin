@@ -2896,8 +2896,10 @@ namespace LaunchPlugin
         private readonly double[] _carSaBestLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly double[] _carSaLastLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly double[] _carSaEstTimeSecByIdx = new double[CarSAEngine.MaxCars];
+        private readonly double[] _carSaCarClassEstLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly int[] _carSaClassPositionByIdx = new int[CarSAEngine.MaxCars];
         private readonly int[] _carSaIRatingByIdx = new int[CarSAEngine.MaxCars];
+        private bool _carSaBestLapFallbackInfoLogged;
 
         private enum LaunchState
         {
@@ -4304,6 +4306,7 @@ namespace LaunchPlugin
                 _msgV1InfoLogged = false;
                 _lastIsWetTyres = null;
                 _isWetMode = false;
+                _carSaBestLapFallbackInfoLogged = false;
                 FuelCalculator.ForceProfileDataReload();
                 ResetLiveFuelModelForNewSession(currentSessionTypeForConfidence, false);
                 ClearFuelInstructionOutputs();
@@ -5925,6 +5928,7 @@ namespace LaunchPlugin
             for (int i = 0; i < _carSaIRatingByIdx.Length; i++)
             {
                 _carSaIRatingByIdx[i] = 0;
+                _carSaCarClassEstLapTimeSecByIdx[i] = double.NaN;
             }
 
             bool populated = false;
@@ -5944,6 +5948,8 @@ namespace LaunchPlugin
                 }
 
                 _carSaIRatingByIdx[idx] = GetInt(pluginManager, $"{basePath}.IRating", 0);
+                _carSaCarClassEstLapTimeSecByIdx[idx] = SanitizeCarSaLapTimeSec(
+                    SafeReadDouble(pluginManager, $"{basePath}.CarClassEstLapTime", double.NaN));
             }
 
             if (populated)
@@ -5966,6 +5972,8 @@ namespace LaunchPlugin
                 }
 
                 _carSaIRatingByIdx[idx] = GetInt(pluginManager, $"{basePath}.IRating", 0);
+                _carSaCarClassEstLapTimeSecByIdx[idx] = SanitizeCarSaLapTimeSec(
+                    SafeReadDouble(pluginManager, $"{basePath}.CarClassEstLapTime", double.NaN));
             }
         }
 
@@ -6043,16 +6051,37 @@ namespace LaunchPlugin
                 }
 
                 slot.PositionInClass = _carSaClassPositionByIdx[carIdx] > 0 ? _carSaClassPositionByIdx[carIdx] : 0;
-                slot.BestLapTimeSec = _carSaBestLapTimeSecByIdx[carIdx];
+                double bestLapUsedSec = _carSaBestLapTimeSecByIdx[carIdx];
+                bool bestLapIsEstimated = false;
+                if (!IsValidCarSaLapTimeSec(bestLapUsedSec))
+                {
+                    double classEstimateSec = _carSaCarClassEstLapTimeSecByIdx[carIdx];
+                    if (IsValidCarSaLapTimeSec(classEstimateSec))
+                    {
+                        bestLapUsedSec = classEstimateSec;
+                        bestLapIsEstimated = true;
+                        if (!_carSaBestLapFallbackInfoLogged)
+                        {
+                            _carSaBestLapFallbackInfoLogged = true;
+                            SimHub.Logging.Current.Info("[CarSA] BestLap fallback now using DriverInfo CarClassEstLapTime until best lap available.");
+                        }
+                    }
+                    else
+                    {
+                        bestLapUsedSec = double.NaN;
+                    }
+                }
+
+                slot.BestLapTimeSec = bestLapUsedSec;
                 slot.LastLapTimeSec = _carSaLastLapTimeSecByIdx[carIdx];
                 slot.EstLapTimeSec = _carSaEstTimeSecByIdx[carIdx];
-                slot.BestLap = FormatBestLapDisplay(slot.BestLapTimeSec, slot.EstLapTimeSec, out bool bestLapIsEstimated);
+                slot.BestLap = FormatLapTime(slot.BestLapTimeSec);
                 slot.BestLapIsEstimated = bestLapIsEstimated;
                 slot.LastLap = FormatLapTime(slot.LastLapTimeSec);
                 slot.EstLapTime = FormatEstLapTime(slot.EstLapTimeSec);
                 if (_carSaEngine != null && _carSaEngine.ShouldUpdateMiniSectorForCar(carIdx))
                 {
-                    slot.DeltaBestSec = ComputeLiveDeltaBestSec(carIdx, carIdxLapDistPct, sessionTimeSec);
+                    slot.DeltaBestSec = ComputeLiveDeltaBestSec(carIdx, carIdxLapDistPct, sessionTimeSec, bestLapUsedSec);
                     slot.DeltaBest = FormatLiveDelta(slot.DeltaBestSec);
                 }
                 slot.HotScore = 0.0;
@@ -6151,15 +6180,14 @@ namespace LaunchPlugin
             }
         }
 
-        private double ComputeLiveDeltaBestSec(int carIdx, float[] carIdxLapDistPct, double sessionTimeSec)
+        private double ComputeLiveDeltaBestSec(int carIdx, float[] carIdxLapDistPct, double sessionTimeSec, double baselineSec)
         {
             if (carIdx < 0 || carIdx >= CarSAEngine.MaxCars)
             {
                 return double.NaN;
             }
 
-            double bestLap = _carSaBestLapTimeSecByIdx[carIdx];
-            if (!(bestLap > 0.0) || double.IsNaN(bestLap) || double.IsInfinity(bestLap))
+            if (!IsValidCarSaLapTimeSec(baselineSec))
             {
                 return double.NaN;
             }
@@ -6186,7 +6214,7 @@ namespace LaunchPlugin
             }
 
             double elapsed = sessionTimeSec - lapStartTimeSec;
-            double expected = bestLap * lapPct;
+            double expected = baselineSec * lapPct;
             double delta = elapsed - expected;
             if (delta < -LiveDeltaClampSec)
             {
@@ -6197,6 +6225,16 @@ namespace LaunchPlugin
                 delta = LiveDeltaClampSec;
             }
             return delta;
+        }
+
+        private static bool IsValidCarSaLapTimeSec(double value)
+        {
+            return value > 0.0 && !double.IsNaN(value) && !double.IsInfinity(value);
+        }
+
+        private static double SanitizeCarSaLapTimeSec(double value)
+        {
+            return IsValidCarSaLapTimeSec(value) ? value : double.NaN;
         }
 
         private static double ReadCarIdxTime(float[] values, int index)
@@ -6227,26 +6265,6 @@ namespace LaunchPlugin
             int secondsPart = (totalMs / 1000) % 60;
             int hundredths = (totalMs % 1000) / 10;
             return $"{minutes}:{secondsPart:00}.{hundredths:00}";
-        }
-
-        private static string FormatBestLapDisplay(double bestLapSeconds, double estLapSeconds, out bool isEstimated)
-        {
-            string best = FormatLapTime(bestLapSeconds);
-            if (!string.Equals(best, "-", StringComparison.Ordinal))
-            {
-                isEstimated = false;
-                return best;
-            }
-
-            string estimated = FormatLapTime(estLapSeconds);
-            if (!string.Equals(estimated, "-", StringComparison.Ordinal))
-            {
-                isEstimated = true;
-                return estimated;
-            }
-
-            isEstimated = false;
-            return "-";
         }
 
         private static string FormatEstLapTime(double seconds)
