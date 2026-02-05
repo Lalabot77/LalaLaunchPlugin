@@ -984,7 +984,6 @@ namespace LaunchPlugin
                         slot.GapRelativeSec = double.NaN;
                         slot.RelativeTargetSec = double.NaN;
                         slot.RelativeSmoothedSec = double.NaN;
-                        slot.RelativeBaseTrackSec = double.NaN;
                         slot.ClosingRateSecPerSec = double.NaN;
                         slot.LapsSincePit = -1;
                         slot.ClosingRateSmoothed = 0.0;
@@ -994,6 +993,7 @@ namespace LaunchPlugin
                 }
 
                 var state = _carStates[slot.CarIdx];
+                bool shouldUpdate = ShouldUpdateMiniSectorForCar(slot.CarIdx);
                 double distPct = isAhead ? state.ForwardDistPct : -state.BackwardDistPct;
                 if (double.IsNaN(distPct))
                 {
@@ -1004,7 +1004,6 @@ namespace LaunchPlugin
                 {
                     double gapSec = distPct * lapTimeEstimateSec;
                     slot.GapTrackSec = gapSec;
-                    bool shouldUpdate = ShouldUpdateMiniSectorForCar(slot.CarIdx);
                     if (shouldUpdate)
                     {
                         double rawClosing = state.ClosingRateSecPerSec;
@@ -1033,35 +1032,34 @@ namespace LaunchPlugin
                                 + ((1.0 - ClosingRateEmaAlpha) * slot.ClosingRateSmoothed);
                             slot.ClosingRateSecPerSec = slot.ClosingRateSmoothed;
                         }
+                    }
+                }
 
-                        int checkpointIdx = state.CheckpointIndexNow;
-                        if (checkpointIdx >= 0 && checkpointIdx < MiniSectorCheckpointCount)
+                if (shouldUpdate)
+                {
+                    int checkpointIdx = state.CheckpointIndexNow;
+                    if (checkpointIdx >= 0 && checkpointIdx < MiniSectorCheckpointCount)
+                    {
+                        double playerCpTime = _playerCheckpointTimeSec[checkpointIdx];
+                        double carCpTime = _carCheckpointTimeSec[slot.CarIdx, checkpointIdx];
+                        if (!double.IsNaN(playerCpTime) && !double.IsNaN(carCpTime))
                         {
-                            double playerCpTime = _playerCheckpointTimeSec[checkpointIdx];
-                            double carCpTime = _carCheckpointTimeSec[slot.CarIdx, checkpointIdx];
-                            if (!double.IsNaN(playerCpTime) && !double.IsNaN(carCpTime))
+                            double rawRelative = carCpTime - playerCpTime;
+                            double normalized = rawRelative - (slot.LapDelta * lapTimeEstimateSec);
+                            double wrapWindow = 0.5 * lapTimeEstimateSec;
+                            if (normalized > wrapWindow)
                             {
-                                double rawRelative = carCpTime - playerCpTime;
-                                double normalized = rawRelative - (slot.LapDelta * lapTimeEstimateSec);
-                                double wrapWindow = 0.5 * lapTimeEstimateSec;
-                                if (normalized > wrapWindow)
-                                {
-                                    normalized -= lapTimeEstimateSec;
-                                }
-                                else if (normalized < -wrapWindow)
-                                {
-                                    normalized += lapTimeEstimateSec;
-                                }
+                                normalized -= lapTimeEstimateSec;
+                            }
+                            else if (normalized < -wrapWindow)
+                            {
+                                normalized += lapTimeEstimateSec;
+                            }
 
-                                slot.RelativeTargetSec = normalized;
-                                if (double.IsNaN(slot.RelativeSmoothedSec) || double.IsInfinity(slot.RelativeSmoothedSec))
-                                {
-                                    slot.RelativeSmoothedSec = slot.RelativeTargetSec;
-                                }
-                                if (!double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec))
-                                {
-                                    slot.RelativeBaseTrackSec = slot.GapTrackSec;
-                                }
+                            slot.RelativeTargetSec = normalized;
+                            if (double.IsNaN(slot.RelativeSmoothedSec) || double.IsInfinity(slot.RelativeSmoothedSec))
+                            {
+                                slot.RelativeSmoothedSec = slot.RelativeTargetSec;
                             }
                         }
                     }
@@ -1303,7 +1301,6 @@ namespace LaunchPlugin
                 slot.GapRelativeSec = double.NaN;
                 slot.RelativeTargetSec = double.NaN;
                 slot.RelativeSmoothedSec = double.NaN;
-                slot.RelativeBaseTrackSec = double.NaN;
 
                 // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;
