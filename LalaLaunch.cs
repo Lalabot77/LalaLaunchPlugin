@@ -3504,6 +3504,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.IsValid", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsValid ?? false);
                 AttachCore($"Car.Ahead{label}.LapDelta", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapDelta ?? 0);
                 AttachCore($"Car.Ahead{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapTrackSec ?? double.NaN);
+                AttachCore($"Car.Ahead{label}.Gap.RelativeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapRelativeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Status", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Status ?? 0);
                 AttachCore($"Car.Ahead{label}.StatusE", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusE ?? 0);
@@ -3549,6 +3550,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.IsValid", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsValid ?? false);
                 AttachCore($"Car.Behind{label}.LapDelta", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapDelta ?? 0);
                 AttachCore($"Car.Behind{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapTrackSec ?? double.NaN);
+                AttachCore($"Car.Behind{label}.Gap.RelativeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapRelativeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Status", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Status ?? 0);
                 AttachCore($"Car.Behind{label}.StatusE", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusE ?? 0);
@@ -5840,6 +5842,7 @@ namespace LaunchPlugin
                     slot.DeltaBest = "-";
                     slot.EstLapTimeSec = double.NaN;
                     slot.EstLapTime = "-";
+                    slot.GapRelativeSec = double.NaN;
                     slot.HotScore = 0.0;
                     slot.HotVia = string.Empty;
                     continue;
