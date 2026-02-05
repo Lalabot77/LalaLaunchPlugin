@@ -16,6 +16,7 @@ namespace LaunchPlugin
         private const double HysteresisFactor = 0.90;
         private const double ClosingRateClamp = 5.0;
         private const double ClosingRateEmaAlpha = 0.35;
+        private const double RelativeGapEmaAlpha = 0.10;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
@@ -981,7 +982,8 @@ namespace LaunchPlugin
                     {
                         slot.GapTrackSec = double.NaN;
                         slot.GapRelativeSec = double.NaN;
-                        slot.RelativeBaseSec = double.NaN;
+                        slot.RelativeTargetSec = double.NaN;
+                        slot.RelativeSmoothedSec = double.NaN;
                         slot.RelativeBaseTrackSec = double.NaN;
                         slot.ClosingRateSecPerSec = double.NaN;
                         slot.LapsSincePit = -1;
@@ -1051,7 +1053,11 @@ namespace LaunchPlugin
                                     normalized += lapTimeEstimateSec;
                                 }
 
-                                slot.RelativeBaseSec = normalized;
+                                slot.RelativeTargetSec = normalized;
+                                if (double.IsNaN(slot.RelativeSmoothedSec) || double.IsInfinity(slot.RelativeSmoothedSec))
+                                {
+                                    slot.RelativeSmoothedSec = slot.RelativeTargetSec;
+                                }
                                 if (!double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec))
                                 {
                                     slot.RelativeBaseTrackSec = slot.GapTrackSec;
@@ -1061,19 +1067,27 @@ namespace LaunchPlugin
                     }
                 }
 
-                bool hasRelativeBaseSec = !double.IsNaN(slot.RelativeBaseSec) && !double.IsInfinity(slot.RelativeBaseSec);
+                bool hasRelativeTargetSec = !double.IsNaN(slot.RelativeTargetSec) && !double.IsInfinity(slot.RelativeTargetSec);
+                bool hasRelativeSmoothedSec = !double.IsNaN(slot.RelativeSmoothedSec) && !double.IsInfinity(slot.RelativeSmoothedSec);
                 bool hasTrackSec = !double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec);
-                bool hasRelativeBaseTrackSec = !double.IsNaN(slot.RelativeBaseTrackSec) && !double.IsInfinity(slot.RelativeBaseTrackSec);
-                if (hasRelativeBaseSec)
+                if (hasRelativeTargetSec)
                 {
-                    if (hasTrackSec && hasRelativeBaseTrackSec)
+                    if (!hasRelativeSmoothedSec)
                     {
-                        slot.GapRelativeSec = slot.RelativeBaseSec + (slot.GapTrackSec - slot.RelativeBaseTrackSec);
+                        slot.RelativeSmoothedSec = slot.RelativeTargetSec;
                     }
                     else
                     {
-                        slot.GapRelativeSec = slot.RelativeBaseSec;
+                        slot.RelativeSmoothedSec = slot.RelativeSmoothedSec
+                            + (RelativeGapEmaAlpha * (slot.RelativeTargetSec - slot.RelativeSmoothedSec));
                     }
+
+                    hasRelativeSmoothedSec = !double.IsNaN(slot.RelativeSmoothedSec) && !double.IsInfinity(slot.RelativeSmoothedSec);
+                }
+
+                if (hasRelativeSmoothedSec)
+                {
+                    slot.GapRelativeSec = slot.RelativeSmoothedSec;
                 }
                 else if (hasTrackSec)
                 {
@@ -1287,7 +1301,8 @@ namespace LaunchPlugin
                 slot.HotCoolConflictCached = false;
                 slot.HotCoolConflictLastTickId = -1;
                 slot.GapRelativeSec = double.NaN;
-                slot.RelativeBaseSec = double.NaN;
+                slot.RelativeTargetSec = double.NaN;
+                slot.RelativeSmoothedSec = double.NaN;
                 slot.RelativeBaseTrackSec = double.NaN;
 
                 // Phase 2: prevent stale StatusE labels carrying across car rebinds
