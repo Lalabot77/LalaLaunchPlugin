@@ -16,7 +16,7 @@ namespace LaunchPlugin
         private const double HysteresisFactor = 0.90;
         private const double ClosingRateClamp = 5.0;
         private const double ClosingRateEmaAlpha = 0.35;
-        private const double RelativeGapCorrectionGain = 0.20;
+        private const double RelativeGapCorrectionGain = 0.10;
         private const double RelativeFilterMaxPredictionDtSec = 0.10;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
@@ -1064,6 +1064,22 @@ namespace LaunchPlugin
                 }
 
                 bool hasRelativeFilterSec = !double.IsNaN(slot.RelativeFilterSec) && !double.IsInfinity(slot.RelativeFilterSec);
+                bool hasRelativeTargetSec = !double.IsNaN(slot.RelativeTargetSec) && !double.IsInfinity(slot.RelativeTargetSec);
+                if (shouldUpdate && hasRelativeTargetSec)
+                {
+                    if (!hasRelativeFilterSec)
+                    {
+                        slot.RelativeFilterSec = slot.RelativeTargetSec;
+                    }
+                    else
+                    {
+                        slot.RelativeFilterSec = slot.RelativeFilterSec
+                            + (RelativeGapCorrectionGain * (slot.RelativeTargetSec - slot.RelativeFilterSec));
+                    }
+
+                    hasRelativeFilterSec = !double.IsNaN(slot.RelativeFilterSec) && !double.IsInfinity(slot.RelativeFilterSec);
+                }
+
                 bool hasClosingRateSec = !double.IsNaN(slot.ClosingRateSecPerSec) && !double.IsInfinity(slot.ClosingRateSecPerSec);
                 if (hasRelativeFilterSec && hasClosingRateSec)
                 {
@@ -1086,25 +1102,10 @@ namespace LaunchPlugin
                     }
 
                     slot.RelativeFilterSec = slot.RelativeFilterSec - (slot.ClosingRateSecPerSec * dtSec);
+                    hasRelativeFilterSec = !double.IsNaN(slot.RelativeFilterSec) && !double.IsInfinity(slot.RelativeFilterSec);
                 }
 
                 slot.RelativeFilterLastTimeSec = sessionTimeSec;
-
-                bool hasRelativeTargetSec = !double.IsNaN(slot.RelativeTargetSec) && !double.IsInfinity(slot.RelativeTargetSec);
-                if (hasRelativeTargetSec)
-                {
-                    if (!hasRelativeFilterSec)
-                    {
-                        slot.RelativeFilterSec = slot.RelativeTargetSec;
-                    }
-                    else
-                    {
-                        slot.RelativeFilterSec = slot.RelativeFilterSec
-                            + (RelativeGapCorrectionGain * (slot.RelativeTargetSec - slot.RelativeFilterSec));
-                    }
-
-                    hasRelativeFilterSec = !double.IsNaN(slot.RelativeFilterSec) && !double.IsInfinity(slot.RelativeFilterSec);
-                }
 
                 bool hasTrackSec = !double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec);
                 if (hasRelativeFilterSec)
