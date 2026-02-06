@@ -15,11 +15,12 @@ namespace LaunchPlugin
         private const double HysteresisFactor = 0.90;
         private const double ClosingRateClamp = 5.0;
         private const double ClosingRateEmaAlpha = 0.35;
+        private const double GateGapCorrectionTauSec = 0.80;
+        private const double GateGapTruthMaxAgeSec = 2.50;
+        private const double GateGapRateEmaAlpha = 0.35;
+        private const double GateGapRateClampSecPerSec = 8.00;
         private const double GateGapMaxPredictDtSec = 0.10;
-        private const double GateGapRateClampSecPerSec = 5.0;
-        private const double GateGapCorrectionTauSec = 0.40;
-        private const double GateGapTruthMaxAgeSec = 3.0;
-        private const double GateGapRateEmaAlpha = 0.25;
+        private const double GateGapStickyHoldSec = 0.25;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
@@ -152,6 +153,8 @@ namespace LaunchPlugin
         private readonly double[] _gateGapPrevTruthSecByCar = new double[MaxCars];
         private readonly double[] _gateGapPrevTruthTimeSecByCar = new double[MaxCars];
         private readonly double[] _gateGapLastPredictTimeSecByCar = new double[MaxCars];
+        private readonly double[] _gateGapLastPublishedSecByCar = new double[MaxCars];
+        private readonly double[] _gateGapLastPublishedTimeSecByCar = new double[MaxCars];
         private bool _hadValidTick;
 
         private sealed class CarSA_CarState
@@ -951,62 +954,50 @@ namespace LaunchPlugin
             }
         }
 
-        private void UpdateGateGapTruthForCar(int carIdx, double sessionTimeSec, double truth)
+        private void UpdateGateGapTruthForCar(int carIdx, double sessionTimeSec, double gateTruth)
         {
-            if (carIdx < 0 || carIdx >= MaxCars || double.IsNaN(truth) || double.IsInfinity(truth))
+            if (carIdx < 0 || carIdx >= MaxCars || double.IsNaN(gateTruth) || double.IsInfinity(gateTruth))
             {
                 return;
             }
 
-            bool hasPrevTruth = _gateGapTruthValidByCar[carIdx];
-            if (hasPrevTruth)
+            double prevT = _gateGapPrevTruthTimeSecByCar[carIdx];
+            double prevV = _gateGapPrevTruthSecByCar[carIdx];
+            bool canComputeInstRate = !double.IsNaN(prevT) && !double.IsInfinity(prevT)
+                && !double.IsNaN(prevV) && !double.IsInfinity(prevV);
+            if (canComputeInstRate)
             {
-                _gateGapPrevTruthSecByCar[carIdx] = _gateGapTruthSecByCar[carIdx];
-                _gateGapPrevTruthTimeSecByCar[carIdx] = _gateGapLastTruthTimeSecByCar[carIdx];
-            }
-            else
-            {
-                _gateGapPrevTruthSecByCar[carIdx] = double.NaN;
-                _gateGapPrevTruthTimeSecByCar[carIdx] = double.NaN;
-            }
-
-            _gateGapTruthSecByCar[carIdx] = truth;
-            _gateGapLastTruthTimeSecByCar[carIdx] = sessionTimeSec;
-            _gateGapTruthValidByCar[carIdx] = true;
-
-            if (hasPrevTruth)
-            {
-                double prevTruth = _gateGapPrevTruthSecByCar[carIdx];
-                double prevTime = _gateGapPrevTruthTimeSecByCar[carIdx];
-                double dtTruth = sessionTimeSec - prevTime;
-                if (dtTruth > 0.0)
+                double dtTruth = sessionTimeSec - prevT;
+                if (dtTruth > 0.0 && dtTruth <= GateGapTruthMaxAgeSec)
                 {
-                    double rateInst = (truth - prevTruth) / dtTruth;
-                    if (rateInst > GateGapRateClampSecPerSec) rateInst = GateGapRateClampSecPerSec;
-                    if (rateInst < -GateGapRateClampSecPerSec) rateInst = -GateGapRateClampSecPerSec;
+                    double instRate = (gateTruth - prevV) / dtTruth;
+                    if (instRate > GateGapRateClampSecPerSec) instRate = GateGapRateClampSecPerSec;
+                    if (instRate < -GateGapRateClampSecPerSec) instRate = -GateGapRateClampSecPerSec;
 
-                    if (_gateGapRateValidByCar[carIdx])
+                    if (!_gateGapRateValidByCar[carIdx])
                     {
-                        _gateGapRateSecPerSecByCar[carIdx] = (GateGapRateEmaAlpha * rateInst)
-                            + ((1.0 - GateGapRateEmaAlpha) * _gateGapRateSecPerSecByCar[carIdx]);
+                        _gateGapRateSecPerSecByCar[carIdx] = instRate;
+                        _gateGapRateValidByCar[carIdx] = true;
                     }
                     else
                     {
-                        _gateGapRateSecPerSecByCar[carIdx] = rateInst;
+                        _gateGapRateSecPerSecByCar[carIdx] = (GateGapRateEmaAlpha * instRate)
+                            + ((1.0 - GateGapRateEmaAlpha) * _gateGapRateSecPerSecByCar[carIdx]);
                     }
-
-                    _gateGapRateValidByCar[carIdx] = true;
                 }
             }
 
+            _gateGapTruthSecByCar[carIdx] = gateTruth;
+            _gateGapLastTruthTimeSecByCar[carIdx] = sessionTimeSec;
+            _gateGapTruthValidByCar[carIdx] = true;
+
+            _gateGapPrevTruthSecByCar[carIdx] = gateTruth;
+            _gateGapPrevTruthTimeSecByCar[carIdx] = sessionTimeSec;
+
             if (!_gateGapFilteredValidByCar[carIdx])
             {
-                _gateGapFilteredSecByCar[carIdx] = truth;
+                _gateGapFilteredSecByCar[carIdx] = gateTruth;
                 _gateGapFilteredValidByCar[carIdx] = true;
-            }
-
-            if (double.IsNaN(_gateGapLastPredictTimeSecByCar[carIdx]) || double.IsInfinity(_gateGapLastPredictTimeSecByCar[carIdx]))
-            {
                 _gateGapLastPredictTimeSecByCar[carIdx] = sessionTimeSec;
             }
         }
@@ -1022,16 +1013,7 @@ namespace LaunchPlugin
             double wrapWindow = 0.5 * lapTimeUsed;
             for (int carIdx = 0; carIdx < MaxCars; carIdx++)
             {
-                bool hasTruth = _gateGapTruthValidByCar[carIdx];
-                bool hasFilter = _gateGapFilteredValidByCar[carIdx];
-                if (!hasFilter && hasTruth)
-                {
-                    _gateGapFilteredSecByCar[carIdx] = _gateGapTruthSecByCar[carIdx];
-                    _gateGapFilteredValidByCar[carIdx] = true;
-                    hasFilter = true;
-                }
-
-                if (!hasFilter && !hasTruth)
+                if (!_gateGapFilteredValidByCar[carIdx])
                 {
                     continue;
                 }
@@ -1044,38 +1026,86 @@ namespace LaunchPlugin
                 }
 
                 double dt = sessionTimeSec - lastPredictTime;
-                if (double.IsNaN(dt) || double.IsInfinity(dt) || dt < 0.0)
+                if (double.IsNaN(dt) || double.IsInfinity(dt) || dt <= 0.0)
                 {
-                    dt = 0.0;
+                    continue;
                 }
-                else if (dt > GateGapMaxPredictDtSec)
-                {
-                    dt = GateGapMaxPredictDtSec;
-                }
+                if (dt > GateGapMaxPredictDtSec) dt = GateGapMaxPredictDtSec;
 
                 double filtered = _gateGapFilteredSecByCar[carIdx];
 
-                if (dt > 0.0 && _gateGapRateValidByCar[carIdx])
+                if (_gateGapRateValidByCar[carIdx])
                 {
                     filtered += _gateGapRateSecPerSecByCar[carIdx] * dt;
                 }
+                filtered = WrapGateGapSec(filtered, lapTimeUsed, wrapWindow);
 
-                if (dt > 0.0 && hasTruth)
+                if (_gateGapTruthValidByCar[carIdx])
                 {
                     double truthAgeSec = sessionTimeSec - _gateGapLastTruthTimeSecByCar[carIdx];
                     if (!double.IsNaN(truthAgeSec) && !double.IsInfinity(truthAgeSec)
                         && truthAgeSec >= 0.0 && truthAgeSec <= GateGapTruthMaxAgeSec)
                     {
-                        double alpha = 1.0 - Math.Exp(-dt / GateGapCorrectionTauSec);
-                        filtered += alpha * (_gateGapTruthSecByCar[carIdx] - filtered);
+                        double alpha = GateGapCorrectionTauSec <= 0.0
+                            ? 1.0
+                            : 1.0 - Math.Exp(-dt / GateGapCorrectionTauSec);
+                        double err = _gateGapTruthSecByCar[carIdx] - filtered;
+                        if (err > wrapWindow) err -= lapTimeUsed;
+                        else if (err < -wrapWindow) err += lapTimeUsed;
+
+                        filtered += alpha * err;
+                        filtered = WrapGateGapSec(filtered, lapTimeUsed, wrapWindow);
                     }
                 }
 
-                filtered = WrapGateGapSec(filtered, lapTimeUsed, wrapWindow);
                 _gateGapFilteredSecByCar[carIdx] = filtered;
                 _gateGapFilteredValidByCar[carIdx] = true;
                 _gateGapLastPredictTimeSecByCar[carIdx] = sessionTimeSec;
             }
+        }
+
+        private static double MapToAhead(double value, double lapTimeUsed)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return value;
+            }
+
+            double wrapWindow = 0.5 * lapTimeUsed;
+            value = WrapGateGapSec(value, lapTimeUsed, wrapWindow);
+            if (value < 0.0)
+            {
+                value += lapTimeUsed;
+            }
+
+            if (value > wrapWindow)
+            {
+                value = wrapWindow;
+            }
+
+            return value;
+        }
+
+        private static double MapToBehind(double value, double lapTimeUsed)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return value;
+            }
+
+            double wrapWindow = 0.5 * lapTimeUsed;
+            value = WrapGateGapSec(value, lapTimeUsed, wrapWindow);
+            if (value > 0.0)
+            {
+                value -= lapTimeUsed;
+            }
+
+            if (value < -wrapWindow)
+            {
+                value = -wrapWindow;
+            }
+
+            return value;
         }
 
         private static double WrapGateGapSec(double value, double lapTimeUsed, double wrapWindow)
@@ -1227,22 +1257,53 @@ namespace LaunchPlugin
                 }
 
                 bool hasTrackSec = !double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec);
+                double candidateValue;
                 if (_gateGapFilteredValidByCar[slot.CarIdx])
                 {
-                    slot.GapRelativeSec = _gateGapFilteredSecByCar[slot.CarIdx];
+                    candidateValue = _gateGapFilteredSecByCar[slot.CarIdx];
                 }
                 else if (_gateGapTruthValidByCar[slot.CarIdx])
                 {
-                    slot.GapRelativeSec = _gateGapTruthSecByCar[slot.CarIdx];
+                    candidateValue = _gateGapTruthSecByCar[slot.CarIdx];
                 }
                 else if (hasTrackSec)
                 {
-                    slot.GapRelativeSec = slot.GapTrackSec;
+                    candidateValue = slot.GapTrackSec;
                 }
                 else
                 {
-                    slot.GapRelativeSec = double.NaN;
+                    candidateValue = double.NaN;
                 }
+
+                if (isAhead)
+                {
+                    candidateValue = MapToAhead(candidateValue, lapTimeEstimateSec);
+                }
+                else
+                {
+                    candidateValue = MapToBehind(candidateValue, lapTimeEstimateSec);
+                }
+
+                double lastPublished = _gateGapLastPublishedSecByCar[slot.CarIdx];
+                double lastPublishedTime = _gateGapLastPublishedTimeSecByCar[slot.CarIdx];
+                bool candidateValid = !double.IsNaN(candidateValue) && !double.IsInfinity(candidateValue);
+                if (!candidateValid)
+                {
+                    bool lastPublishedValid = !double.IsNaN(lastPublished) && !double.IsInfinity(lastPublished);
+                    double holdAgeSec = sessionTimeSec - lastPublishedTime;
+                    if (lastPublishedValid && !double.IsNaN(holdAgeSec) && !double.IsInfinity(holdAgeSec)
+                        && holdAgeSec >= 0.0 && holdAgeSec <= GateGapStickyHoldSec)
+                    {
+                        candidateValue = lastPublished;
+                    }
+                }
+                else
+                {
+                    _gateGapLastPublishedSecByCar[slot.CarIdx] = candidateValue;
+                    _gateGapLastPublishedTimeSecByCar[slot.CarIdx] = sessionTimeSec;
+                }
+
+                slot.GapRelativeSec = candidateValue;
 
                 if (isRace && !state.HasSeenPitExit)
                 {
@@ -2282,6 +2343,8 @@ namespace LaunchPlugin
                 _gateGapPrevTruthSecByCar[carIdx] = double.NaN;
                 _gateGapPrevTruthTimeSecByCar[carIdx] = double.NaN;
                 _gateGapLastPredictTimeSecByCar[carIdx] = double.NaN;
+                _gateGapLastPublishedSecByCar[carIdx] = double.NaN;
+                _gateGapLastPublishedTimeSecByCar[carIdx] = double.NaN;
                 for (int gate = 0; gate < MiniSectorCheckpointCount; gate++)
                 {
                     _carGateTimeSecByCarGate[carIdx, gate] = double.NaN;
