@@ -136,7 +136,9 @@ namespace LaunchPlugin
         private bool _anyCheckpointCrossedThisTick;
         private int _miniSectorTickId;
         private readonly double[] _playerGateTimeSecByGate = new double[MiniSectorCheckpointCount];
+        private readonly int[] _playerGateLapByGate = new int[MiniSectorCheckpointCount];
         private readonly double[,] _carGateTimeSecByCarGate = new double[MaxCars, MiniSectorCheckpointCount];
+        private readonly int[,] _carGateLapByCarGate = new int[MaxCars, MiniSectorCheckpointCount];
         private readonly double[] _gateRawGapSecByCar = new double[MaxCars];
         private readonly double[] _gateGapSecByCar = new double[MaxCars];
         private readonly bool[] _gateGapValidByCar = new bool[MaxCars];
@@ -436,7 +438,13 @@ namespace LaunchPlugin
                 playerLapPctValid = !double.IsNaN(playerLapPct) && playerLapPct >= 0.0 && playerLapPct < 1.0;
             }
 
-            UpdatePlayerCheckpointIndices(playerLapPctValid ? playerLapPct : double.NaN, sessionTimeSec);
+            int playerLap = 0;
+            if (carIdxLap != null && playerCarIdx >= 0 && playerCarIdx < carIdxLap.Length)
+            {
+                playerLap = carIdxLap[playerCarIdx];
+            }
+
+            UpdatePlayerCheckpointIndices(playerLapPctValid ? playerLapPct : double.NaN, sessionTimeSec, playerLap);
             _anyCheckpointCrossedThisTick = false;
 
             int playerTrackSurfaceRaw = -1;
@@ -448,12 +456,6 @@ namespace LaunchPlugin
             _outputs.Debug.PlayerTrackSurfaceRaw = playerTrackSurfaceRaw;
             _outputs.Debug.PlayerCheckpointIndexNow = _playerCheckpointIndexNow;
             _outputs.Debug.PlayerCheckpointIndexCrossed = _playerCheckpointIndexCrossed;
-
-            int playerLap = 0;
-            if (carIdxLap != null && playerCarIdx >= 0 && playerCarIdx < carIdxLap.Length)
-            {
-                playerLap = carIdxLap[playerCarIdx];
-            }
 
             UpdateCarStates(sessionTimeSec, sessionState, isRace, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, playerLap, lapTimeUsed, allowLatches);
             PredictGateGapForward(sessionTimeSec, lapTimeUsed);
@@ -843,13 +845,16 @@ namespace LaunchPlugin
                         {
                             _anyCheckpointCrossedThisTick = true;
                             _carGateTimeSecByCarGate[carIdx, checkpointCrossed] = sessionTimeSec;
+                            _carGateLapByCarGate[carIdx, checkpointCrossed] = state.Lap;
                             double playerGateTimeSec = _playerGateTimeSecByGate[checkpointCrossed];
-                            if (!double.IsNaN(playerGateTimeSec) && !double.IsInfinity(playerGateTimeSec))
+                            int playerGateLap = _playerGateLapByGate[checkpointCrossed];
+                            if (!double.IsNaN(playerGateTimeSec)
+                                && !double.IsInfinity(playerGateTimeSec)
+                                && playerGateLap == state.Lap)
                             {
                                 _gateRawGapSecByCar[carIdx] = sessionTimeSec - playerGateTimeSec;
                                 _gateGapValidByCar[carIdx] = true;
-                                int lapDelta = state.Lap - playerLap;
-                                double gateTruth = NormalizeGateGapSec(_gateRawGapSecByCar[carIdx], lapDelta, lapTimeEstimateSec);
+                                double gateTruth = NormalizeGateGapProximity(_gateRawGapSecByCar[carIdx], lapTimeEstimateSec);
                                 UpdateGateGapTruthForCar(carIdx, sessionTimeSec, gateTruth);
                             }
                         }
@@ -1270,6 +1275,34 @@ namespace LaunchPlugin
                 normalized -= lapTimeUsed;
             }
             else if (normalized < -wrapWindow)
+            {
+                normalized += lapTimeUsed;
+            }
+
+            return normalized;
+        }
+
+        private static double NormalizeGateGapProximity(double rawGapSec, double lapTimeEstimateSec)
+        {
+            if (double.IsNaN(rawGapSec) || double.IsInfinity(rawGapSec))
+            {
+                return double.NaN;
+            }
+
+            double lapTimeUsed = lapTimeEstimateSec;
+            if (!(lapTimeUsed > 0.0) || double.IsNaN(lapTimeUsed) || double.IsInfinity(lapTimeUsed))
+            {
+                lapTimeUsed = DefaultLapTimeEstimateSec;
+            }
+
+            double normalized = rawGapSec;
+            double wrapWindow = 0.5 * lapTimeUsed;
+            while (normalized > wrapWindow)
+            {
+                normalized -= lapTimeUsed;
+            }
+
+            while (normalized < -wrapWindow)
             {
                 normalized += lapTimeUsed;
             }
@@ -2231,6 +2264,7 @@ namespace LaunchPlugin
             for (int i = 0; i < _playerGateTimeSecByGate.Length; i++)
             {
                 _playerGateTimeSecByGate[i] = double.NaN;
+                _playerGateLapByGate[i] = int.MinValue;
             }
 
             for (int carIdx = 0; carIdx < _carStates.Length; carIdx++)
@@ -2251,6 +2285,7 @@ namespace LaunchPlugin
                 for (int gate = 0; gate < MiniSectorCheckpointCount; gate++)
                 {
                     _carGateTimeSecByCarGate[carIdx, gate] = double.NaN;
+                    _carGateLapByCarGate[carIdx, gate] = int.MinValue;
                 }
             }
         }
@@ -2298,7 +2333,7 @@ namespace LaunchPlugin
             return checkpointNow;
         }
 
-        private void UpdatePlayerCheckpointIndices(double lapPct, double sessionTimeSec)
+        private void UpdatePlayerCheckpointIndices(double lapPct, double sessionTimeSec, int playerLap)
         {
             int checkpointNow = ComputeCheckpointIndex(lapPct);
             int checkpointCrossed = -1;
@@ -2317,6 +2352,7 @@ namespace LaunchPlugin
             if (checkpointCrossed >= 0 && checkpointCrossed < _playerGateTimeSecByGate.Length)
             {
                 _playerGateTimeSecByGate[checkpointCrossed] = sessionTimeSec;
+                _playerGateLapByGate[checkpointCrossed] = playerLap;
             }
         }
 
