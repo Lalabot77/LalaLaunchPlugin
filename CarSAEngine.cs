@@ -23,6 +23,7 @@ namespace LaunchPlugin
         private const double GateGapStickyHoldSec = 0.25;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
+        private const double HalfLapDeadbandPct = 0.05;
         private const double LapDeltaWrapEdgePct = 0.05;
         private const int MiniSectorCheckpointCount = 60;
         private const int HotCoolCoarseSectorCount = 6;
@@ -538,6 +539,18 @@ namespace LaunchPlugin
                     continue;
                 }
 
+                if (HalfLapDeadbandPct > 0.0)
+                {
+                    double signedDelta = state.SignedDeltaPct;
+                    if (!double.IsNaN(signedDelta) && !double.IsInfinity(signedDelta))
+                    {
+                        if (Math.Abs(Math.Abs(signedDelta) - 0.5) < HalfLapDeadbandPct)
+                        {
+                            continue;
+                        }
+                    }
+                }
+
                 if (!_includePitRoad && onPitRoad)
                 {
                     continue;
@@ -866,14 +879,17 @@ namespace LaunchPlugin
                             int playerGateLap = _playerGateLapByGate[checkpointCrossed];
                             if (!double.IsNaN(playerGateTimeSec)
                                 && !double.IsInfinity(playerGateTimeSec)
-                                && playerGateLap == state.Lap)
+                                && playerGateLap != int.MinValue
+                                && IsValidLapTimeSec(lapTimeUsedSec))
                             {
-                                _gateRawGapSecByCar[carIdx] = sessionTimeSec - playerGateTimeSec;
-                                int lapDelta = state.Lap - playerLap;
-                                double gateTruth = lapDelta == 0
-                                    ? NormalizeGateGapProximity(_gateRawGapSecByCar[carIdx], lapTimeUsedSec)
-                                    : NormalizeGateGapSec(_gateRawGapSecByCar[carIdx], lapDelta, lapTimeUsedSec);
-                                UpdateGateGapTruthForCar(carIdx, sessionTimeSec, gateTruth);
+                                double rawGapSec = sessionTimeSec - playerGateTimeSec;
+                                int lapDeltaAtGate = state.Lap - playerGateLap;
+                                if (Math.Abs(lapDeltaAtGate) <= 3)
+                                {
+                                    _gateRawGapSecByCar[carIdx] = rawGapSec;
+                                    double gateTruth = NormalizeGateGapSec(rawGapSec, lapDeltaAtGate, lapTimeUsedSec);
+                                    UpdateGateGapTruthForCar(carIdx, sessionTimeSec, gateTruth);
+                                }
                             }
                         }
 
