@@ -3549,6 +3549,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.LapDelta", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapDelta ?? 0);
                 AttachCore($"Car.Ahead{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapTrackSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Gap.RelativeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapRelativeSec ?? double.NaN);
+                AttachCore($"Car.Ahead{label}.Gap.RelativeSource", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapRelativeSource ?? 0);
                 AttachCore($"Car.Ahead{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Status", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Status ?? 0);
                 AttachCore($"Car.Ahead{label}.StatusE", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusE ?? 0);
@@ -3599,6 +3600,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.LapDelta", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapDelta ?? 0);
                 AttachCore($"Car.Behind{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapTrackSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Gap.RelativeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapRelativeSec ?? double.NaN);
+                AttachCore($"Car.Behind{label}.Gap.RelativeSource", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapRelativeSource ?? 0);
                 AttachCore($"Car.Behind{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Status", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Status ?? 0);
                 AttachCore($"Car.Behind{label}.StatusE", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusE ?? 0);
@@ -3657,6 +3659,7 @@ namespace LaunchPlugin
             AttachCore("Car.Debug.FilteredHalfLapCountAhead", () => _carSaEngine?.Outputs.Debug.FilteredHalfLapCountAhead ?? 0);
             AttachCore("Car.Debug.FilteredHalfLapCountBehind", () => _carSaEngine?.Outputs.Debug.FilteredHalfLapCountBehind ?? 0);
             AttachCore("Car.Debug.LapTimeEstimateSec", () => _carSaEngine?.Outputs.Debug.LapTimeEstimateSec ?? 0.0);
+            AttachCore("Car.Debug.LapTimeUsedSec", () => _carSaEngine?.Outputs.Debug.LapTimeUsedSec ?? 0.0);
             AttachCore("Car.Debug.HysteresisReplacementsThisTick", () => _carSaEngine?.Outputs.Debug.HysteresisReplacementsThisTick ?? 0);
             AttachCore("Car.Debug.SlotCarIdxChangedThisTick", () => _carSaEngine?.Outputs.Debug.SlotCarIdxChangedThisTick ?? 0);
 
@@ -4549,20 +4552,31 @@ namespace LaunchPlugin
             int[] carIdxSessionFlags = null;
             _ = TryReadTelemetryIntArray(pluginManager, "CarIdxSessionFlags", out carIdxSessionFlags, out _, out _);
             double lapTimeEstimateSec = myPaceSec;
-            if (!(lapTimeEstimateSec > 0.0) || double.IsNaN(lapTimeEstimateSec) || double.IsInfinity(lapTimeEstimateSec))
+            if (!IsValidCarSaLapTimeSec(lapTimeEstimateSec))
             {
                 lapTimeEstimateSec = lastLapSec;
             }
-            if (!(lapTimeEstimateSec > 0.0) || double.IsNaN(lapTimeEstimateSec) || double.IsInfinity(lapTimeEstimateSec))
+            if (!IsValidCarSaLapTimeSec(lapTimeEstimateSec))
             {
-                lapTimeEstimateSec = 120.0;
+                lapTimeEstimateSec = double.NaN;
             }
+            double playerBestLapTimeSec = _lastSeenBestLap > TimeSpan.Zero
+                ? _lastSeenBestLap.TotalSeconds
+                : double.NaN;
+            if (!IsValidCarSaLapTimeSec(playerBestLapTimeSec) && playerCarIdx >= 0 && playerCarIdx < _carSaBestLapTimeSecByIdx.Length)
+            {
+                playerBestLapTimeSec = _carSaBestLapTimeSecByIdx[playerCarIdx];
+            }
+            playerBestLapTimeSec = SanitizeCarSaLapTimeSec(playerBestLapTimeSec);
+            double classEstLapTimeSec = (playerCarIdx >= 0 && playerCarIdx < _carSaCarClassEstLapTimeSecByIdx.Length)
+                ? _carSaCarClassEstLapTimeSecByIdx[playerCarIdx]
+                : double.NaN;
             double notRelevantGapSec = Settings?.NotRelevantGapSec ?? CarSANotRelevantGapSecDefault;
             if (double.IsNaN(notRelevantGapSec) || double.IsInfinity(notRelevantGapSec) || notRelevantGapSec < 0.0)
             {
                 notRelevantGapSec = CarSANotRelevantGapSecDefault;
             }
-            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, lapTimeEstimateSec, notRelevantGapSec, debugEnabled);
+            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugEnabled);
             if (_carSaEngine != null)
             {
                 UpdateCarSaTelemetryCaches(pluginManager);
@@ -5666,6 +5680,7 @@ namespace LaunchPlugin
                 buffer.Append("0,");
                 buffer.Append("0,");
                 buffer.Append("0,");
+                buffer.Append("0,");
                 AppendSlotRawEvidence(buffer, null);
                 return;
             }
@@ -5675,6 +5690,7 @@ namespace LaunchPlugin
             buffer.Append(slot.LapDelta).Append(',');
             buffer.Append(slot.GapTrackSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.GapRelativeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+            buffer.Append(slot.GapRelativeSource).Append(',');
             buffer.Append(slot.ClosingRateSecPerSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.DeltaBestSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
             buffer.Append(slot.HotCoolIntent).Append(',');
@@ -5893,6 +5909,7 @@ namespace LaunchPlugin
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".LapDelta");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".GapTrackSec");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".GapRelativeSec");
+            AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".GapRelativeSource");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".ClosingRateSecPerSec");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".DeltaBestSec");
             AppendCarSaDebugHeaderColumn(buffer, slotLabel + ".HotCoolIntent");
@@ -6194,6 +6211,7 @@ namespace LaunchPlugin
                     slot.EstLapTimeSec = double.NaN;
                     slot.EstLapTime = "-";
                     slot.GapRelativeSec = double.NaN;
+                    slot.GapRelativeSource = 0;
                     slot.HotScore = 0.0;
                     slot.HotVia = string.Empty;
                     continue;

@@ -87,6 +87,7 @@ namespace LaunchPlugin
         public bool HotCoolConflictCached { get; set; }
         public int HotCoolConflictLastTickId { get; set; } = -1;
         public double GapRelativeSec { get; set; } = double.NaN;
+        public int GapRelativeSource { get; set; }
 
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
         internal double LastGapSec { get; set; } = double.NaN;
@@ -207,6 +208,7 @@ namespace LaunchPlugin
             HotCoolConflictCached = false;
             HotCoolConflictLastTickId = -1;
             GapRelativeSec = double.NaN;
+            GapRelativeSource = 0;
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
             HasGap = false;
@@ -266,6 +268,7 @@ namespace LaunchPlugin
         public int FilteredHalfLapCountBehind { get; set; }
 
         public double LapTimeEstimateSec { get; set; }
+        public double LapTimeUsedSec { get; set; }
         public int HysteresisReplacementsThisTick { get; set; }
         public int SlotCarIdxChangedThisTick { get; set; }
         public bool HasCarIdxPaceFlags { get; set; }
@@ -299,6 +302,7 @@ namespace LaunchPlugin
             FilteredHalfLapCountAhead = 0;
             FilteredHalfLapCountBehind = 0;
             LapTimeEstimateSec = 0.0;
+            LapTimeUsedSec = 0.0;
             HysteresisReplacementsThisTick = 0;
             SlotCarIdxChangedThisTick = 0;
             HasCarIdxPaceFlags = false;
