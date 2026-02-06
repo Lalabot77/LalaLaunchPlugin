@@ -120,6 +120,38 @@ namespace LaunchPlugin
         internal double ClosingRateSmoothed { get; set; }
         internal bool ClosingRateHasSample { get; set; }
 
+        private bool _styleCacheInitialized;
+        private int _styleLastStatusE;
+        private string _styleLastClassColorHex = string.Empty;
+        private int _styleLastPositionInClass;
+        private string _styleLastPlayerClassColor = string.Empty;
+        private bool _styleLastIsValid;
+        private int _styleLastCarIdx;
+
+        public bool StyleInputsChanged(int statusE, string classColorHex, int positionInClass, string playerClassColorHex, int carIdx, bool isValid)
+        {
+            classColorHex = classColorHex ?? string.Empty;
+            playerClassColorHex = playerClassColorHex ?? string.Empty;
+
+            bool changed = !_styleCacheInitialized
+                || _styleLastStatusE != statusE
+                || _styleLastPositionInClass != positionInClass
+                || _styleLastIsValid != isValid
+                || _styleLastCarIdx != carIdx
+                || !string.Equals(_styleLastClassColorHex, classColorHex, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(_styleLastPlayerClassColor, playerClassColorHex, StringComparison.OrdinalIgnoreCase);
+
+            _styleLastStatusE = statusE;
+            _styleLastClassColorHex = classColorHex;
+            _styleLastPositionInClass = positionInClass;
+            _styleLastPlayerClassColor = playerClassColorHex;
+            _styleLastIsValid = isValid;
+            _styleLastCarIdx = carIdx;
+            _styleCacheInitialized = true;
+
+            return changed;
+        }
+
         public void Reset()
         {
             CarIdx = -1;
@@ -201,6 +233,14 @@ namespace LaunchPlugin
             IdentityResolved = false;
             ClosingRateSmoothed = 0.0;
             ClosingRateHasSample = false;
+
+            _styleCacheInitialized = false;
+            _styleLastStatusE = (int)CarSAStatusE.Unknown;
+            _styleLastClassColorHex = string.Empty;
+            _styleLastPositionInClass = 0;
+            _styleLastPlayerClassColor = string.Empty;
+            _styleLastIsValid = false;
+            _styleLastCarIdx = -1;
         }
     }
 

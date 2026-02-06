@@ -6105,22 +6105,30 @@ namespace LaunchPlugin
                     continue;
                 }
 
+                if (!slot.StyleInputsChanged(slot.StatusE, slot.ClassColorHex, slot.PositionInClass, playerClassColorHex, slot.CarIdx, slot.IsValid))
+                {
+                    continue;
+                }
+
                 bool isOtherClass = IsOtherClassSlot(slot, playerClassColorHex);
                 bool isClassLeader = slot.IsValid && slot.IsOnTrack && slot.PositionInClass == 1;
                 bool isTeammate = CanMarkTeammate(slot);
 
-                var style = CarSAStyleResolver.Resolve(
+                CarSAStyleResolver.Resolve(
                     slot.StatusE,
                     slot.ClassColorHex,
                     isTeammate,
                     isClassLeader,
                     isOtherClass,
                     statusMap,
-                    borderMap);
+                    borderMap,
+                    out var statusBgHex,
+                    out var borderMode,
+                    out var borderHex);
 
-                slot.StatusBgHex = style.StatusBgHex;
-                slot.BorderMode = style.BorderMode;
-                slot.BorderHex = style.BorderHex;
+                slot.StatusBgHex = statusBgHex;
+                slot.BorderMode = borderMode;
+                slot.BorderHex = borderHex;
             }
         }
 

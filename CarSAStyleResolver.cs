@@ -3,13 +3,6 @@ using System.Collections.Generic;
 
 namespace LaunchPlugin
 {
-    public sealed class CarSAStyleResult
-    {
-        public string StatusBgHex { get; set; } = "#000000";
-        public string BorderMode { get; set; } = "DEF";
-        public string BorderHex { get; set; } = "#A9A9A9";
-    }
-
     public static class CarSAStyleResolver
     {
         public const string BorderModeTeam = "TEAM";
@@ -17,22 +10,21 @@ namespace LaunchPlugin
         public const string BorderModeOtherClass = "OCLS";
         public const string BorderModeDefault = "DEF";
 
-        public static CarSAStyleResult Resolve(
+        public static void Resolve(
             int statusE,
             string classColorHex,
             bool isTeammate,
             bool isClassLeader,
             bool isOtherClass,
             IDictionary<int, string> statusEColorMap,
-            IDictionary<string, string> borderColorMap)
+            IDictionary<string, string> borderColorMap,
+            out string statusBgHex,
+            out string borderMode,
+            out string borderHex)
         {
-            var borderMode = ResolveBorderMode(isTeammate, isClassLeader, isOtherClass);
-            return new CarSAStyleResult
-            {
-                StatusBgHex = ResolveStatusBackgroundHex(statusE, classColorHex, statusEColorMap),
-                BorderMode = borderMode,
-                BorderHex = ResolveBorderHex(borderMode, borderColorMap)
-            };
+            borderMode = ResolveBorderMode(isTeammate, isClassLeader, isOtherClass);
+            statusBgHex = ResolveStatusBackgroundHex(statusE, classColorHex, statusEColorMap);
+            borderHex = ResolveBorderHex(borderMode, borderColorMap);
         }
 
         private static string ResolveStatusBackgroundHex(int statusE, string classColorHex, IDictionary<int, string> statusEColorMap)
