@@ -652,7 +652,7 @@ namespace LaunchPlugin
             { (int)CarSAStatusE.BeingLapped, "#ADD8E6" }
         };
 
-        private static readonly Dictionary<string, string> DefaultCarSABorderColors = new Dictionary<string, string>(StringComparer.Ordinal)
+        private static readonly Dictionary<string, string> DefaultCarSABorderColors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { CarSAStyleResolver.BorderModeTeam, "#4B0082" },
             { CarSAStyleResolver.BorderModeLead, "#FF00FF" },
@@ -3972,8 +3972,8 @@ namespace LaunchPlugin
         private static Dictionary<string, string> NormalizeBorderColorMap(Dictionary<string, string> source)
         {
             var normalized = source != null
-                ? new Dictionary<string, string>(source, StringComparer.Ordinal)
-                : new Dictionary<string, string>(StringComparer.Ordinal);
+                ? new Dictionary<string, string>(source, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var pair in DefaultCarSABorderColors)
             {
@@ -4599,8 +4599,8 @@ namespace LaunchPlugin
                 UpdateCarSaClassRankMap(pluginManager);
                 _carSaEngine.SetClassRankMap(_carSaClassRankByColor);
                 _carSaEngine.RefreshStatusE(notRelevantGapSec, _opponentsEngine?.Outputs, playerClassColor);
-                UpdateCarSaSlotStyles(_carSaEngine.Outputs.AheadSlots, _carSaEngine.Outputs.PlayerSlot.ClassColorHex);
-                UpdateCarSaSlotStyles(_carSaEngine.Outputs.BehindSlots, _carSaEngine.Outputs.PlayerSlot.ClassColorHex);
+                UpdateCarSaSlotStyles(_carSaEngine.Outputs.AheadSlots, playerClassColor ?? string.Empty);
+                UpdateCarSaSlotStyles(_carSaEngine.Outputs.BehindSlots, playerClassColor ?? string.Empty);
             }
 
             if (pitEntryEdge)
@@ -9329,7 +9329,7 @@ namespace LaunchPlugin
             { (int)CarSAStatusE.LappingYou, "#0000FF" },
             { (int)CarSAStatusE.BeingLapped, "#ADD8E6" }
         };
-        public Dictionary<string, string> CarSABorderColors { get; set; } = new Dictionary<string, string>
+        public Dictionary<string, string> CarSABorderColors { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { CarSAStyleResolver.BorderModeTeam, "#4B0082" },
             { CarSAStyleResolver.BorderModeLead, "#FF00FF" },
