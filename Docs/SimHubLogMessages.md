@@ -2,9 +2,9 @@
 
 **CANONICAL OBSERVABILITY MAP**
 
-Validated against: f4cd1fe  
-Last reviewed: 2026-02-03  
-Last updated: 2026-02-03  
+Validated against: 3b98c50  
+Last reviewed: 2026-02-06  
+Last updated: 2026-02-06  
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.

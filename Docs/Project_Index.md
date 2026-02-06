@@ -1,7 +1,7 @@
 # Project Index
 
-Validated against commit: f4cd1fe  
-Last updated: 2026-02-03  
+Validated against commit: 3b98c50  
+Last updated: 2026-02-06  
 Branch: work
 
 ## What this repo is
@@ -57,7 +57,7 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 | Pit Entry Assist | Pit entry braking cues, margin/cue maths, decel capture instrumentation | [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) (driver/dash/engine) |
 | Track markers | Auto-learned pit entry/exit markers (per track), locking, track-length change detection, MSGV1 notifications | [Subsystems/Track_Markers.md](Subsystems/Track_Markers.md) |
 | Opponents | Nearby pace/fight prediction and pit-exit class position forecasting (Race-only, lap gate ≥1, gaps absolute) | [Subsystems/Opponents.md](Subsystems/Opponents.md) |
-| CarSA | Car-based spatial awareness using SA-Core v2 distance gaps, car-centric status memory, class-rank StatusE labeling, and debug export | [Subsystems/CarSA.md](Subsystems/CarSA.md) |
+| CarSA | Car-based spatial awareness using SA-Core v2 distance gaps, gate-gap v2 relative proximity, car-centric status memory, class-rank StatusE labeling, and debug export | [Subsystems/CarSA.md](Subsystems/CarSA.md) |
 | Dash integration | Screen manager modes, pit screen, dash visibility toggles (main/message/overlay), and Pit Entry Assist visual guidance | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Canonical docs map
@@ -80,6 +80,6 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch control ins
 - Fuel tab/UI source or planner changes → update `FuelTab_SourceFlowNotes.md`.
 
 ## Freshness
-- Validated against commit: f4cd1fe  
-- Date: 2026-02-03  
+- Validated against commit: 3b98c50  
+- Date: 2026-02-06  
 - Branch: work
