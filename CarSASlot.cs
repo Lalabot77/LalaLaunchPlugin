@@ -49,6 +49,9 @@ namespace LaunchPlugin
         public string StatusShort { get; set; } = "---";
         public string StatusLong { get; set; } = string.Empty;
         public string StatusEReason { get; set; } = "unknown";
+        public string StatusBgHex { get; set; } = "#000000";
+        public string BorderMode { get; set; } = CarSAStyleResolver.BorderModeDefault;
+        public string BorderHex { get; set; } = "#A9A9A9";
         public int SessionFlagsRaw { get; set; } = -1;
         public int TrackSurfaceMaterialRaw { get; set; } = -1;
         public int PositionInClass { get; set; }
@@ -117,6 +120,38 @@ namespace LaunchPlugin
         internal double ClosingRateSmoothed { get; set; }
         internal bool ClosingRateHasSample { get; set; }
 
+        private bool _styleCacheInitialized;
+        private int _styleLastStatusE;
+        private string _styleLastClassColorHex = string.Empty;
+        private int _styleLastPositionInClass;
+        private string _styleLastPlayerClassColor = string.Empty;
+        private bool _styleLastIsValid;
+        private int _styleLastCarIdx;
+
+        public bool StyleInputsChanged(int statusE, string classColorHex, int positionInClass, string playerClassColorHex, int carIdx, bool isValid)
+        {
+            classColorHex = classColorHex ?? string.Empty;
+            playerClassColorHex = playerClassColorHex ?? string.Empty;
+
+            bool changed = !_styleCacheInitialized
+                || _styleLastStatusE != statusE
+                || _styleLastPositionInClass != positionInClass
+                || _styleLastIsValid != isValid
+                || _styleLastCarIdx != carIdx
+                || !string.Equals(_styleLastClassColorHex, classColorHex, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(_styleLastPlayerClassColor, playerClassColorHex, StringComparison.OrdinalIgnoreCase);
+
+            _styleLastStatusE = statusE;
+            _styleLastClassColorHex = classColorHex;
+            _styleLastPositionInClass = positionInClass;
+            _styleLastPlayerClassColor = playerClassColorHex;
+            _styleLastIsValid = isValid;
+            _styleLastCarIdx = carIdx;
+            _styleCacheInitialized = true;
+
+            return changed;
+        }
+
         public void Reset()
         {
             CarIdx = -1;
@@ -134,6 +169,9 @@ namespace LaunchPlugin
             StatusShort = "---";
             StatusLong = string.Empty;
             StatusEReason = "unknown";
+            StatusBgHex = "#000000";
+            BorderMode = CarSAStyleResolver.BorderModeDefault;
+            BorderHex = "#A9A9A9";
             SessionFlagsRaw = -1;
             TrackSurfaceMaterialRaw = -1;
             PositionInClass = 0;
@@ -195,6 +233,14 @@ namespace LaunchPlugin
             IdentityResolved = false;
             ClosingRateSmoothed = 0.0;
             ClosingRateHasSample = false;
+
+            _styleCacheInitialized = false;
+            _styleLastStatusE = (int)CarSAStatusE.Unknown;
+            _styleLastClassColorHex = string.Empty;
+            _styleLastPositionInClass = 0;
+            _styleLastPlayerClassColor = string.Empty;
+            _styleLastIsValid = false;
+            _styleLastCarIdx = -1;
         }
     }
 
