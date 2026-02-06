@@ -269,6 +269,8 @@ namespace LaunchPlugin
 
         public double LapTimeEstimateSec { get; set; }
         public double LapTimeUsedSec { get; set; }
+        public double Ahead01GapTruthAgeSec { get; set; } = double.NaN;
+        public double Behind01GapTruthAgeSec { get; set; } = double.NaN;
         public int HysteresisReplacementsThisTick { get; set; }
         public int SlotCarIdxChangedThisTick { get; set; }
         public bool HasCarIdxPaceFlags { get; set; }
@@ -303,6 +305,8 @@ namespace LaunchPlugin
             FilteredHalfLapCountBehind = 0;
             LapTimeEstimateSec = 0.0;
             LapTimeUsedSec = 0.0;
+            Ahead01GapTruthAgeSec = double.NaN;
+            Behind01GapTruthAgeSec = double.NaN;
             HysteresisReplacementsThisTick = 0;
             SlotCarIdxChangedThisTick = 0;
             HasCarIdxPaceFlags = false;
