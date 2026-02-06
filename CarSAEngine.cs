@@ -15,10 +15,11 @@ namespace LaunchPlugin
         private const double HysteresisFactor = 0.90;
         private const double ClosingRateClamp = 5.0;
         private const double ClosingRateEmaAlpha = 0.35;
-        private const double GateGapCorrectionGain = 0.15;
-        private const double GateGapRateClamp = 2.0;
         private const double GateGapMaxPredictDtSec = 0.10;
-        private const double GateGapEmaOnTruthAlpha = 1.0;
+        private const double GateGapRateClampSecPerSec = 5.0;
+        private const double GateGapCorrectionTauSec = 0.40;
+        private const double GateGapTruthMaxAgeSec = 3.0;
+        private const double GateGapRateEmaAlpha = 0.25;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
@@ -973,12 +974,22 @@ namespace LaunchPlugin
                 double prevTruth = _gateGapPrevTruthSecByCar[carIdx];
                 double prevTime = _gateGapPrevTruthTimeSecByCar[carIdx];
                 double dtTruth = sessionTimeSec - prevTime;
-                if (dtTruth > 0.01)
+                if (dtTruth > 0.0)
                 {
-                    double rate = (truth - prevTruth) / dtTruth;
-                    if (rate > GateGapRateClamp) rate = GateGapRateClamp;
-                    if (rate < -GateGapRateClamp) rate = -GateGapRateClamp;
-                    _gateGapRateSecPerSecByCar[carIdx] = rate;
+                    double rateInst = (truth - prevTruth) / dtTruth;
+                    if (rateInst > GateGapRateClampSecPerSec) rateInst = GateGapRateClampSecPerSec;
+                    if (rateInst < -GateGapRateClampSecPerSec) rateInst = -GateGapRateClampSecPerSec;
+
+                    if (_gateGapRateValidByCar[carIdx])
+                    {
+                        _gateGapRateSecPerSecByCar[carIdx] = (GateGapRateEmaAlpha * rateInst)
+                            + ((1.0 - GateGapRateEmaAlpha) * _gateGapRateSecPerSecByCar[carIdx]);
+                    }
+                    else
+                    {
+                        _gateGapRateSecPerSecByCar[carIdx] = rateInst;
+                    }
+
                     _gateGapRateValidByCar[carIdx] = true;
                 }
             }
@@ -987,18 +998,6 @@ namespace LaunchPlugin
             {
                 _gateGapFilteredSecByCar[carIdx] = truth;
                 _gateGapFilteredValidByCar[carIdx] = true;
-            }
-            else
-            {
-                double truthForCorrection = truth;
-                if (GateGapEmaOnTruthAlpha < 1.0 && hasPrevTruth)
-                {
-                    truthForCorrection = (GateGapEmaOnTruthAlpha * truth)
-                        + ((1.0 - GateGapEmaOnTruthAlpha) * _gateGapPrevTruthSecByCar[carIdx]);
-                }
-
-                _gateGapFilteredSecByCar[carIdx] = _gateGapFilteredSecByCar[carIdx]
-                    + (GateGapCorrectionGain * (truthForCorrection - _gateGapFilteredSecByCar[carIdx]));
             }
 
             if (double.IsNaN(_gateGapLastPredictTimeSecByCar[carIdx]) || double.IsInfinity(_gateGapLastPredictTimeSecByCar[carIdx]))
@@ -1018,7 +1017,16 @@ namespace LaunchPlugin
             double wrapWindow = 0.5 * lapTimeUsed;
             for (int carIdx = 0; carIdx < MaxCars; carIdx++)
             {
-                if (!_gateGapFilteredValidByCar[carIdx] || !_gateGapRateValidByCar[carIdx])
+                bool hasTruth = _gateGapTruthValidByCar[carIdx];
+                bool hasFilter = _gateGapFilteredValidByCar[carIdx];
+                if (!hasFilter && hasTruth)
+                {
+                    _gateGapFilteredSecByCar[carIdx] = _gateGapTruthSecByCar[carIdx];
+                    _gateGapFilteredValidByCar[carIdx] = true;
+                    hasFilter = true;
+                }
+
+                if (!hasFilter && !hasTruth)
                 {
                     continue;
                 }
@@ -1031,7 +1039,7 @@ namespace LaunchPlugin
                 }
 
                 double dt = sessionTimeSec - lastPredictTime;
-                if (dt <= 0.0 || dt > 0.5)
+                if (double.IsNaN(dt) || double.IsInfinity(dt) || dt < 0.0)
                 {
                     dt = 0.0;
                 }
@@ -1040,22 +1048,48 @@ namespace LaunchPlugin
                     dt = GateGapMaxPredictDtSec;
                 }
 
-                if (dt > 0.0)
+                double filtered = _gateGapFilteredSecByCar[carIdx];
+
+                if (dt > 0.0 && _gateGapRateValidByCar[carIdx])
                 {
-                    double filtered = _gateGapFilteredSecByCar[carIdx] + (_gateGapRateSecPerSecByCar[carIdx] * dt);
-                    if (filtered > wrapWindow)
-                    {
-                        filtered -= lapTimeUsed;
-                    }
-                    else if (filtered < -wrapWindow)
-                    {
-                        filtered += lapTimeUsed;
-                    }
-                    _gateGapFilteredSecByCar[carIdx] = filtered;
+                    filtered += _gateGapRateSecPerSecByCar[carIdx] * dt;
                 }
 
+                if (dt > 0.0 && hasTruth)
+                {
+                    double truthAgeSec = sessionTimeSec - _gateGapLastTruthTimeSecByCar[carIdx];
+                    if (!double.IsNaN(truthAgeSec) && !double.IsInfinity(truthAgeSec)
+                        && truthAgeSec >= 0.0 && truthAgeSec <= GateGapTruthMaxAgeSec)
+                    {
+                        double alpha = 1.0 - Math.Exp(-dt / GateGapCorrectionTauSec);
+                        filtered += alpha * (_gateGapTruthSecByCar[carIdx] - filtered);
+                    }
+                }
+
+                filtered = WrapGateGapSec(filtered, lapTimeUsed, wrapWindow);
+                _gateGapFilteredSecByCar[carIdx] = filtered;
+                _gateGapFilteredValidByCar[carIdx] = true;
                 _gateGapLastPredictTimeSecByCar[carIdx] = sessionTimeSec;
             }
+        }
+
+        private static double WrapGateGapSec(double value, double lapTimeUsed, double wrapWindow)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return value;
+            }
+
+            if (value > wrapWindow)
+            {
+                value -= lapTimeUsed;
+            }
+            else if (value < -wrapWindow)
+            {
+                value += lapTimeUsed;
+            }
+
+            return value;
         }
 
         private static bool IsRaceSessionType(string name)
@@ -1245,6 +1279,16 @@ namespace LaunchPlugin
 
         private static void InsertCandidate(int carIdx, double dist, int[] idxs, double[] dists)
         {
+            int existingIndex = FindCandidateIndex(carIdx, idxs);
+            if (existingIndex >= 0)
+            {
+                if (dist < dists[existingIndex])
+                {
+                    dists[existingIndex] = dist;
+                }
+                return;
+            }
+
             int insertPos = -1;
             for (int i = 0; i < idxs.Length; i++)
             {
@@ -1270,6 +1314,19 @@ namespace LaunchPlugin
             dists[insertPos] = dist;
         }
 
+        private static int FindCandidateIndex(int carIdx, int[] idxs)
+        {
+            for (int i = 0; i < idxs.Length; i++)
+            {
+                if (idxs[i] == carIdx)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
         // === SA / track-awareness slot assignment ===============================
         private void ApplySlots(
             bool isAhead,
@@ -1288,13 +1345,24 @@ namespace LaunchPlugin
             ref int slotCarIdxChanged)
         {
             int slotCount = slots.Length;
+            bool[] usedCarIdx = new bool[MaxCars];
             for (int slotIndex = 0; slotIndex < slotCount; slotIndex++)
             {
                 CarSASlot slot = slots[slotIndex];
                 int newIdx = candidateIdx[slotIndex];
                 double newDist = candidateDist[slotIndex];
 
-                if (newIdx == slot.CarIdx && slot.CarIdx >= 0)
+                bool currentCarAlreadyUsed = slot.CarIdx >= 0
+                    && slot.CarIdx < MaxCars
+                    && usedCarIdx[slot.CarIdx];
+
+                if (newIdx >= 0 && newIdx < MaxCars && usedCarIdx[newIdx])
+                {
+                    newIdx = -1;
+                    newDist = double.MaxValue;
+                }
+
+                if (!currentCarAlreadyUsed && newIdx == slot.CarIdx && slot.CarIdx >= 0)
                 {
                     if (isAhead)
                     {
@@ -1308,7 +1376,8 @@ namespace LaunchPlugin
                 else
                 {
                     double currentDist = double.MaxValue;
-                    bool currentValid = TryComputeDistance(playerCarIdx, playerLapPct, slot.CarIdx, carIdxLapDistPct, isAhead, out currentDist);
+                    bool currentValid = !currentCarAlreadyUsed
+                        && TryComputeDistance(playerCarIdx, playerLapPct, slot.CarIdx, carIdxLapDistPct, isAhead, out currentDist);
 
                     if (!currentValid)
                     {
@@ -1340,6 +1409,11 @@ namespace LaunchPlugin
                             slot.BackwardDistPct = currentDist;
                         }
                     }
+                }
+
+                if (slot.CarIdx >= 0 && slot.CarIdx < MaxCars)
+                {
+                    usedCarIdx[slot.CarIdx] = true;
                 }
 
                 UpdateSlotState(slot, playerLap, playerLapPct, isAhead, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad);
