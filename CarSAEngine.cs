@@ -869,7 +869,10 @@ namespace LaunchPlugin
                                 && playerGateLap == state.Lap)
                             {
                                 _gateRawGapSecByCar[carIdx] = sessionTimeSec - playerGateTimeSec;
-                                double gateTruth = NormalizeGateGapProximity(_gateRawGapSecByCar[carIdx], lapTimeUsedSec);
+                                int lapDelta = state.Lap - playerLap;
+                                double gateTruth = lapDelta == 0
+                                    ? NormalizeGateGapProximity(_gateRawGapSecByCar[carIdx], lapTimeUsedSec)
+                                    : NormalizeGateGapSec(_gateRawGapSecByCar[carIdx], lapDelta, lapTimeUsedSec);
                                 UpdateGateGapTruthForCar(carIdx, sessionTimeSec, gateTruth);
                             }
                         }
