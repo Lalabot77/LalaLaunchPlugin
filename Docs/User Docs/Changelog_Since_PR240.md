@@ -13,3 +13,4 @@
 - **CarSA SA-Core v2 upgrades**: car-centric distance gaps, status memory (out-lap/compromised/penalty), and replay-safe identity refresh for slots.
 - **CarSA StatusE redesign**: penalty vs off-track labels, pit-area classification, class-rank-aware Faster/Slower class tagging, and lapping text output.
 - **CarSA debug export improvements**: aligned CSV columns with cross-check gaps, StatusE reason fields, and class-rank metadata for multi-class auditing.
+- **CarSA GateGap v2**: mini-sector gate timing feeds a filtered, direction-safe `Gap.RelativeSec` with predictive correction and sticky publish hold, improving relative proximity during S/F wraps.

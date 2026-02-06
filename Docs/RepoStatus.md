@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is the current HEAD with PRs #310–#320 (documentation refresh, track-gap wrap fix for lapped cars, SA-Core v2 gap cleanup, StatusE redesign, replay identity retry, CarSA CSV instrumentation + alignment fixes, pit-surface status corrections, class-rank-based StatusE for multi-class, and car-centric status memory fed by session flags). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
+- The latest commit on `work` is the current HEAD with PR #347 (CarSA GateGap v2 relative-gap model, direction-safe sign, and sticky publish hold). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
@@ -62,6 +62,7 @@
 - **Pit-exit prediction audit + settled logging:** **COMPLETE** — pit-exit predictor now locks pit-loss and gap inputs at pit entry to avoid drift, logs richer pit-in/out snapshots plus math audit, and emits a one-lap-delayed “pit-out settled” confirmation.
 - **Opponents subsystem:** **COMPLETE** — race-only opponent pace/fight and pit-exit prediction exports with lap gate ≥1, summary strings, and log support.
 - **CarSA SA-Core v2:** **INTEGRATED** — distance-based car-centric gaps/closing with telemetry grace windows, StatusE redesign (penalty/off-track splits, lapping text, pit-area handling), class-rank-aware other-class labeling, replay-safe identity retries, and debug CSV instrumentation alignment/cross-checks.
+- **CarSA GateGap v2:** **INTEGRATED** — mini-sector gate timing feeds filtered `Gap.RelativeSec` with predictive correction and sticky publish hold, keeping direction-safe relative proximity during S/F wraps; falls back to distance-based gap when gate data is missing.
 - **Dry/Wet condition lock UI:** **COMPLETE** — per-track dry/wet condition lock toggles persist immediately in profiles (no save prompt).
 - **Session summary + trace v2:** **COMPLETE** — session summary CSV v2, lap trace rows with pit-stop index/phase, corrected pit-stop counting semantics, and explicit CSV column mapping for summary exports.
 - **Profile storage & schema:** **COMPLETE** — car profiles now save in a schema-v2 wrapper with opt-in track stats serialization, normalized track keys, and legacy JSON migration from older filenames/locations.

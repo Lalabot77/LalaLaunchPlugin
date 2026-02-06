@@ -35,6 +35,7 @@ CarSA keeps a car-centric shadow state per `CarIdx` that is authoritative for St
 
 ## Gap & closing semantics
 - **Gap.TrackSec:** `distPct * lapTimeEstimateSec` (distance-based proximity gap).
+- **Gap.RelativeSec (GateGap v2):** mini-sector gate timing produces a gate truth gap that is filtered forward in time with a rate EMA, corrected toward fresh truth, and held briefly (sticky publish) if inputs drop; values are mapped to ahead/behind sign so wraps stay direction-safe. Falls back to `Gap.TrackSec` when no gate data exists.
 - **ClosingRateSecPerSec:** derived from change in absolute delta pct over time; **positive values mean closing**; clamped to ±5 s/s.
 - **Lap time estimate:** player average pace, else last lap, else 120 s fallback.
 - **LapDelta:** computed from CarIdx lap counters with S/F straddle guards to avoid one-tick spikes when cars are physically close around the line.
@@ -104,7 +105,7 @@ System:
 Slots (Ahead01..Ahead05, Behind01..Behind05):
 - Identity: `CarIdx`, `Name`, `CarNumber`, `ClassColor`, `ClassColorHex`, `ClassName`, `PositionInClass`, `IRating`, `Licence`, `SafetyRating`
 - State: `IsOnTrack`, `IsOnPitRoad`, `IsValid`
-- Spatial: `LapDelta`, `Gap.TrackSec`, `LapsSincePit`, `BestLapTimeSec`, `LastLapTimeSec`, `BestLap`, `LastLap`, `DeltaBestSec`, `DeltaBest`
+- Spatial: `LapDelta`, `Gap.TrackSec`, `Gap.RelativeSec`, `LapsSincePit`, `BestLapTimeSec`, `LastLapTimeSec`, `BestLap`, `LastLap`, `DeltaBestSec`, `DeltaBest`
 - Derived: `ClosingRateSecPerSec`, `Status`, `StatusE`, `StatusShort`, `StatusLong`, `StatusEReason`, `HotScore`, `HotVia`
 - Raw telemetry (mode permitting): `SessionFlagsRaw`, `TrackSurfaceMaterialRaw`
 
