@@ -132,6 +132,7 @@
     </Compile>
     <Compile Include="Opponents.cs" />
     <Compile Include="CarSAEngine.cs" />
+    <Compile Include="CarSAStyleResolver.cs" />
     <Compile Include="CarSASlot.cs" />
     <Compile Include="LaunchPluginSettingsUI.xaml.cs">
       <DependentUpon>LaunchPluginSettingsUI.xaml</DependentUpon>

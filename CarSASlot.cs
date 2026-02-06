@@ -49,6 +49,9 @@ namespace LaunchPlugin
         public string StatusShort { get; set; } = "---";
         public string StatusLong { get; set; } = string.Empty;
         public string StatusEReason { get; set; } = "unknown";
+        public string StatusBgHex { get; set; } = "#000000";
+        public string BorderMode { get; set; } = CarSAStyleResolver.BorderModeDefault;
+        public string BorderHex { get; set; } = "#A9A9A9";
         public int SessionFlagsRaw { get; set; } = -1;
         public int TrackSurfaceMaterialRaw { get; set; } = -1;
         public int PositionInClass { get; set; }
@@ -134,6 +137,9 @@ namespace LaunchPlugin
             StatusShort = "---";
             StatusLong = string.Empty;
             StatusEReason = "unknown";
+            StatusBgHex = "#000000";
+            BorderMode = CarSAStyleResolver.BorderModeDefault;
+            BorderHex = "#A9A9A9";
             SessionFlagsRaw = -1;
             TrackSurfaceMaterialRaw = -1;
             PositionInClass = 0;

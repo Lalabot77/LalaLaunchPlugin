@@ -633,6 +633,32 @@ namespace LaunchPlugin
         internal const double FuelReadyConfidenceDefault = 60.0;
         internal const int StintFuelMarginPctDefault = 10;
         internal const double CarSANotRelevantGapSecDefault = 10.0;
+
+        private static readonly Dictionary<int, string> DefaultCarSAStatusEBackgroundColors = new Dictionary<int, string>
+        {
+            { (int)CarSAStatusE.Unknown, "#000000" },
+            { (int)CarSAStatusE.OutLap, "#C0C0C0" },
+            { (int)CarSAStatusE.InPits, "#C0C0C0" },
+            { (int)CarSAStatusE.CompromisedOffTrack, "#FFFF00" },
+            { (int)CarSAStatusE.CompromisedPenalty, "#FFA500" },
+            { (int)CarSAStatusE.HotlapWarning, "#FF0000" },
+            { (int)CarSAStatusE.HotlapCaution, "#FFFF00" },
+            { (int)CarSAStatusE.CoolLapWarning, "#FF0000" },
+            { (int)CarSAStatusE.CoolLapCaution, "#FFFF00" },
+            { (int)CarSAStatusE.FasterClass, "#000000" },
+            { (int)CarSAStatusE.SlowerClass, "#000000" },
+            { (int)CarSAStatusE.Racing, "#00FF00" },
+            { (int)CarSAStatusE.LappingYou, "#0000FF" },
+            { (int)CarSAStatusE.BeingLapped, "#ADD8E6" }
+        };
+
+        private static readonly Dictionary<string, string> DefaultCarSABorderColors = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            { CarSAStyleResolver.BorderModeTeam, "#4B0082" },
+            { CarSAStyleResolver.BorderModeLead, "#FF00FF" },
+            { CarSAStyleResolver.BorderModeOtherClass, "#0000FF" },
+            { CarSAStyleResolver.BorderModeDefault, "#A9A9A9" }
+        };
         private const int LapTimeConfidenceSwitchOn = 50;
         private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
         private const double StableLapTimeDeadband = 0.3; // 0.3 s chosen to stop projection lap time source flapping on small variance
@@ -3529,6 +3555,9 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.StatusShort", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusShort ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.StatusLong", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusLong ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.StatusEReason", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusEReason ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.StatusBgHex", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusBgHex ?? "#000000");
+                AttachCore($"Car.Ahead{label}.BorderMode", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BorderMode ?? CarSAStyleResolver.BorderModeDefault);
+                AttachCore($"Car.Ahead{label}.BorderHex", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BorderHex ?? "#A9A9A9");
                 AttachCore($"Car.Ahead{label}.SessionFlagsRaw", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].SessionFlagsRaw ?? -1);
                 AttachCore($"Car.Ahead{label}.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TrackSurfaceMaterialRaw ?? -1);
                 AttachCore($"Car.Ahead{label}.PositionInClass", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].PositionInClass ?? 0);
@@ -3576,6 +3605,9 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.StatusShort", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusShort ?? string.Empty);
                 AttachCore($"Car.Behind{label}.StatusLong", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusLong ?? string.Empty);
                 AttachCore($"Car.Behind{label}.StatusEReason", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusEReason ?? string.Empty);
+                AttachCore($"Car.Behind{label}.StatusBgHex", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusBgHex ?? "#000000");
+                AttachCore($"Car.Behind{label}.BorderMode", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BorderMode ?? CarSAStyleResolver.BorderModeDefault);
+                AttachCore($"Car.Behind{label}.BorderHex", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BorderHex ?? "#A9A9A9");
                 AttachCore($"Car.Behind{label}.SessionFlagsRaw", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].SessionFlagsRaw ?? -1);
                 AttachCore($"Car.Behind{label}.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TrackSurfaceMaterialRaw ?? -1);
                 AttachCore($"Car.Behind{label}.PositionInClass", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].PositionInClass ?? 0);
@@ -3886,7 +3918,9 @@ namespace LaunchPlugin
         private LaunchPluginSettings ReadSettingsFromPath(string path)
         {
             var json = File.ReadAllText(path);
-            return JsonConvert.DeserializeObject<LaunchPluginSettings>(json) ?? new LaunchPluginSettings();
+            var settings = JsonConvert.DeserializeObject<LaunchPluginSettings>(json) ?? new LaunchPluginSettings();
+            NormalizeCarSaStyleSettings(settings);
+            return settings;
         }
 
         private void SaveSettings()
@@ -3901,8 +3935,55 @@ namespace LaunchPlugin
             if (!string.IsNullOrWhiteSpace(folder))
                 Directory.CreateDirectory(folder);
 
-            var json = JsonConvert.SerializeObject(settings ?? new LaunchPluginSettings(), Formatting.Indented);
+            var effectiveSettings = settings ?? new LaunchPluginSettings();
+            NormalizeCarSaStyleSettings(effectiveSettings);
+            var json = JsonConvert.SerializeObject(effectiveSettings, Formatting.Indented);
             File.WriteAllText(path, json);
+        }
+
+        private static void NormalizeCarSaStyleSettings(LaunchPluginSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            settings.CarSAStatusEBackgroundColors = NormalizeStatusColorMap(settings.CarSAStatusEBackgroundColors);
+            settings.CarSABorderColors = NormalizeBorderColorMap(settings.CarSABorderColors);
+        }
+
+        private static Dictionary<int, string> NormalizeStatusColorMap(Dictionary<int, string> source)
+        {
+            var normalized = source != null
+                ? new Dictionary<int, string>(source)
+                : new Dictionary<int, string>();
+
+            foreach (var pair in DefaultCarSAStatusEBackgroundColors)
+            {
+                if (!normalized.TryGetValue(pair.Key, out var color) || !CarSAStyleResolver.IsValidHexColor(color))
+                {
+                    normalized[pair.Key] = pair.Value;
+                }
+            }
+
+            return normalized;
+        }
+
+        private static Dictionary<string, string> NormalizeBorderColorMap(Dictionary<string, string> source)
+        {
+            var normalized = source != null
+                ? new Dictionary<string, string>(source, StringComparer.Ordinal)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
+
+            foreach (var pair in DefaultCarSABorderColors)
+            {
+                if (!normalized.TryGetValue(pair.Key, out var color) || !CarSAStyleResolver.IsValidHexColor(color))
+                {
+                    normalized[pair.Key] = pair.Value;
+                }
+            }
+
+            return normalized;
         }
 
         private static void SafeTry(Action action)
@@ -4518,6 +4599,8 @@ namespace LaunchPlugin
                 UpdateCarSaClassRankMap(pluginManager);
                 _carSaEngine.SetClassRankMap(_carSaClassRankByColor);
                 _carSaEngine.RefreshStatusE(notRelevantGapSec, _opponentsEngine?.Outputs, playerClassColor);
+                UpdateCarSaSlotStyles(_carSaEngine.Outputs.AheadSlots, _carSaEngine.Outputs.PlayerSlot.ClassColorHex);
+                UpdateCarSaSlotStyles(_carSaEngine.Outputs.BehindSlots, _carSaEngine.Outputs.PlayerSlot.ClassColorHex);
             }
 
             if (pitEntryEdge)
@@ -6004,6 +6087,64 @@ namespace LaunchPlugin
         }
 
         private const double LiveDeltaClampSec = 30.0;
+
+        private void UpdateCarSaSlotStyles(CarSASlot[] slots, string playerClassColorHex)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            var statusMap = Settings?.CarSAStatusEBackgroundColors ?? DefaultCarSAStatusEBackgroundColors;
+            var borderMap = Settings?.CarSABorderColors ?? DefaultCarSABorderColors;
+            for (int i = 0; i < slots.Length; i++)
+            {
+                var slot = slots[i];
+                if (slot == null)
+                {
+                    continue;
+                }
+
+                bool isOtherClass = IsOtherClassSlot(slot, playerClassColorHex);
+                bool isClassLeader = slot.IsValid && slot.IsOnTrack && slot.PositionInClass == 1;
+                bool isTeammate = CanMarkTeammate(slot);
+
+                var style = CarSAStyleResolver.Resolve(
+                    slot.StatusE,
+                    slot.ClassColorHex,
+                    isTeammate,
+                    isClassLeader,
+                    isOtherClass,
+                    statusMap,
+                    borderMap);
+
+                slot.StatusBgHex = style.StatusBgHex;
+                slot.BorderMode = style.BorderMode;
+                slot.BorderHex = style.BorderHex;
+            }
+        }
+
+        private static bool IsOtherClassSlot(CarSASlot slot, string playerClassColorHex)
+        {
+            if (slot == null)
+            {
+                return false;
+            }
+
+            if (!CarSAStyleResolver.IsValidHexColor(slot.ClassColorHex) || !CarSAStyleResolver.IsValidHexColor(playerClassColorHex))
+            {
+                return false;
+            }
+
+            return !string.Equals(slot.ClassColorHex, playerClassColorHex, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool CanMarkTeammate(CarSASlot slot)
+        {
+            _ = slot;
+            // TODO: Wire teammate detection when shared teammate list settings are available.
+            return false;
+        }
 
         private void UpdateCarSaSlotTelemetry(PluginManager pluginManager, CarSASlot[] slots, float[] carIdxLapDistPct, double sessionTimeSec)
         {
@@ -9163,6 +9304,30 @@ namespace LaunchPlugin
         public string TraceLogPath { get; set; } = "";
         public bool EnableTelemetryTracing { get; set; } = true;
         public double NotRelevantGapSec { get; set; } = LalaLaunch.CarSANotRelevantGapSecDefault;
+        public Dictionary<int, string> CarSAStatusEBackgroundColors { get; set; } = new Dictionary<int, string>
+        {
+            { (int)CarSAStatusE.Unknown, "#000000" },
+            { (int)CarSAStatusE.OutLap, "#C0C0C0" },
+            { (int)CarSAStatusE.InPits, "#C0C0C0" },
+            { (int)CarSAStatusE.CompromisedOffTrack, "#FFFF00" },
+            { (int)CarSAStatusE.CompromisedPenalty, "#FFA500" },
+            { (int)CarSAStatusE.HotlapWarning, "#FF0000" },
+            { (int)CarSAStatusE.HotlapCaution, "#FFFF00" },
+            { (int)CarSAStatusE.CoolLapWarning, "#FF0000" },
+            { (int)CarSAStatusE.CoolLapCaution, "#FFFF00" },
+            { (int)CarSAStatusE.FasterClass, "#000000" },
+            { (int)CarSAStatusE.SlowerClass, "#000000" },
+            { (int)CarSAStatusE.Racing, "#00FF00" },
+            { (int)CarSAStatusE.LappingYou, "#0000FF" },
+            { (int)CarSAStatusE.BeingLapped, "#ADD8E6" }
+        };
+        public Dictionary<string, string> CarSABorderColors { get; set; } = new Dictionary<string, string>
+        {
+            { CarSAStyleResolver.BorderModeTeam, "#4B0082" },
+            { CarSAStyleResolver.BorderModeLead, "#FF00FF" },
+            { CarSAStyleResolver.BorderModeOtherClass, "#0000FF" },
+            { CarSAStyleResolver.BorderModeDefault, "#A9A9A9" }
+        };
 
         // --- LalaDash Toggles (Default ON) ---
         public bool LalaDashShowLaunchScreen { get; set; } = true;
