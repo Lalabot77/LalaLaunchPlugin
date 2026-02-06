@@ -15,6 +15,10 @@ namespace LaunchPlugin
         private const double HysteresisFactor = 0.90;
         private const double ClosingRateClamp = 5.0;
         private const double ClosingRateEmaAlpha = 0.35;
+        private const double GateGapCorrectionGain = 0.15;
+        private const double GateGapRateClamp = 2.0;
+        private const double GateGapMaxPredictDtSec = 0.10;
+        private const double GateGapEmaOnTruthAlpha = 1.0;
         private const double HalfLapFilterMin = 0.40;
         private const double HalfLapFilterMax = 0.60;
         private const double LapDeltaWrapEdgePct = 0.05;
@@ -135,6 +139,16 @@ namespace LaunchPlugin
         private readonly double[] _gateRawGapSecByCar = new double[MaxCars];
         private readonly double[] _gateGapSecByCar = new double[MaxCars];
         private readonly bool[] _gateGapValidByCar = new bool[MaxCars];
+        private readonly double[] _gateGapTruthSecByCar = new double[MaxCars];
+        private readonly bool[] _gateGapTruthValidByCar = new bool[MaxCars];
+        private readonly double[] _gateGapFilteredSecByCar = new double[MaxCars];
+        private readonly bool[] _gateGapFilteredValidByCar = new bool[MaxCars];
+        private readonly double[] _gateGapRateSecPerSecByCar = new double[MaxCars];
+        private readonly bool[] _gateGapRateValidByCar = new bool[MaxCars];
+        private readonly double[] _gateGapLastTruthTimeSecByCar = new double[MaxCars];
+        private readonly double[] _gateGapPrevTruthSecByCar = new double[MaxCars];
+        private readonly double[] _gateGapPrevTruthTimeSecByCar = new double[MaxCars];
+        private readonly double[] _gateGapLastPredictTimeSecByCar = new double[MaxCars];
         private bool _hadValidTick;
 
         private sealed class CarSA_CarState
@@ -434,7 +448,14 @@ namespace LaunchPlugin
             _outputs.Debug.PlayerCheckpointIndexNow = _playerCheckpointIndexNow;
             _outputs.Debug.PlayerCheckpointIndexCrossed = _playerCheckpointIndexCrossed;
 
-            UpdateCarStates(sessionTimeSec, sessionState, isRace, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, lapTimeUsed, allowLatches);
+            int playerLap = 0;
+            if (carIdxLap != null && playerCarIdx >= 0 && playerCarIdx < carIdxLap.Length)
+            {
+                playerLap = carIdxLap[playerCarIdx];
+            }
+
+            UpdateCarStates(sessionTimeSec, sessionState, isRace, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, playerLap, lapTimeUsed, allowLatches);
+            PredictGateGapForward(sessionTimeSec, lapTimeUsed);
             if (_playerCheckpointChangedThisTick || _anyCheckpointCrossedThisTick)
             {
                 _miniSectorTickId++;
@@ -454,12 +475,6 @@ namespace LaunchPlugin
                 InvalidateOutputs(playerCarIdx, sessionTimeSec, invalidLapPctCount, onPitRoadCount, onTrackCount, timestampUpdates, debugEnabled, lapTimeEstimateSec);
                 _lastSessionState = sessionState;
                 return;
-            }
-
-            int playerLap = 0;
-            if (carIdxLap != null && playerCarIdx < carIdxLap.Length)
-            {
-                playerLap = carIdxLap[playerCarIdx];
             }
 
             int carLimit = Math.Min(MaxCars, carCount);
@@ -657,6 +672,7 @@ namespace LaunchPlugin
             int[] carIdxSessionFlags,
             int[] carIdxPaceFlags,
             double playerLapPct,
+            int playerLap,
             double lapTimeEstimateSec,
             bool allowLatches)
         {
@@ -831,6 +847,9 @@ namespace LaunchPlugin
                             {
                                 _gateRawGapSecByCar[carIdx] = sessionTimeSec - playerGateTimeSec;
                                 _gateGapValidByCar[carIdx] = true;
+                                int lapDelta = state.Lap - playerLap;
+                                double gateTruth = NormalizeGateGapSec(_gateRawGapSecByCar[carIdx], lapDelta, lapTimeEstimateSec);
+                                UpdateGateGapTruthForCar(carIdx, sessionTimeSec, gateTruth);
                             }
                         }
 
@@ -923,6 +942,119 @@ namespace LaunchPlugin
                     }
                 }
 
+            }
+        }
+
+        private void UpdateGateGapTruthForCar(int carIdx, double sessionTimeSec, double truth)
+        {
+            if (carIdx < 0 || carIdx >= MaxCars || double.IsNaN(truth) || double.IsInfinity(truth))
+            {
+                return;
+            }
+
+            bool hasPrevTruth = _gateGapTruthValidByCar[carIdx];
+            if (hasPrevTruth)
+            {
+                _gateGapPrevTruthSecByCar[carIdx] = _gateGapTruthSecByCar[carIdx];
+                _gateGapPrevTruthTimeSecByCar[carIdx] = _gateGapLastTruthTimeSecByCar[carIdx];
+            }
+            else
+            {
+                _gateGapPrevTruthSecByCar[carIdx] = double.NaN;
+                _gateGapPrevTruthTimeSecByCar[carIdx] = double.NaN;
+            }
+
+            _gateGapTruthSecByCar[carIdx] = truth;
+            _gateGapLastTruthTimeSecByCar[carIdx] = sessionTimeSec;
+            _gateGapTruthValidByCar[carIdx] = true;
+
+            if (hasPrevTruth)
+            {
+                double prevTruth = _gateGapPrevTruthSecByCar[carIdx];
+                double prevTime = _gateGapPrevTruthTimeSecByCar[carIdx];
+                double dtTruth = sessionTimeSec - prevTime;
+                if (dtTruth > 0.01)
+                {
+                    double rate = (truth - prevTruth) / dtTruth;
+                    if (rate > GateGapRateClamp) rate = GateGapRateClamp;
+                    if (rate < -GateGapRateClamp) rate = -GateGapRateClamp;
+                    _gateGapRateSecPerSecByCar[carIdx] = rate;
+                    _gateGapRateValidByCar[carIdx] = true;
+                }
+            }
+
+            if (!_gateGapFilteredValidByCar[carIdx])
+            {
+                _gateGapFilteredSecByCar[carIdx] = truth;
+                _gateGapFilteredValidByCar[carIdx] = true;
+            }
+            else
+            {
+                double truthForCorrection = truth;
+                if (GateGapEmaOnTruthAlpha < 1.0 && hasPrevTruth)
+                {
+                    truthForCorrection = (GateGapEmaOnTruthAlpha * truth)
+                        + ((1.0 - GateGapEmaOnTruthAlpha) * _gateGapPrevTruthSecByCar[carIdx]);
+                }
+
+                _gateGapFilteredSecByCar[carIdx] = _gateGapFilteredSecByCar[carIdx]
+                    + (GateGapCorrectionGain * (truthForCorrection - _gateGapFilteredSecByCar[carIdx]));
+            }
+
+            if (double.IsNaN(_gateGapLastPredictTimeSecByCar[carIdx]) || double.IsInfinity(_gateGapLastPredictTimeSecByCar[carIdx]))
+            {
+                _gateGapLastPredictTimeSecByCar[carIdx] = sessionTimeSec;
+            }
+        }
+
+        private void PredictGateGapForward(double sessionTimeSec, double lapTimeEstimateSec)
+        {
+            double lapTimeUsed = lapTimeEstimateSec;
+            if (!(lapTimeUsed > 0.0) || double.IsNaN(lapTimeUsed) || double.IsInfinity(lapTimeUsed))
+            {
+                lapTimeUsed = DefaultLapTimeEstimateSec;
+            }
+
+            double wrapWindow = 0.5 * lapTimeUsed;
+            for (int carIdx = 0; carIdx < MaxCars; carIdx++)
+            {
+                if (!_gateGapFilteredValidByCar[carIdx] || !_gateGapRateValidByCar[carIdx])
+                {
+                    continue;
+                }
+
+                double lastPredictTime = _gateGapLastPredictTimeSecByCar[carIdx];
+                if (double.IsNaN(lastPredictTime) || double.IsInfinity(lastPredictTime))
+                {
+                    _gateGapLastPredictTimeSecByCar[carIdx] = sessionTimeSec;
+                    continue;
+                }
+
+                double dt = sessionTimeSec - lastPredictTime;
+                if (dt <= 0.0 || dt > 0.5)
+                {
+                    dt = 0.0;
+                }
+                else if (dt > GateGapMaxPredictDtSec)
+                {
+                    dt = GateGapMaxPredictDtSec;
+                }
+
+                if (dt > 0.0)
+                {
+                    double filtered = _gateGapFilteredSecByCar[carIdx] + (_gateGapRateSecPerSecByCar[carIdx] * dt);
+                    if (filtered > wrapWindow)
+                    {
+                        filtered -= lapTimeUsed;
+                    }
+                    else if (filtered < -wrapWindow)
+                    {
+                        filtered += lapTimeUsed;
+                    }
+                    _gateGapFilteredSecByCar[carIdx] = filtered;
+                }
+
+                _gateGapLastPredictTimeSecByCar[carIdx] = sessionTimeSec;
             }
         }
 
@@ -1056,11 +1188,13 @@ namespace LaunchPlugin
                 }
 
                 bool hasTrackSec = !double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec);
-                if (_gateGapValidByCar[slot.CarIdx])
+                if (_gateGapFilteredValidByCar[slot.CarIdx])
                 {
-                    double normalizedGateGap = NormalizeGateGapSec(_gateRawGapSecByCar[slot.CarIdx], slot.LapDelta, lapTimeEstimateSec);
-                    _gateGapSecByCar[slot.CarIdx] = normalizedGateGap;
-                    slot.GapRelativeSec = normalizedGateGap;
+                    slot.GapRelativeSec = _gateGapFilteredSecByCar[slot.CarIdx];
+                }
+                else if (_gateGapTruthValidByCar[slot.CarIdx])
+                {
+                    slot.GapRelativeSec = _gateGapTruthSecByCar[slot.CarIdx];
                 }
                 else if (hasTrackSec)
                 {
@@ -2030,6 +2164,16 @@ namespace LaunchPlugin
                 _gateRawGapSecByCar[carIdx] = double.NaN;
                 _gateGapSecByCar[carIdx] = double.NaN;
                 _gateGapValidByCar[carIdx] = false;
+                _gateGapTruthSecByCar[carIdx] = double.NaN;
+                _gateGapTruthValidByCar[carIdx] = false;
+                _gateGapFilteredSecByCar[carIdx] = double.NaN;
+                _gateGapFilteredValidByCar[carIdx] = false;
+                _gateGapRateSecPerSecByCar[carIdx] = double.NaN;
+                _gateGapRateValidByCar[carIdx] = false;
+                _gateGapLastTruthTimeSecByCar[carIdx] = double.NaN;
+                _gateGapPrevTruthSecByCar[carIdx] = double.NaN;
+                _gateGapPrevTruthTimeSecByCar[carIdx] = double.NaN;
+                _gateGapLastPredictTimeSecByCar[carIdx] = double.NaN;
                 for (int gate = 0; gate < MiniSectorCheckpointCount; gate++)
                 {
                     _carGateTimeSecByCarGate[carIdx, gate] = double.NaN;
