@@ -1073,15 +1073,7 @@ namespace LaunchPlugin
 
             double wrapWindow = 0.5 * lapTimeUsed;
             value = WrapGateGapSec(value, lapTimeUsed, wrapWindow);
-            if (value < 0.0)
-            {
-                value += lapTimeUsed;
-            }
-
-            if (value > wrapWindow)
-            {
-                value = wrapWindow;
-            }
+            value = Math.Min(Math.Abs(value), wrapWindow);
 
             return value;
         }
@@ -1095,17 +1087,9 @@ namespace LaunchPlugin
 
             double wrapWindow = 0.5 * lapTimeUsed;
             value = WrapGateGapSec(value, lapTimeUsed, wrapWindow);
-            if (value > 0.0)
-            {
-                value -= lapTimeUsed;
-            }
+            value = Math.Min(Math.Abs(value), wrapWindow);
 
-            if (value < -wrapWindow)
-            {
-                value = -wrapWindow;
-            }
-
-            return value;
+            return -value;
         }
 
         private static double WrapGateGapSec(double value, double lapTimeUsed, double wrapWindow)
