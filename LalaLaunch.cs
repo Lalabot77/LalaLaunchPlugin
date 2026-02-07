@@ -1,4 +1,4 @@
-﻿// --- Using Directives ---
+// --- Using Directives ---
 using GameReaderCommon;
 using LaunchPlugin.Messaging;
 using Newtonsoft.Json;

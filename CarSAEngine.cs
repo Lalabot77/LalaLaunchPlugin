@@ -609,7 +609,8 @@ namespace LaunchPlugin
             ApplySlots(false, sessionTimeSec, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _behindCandidateIdx, _behindCandidateDist, _outputs.BehindSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
             UpdateSlotGapsFromCarStates(_outputs.AheadSlots, sessionTimeSec, lapTimeUsed, lapTimeUsedValid, trackGapScaleSec, trackGapScaleValid, isRace, true);
             UpdateSlotGapsFromCarStates(_outputs.BehindSlots, sessionTimeSec, lapTimeUsed, lapTimeUsedValid, trackGapScaleSec, trackGapScaleValid, isRace, false);
-            UpdateSlot01PrecisionGaps(sessionTimeSec, lapTimeUsed);
+            double lapTimeMapSec = lapTimeUsedValid ? lapTimeUsed : lapTimeEstimateSec;
+            UpdateSlot01PrecisionGaps(sessionTimeSec, lapTimeMapSec);
 
             if (debugEnabled)
             {
@@ -1364,11 +1365,11 @@ namespace LaunchPlugin
             }
         }
 
-        private void UpdateSlot01PrecisionGaps(double sessionTimeSec, double lapTimeUsed)
+        private void UpdateSlot01PrecisionGaps(double sessionTimeSec, double lapTimeMapSec)
         {
             _ = sessionTimeSec;
-            _outputs.Ahead01PrecisionGapSec = ComputeSlotPrecisionGap(_outputs.AheadSlots, lapTimeUsed, true);
-            _outputs.Behind01PrecisionGapSec = ComputeSlotPrecisionGap(_outputs.BehindSlots, lapTimeUsed, false);
+            _outputs.Ahead01PrecisionGapSec = ComputeSlotPrecisionGap(_outputs.AheadSlots, lapTimeMapSec, true);
+            _outputs.Behind01PrecisionGapSec = ComputeSlotPrecisionGap(_outputs.BehindSlots, lapTimeMapSec, false);
         }
 
         private double ComputeSlotPrecisionGap(CarSASlot[] slots, double lapTimeUsed, bool isAhead)
