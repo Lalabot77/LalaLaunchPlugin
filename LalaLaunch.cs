@@ -43,11 +43,14 @@ namespace LaunchPlugin
     }
     public class LalaLaunch : IPlugin, IDataPlugin, IWPFSettingsV2, INotifyPropertyChanged
     {
+        private const bool HARD_DEBUG_ENABLED = true;
+
         // --- SimHub Interfaces ---
         public PluginManager PluginManager { get; set; }
         public LaunchPluginSettings Settings { get; private set; }
         public ImageSource PictureIcon => null;
         public string LeftMenuTitle => "Lala Plugin";
+        public bool HardDebugEnabledForUi => HardDebugEnabled;
 
         // --- Dashboard Manager ---
         public ScreenManager Screens = new ScreenManager();
@@ -1498,7 +1501,7 @@ namespace LaunchPlugin
 
             if (lapCrossed)
             {
-                var leaderLap = ReadLeaderLapTimeSeconds(PluginManager, data, Pace_Last5LapAvgSec, LiveLeaderAvgPaceSeconds);
+                var leaderLap = ReadLeaderLapTimeSeconds(PluginManager, data, Pace_Last5LapAvgSec, LiveLeaderAvgPaceSeconds, IsVerboseDebugLoggingOn);
                 leaderLastLapSec = leaderLap.seconds;
                 leaderLapWasFallback = leaderLap.isFallback;
 
@@ -1563,9 +1566,12 @@ namespace LaunchPlugin
 
                     _usingFallbackPaceProfile = (paceSource == "profile_avg");
 
-                    SimHub.Logging.Current.Debug(
-                        $"[LalaPlugin:Pace] baseline_used chosen={paceSource} baseline_s={stableAvgPace:F3} " +
-                        $"live_median_s={liveMedianPace:F3} profile_avg_s={profileAvgPace:F3} session_pb_s={sessionPbPace:F3}");
+                    if (IsVerboseDebugLoggingOn)
+                    {
+                        SimHub.Logging.Current.Debug(
+                            $"[LalaPlugin:Pace] baseline_used chosen={paceSource} baseline_s={stableAvgPace:F3} " +
+                            $"live_median_s={liveMedianPace:F3} profile_avg_s={profileAvgPace:F3} session_pb_s={sessionPbPace:F3}");
+                    }
 
                     // Publish to dash
                     _pitDbg_AvgPaceUsedSec = stableAvgPace;
@@ -1736,7 +1742,10 @@ namespace LaunchPlugin
                         //     This catches things like huge course cuts or tow / timing glitches.
                         if (Math.Abs(delta) > 20.0)
                         {
-                            SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Gross outlier lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
+                            if (IsVerboseDebugLoggingOn)
+                            {
+                                SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Gross outlier lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
+                            }
                             paceRejected = true;
                             paceRejectReason = "gross-outlier";
                         }
@@ -1744,7 +1753,10 @@ namespace LaunchPlugin
                         //     Keeps spins / heavy traffic / yellows out of the model, but allows faster laps.
                         else if (delta > 6.0)
                         {
-                            SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Rejected too-slow lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
+                            if (IsVerboseDebugLoggingOn)
+                            {
+                                SimHub.Logging.Current.Debug($"[LalaPlugin:Pace] Rejected too-slow lap {lastLapSec:F2}s (avg={paceBaselineForLog:F2}s, Δ={delta:F1}s)");
+                            }
                             paceRejected = true;
                             paceRejectReason = "slow-outlier";
                         }
@@ -2740,7 +2752,10 @@ namespace LaunchPlugin
                 {
                     ActiveProfile.RefuelRate = rateLps;   // property already exists on CarProfile
                     ProfilesViewModel?.SaveProfiles();    // persist immediately
-                    SimHub.Logging.Current.Debug($"[LalaPlugin:Profiles] Refuel rate saved for '{ActiveProfile.ProfileName}': {rateLps:F3} L/s");
+                    if (IsVerboseDebugLoggingOn)
+                    {
+                        SimHub.Logging.Current.Debug($"[LalaPlugin:Profiles] Refuel rate saved for '{ActiveProfile.ProfileName}': {rateLps:F3} L/s");
+                    }
                 }
             }
             catch (Exception ex)
@@ -3052,12 +3067,20 @@ namespace LaunchPlugin
             if (SimhubPublish.VERBOSE) this.AttachDelegate(name, getter);
         }
 
+        private bool HardDebugEnabled => HARD_DEBUG_ENABLED;
+        private bool SoftDebugEnabled => HardDebugEnabled && (Settings?.EnableSoftDebug == true);
+        private bool IsDebugOnForLogic => SoftDebugEnabled;
+        private bool IsVerboseDebugLoggingOn => SoftDebugEnabled && (Settings?.EnableDebugLogging == true);
+
+        internal bool IsVerboseDebugLoggingEnabledForExternal => IsVerboseDebugLoggingOn;
+
         public void Init(PluginManager pluginManager)
         {
             // --- INITIALIZATION ---
             this.PluginManager = pluginManager;
             PluginStorage.Initialize(pluginManager);
             Settings = LoadSettings();
+            EnforceHardDebugSettings(Settings);
 
 #if DEBUG
             FuelProjectionMath.RunSelfTests();
@@ -3517,9 +3540,9 @@ namespace LaunchPlugin
             AttachCore("Car.SlotsAhead", () => _carSaEngine?.Outputs.SlotsAhead ?? 0);
             AttachCore("Car.SlotsBehind", () => _carSaEngine?.Outputs.SlotsBehind ?? 0);
             AttachCore("Car.iRatingSOF", () => _carSaEngine?.Outputs.IRatingSOF ?? 0.0);
-            AttachCore("Car.Player.PaceFlagsRaw", () => _carSaEngine?.Outputs.Debug.PlayerPaceFlagsRaw ?? -1);
-            AttachCore("Car.Player.SessionFlagsRaw", () => _carSaEngine?.Outputs.Debug.PlayerSessionFlagsRaw ?? -1);
-            AttachCore("Car.Player.TrackSurfaceMaterialRaw", () => _carSaEngine?.Outputs.Debug.PlayerTrackSurfaceMaterialRaw ?? -1);
+            AttachCore("Car.Player.PaceFlagsRaw", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerPaceFlagsRaw ?? -1) : -1);
+            AttachCore("Car.Player.SessionFlagsRaw", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerSessionFlagsRaw ?? -1) : -1);
+            AttachCore("Car.Player.TrackSurfaceMaterialRaw", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerTrackSurfaceMaterialRaw ?? -1) : -1);
             AttachCore("Car.Player.CarIdx", () => _carSaEngine?.Outputs.PlayerSlot.CarIdx ?? -1);
             AttachCore("Car.Player.ClassName", () => _carSaEngine?.Outputs.PlayerSlot.ClassName ?? string.Empty);
             AttachCore("Car.Player.ClassColor", () => _carSaEngine?.Outputs.PlayerSlot.ClassColor ?? string.Empty);
@@ -3638,30 +3661,30 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.HotVia", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].HotVia ?? string.Empty);
             }
 
-            AttachCore("Car.Debug.PlayerCarIdx", () => _carSaEngine?.Outputs.Debug.PlayerCarIdx ?? -1);
-            AttachCore("Car.Debug.PlayerLapPct", () => _carSaEngine?.Outputs.Debug.PlayerLapPct ?? double.NaN);
-            AttachCore("Car.Debug.PlayerLap", () => _carSaEngine?.Outputs.Debug.PlayerLap ?? 0);
-            AttachCore("Car.Debug.SessionTimeSec", () => _carSaEngine?.Outputs.Debug.SessionTimeSec ?? 0.0);
-            AttachCore("Car.Debug.SourceFastPathUsed", () => _carSaEngine?.Outputs.Debug.SourceFastPathUsed ?? false);
-            AttachCore("Car.Debug.HasCarIdxPaceFlags", () => _carSaEngine?.Outputs.Debug.HasCarIdxPaceFlags ?? false);
-            AttachCore("Car.Debug.HasCarIdxSessionFlags", () => _carSaEngine?.Outputs.Debug.HasCarIdxSessionFlags ?? false);
-            AttachCore("Car.Debug.HasCarIdxTrackSurfaceMaterial", () => _carSaEngine?.Outputs.Debug.HasCarIdxTrackSurfaceMaterial ?? false);
-            AttachCore("Car.Debug.RawTelemetryReadMode", () => _carSaEngine?.Outputs.Debug.RawTelemetryReadMode ?? string.Empty);
-            AttachCore("Car.Debug.RawTelemetryFailReason", () => _carSaEngine?.Outputs.Debug.RawTelemetryFailReason ?? string.Empty);
-            AttachCore("Car.Debug.Ahead01.CarIdx", () => _carSaEngine?.Outputs.Debug.Ahead01CarIdx ?? -1);
-            AttachCore("Car.Debug.Ahead01.ForwardDistPct", () => _carSaEngine?.Outputs.Debug.Ahead01ForwardDistPct ?? double.NaN);
-            AttachCore("Car.Debug.Behind01.CarIdx", () => _carSaEngine?.Outputs.Debug.Behind01CarIdx ?? -1);
-            AttachCore("Car.Debug.Behind01.BackwardDistPct", () => _carSaEngine?.Outputs.Debug.Behind01BackwardDistPct ?? double.NaN);
-            AttachCore("Car.Debug.InvalidLapPctCount", () => _carSaEngine?.Outputs.Debug.InvalidLapPctCount ?? 0);
-            AttachCore("Car.Debug.OnPitRoadCount", () => _carSaEngine?.Outputs.Debug.OnPitRoadCount ?? 0);
-            AttachCore("Car.Debug.OnTrackCount", () => _carSaEngine?.Outputs.Debug.OnTrackCount ?? 0);
-            AttachCore("Car.Debug.TimestampUpdatesThisTick", () => _carSaEngine?.Outputs.Debug.TimestampUpdatesThisTick ?? 0);
-            AttachCore("Car.Debug.FilteredHalfLapCountAhead", () => _carSaEngine?.Outputs.Debug.FilteredHalfLapCountAhead ?? 0);
-            AttachCore("Car.Debug.FilteredHalfLapCountBehind", () => _carSaEngine?.Outputs.Debug.FilteredHalfLapCountBehind ?? 0);
-            AttachCore("Car.Debug.LapTimeEstimateSec", () => _carSaEngine?.Outputs.Debug.LapTimeEstimateSec ?? 0.0);
-            AttachCore("Car.Debug.LapTimeUsedSec", () => _carSaEngine?.Outputs.Debug.LapTimeUsedSec ?? 0.0);
-            AttachCore("Car.Debug.HysteresisReplacementsThisTick", () => _carSaEngine?.Outputs.Debug.HysteresisReplacementsThisTick ?? 0);
-            AttachCore("Car.Debug.SlotCarIdxChangedThisTick", () => _carSaEngine?.Outputs.Debug.SlotCarIdxChangedThisTick ?? 0);
+            AttachCore("Car.Debug.PlayerCarIdx", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerCarIdx ?? -1) : -1);
+            AttachCore("Car.Debug.PlayerLapPct", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerLapPct ?? double.NaN) : double.NaN);
+            AttachCore("Car.Debug.PlayerLap", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerLap ?? 0) : 0);
+            AttachCore("Car.Debug.SessionTimeSec", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.SessionTimeSec ?? 0.0) : 0.0);
+            AttachCore("Car.Debug.SourceFastPathUsed", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.SourceFastPathUsed ?? false) : false);
+            AttachCore("Car.Debug.HasCarIdxPaceFlags", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.HasCarIdxPaceFlags ?? false) : false);
+            AttachCore("Car.Debug.HasCarIdxSessionFlags", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.HasCarIdxSessionFlags ?? false) : false);
+            AttachCore("Car.Debug.HasCarIdxTrackSurfaceMaterial", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.HasCarIdxTrackSurfaceMaterial ?? false) : false);
+            AttachCore("Car.Debug.RawTelemetryReadMode", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.RawTelemetryReadMode ?? string.Empty) : string.Empty);
+            AttachCore("Car.Debug.RawTelemetryFailReason", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.RawTelemetryFailReason ?? string.Empty) : string.Empty);
+            AttachCore("Car.Debug.Ahead01.CarIdx", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.Ahead01CarIdx ?? -1) : -1);
+            AttachCore("Car.Debug.Ahead01.ForwardDistPct", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.Ahead01ForwardDistPct ?? double.NaN) : double.NaN);
+            AttachCore("Car.Debug.Behind01.CarIdx", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.Behind01CarIdx ?? -1) : -1);
+            AttachCore("Car.Debug.Behind01.BackwardDistPct", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.Behind01BackwardDistPct ?? double.NaN) : double.NaN);
+            AttachCore("Car.Debug.InvalidLapPctCount", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.InvalidLapPctCount ?? 0) : 0);
+            AttachCore("Car.Debug.OnPitRoadCount", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.OnPitRoadCount ?? 0) : 0);
+            AttachCore("Car.Debug.OnTrackCount", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.OnTrackCount ?? 0) : 0);
+            AttachCore("Car.Debug.TimestampUpdatesThisTick", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.TimestampUpdatesThisTick ?? 0) : 0);
+            AttachCore("Car.Debug.FilteredHalfLapCountAhead", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.FilteredHalfLapCountAhead ?? 0) : 0);
+            AttachCore("Car.Debug.FilteredHalfLapCountBehind", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.FilteredHalfLapCountBehind ?? 0) : 0);
+            AttachCore("Car.Debug.LapTimeEstimateSec", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.LapTimeEstimateSec ?? 0.0) : 0.0);
+            AttachCore("Car.Debug.LapTimeUsedSec", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.LapTimeUsedSec ?? 0.0) : 0.0);
+            AttachCore("Car.Debug.HysteresisReplacementsThisTick", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.HysteresisReplacementsThisTick ?? 0) : 0);
+            AttachCore("Car.Debug.SlotCarIdxChangedThisTick", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.SlotCarIdxChangedThisTick ?? 0) : 0);
 
         }
 
@@ -3895,17 +3918,23 @@ namespace LaunchPlugin
             try
             {
                 if (File.Exists(newPath))
-                    return ReadSettingsFromPath(newPath);
+                {
+                    var settings = ReadSettingsFromPath(newPath);
+                    EnforceHardDebugSettings(settings);
+                    return settings;
+                }
 
                 if (File.Exists(legacyPath))
                 {
                     var settings = ReadSettingsFromPath(legacyPath);
+                    EnforceHardDebugSettings(settings);
                     SaveSettingsToPath(newPath, settings);
                     SimHub.Logging.Current.Info($"[LalaPlugin:Storage] migrated {legacyPath} -> {newPath}");
                     return settings;
                 }
 
                 var defaults = new LaunchPluginSettings();
+                EnforceHardDebugSettings(defaults);
                 SaveSettingsToPath(newPath, defaults);
                 return defaults;
             }
@@ -3913,6 +3942,7 @@ namespace LaunchPlugin
             {
                 SimHub.Logging.Current.Warn($"[LalaPlugin:Storage] settings load failed; using defaults. {ex.Message}");
                 var defaults = new LaunchPluginSettings();
+                EnforceHardDebugSettings(defaults);
                 SafeTry(() => SaveSettingsToPath(newPath, defaults));
                 return defaults;
             }
@@ -3939,9 +3969,23 @@ namespace LaunchPlugin
                 Directory.CreateDirectory(folder);
 
             var effectiveSettings = settings ?? new LaunchPluginSettings();
+            EnforceHardDebugSettings(effectiveSettings);
             NormalizeCarSaStyleSettings(effectiveSettings);
             var json = JsonConvert.SerializeObject(effectiveSettings, Formatting.Indented);
             File.WriteAllText(path, json);
+        }
+
+        private void EnforceHardDebugSettings(LaunchPluginSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            if (!HardDebugEnabled)
+            {
+                settings.EnableSoftDebug = false;
+            }
         }
 
         private static void NormalizeCarSaStyleSettings(LaunchPluginSettings settings)
@@ -4308,6 +4352,7 @@ namespace LaunchPlugin
             // --- MASTER GUARD CLAUSES ---
             if (Settings == null) return;
             if (!data.GameRunning || data.NewData == null) return;
+            EnforceHardDebugSettings(Settings);
 
             _isRefuelSelected = IsRefuelSelected(pluginManager);
             _isTireChangeSelected = IsAnyTireChangeSelected(pluginManager);
@@ -4541,8 +4586,9 @@ namespace LaunchPlugin
             string sessionTypeName = !string.IsNullOrWhiteSpace(currentSessionTypeForConfidence)
                 ? currentSessionTypeForConfidence
                 : (data.NewData?.SessionTypeName ?? string.Empty);
-            bool debugEnabled = Settings?.EnableDebugLogging == true;
-            _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, inLane, trackPct, sessionTimeSec, sessionTimeRemainingSec, debugEnabled);
+            bool debugMaster = IsDebugOnForLogic;
+            bool verboseLogs = IsVerboseDebugLoggingOn;
+            _opponentsEngine?.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, inLane, trackPct, sessionTimeSec, sessionTimeRemainingSec, verboseLogs);
 
             int playerCarIdx = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.PlayerCarIdx", -1);
             float[] carIdxLapDistPct = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLapDistPct");
@@ -4576,21 +4622,30 @@ namespace LaunchPlugin
             {
                 notRelevantGapSec = CarSANotRelevantGapSecDefault;
             }
-            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugEnabled);
+            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugMaster);
             if (_carSaEngine != null)
             {
                 UpdateCarSaTelemetryCaches(pluginManager);
-                for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                bool carSaDebugExportEnabled = debugMaster && Settings?.EnableCarSADebugExport == true;
+                if (carSaDebugExportEnabled)
                 {
-                    _carSaDebugAheadDahlRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugAheadDahlProperties[i], double.NaN);
-                    _carSaDebugBehindDahlRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugBehindDahlProperties[i], double.NaN);
-                    _carSaDebugAheadIRacingRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugAheadIRacingProperties[i], double.NaN);
-                    _carSaDebugBehindIRacingRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugBehindIRacingProperties[i], double.NaN);
+                    for (int i = 0; i < CarSaDebugExportSlotCount; i++)
+                    {
+                        _carSaDebugAheadDahlRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugAheadDahlProperties[i], double.NaN);
+                        _carSaDebugBehindDahlRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugBehindDahlProperties[i], double.NaN);
+                        _carSaDebugAheadIRacingRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugAheadIRacingProperties[i], double.NaN);
+                        _carSaDebugBehindIRacingRelativeGapSec[i] = SafeReadDouble(pluginManager, CarSaDebugBehindIRacingProperties[i], double.NaN);
+                    }
+
+                    UpdateCarSaDebugCadenceState(trackPct, _carSaEngine.Outputs.Debug);
                 }
 
-                UpdateCarSaDebugCadenceState(trackPct, _carSaEngine.Outputs.Debug);
-                UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, debugEnabled);
-                WriteCarSaDebugExport(pluginManager, _carSaEngine.Outputs, sessionState, sessionTypeName);
+                if (debugMaster)
+                {
+                    UpdateCarSaRawTelemetryDebug(pluginManager, _carSaEngine.Outputs, playerCarIdx, verboseLogs);
+                }
+
+                WriteCarSaDebugExport(pluginManager, _carSaEngine.Outputs, sessionState, sessionTypeName, debugMaster);
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.AheadSlots, carIdxLapDistPct, sessionTimeSec);
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.BehindSlots, carIdxLapDistPct, sessionTimeSec);
@@ -4671,7 +4726,10 @@ namespace LaunchPlugin
                         _refuelStartTime = _refuelWindowStart;
                         _refuelLastRiseTime = sessionTime;
 
+                    if (IsVerboseDebugLoggingOn)
+                    {
                         SimHub.Logging.Current.Debug($"[LalaPlugin:Refuel] Refuel started at {_refuelStartTime:F1}s (fuel {_refuelStartFuel:F1}L).");
+                    }
                     }
 
                     // Reset window (whether we started or not)
@@ -4723,7 +4781,10 @@ namespace LaunchPlugin
 
                     }
 
-                    SimHub.Logging.Current.Debug($"[LalaPlugin:Refuel] Refuel ended at {stopTime:F1} s.");
+                    if (IsVerboseDebugLoggingOn)
+                    {
+                        SimHub.Logging.Current.Debug($"[LalaPlugin:Refuel] Refuel ended at {stopTime:F1} s.");
+                    }
 
                     // Reset state
                     _isRefuelling = false;
@@ -4810,7 +4871,10 @@ namespace LaunchPlugin
                         if (accepted)
                             SimHub.Logging.Current.Info(pbLog);
                         else
-                            SimHub.Logging.Current.Debug(pbLog);
+                            if (IsVerboseDebugLoggingOn)
+                            {
+                                SimHub.Logging.Current.Debug(pbLog);
+                            }
                     }
 
                     var activeTrackStats = ActiveProfile?.ResolveTrackByNameOrKey(CurrentTrackKey)
@@ -4855,13 +4919,19 @@ namespace LaunchPlugin
                         // Ensure the track exists via the Profiles VM (this triggers UI refresh + selection)
                         if (!string.IsNullOrWhiteSpace(CurrentTrackKey))
                         {
-                            SimHub.Logging.Current.Debug($"[LalaPlugin:Profiles] Ensure car and track: car='{CurrentCarModel}', trackKey='{CurrentTrackKey}'");
+                            if (IsVerboseDebugLoggingOn)
+                            {
+                                SimHub.Logging.Current.Debug($"[LalaPlugin:Profiles] Ensure car and track: car='{CurrentCarModel}', trackKey='{CurrentTrackKey}'");
+                            }
 
                             ProfilesViewModel.EnsureCarTrack(CurrentCarModel, CurrentTrackKey);
                         }
                         else
                         {
-                            SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] EnsureCarTrack fallback -> car='{CurrentCarModel}', trackName='{trackIdentity}'");
+                            if (IsVerboseDebugLoggingOn)
+                            {
+                                SimHub.Logging.Current.Debug($"[LalaPlugin:Profile] EnsureCarTrack fallback -> car='{CurrentCarModel}', trackName='{trackIdentity}'");
+                            }
                             ProfilesViewModel.EnsureCarTrack(CurrentCarModel, trackIdentity);
                         }
 
@@ -5050,9 +5120,9 @@ namespace LaunchPlugin
 
         #region Private Helper Methods for DataUpdate
 
-        private void WriteCarSaDebugExport(PluginManager pluginManager, CarSAOutputs outputs, int sessionState, string sessionTypeName)
+        private void WriteCarSaDebugExport(PluginManager pluginManager, CarSAOutputs outputs, int sessionState, string sessionTypeName, bool debugMaster)
         {
-            if (outputs == null || Settings?.EnableCarSADebugExport != true)
+            if (outputs == null || !debugMaster || Settings?.EnableCarSADebugExport != true)
             {
                 return;
             }
@@ -5310,7 +5380,7 @@ namespace LaunchPlugin
             _carSaDebugCheckpointIndexCrossed = checkpointCrossed;
         }
 
-        private void UpdateCarSaRawTelemetryDebug(PluginManager pluginManager, CarSAOutputs outputs, int playerCarIdx, bool debugEnabled)
+        private void UpdateCarSaRawTelemetryDebug(PluginManager pluginManager, CarSAOutputs outputs, int playerCarIdx, bool verboseLoggingEnabled)
         {
             if (outputs == null)
             {
@@ -5365,7 +5435,7 @@ namespace LaunchPlugin
                 ClearCarSaRawSlots(outputs.BehindSlots);
             }
 
-            bool enableRawLogging = rawTelemetryMode >= 2 && debugEnabled;
+            bool enableRawLogging = rawTelemetryMode >= 2 && verboseLoggingEnabled;
             if (enableRawLogging)
             {
                 int trackedCount = BuildTrackedCarIdxs(playerCarIdx, outputs, _carSaTrackedCarIdxs);
@@ -6582,7 +6652,10 @@ namespace LaunchPlugin
                 }
                 else if (carIdxChanged)
                 {
-                    SimHub.Logging.Current.Debug($"[LalaPlugin:CarSA] Identity unresolved for carIdx={carIdx} after slot change.");
+                    if (IsVerboseDebugLoggingOn)
+                    {
+                        SimHub.Logging.Current.Debug($"[LalaPlugin:CarSA] Identity unresolved for carIdx={carIdx} after slot change.");
+                    }
                 }
 
                 if (!string.Equals(previousName, slot.Name, StringComparison.Ordinal))
@@ -7039,8 +7112,8 @@ namespace LaunchPlugin
             double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
             double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
-            bool debugEnabled = Settings?.EnableDebugLogging == true;
-            _opponentsEngine.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, onPitRoad, trackPct, sessionTimeSec, sessionTimeRemainingSec, debugEnabled);
+            bool verboseLogs = IsVerboseDebugLoggingOn;
+            _opponentsEngine.Update(data, pluginManager, isRaceSessionNow, completedLaps, myPaceSec, pitLossSec, pitTripActive, onPitRoad, trackPct, sessionTimeSec, sessionTimeRemainingSec, verboseLogs);
         }
 
         private static double SafeReadDouble(PluginManager pluginManager, string propertyName, double fallback)
@@ -7748,7 +7821,8 @@ namespace LaunchPlugin
                 $"lock={pitTripLockActive}"
             );
 
-            if (_opponentsEngine.TryGetPitExitMathAudit(out var auditLine))
+            bool pitExitVerbose = SoftDebugEnabled && Settings?.PitExitVerboseLogging == true;
+            if (pitExitVerbose && _opponentsEngine.TryGetPitExitMathAudit(out var auditLine))
             {
                 SimHub.Logging.Current.Info($"[LalaPlugin:PitExit] {auditLine}");
             }
@@ -8594,7 +8668,8 @@ namespace LaunchPlugin
             PluginManager pluginManager,
             GameData data,
             double playerRecentAvg,
-            double leaderAvgFallback)
+            double leaderAvgFallback,
+            bool verboseLoggingEnabled)
         {
             // Local helper to normalise any raw value to seconds
             double TryReadSeconds(object raw)
@@ -8637,7 +8712,10 @@ namespace LaunchPlugin
                 double seconds = TryReadSeconds(candidate.Raw);
 
                 // Debug trace for inspection in SimHub log
-                SimHub.Logging.Current.Debug($"[LalaPlugin:Leader Lap] candidate source={candidate.Name} raw='{candidate.Raw}' parsed_s={seconds:F3}");
+                if (verboseLoggingEnabled)
+                {
+                    SimHub.Logging.Current.Debug($"[LalaPlugin:Leader Lap] candidate source={candidate.Name} raw='{candidate.Raw}' parsed_s={seconds:F3}");
+                }
 
 
                 if (seconds > 0.0)
@@ -9314,6 +9392,7 @@ namespace LaunchPlugin
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null) { PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName)); }
 
         // --- Global Settings with Corrected Defaults ---
+        public bool EnableSoftDebug { get; set; } = false;
         public bool EnableDebugLogging { get; set; } = false;
         public bool EnableCarSADebugExport { get; set; } = false;
         public int CarSADebugExportCadence { get; set; } = 1;
@@ -9403,7 +9482,10 @@ namespace LaunchPlugin
                 if (!string.IsNullOrWhiteSpace(_currentFilePath) && File.Exists(_currentFilePath))
                 {
                     File.Delete(_currentFilePath);
-                    SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] Discarded trace file: {_currentFilePath}");
+                    if (_plugin?.IsVerboseDebugLoggingEnabledForExternal == true)
+                    {
+                        SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] Discarded trace file: {_currentFilePath}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -9452,7 +9534,10 @@ namespace LaunchPlugin
                 _currentFilePath = newFilePath;
                 _traceStartTime = DateTime.UtcNow;
 
+            if (_plugin?.IsVerboseDebugLoggingEnabledForExternal == true)
+            {
                 SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] New launch trace file opened: {_currentFilePath}");
+            }
                 return _currentFilePath;
             }
             catch (Exception ex)
@@ -9553,7 +9638,10 @@ namespace LaunchPlugin
 
                 // Append all lines at once using File.AppendAllLines to ensure atomicity
                 System.IO.File.AppendAllLines(_currentFilePath, summaryContent);
+            if (_plugin?.IsVerboseDebugLoggingEnabledForExternal == true)
+            {
                 SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] Successfully appended launch summary to {_currentFilePath}");
+            }
             }
             catch (Exception ex)
             {
@@ -9572,7 +9660,10 @@ namespace LaunchPlugin
                 {
                     _traceWriter.Flush();
                     _traceWriter.Dispose(); // This closes the underlying file stream and disposes the writer
+                if (_plugin?.IsVerboseDebugLoggingEnabledForExternal == true)
+                {
                     SimHub.Logging.Current.Debug($"[LalaPlugin:Launch Trace] Closed launch trace file: {_currentFilePath}");
+                }
                 }
                 catch (Exception ex)
                 {
