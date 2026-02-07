@@ -3540,6 +3540,8 @@ namespace LaunchPlugin
             AttachCore("Car.SlotsAhead", () => _carSaEngine?.Outputs.SlotsAhead ?? 0);
             AttachCore("Car.SlotsBehind", () => _carSaEngine?.Outputs.SlotsBehind ?? 0);
             AttachCore("Car.iRatingSOF", () => _carSaEngine?.Outputs.IRatingSOF ?? 0.0);
+            AttachCore("Car.Ahead01P.Gap.Sec", () => _carSaEngine?.Outputs.Ahead01PrecisionGapSec ?? double.NaN);
+            AttachCore("Car.Behind01P.Gap.Sec", () => _carSaEngine?.Outputs.Behind01PrecisionGapSec ?? double.NaN);
             AttachCore("Car.Player.PaceFlagsRaw", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerPaceFlagsRaw ?? -1) : -1);
             AttachCore("Car.Player.SessionFlagsRaw", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerSessionFlagsRaw ?? -1) : -1);
             AttachCore("Car.Player.TrackSurfaceMaterialRaw", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerTrackSurfaceMaterialRaw ?? -1) : -1);
@@ -3573,6 +3575,8 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapTrackSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Gap.RelativeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapRelativeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Gap.RelativeSource", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapRelativeSource ?? 0);
+                AttachCore($"Car.Ahead{label}.InfoVisibility", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].InfoVisibility ?? 0);
+                AttachCore($"Car.Ahead{label}.Info", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Info ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Status", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].Status ?? 0);
                 AttachCore($"Car.Ahead{label}.StatusE", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusE ?? 0);
@@ -3624,6 +3628,8 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapTrackSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Gap.RelativeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapRelativeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Gap.RelativeSource", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapRelativeSource ?? 0);
+                AttachCore($"Car.Behind{label}.InfoVisibility", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].InfoVisibility ?? 0);
+                AttachCore($"Car.Behind{label}.Info", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Info ?? string.Empty);
                 AttachCore($"Car.Behind{label}.ClosingRateSecPerSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].ClosingRateSecPerSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Status", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].Status ?? 0);
                 AttachCore($"Car.Behind{label}.StatusE", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusE ?? 0);
