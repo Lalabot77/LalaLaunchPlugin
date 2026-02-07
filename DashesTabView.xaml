@@ -197,6 +197,41 @@
                     </StackPanel>
                 </Grid>
                 <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" />
+
+                <StackPanel Visibility="{Binding HardDebugEnabledForUi, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="DEBUG" FontSize="16" FontWeight="Bold" Margin="0,5,10,0"/>
+                    <styles:SHToggleCheckbox x:Name="DebugMasterToggle"
+                                             Content="Enable debugging mode"
+                                             Margin="0,10,0,0"
+                                             IsChecked="{Binding Settings.EnableSoftDebug, Mode=TwoWay}"
+                                             ToolTip="Master toggle that enables debug UI and debug processing."/>
+                    <Expander Header="Debug Options"
+                              Margin="0,10,0,0"
+                              IsExpanded="{Binding ElementName=DebugMasterToggle, Path=IsChecked}"
+                              Visibility="{Binding ElementName=DebugMasterToggle, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Margin="10,5,0,0">
+                            <styles:SHToggleCheckbox Content="Enable Debug Logging" Margin="0,10,0,0"
+                                                     IsChecked="{Binding Settings.EnableDebugLogging, Mode=TwoWay}"
+                                                     ToolTip="Enables verbose logging for troubleshooting the plugin."/>
+                            <styles:SHToggleCheckbox Content="Enable CarSA Debug Export" Margin="0,10,0,0"
+                                                     IsChecked="{Binding Settings.EnableCarSADebugExport, Mode=TwoWay}"
+                                                     ToolTip="Writes CarSA debug CSV logs to SimHub\Logs\LalapluginData."/>
+                            <TextBlock Margin="25,6,0,0" Text="CarSA debug cadence mode"/>
+                            <ComboBox Margin="25,4,0,0" Width="220" SelectedIndex="{Binding Settings.CarSADebugExportCadence, Mode=TwoWay}">
+                                <ComboBoxItem Content="Tick (Hz capped)" />
+                                <ComboBoxItem Content="MiniSector (default)" />
+                                <ComboBoxItem Content="EventOnly" />
+                            </ComboBox>
+                            <TextBlock Margin="25,6,0,0" Text="Tick mode max Hz"/>
+                            <TextBox Margin="25,4,0,0" Width="80" Text="{Binding Settings.CarSADebugExportTickMaxHz, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <styles:SHToggleCheckbox Content="EventOnly: write CarSA_Events CSV" Margin="25,6,0,0"
+                                                     IsChecked="{Binding Settings.CarSADebugExportWriteEventsCsv, Mode=TwoWay}"/>
+                            <styles:SHToggleCheckbox Content="PitExit Verbose Logging" Margin="0,10,0,0"
+                                                     IsChecked="{Binding Settings.PitExitVerboseLogging, Mode=TwoWay}"
+                                                     ToolTip="Adds PitExit math audit details to pit-in snapshots for troubleshooting."/>
+                        </StackPanel>
+                    </Expander>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </ScrollViewer>
