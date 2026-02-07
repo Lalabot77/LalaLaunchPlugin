@@ -88,6 +88,8 @@ namespace LaunchPlugin
         public int HotCoolConflictLastTickId { get; set; } = -1;
         public double GapRelativeSec { get; set; } = double.NaN;
         public int GapRelativeSource { get; set; }
+        public int InfoVisibility { get; set; } = 0;
+        public string Info { get; set; } = string.Empty;
 
         internal double LastGapUpdateTimeSec { get; set; } = 0.0;
         internal double LastGapSec { get; set; } = double.NaN;
@@ -120,6 +122,9 @@ namespace LaunchPlugin
         internal int TrackSurfaceRawDebug => TrackSurfaceRaw;
         internal double ClosingRateSmoothed { get; set; }
         internal bool ClosingRateHasSample { get; set; }
+        internal int InfoGateState { get; set; } = 0;
+        internal int InfoPendingGateState { get; set; } = 0;
+        internal double InfoPendingSinceSec { get; set; } = double.NaN;
 
         private bool _styleCacheInitialized;
         private int _styleLastStatusE;
@@ -209,6 +214,8 @@ namespace LaunchPlugin
             HotCoolConflictLastTickId = -1;
             GapRelativeSec = double.NaN;
             GapRelativeSource = 0;
+            InfoVisibility = 0;
+            Info = string.Empty;
             LastGapUpdateTimeSec = 0.0;
             LastGapSec = double.NaN;
             HasGap = false;
@@ -235,6 +242,9 @@ namespace LaunchPlugin
             IdentityResolved = false;
             ClosingRateSmoothed = 0.0;
             ClosingRateHasSample = false;
+            InfoGateState = 0;
+            InfoPendingGateState = 0;
+            InfoPendingSinceSec = double.NaN;
 
             _styleCacheInitialized = false;
             _styleLastStatusE = (int)CarSAStatusE.Unknown;
@@ -353,6 +363,8 @@ namespace LaunchPlugin
         public CarSASlot PlayerSlot { get; }
         public CarSADebug Debug { get; }
         public double IRatingSOF { get; set; }
+        public double Ahead01PrecisionGapSec { get; set; } = double.NaN;
+        public double Behind01PrecisionGapSec { get; set; } = double.NaN;
 
         public void ResetSlots()
         {
@@ -374,6 +386,8 @@ namespace LaunchPlugin
             ResetSlots();
             PlayerSlot.Reset();
             IRatingSOF = 0.0;
+            Ahead01PrecisionGapSec = double.NaN;
+            Behind01PrecisionGapSec = double.NaN;
             Debug.Reset();
         }
     }

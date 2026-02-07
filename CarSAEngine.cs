@@ -319,6 +319,8 @@ namespace LaunchPlugin
                 }
                 ResetHotCoolState(_outputs.AheadSlots);
                 ResetHotCoolState(_outputs.BehindSlots);
+                UpdateInfoForSlots(_outputs.AheadSlots, true, sessionTimeSec);
+                UpdateInfoForSlots(_outputs.BehindSlots, false, sessionTimeSec);
                 return;
             }
             UpdateStatusE(_outputs.AheadSlots, notRelevantGapSec, true, opponentOutputs, playerClassColor, sessionTimeSec, _classRankByColor, allowHotCool: true);
@@ -327,6 +329,8 @@ namespace LaunchPlugin
             ApplySessionTypeStatusEPolicy(_outputs.AheadSlots);
             ApplySessionTypeStatusEPolicy(_outputs.BehindSlots);
             ApplySessionTypeStatusEPolicy(_outputs.PlayerSlot);
+            UpdateInfoForSlots(_outputs.AheadSlots, true, sessionTimeSec);
+            UpdateInfoForSlots(_outputs.BehindSlots, false, sessionTimeSec);
         }
 
         public void Reset()
@@ -605,6 +609,7 @@ namespace LaunchPlugin
             ApplySlots(false, sessionTimeSec, playerCarIdx, playerLapPct, playerLap, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, _behindCandidateIdx, _behindCandidateDist, _outputs.BehindSlots, ref hysteresisReplacements, ref slotCarIdxChanged);
             UpdateSlotGapsFromCarStates(_outputs.AheadSlots, sessionTimeSec, lapTimeUsed, lapTimeUsedValid, trackGapScaleSec, trackGapScaleValid, isRace, true);
             UpdateSlotGapsFromCarStates(_outputs.BehindSlots, sessionTimeSec, lapTimeUsed, lapTimeUsedValid, trackGapScaleSec, trackGapScaleValid, isRace, false);
+            UpdateSlot01PrecisionGaps(sessionTimeSec, lapTimeUsed);
 
             if (debugEnabled)
             {
@@ -660,6 +665,8 @@ namespace LaunchPlugin
             _outputs.Debug.HysteresisReplacementsThisTick = 0;
             _outputs.Debug.SlotCarIdxChangedThisTick = 0;
             _outputs.Debug.PlayerTrackSurfaceRaw = -1;
+            _outputs.Ahead01PrecisionGapSec = double.NaN;
+            _outputs.Behind01PrecisionGapSec = double.NaN;
             if (debugEnabled)
             {
                 _outputs.Debug.LapTimeEstimateSec = lapTimeEstimateSec;
@@ -1357,6 +1364,205 @@ namespace LaunchPlugin
             }
         }
 
+        private void UpdateSlot01PrecisionGaps(double sessionTimeSec, double lapTimeUsed)
+        {
+            _ = sessionTimeSec;
+            _outputs.Ahead01PrecisionGapSec = ComputeSlotPrecisionGap(_outputs.AheadSlots, lapTimeUsed, true);
+            _outputs.Behind01PrecisionGapSec = ComputeSlotPrecisionGap(_outputs.BehindSlots, lapTimeUsed, false);
+        }
+
+        private double ComputeSlotPrecisionGap(CarSASlot[] slots, double lapTimeUsed, bool isAhead)
+        {
+            if (slots == null || slots.Length == 0)
+            {
+                return double.NaN;
+            }
+
+            var slot = slots[0];
+            if (slot == null || !slot.IsValid)
+            {
+                return double.NaN;
+            }
+
+            int carIdx = slot.CarIdx;
+            if (carIdx < 0 || carIdx >= MaxCars)
+            {
+                return double.NaN;
+            }
+
+            double candidate;
+            if (_gateGapTruthValidByCar[carIdx])
+            {
+                candidate = _gateGapTruthSecByCar[carIdx];
+            }
+            else if (_gateGapFilteredValidByCar[carIdx])
+            {
+                candidate = _gateGapFilteredSecByCar[carIdx];
+            }
+            else if (!double.IsNaN(slot.GapTrackSec) && !double.IsInfinity(slot.GapTrackSec))
+            {
+                candidate = slot.GapTrackSec;
+            }
+            else
+            {
+                candidate = double.NaN;
+            }
+
+            return isAhead ? MapToAhead(candidate, lapTimeUsed) : MapToBehind(candidate, lapTimeUsed);
+        }
+
+        private void UpdateInfoForSlots(CarSASlot[] slots, bool isAhead, double nowSec)
+        {
+            _ = isAhead;
+            if (slots == null)
+            {
+                return;
+            }
+
+            double playerLastLap = _outputs.PlayerSlot != null ? _outputs.PlayerSlot.LastLapTimeSec : double.NaN;
+            for (int i = 0; i < slots.Length; i++)
+            {
+                var slot = slots[i];
+                if (slot == null)
+                {
+                    continue;
+                }
+
+                int desiredGateState;
+                if (slot.StatusE == (int)CarSAStatusE.Unknown)
+                {
+                    desiredGateState = 1;
+                }
+                else if (slot.StatusE == (int)CarSAStatusE.Racing)
+                {
+                    desiredGateState = 2;
+                }
+                else
+                {
+                    desiredGateState = 0;
+                }
+
+                if (desiredGateState == slot.InfoGateState)
+                {
+                    slot.InfoPendingGateState = slot.InfoGateState;
+                    slot.InfoPendingSinceSec = double.NaN;
+                }
+                else
+                {
+                    if (desiredGateState != slot.InfoPendingGateState)
+                    {
+                        slot.InfoPendingGateState = desiredGateState;
+                        slot.InfoPendingSinceSec = nowSec;
+                    }
+                    else
+                    {
+                        if (double.IsNaN(slot.InfoPendingSinceSec))
+                        {
+                            slot.InfoPendingSinceSec = nowSec;
+                        }
+                        else if ((nowSec - slot.InfoPendingSinceSec) >= 1.0)
+                        {
+                            slot.InfoGateState = slot.InfoPendingGateState;
+                            slot.InfoPendingSinceSec = double.NaN;
+                        }
+                    }
+                }
+
+                if (!slot.IsValid)
+                {
+                    slot.InfoVisibility = 0;
+                    slot.Info = string.Empty;
+                    continue;
+                }
+
+                int slotNumber = i + 1;
+                double offsetSec = slotNumber;
+                long window = (long)Math.Floor((nowSec + offsetSec) / 5.0);
+                int msgIndex = (int)(window % 3);
+                bool fightOn = (window % 2) == 0;
+
+                if (slot.InfoGateState == 1)
+                {
+                    slot.InfoVisibility = 1;
+                }
+                else if (slot.InfoGateState == 2)
+                {
+                    slot.InfoVisibility = fightOn ? 1 : 0;
+                }
+                else
+                {
+                    slot.InfoVisibility = 0;
+                    slot.Info = string.Empty;
+                    continue;
+                }
+
+                if (slot.InfoVisibility == 0)
+                {
+                    slot.Info = string.Empty;
+                    continue;
+                }
+
+                string message;
+                if (TryBuildInfoMessage(msgIndex, slot, playerLastLap, out message)
+                    || TryBuildInfoMessage((msgIndex + 1) % 3, slot, playerLastLap, out message)
+                    || TryBuildInfoMessage((msgIndex + 2) % 3, slot, playerLastLap, out message))
+                {
+                    slot.Info = message;
+                }
+                else
+                {
+                    slot.Info = string.Empty;
+                }
+            }
+        }
+
+        private static bool TryBuildInfoMessage(int msgIndex, CarSASlot slot, double playerLastLap, out string message)
+        {
+            message = string.Empty;
+            if (slot == null)
+            {
+                return false;
+            }
+
+            switch (msgIndex)
+            {
+                case 0:
+                    if (!double.IsNaN(slot.LastLapTimeSec) && !double.IsInfinity(slot.LastLapTimeSec)
+                        && !double.IsNaN(playerLastLap) && !double.IsInfinity(playerLastLap))
+                    {
+                        double delta = slot.LastLapTimeSec - playerLastLap;
+                        if (Math.Abs(delta) <= 0.10)
+                        {
+                            message = "LLΔme OK";
+                        }
+                        else
+                        {
+                            string sign = delta >= 0.0 ? "+" : "-";
+                            message = $"LLΔme {sign}{Math.Abs(delta):0.0}";
+                        }
+                        return true;
+                    }
+                    return false;
+                case 1:
+                    if (!double.IsNaN(slot.DeltaBestSec) && !double.IsInfinity(slot.DeltaBestSec))
+                    {
+                        string sign = slot.DeltaBestSec >= 0.0 ? "+" : "-";
+                        message = $"ΔBL {sign}{Math.Abs(slot.DeltaBestSec):0.1}";
+                        return true;
+                    }
+                    return false;
+                case 2:
+                    if (slot.LapsSincePit >= 0)
+                    {
+                        message = $"{slot.LapsSincePit} Laps Since Pit";
+                        return true;
+                    }
+                    return false;
+                default:
+                    return false;
+            }
+        }
+
         private static double NormalizeGateGapSec(double rawGapSec, int lapDelta, double lapTimeUsed)
         {
             if (double.IsNaN(rawGapSec) || double.IsInfinity(rawGapSec))
@@ -1687,6 +1893,11 @@ namespace LaunchPlugin
                 slot.HotCoolConflictCached = false;
                 slot.HotCoolConflictLastTickId = -1;
                 slot.GapRelativeSec = double.NaN;
+                slot.InfoVisibility = 0;
+                slot.Info = string.Empty;
+                slot.InfoGateState = 0;
+                slot.InfoPendingGateState = 0;
+                slot.InfoPendingSinceSec = double.NaN;
 
                 // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;
