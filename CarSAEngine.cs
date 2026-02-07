@@ -131,6 +131,7 @@ namespace LaunchPlugin
         private double _sessionTypeStartTimeSec = double.NaN;
         private double _lastSessionTimeSec = double.NaN;
         private bool _allowStatusEThisTick = true;
+        private bool _allowLatchesThisTick = true;
         private int _playerCheckpointIndexNow = -1;
         private int _playerCheckpointIndexLast = -1;
         private int _playerCheckpointIndexCrossed = -1;
@@ -240,6 +241,17 @@ namespace LaunchPlugin
             }
         }
 
+        public struct OffTrackDebugState
+        {
+            public bool OffTrackNow { get; set; }
+            public int OffTrackStreak { get; set; }
+            public double OffTrackFirstSeenTimeSec { get; set; }
+            public int CompromisedUntilLap { get; set; }
+            public bool CompromisedOffTrackActive { get; set; }
+            public bool CompromisedPenaltyActive { get; set; }
+            public bool AllowLatches { get; set; }
+        }
+
         public CarSAEngine()
         {
             _outputs = new CarSAOutputs(SlotsAhead, SlotsBehind);
@@ -343,6 +355,7 @@ namespace LaunchPlugin
             _sessionTypeStartTimeSec = double.NaN;
             _lastSessionTimeSec = double.NaN;
             _allowStatusEThisTick = true;
+            _allowLatchesThisTick = true;
             _playerCheckpointIndexNow = -1;
             _playerCheckpointIndexLast = -1;
             _playerCheckpointIndexCrossed = -1;
@@ -350,6 +363,28 @@ namespace LaunchPlugin
             _anyCheckpointCrossedThisTick = false;
             _miniSectorTickId = 0;
             ClearGateGapCaches();
+        }
+
+        public bool TryGetOffTrackDebugState(int carIdx, out OffTrackDebugState state)
+        {
+            state = default;
+            if (carIdx < 0 || carIdx >= _carStates.Length)
+            {
+                return false;
+            }
+
+            var carState = _carStates[carIdx];
+            state = new OffTrackDebugState
+            {
+                OffTrackNow = carState.TrackSurfaceRaw == TrackSurfaceOffTrack,
+                OffTrackStreak = carState.OffTrackStreak,
+                OffTrackFirstSeenTimeSec = carState.OffTrackFirstSeenTimeSec,
+                CompromisedUntilLap = carState.CompromisedUntilLap,
+                CompromisedOffTrackActive = carState.CompromisedOffTrackActive,
+                CompromisedPenaltyActive = carState.CompromisedPenaltyActive,
+                AllowLatches = _allowLatchesThisTick
+            };
+            return true;
         }
 
         // === SA / track-awareness + slot assignment =============================
@@ -442,6 +477,7 @@ namespace LaunchPlugin
                 }
             }
             _allowStatusEThisTick = allowStatusE;
+            _allowLatchesThisTick = allowLatches;
 
             double playerLapPct = double.NaN;
             bool playerLapPctValid = false;
