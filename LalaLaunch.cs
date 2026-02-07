@@ -2869,6 +2869,13 @@ namespace LaunchPlugin
         private string _offTrackDebugExportPath;
         private string _offTrackDebugExportToken;
         private int _offTrackDebugExportPendingLines;
+        private double _offTrackDebugLastSessionTimeSec = double.NaN;
+        private bool _playerLapInvalid;
+        private int _playerLapInvalidLap = int.MinValue;
+        private int _playerLastIncidentCount = int.MinValue;
+        private int _playerIncidentDelta = int.MinValue;
+        private int _playerIncidentCount = -1;
+        private double _playerLapInvalidLastSessionTimeSec = double.NaN;
         private const int CarSaDebugExportSlotCount = 5;
         private const int CarSaDebugCadenceTick = 0;
         private const int CarSaDebugCadenceMiniSector = 1;
@@ -3226,6 +3233,7 @@ namespace LaunchPlugin
             AttachCore("Reset.LastSession", () => _lastSessionToken);
             AttachCore("Reset.ThisSession", () => _currentSessionToken);
             AttachCore("Reset.ThisSessionType", () => _finishTimingSessionType);
+            AttachCore("car.player.LapInvalid", () => _playerLapInvalid);
 
             // --- Pit time-loss (finals kept CORE; raw & debug VERBOSE) ---
             AttachCore("Pit.LastDirectTravelTime", () => _pit.LastDirectTravelTime);
@@ -4430,6 +4438,7 @@ namespace LaunchPlugin
                 ResetCarSaIdentityState();
                 ResetCarSaDebugExportState();
                 ResetOffTrackDebugExportState();
+                ResetPlayerLapInvalidState();
                 _currentCarModel = string.Empty;
                 CurrentTrackName = string.Empty;
                 CurrentTrackKey = string.Empty;
@@ -4609,6 +4618,7 @@ namespace LaunchPlugin
             int[] carIdxLap = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLap");
             int[] carIdxTrackSurface = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxTrackSurface");
             bool[] carIdxOnPitRoad = SafeReadBoolArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxOnPitRoad");
+            UpdatePlayerLapInvalidState(pluginManager, sessionTimeSec, playerCarIdx, carIdxLap);
             int[] carIdxSessionFlags = null;
             _ = TryReadTelemetryIntArray(pluginManager, "CarIdxSessionFlags", out carIdxSessionFlags, out _, out _);
             double lapTimeEstimateSec = myPaceSec;
@@ -4675,6 +4685,8 @@ namespace LaunchPlugin
                     sessionFlagsRaw,
                     probeCarIdx,
                     playerCarIdx,
+                    _playerIncidentCount,
+                    _playerIncidentDelta,
                     carIdxTrackSurface,
                     carIdxTrackSurfaceMaterial,
                     carIdxSessionFlags,
@@ -5250,6 +5262,8 @@ namespace LaunchPlugin
             int sessionFlagsRaw,
             int probeCarIdx,
             int playerCarIdx,
+            int playerIncidentCount,
+            int playerIncidentDelta,
             int[] carIdxTrackSurface,
             int[] carIdxTrackSurfaceMaterial,
             int[] carIdxSessionFlags,
@@ -5263,7 +5277,13 @@ namespace LaunchPlugin
                 return;
             }
 
-            EnsureOffTrackDebugExportFile();
+            if (!double.IsNaN(_offTrackDebugLastSessionTimeSec)
+                && sessionTimeSec < _offTrackDebugLastSessionTimeSec - 0.5)
+            {
+                ResetOffTrackDebugExportState();
+            }
+
+            EnsureOffTrackDebugExportFile(pluginManager);
 
             StringBuilder buffer = _offTrackDebugExportBuffer ?? (_offTrackDebugExportBuffer = new StringBuilder(512));
             buffer.Append(sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
@@ -5319,17 +5339,63 @@ namespace LaunchPlugin
 
             AppendCsvOptionalInt(buffer, playerCarIdx, -1);
             buffer.Append(',');
-            int incidentCount = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.PlayerCarMyIncidentCount", -1);
-            AppendCsvOptionalInt(buffer, incidentCount, -1);
+            AppendCsvOptionalInt(buffer, playerIncidentCount, -1);
             buffer.Append(',');
-            bool? lapInvalidated = SafeReadBoolNullable(pluginManager, "DataCorePlugin.GameRawData.GameData.LapInvalidated");
-            AppendCsvOptionalBool(buffer, lapInvalidated);
+            AppendCsvOptionalInt(buffer, playerIncidentDelta, int.MinValue);
             buffer.AppendLine();
 
+            _offTrackDebugLastSessionTimeSec = sessionTimeSec;
             _offTrackDebugExportPendingLines++;
             if (_offTrackDebugExportPendingLines >= 20 || buffer.Length >= 4096)
             {
                 FlushOffTrackDebugExportBuffer();
+            }
+        }
+
+        private void UpdatePlayerLapInvalidState(
+            PluginManager pluginManager,
+            double sessionTimeSec,
+            int playerCarIdx,
+            int[] carIdxLap)
+        {
+            if (!double.IsNaN(_playerLapInvalidLastSessionTimeSec)
+                && sessionTimeSec < _playerLapInvalidLastSessionTimeSec - 0.5)
+            {
+                ResetPlayerLapInvalidState();
+            }
+
+            _playerLapInvalidLastSessionTimeSec = sessionTimeSec;
+
+            int playerLap = ReadCarIdxInt(carIdxLap, playerCarIdx, int.MinValue);
+            if (playerLap != int.MinValue && playerLap != _playerLapInvalidLap)
+            {
+                _playerLapInvalid = false;
+                _playerLapInvalidLap = playerLap;
+            }
+
+            int incidentCount = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.PlayerCarMyIncidentCount", -1);
+            _playerIncidentCount = incidentCount;
+
+            int incidentDelta = int.MinValue;
+            if (incidentCount >= 0)
+            {
+                if (_playerLastIncidentCount != int.MinValue)
+                {
+                    incidentDelta = incidentCount - _playerLastIncidentCount;
+                }
+
+                _playerLastIncidentCount = incidentCount;
+            }
+            else
+            {
+                _playerLastIncidentCount = int.MinValue;
+            }
+
+            _playerIncidentDelta = incidentDelta;
+
+            if (incidentDelta > 0)
+            {
+                _playerLapInvalid = true;
             }
         }
 
@@ -6049,6 +6115,17 @@ namespace LaunchPlugin
             return new string(cleaned, start, length);
         }
 
+        private static string SanitizeOffTrackDebugExportName(string input)
+        {
+            string sanitized = SanitizeCarSaDebugExportName(input);
+            if (string.Equals(sanitized, "Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                return "UnknownTrack";
+            }
+
+            return sanitized;
+        }
+
         private void FlushCarSaDebugExportBuffer()
         {
             if (string.IsNullOrWhiteSpace(_carSaDebugExportPath) || _carSaDebugExportBuffer == null || _carSaDebugExportBuffer.Length == 0)
@@ -6061,7 +6138,7 @@ namespace LaunchPlugin
             _carSaDebugExportPendingLines = 0;
         }
 
-        private void EnsureOffTrackDebugExportFile()
+        private void EnsureOffTrackDebugExportFile(PluginManager pluginManager)
         {
             string token = string.IsNullOrWhiteSpace(_currentSessionToken) ? "na" : _currentSessionToken.Replace(":", "_");
             if (string.Equals(token, _offTrackDebugExportToken, StringComparison.Ordinal) && !string.IsNullOrWhiteSpace(_offTrackDebugExportPath))
@@ -6073,8 +6150,21 @@ namespace LaunchPlugin
             _offTrackDebugExportToken = token;
             string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalapluginData");
             Directory.CreateDirectory(folder);
+            string trackNameSource = !string.IsNullOrWhiteSpace(CurrentTrackName)
+                ? CurrentTrackName
+                : CurrentTrackKey;
+            if (string.IsNullOrWhiteSpace(trackNameSource))
+            {
+                trackNameSource = GetSessionInfoTrackName(pluginManager);
+            }
+            if (string.IsNullOrWhiteSpace(trackNameSource))
+            {
+                trackNameSource = "UnknownTrack";
+            }
+
+            string trackName = SanitizeOffTrackDebugExportName(trackNameSource);
             string timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd_HH-mm-ss", CultureInfo.InvariantCulture);
-            _offTrackDebugExportPath = Path.Combine(folder, $"OffTrackDebug_{timestamp}.csv");
+            _offTrackDebugExportPath = Path.Combine(folder, $"OffTrackDebug_{trackName}_{timestamp}.csv");
             if (!File.Exists(_offTrackDebugExportPath))
             {
                 File.WriteAllText(_offTrackDebugExportPath, GetOffTrackDebugExportHeader() + Environment.NewLine);
@@ -6104,6 +6194,17 @@ namespace LaunchPlugin
             _offTrackDebugExportPath = null;
             _offTrackDebugExportToken = null;
             _offTrackDebugExportPendingLines = 0;
+            _offTrackDebugLastSessionTimeSec = double.NaN;
+        }
+
+        private void ResetPlayerLapInvalidState()
+        {
+            _playerLapInvalid = false;
+            _playerLapInvalidLap = int.MinValue;
+            _playerLastIncidentCount = int.MinValue;
+            _playerIncidentDelta = int.MinValue;
+            _playerIncidentCount = -1;
+            _playerLapInvalidLastSessionTimeSec = double.NaN;
         }
 
         private static string GetOffTrackDebugExportHeader()
@@ -6114,7 +6215,7 @@ namespace LaunchPlugin
             buffer.Append("CarIdxOnPitRoad,CarIdxLap,CarIdxLapDistPct,");
             buffer.Append("OffTrackNow,OffTrackStreak,OffTrackFirstSeenTimeSec,CompromisedUntilLap,");
             buffer.Append("CompromisedOffTrackActive,CompromisedPenaltyActive,AllowLatches,");
-            buffer.Append("PlayerCarIdx,PlayerMyIncidentCount,GameData.LapInvalidated");
+            buffer.Append("PlayerCarIdx,PlayerIncidentCount,PlayerIncidentDelta");
             return buffer.ToString();
         }
 
@@ -6272,24 +6373,6 @@ namespace LaunchPlugin
             }
 
             return values[carIdx];
-        }
-
-        private static bool? SafeReadBoolNullable(PluginManager pluginManager, string propertyName)
-        {
-            try
-            {
-                object value = pluginManager.GetPropertyValue(propertyName);
-                if (value == null)
-                {
-                    return null;
-                }
-
-                return Convert.ToBoolean(value);
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         private void ResetCarSaDebugExportState()
