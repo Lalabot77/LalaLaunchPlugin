@@ -1442,7 +1442,12 @@ namespace LaunchPlugin
                     desiredGateState = 0;
                 }
 
-                if (desiredGateState != slot.InfoGateState)
+                if (desiredGateState == slot.InfoGateState)
+                {
+                    slot.InfoPendingGateState = slot.InfoGateState;
+                    slot.InfoPendingSinceSec = double.NaN;
+                }
+                else
                 {
                     if (desiredGateState != slot.InfoPendingGateState)
                     {
@@ -1458,6 +1463,7 @@ namespace LaunchPlugin
                         else if ((nowSec - slot.InfoPendingSinceSec) >= 1.0)
                         {
                             slot.InfoGateState = slot.InfoPendingGateState;
+                            slot.InfoPendingSinceSec = double.NaN;
                         }
                     }
                 }
