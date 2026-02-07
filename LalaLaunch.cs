@@ -5296,7 +5296,12 @@ namespace LaunchPlugin
             AppendCsvOptionalDouble(buffer, carLapDistPct, "F6");
             buffer.Append(',');
 
-            bool hasState = _carSaEngine != null && _carSaEngine.TryGetOffTrackDebugState(probeCarIdx, out var offTrackState);
+            CarSAEngine.OffTrackDebugState offTrackState = default;
+            bool hasState = false;
+            if (_carSaEngine != null)
+            {
+                hasState = _carSaEngine.TryGetOffTrackDebugState(probeCarIdx, out offTrackState);
+            }
             AppendCsvOptionalBool(buffer, hasState ? (bool?)offTrackState.OffTrackNow : null);
             buffer.Append(',');
             AppendCsvOptionalInt(buffer, hasState ? offTrackState.OffTrackStreak : int.MinValue, int.MinValue);
