@@ -152,6 +152,7 @@
     </Compile>
     <Compile Include="ProfilesManagerViewModel.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RadioFrequencyNameCache.cs" />
     <Compile Include="RacePreset.cs" />
     <Compile Include="RacePresetStore.cs" />
     <Compile Include="RejoinAssistEngine.cs" />
