@@ -2,9 +2,9 @@
 
 **CANONICAL OBSERVABILITY MAP**
 
-Validated against: 3b98c50  
-Last reviewed: 2026-02-06  
-Last updated: 2026-02-06  
+Validated against: 9d77f4a  
+Last reviewed: 2026-02-10  
+Last updated: 2026-02-10  
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
@@ -62,6 +62,7 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Opponents] Slot <slot> rebound -> <identity> (<name>)`** — Nearby slot (Ahead1/2, Behind1/2) re-bound to a new identity; pace cache persists per identity (logs gated to lap ≥1 and debug toggle).【F:Opponents.cs†L252-L361】
 - **`[LalaPlugin:CarSA] CarSA enabled (source=CarIdxTruth, slots=5/5)`** — CarSA subsystem became valid for the session (CarIdx truth, 5/5 slots).【F:CarSAEngine.cs†L387-L390】
 - **`[LalaPlugin:CarSA] Class rank map built using <source> (<count> classes)`** — Class-rank lookup initialized from session info (CarClassRelSpeed preferred, else CarClassEstLapTime). Drives Faster/Slower class StatusE labeling in multiclass sessions.【F:LalaLaunch.cs†L4930-L4987】
+- **`[CarSA] BestLap fallback now using DriverInfo CarClassEstLapTime until best lap available.`** — Best-lap estimates switched to class-estimate fallback until per-car best laps arrive (once per session).【F:LalaLaunch.cs†L6655-L6660】
 - **`[LalaPlugin:PitExit] Predictor valid -> true (pitLoss=X.Xs)`** — Pit-exit predictor became valid with leaderboard/player row found.【F:Opponents.cs†L507-L566】
 - **`[LalaPlugin:PitExit] Predicted class position changed -> P# (ahead=N)`** — Predicted post-stop class position changed while valid (gated to lap ≥1 and debug toggle).【F:Opponents.cs†L532-L566】
 - **`[LalaPlugin:PitExit] Predictor valid -> false`** — Pit-exit predictor lost validity (no player row/leaderboard data).【F:Opponents.cs†L568-L579】
