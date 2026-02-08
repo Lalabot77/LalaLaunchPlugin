@@ -2980,6 +2980,7 @@ namespace LaunchPlugin
         private readonly int[] _carSaClassPositionByIdx = new int[CarSAEngine.MaxCars];
         private readonly int[] _carSaIRatingByIdx = new int[CarSAEngine.MaxCars];
         private readonly HashSet<int> _friendUserIds = new HashSet<int>();
+        private int _friendsCount;
         private readonly HashSet<LaunchPluginFriendEntry> _friendEntrySubscriptions = new HashSet<LaunchPluginFriendEntry>();
         private ObservableCollection<LaunchPluginFriendEntry> _friendsCollection;
         private bool _friendsDirty = true;
@@ -3189,6 +3190,7 @@ namespace LaunchPlugin
             this.AddAction("TrackMarkersUnlock", (a, b) => SetTrackMarkersLocked(false));
             SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock");
 
+            AttachCore("LalaLaunch.Friends.Count", () => _friendsCount);
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
             AttachCore("Fuel.LiveFuelPerLap", () => LiveFuelPerLap);
@@ -6775,6 +6777,7 @@ namespace LaunchPlugin
         private void RefreshFriendUserIds()
         {
             _friendUserIds.Clear();
+            _friendsCount = 0;
             var friends = Settings?.Friends;
             if (friends == null)
             {
@@ -6792,6 +6795,7 @@ namespace LaunchPlugin
                 int userId = entry.UserId;
                 if (userId > 0)
                 {
+                    _friendsCount++;
                     _friendUserIds.Add(userId);
                 }
             }
