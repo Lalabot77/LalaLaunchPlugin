@@ -1507,19 +1507,7 @@ namespace LaunchPlugin
                     continue;
                 }
 
-                int desiredGateState;
-                if (slot.StatusE == (int)CarSAStatusE.Unknown)
-                {
-                    desiredGateState = 1;
-                }
-                else if (slot.StatusE == (int)CarSAStatusE.Racing)
-                {
-                    desiredGateState = 2;
-                }
-                else
-                {
-                    desiredGateState = 0;
-                }
+                int desiredGateState = slot.StatusE == (int)CarSAStatusE.Unknown ? 1 : 0;
 
                 if (desiredGateState == slot.InfoGateState)
                 {
@@ -1647,8 +1635,17 @@ namespace LaunchPlugin
 
                 if (slot.InfoGateState == 1)
                 {
-                    slot.InfoVisibility = 1;
-                    slot.Info = BuildLiveDeltaMessage(slot);
+                    message = BuildBaselineLiveDeltaMessage(slot);
+                    if (string.IsNullOrEmpty(message))
+                    {
+                        slot.InfoVisibility = 0;
+                        slot.Info = string.Empty;
+                    }
+                    else
+                    {
+                        slot.InfoVisibility = 1;
+                        slot.Info = message;
+                    }
                 }
                 else
                 {
@@ -1676,6 +1673,27 @@ namespace LaunchPlugin
             }
 
             return $"Live Δ {slot.DeltaBest}";
+        }
+
+        private static string BuildBaselineLiveDeltaMessage(CarSASlot slot)
+        {
+            if (slot == null)
+            {
+                return string.Empty;
+            }
+
+            string delta = slot.DeltaBest ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(delta))
+            {
+                return string.Empty;
+            }
+
+            if (string.Equals(delta, "-", StringComparison.Ordinal) || string.Equals(delta, "—", StringComparison.Ordinal))
+            {
+                return string.Empty;
+            }
+
+            return $"Live Δ {delta}";
         }
 
         private static string BuildLastLapVsBestMessage(CarSASlot slot)
@@ -1709,7 +1727,7 @@ namespace LaunchPlugin
                 return string.Empty;
             }
 
-            double delta = playerLastLap - oppLastLap;
+            double delta = oppLastLap - playerLastLap;
             return FormatDeltaMessage("LL vs Me", delta);
         }
 
