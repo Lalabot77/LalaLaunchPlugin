@@ -192,6 +192,7 @@ Branch: work
 | RejoinCurrentPitPhase / RejoinCurrentPitPhaseName | int/string | Current pit phase enum and label. | Per tick. | `RejoinAssistEngine` state + `AttachCore`【F:LalaLaunch.cs†L2819-L2825】【F:RejoinAssistEngine.cs†L90-L160】 |
 | RejoinThreatLevel / RejoinThreatLevelName / RejoinTimeToThreat | int/string/double | Threat scoring and time-to-threat for rejoin assist. | Per tick. | `RejoinAssistEngine` outputs + `AttachCore`【F:LalaLaunch.cs†L2826-L2831】【F:RejoinAssistEngine.cs†L540-L640】 |
 | MsgCxPressed | bool | Latched true for 500 ms after MsgCx action. | Per tick. | `LalaLaunch.cs` — `RegisterMsgCxPress` + `AttachCore`【F:LalaLaunch.cs†L2475-L2479】【F:LalaLaunch.cs†L2815-L2820】 |
+| Debug.EventMarkerPressed | bool | Latched true for 500 ms after the Event Marker action. | Per tick. | `LalaLaunch.cs` — `RegisterEventMarkerPress` + `AttachCore`【F:LalaLaunch.cs†L2481-L2492】【F:LalaLaunch.cs†L2816-L2822】 |
 
 ## Session / Identity
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
@@ -226,3 +227,7 @@ Branch: work
 | PitLite.InLapSec / OutLapSec / DeltaInSec / DeltaOutSec / TimePitLaneSec / TimePitBoxSec / DirectSec / DTLSec | double | PitLite lap/timer breakdowns. | Per tick/out-lap; **verbose**. | `PitCycleLite.cs` + `AttachVerbose`【F:PitCycleLite.cs†L122-L217】【F:LalaLaunch.cs†L2781-L2790】 |
 | PitLite.LossSource | string | Whether DTL or direct was published. | Per publish; **verbose**. | `PitCycleLite.cs` + `AttachVerbose`【F:PitCycleLite.cs†L170-L217】【F:LalaLaunch.cs†L2796-L2799】 |
 | PitLite.LastSaved.Sec / LastSaved.Source | double/string | Last saved pit-lite candidate/time source. | On save; **verbose**. | `PitCycleLite.cs` + `AttachVerbose`【F:PitCycleLite.cs†L170-L217】【F:LalaLaunch.cs†L2797-L2799】 |
+
+## CSV exports (debug)
+* `OffTrackDebug_<Track>_<Timestamp>.csv` includes an `EventFired` column immediately after `SessionTimeSec`, populated with `1`/`0` based on the event marker pulse state.【F:LalaLaunch.cs†L5278-L5338】【F:LalaLaunch.cs†L6212-L6218】
+* `CarSA_Debug_YYYY-MM-DD_HH-mm-ss_<TrackName>.csv` includes an `EventFired` column immediately after `SessionTimeSec`, populated with `1`/`0` based on the event marker pulse state.【F:LalaLaunch.cs†L5189-L5222】【F:LalaLaunch.cs†L6220-L6242】

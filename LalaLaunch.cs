@@ -207,6 +207,12 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info("[LalaPlugin:MsgCx] MsgCx action fired (pressed latched + engines notified).");
         }
 
+        public void EventMarker()
+        {
+            RegisterEventMarkerPress();
+            SimHub.Logging.Current.Info("[LalaPlugin:Dash] Event marker action fired (pressed latched).");
+        }
+
         /*
         // --- Legacy/experimental MsgCx helpers (parked) ---
         // Only keep if you still actively bind to these from somewhere.
@@ -2787,6 +2793,7 @@ namespace LaunchPlugin
         private bool _isAntiStallActive = false;
         private bool _isTimingZeroTo100 = false;
         private bool _launchSuccessful = false;
+        private bool _eventMarkerPressed = false;
         private bool _msgCxPressed = false;
         private bool _pitScreenActive = false;
         private bool _pitScreenDismissed = false;
@@ -2802,6 +2809,7 @@ namespace LaunchPlugin
         // --- Rejoin Assist Module State ---
         private readonly Stopwatch _offTrackHighSpeedTimer = new Stopwatch();
         private readonly Stopwatch _msgCxCooldownTimer = new Stopwatch();
+        private readonly Stopwatch _eventMarkerCooldownTimer = new Stopwatch();
 
         // --- State: Timers ---
         private readonly Stopwatch _pittingTimer = new Stopwatch();
@@ -2818,6 +2826,7 @@ namespace LaunchPlugin
         private string _dashLastSessionType = string.Empty;
         private bool _dashLastIgnitionOn = false;
         private bool _launchAbortLatched = false;
+        private const int DashPulseMs = 500;
 
         // --- FSM Helper Flags ---
         private bool IsIdle => _currentLaunchState == LaunchState.Idle;
@@ -2837,6 +2846,12 @@ namespace LaunchPlugin
         {
             _msgCxPressed = true;
             _msgCxCooldownTimer.Restart();
+        }
+
+        private void RegisterEventMarkerPress()
+        {
+            _eventMarkerPressed = true;
+            _eventMarkerCooldownTimer.Restart();
         }
 
         // Centralized state machine for launch phases
@@ -3149,10 +3164,11 @@ namespace LaunchPlugin
             this.AddAction("TogglePitScreen", (a, b) => TogglePitScreen());
             this.AddAction("PrimaryDashMode", (a, b) => PrimaryDashMode());
             this.AddAction("SecondaryDashMode", (a, b) => SecondaryDashMode());
+            this.AddAction("EventMarker", (a, b) => EventMarker());
             this.AddAction("LaunchMode", (a, b) => LaunchMode());
             this.AddAction("TrackMarkersLock", (a, b) => SetTrackMarkersLocked(true));
             this.AddAction("TrackMarkersUnlock", (a, b) => SetTrackMarkersLocked(false));
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, LaunchMode, TrackMarkersLock, TrackMarkersUnlock");
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, SecondaryDashMode, EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock");
 
 
             // --- DELEGATES FOR LIVE FUEL CALCULATOR (CORE) ---
@@ -3322,6 +3338,7 @@ namespace LaunchPlugin
             AttachCore("Race.ClassLeaderHasFinishedValid", () => ClassLeaderHasFinishedValid);
             AttachCore("Race.LeaderHasFinished", () => LeaderHasFinished);
             AttachCore("MsgCxPressed", () => _msgCxPressed);
+            AttachCore("Debug.EventMarkerPressed", () => _eventMarkerPressed);
             AttachCore("PitScreenActive", () => _pitScreenActive);
             AttachCore("PitScreenMode", () => _pitScreenMode);
             AttachCore("Pit.EntryLineDebrief", () => _pit.PitEntryLineDebrief);
@@ -4365,10 +4382,16 @@ namespace LaunchPlugin
             }
             catch (Exception ex) { SimHub.Logging.Current.Warn($"[LalaPlugin:Profile] Simplified Car/Track probe failed: {ex.Message}"); }
 
-            if (_msgCxCooldownTimer.IsRunning && _msgCxCooldownTimer.ElapsedMilliseconds > 500)
+            if (_msgCxCooldownTimer.IsRunning && _msgCxCooldownTimer.ElapsedMilliseconds > DashPulseMs)
             {
                 _msgCxCooldownTimer.Reset();
                 _msgCxPressed = false;
+            }
+
+            if (_eventMarkerCooldownTimer.IsRunning && _eventMarkerCooldownTimer.ElapsedMilliseconds > DashPulseMs)
+            {
+                _eventMarkerCooldownTimer.Reset();
+                _eventMarkerPressed = false;
             }
 
             // --- MASTER GUARD CLAUSES ---
@@ -5210,6 +5233,7 @@ namespace LaunchPlugin
 
                     StringBuilder buffer = _carSaDebugExportBuffer ?? (_carSaDebugExportBuffer = new StringBuilder(1024));
                     buffer.Append(outputs.Debug.SessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+                    buffer.Append(_eventMarkerPressed ? '1' : '0').Append(',');
                     buffer.Append(sessionState).Append(',');
                     AppendCsvSafeValue(buffer, sessionTypeName, "unknown");
                     buffer.Append(',');
@@ -5289,6 +5313,7 @@ namespace LaunchPlugin
 
             StringBuilder buffer = _offTrackDebugExportBuffer ?? (_offTrackDebugExportBuffer = new StringBuilder(512));
             buffer.Append(sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+            buffer.Append(_eventMarkerPressed ? '1' : '0').Append(',');
             buffer.Append(sessionState).Append(',');
             AppendCsvHexValue(buffer, sessionFlagsRaw);
             buffer.Append(',');
@@ -6212,7 +6237,7 @@ namespace LaunchPlugin
         private static string GetOffTrackDebugExportHeader()
         {
             StringBuilder buffer = new StringBuilder(512);
-            buffer.Append("SessionTimeSec,SessionState,SessionFlagsHex,SessionFlagsDec,ProbeCarIdx,");
+            buffer.Append("SessionTimeSec,EventFired,SessionState,SessionFlagsHex,SessionFlagsDec,ProbeCarIdx,");
             buffer.Append("CarIdxTrackSurface,CarIdxTrackSurfaceMaterial,CarIdxSessionFlagsHex,CarIdxSessionFlagsDec,");
             buffer.Append("CarIdxOnPitRoad,CarIdxLap,CarIdxLapDistPct,");
             buffer.Append("OffTrackNow,OffTrackStreak,OffTrackFirstSeenTimeSec,CompromisedUntilLap,");
@@ -6225,6 +6250,7 @@ namespace LaunchPlugin
         {
             StringBuilder buffer = new StringBuilder(2048);
             AppendCarSaDebugHeaderColumn(buffer, "SessionTimeSec");
+            AppendCarSaDebugHeaderColumn(buffer, "EventFired");
             AppendCarSaDebugHeaderColumn(buffer, "SessionState");
             AppendCarSaDebugHeaderColumn(buffer, "SessionTypeName");
             AppendCarSaDebugHeaderColumn(buffer, "PlayerLapPct");
