@@ -100,6 +100,42 @@
                 </StackPanel>
             </styles:SHSection>
 
+            <styles:SHSection Title="FRIENDS" ShowSeparator="True">
+                <StackPanel>
+                    <TextBlock Margin="0,0,0,5" Foreground="LightGray"
+                               Text="Add iRacing Customer IDs to highlight friends in CarSA." />
+                    <DataGrid ItemsSource="{Binding Settings.Friends}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              HeadersVisibility="Column"
+                              Margin="0,0,0,8">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Label"
+                                                Binding="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Width="*" />
+                            <DataGridTextColumn Header="UserId"
+                                                Binding="{Binding UserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Width="120" />
+                            <DataGridTemplateColumn Header="" Width="Auto">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <styles:SHButtonPrimary Content="Remove"
+                                                                Padding="8,2"
+                                                                Margin="2"
+                                                                Click="RemoveFriend_Click" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <styles:SHButtonPrimary Content="Add Friend"
+                                            Width="120"
+                                            HorizontalAlignment="Left"
+                                            Click="AddFriend_Click" />
+                </StackPanel>
+            </styles:SHSection>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>

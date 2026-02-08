@@ -1,4 +1,5 @@
 ﻿using SimHub.Plugins;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -44,8 +45,38 @@ namespace LaunchPlugin
                 }
             }
         }
+
+        private void AddFriend_Click(object sender, RoutedEventArgs e)
+        {
+            if (Plugin?.Settings == null)
+            {
+                return;
+            }
+
+            if (Plugin.Settings.Friends == null)
+            {
+                Plugin.Settings.Friends = new ObservableCollection<LaunchPluginFriendEntry>();
+            }
+
+            Plugin.Settings.Friends.Add(new LaunchPluginFriendEntry { Label = "Friend", UserId = 0 });
+        }
+
+        private void RemoveFriend_Click(object sender, RoutedEventArgs e)
+        {
+            if (Plugin?.Settings?.Friends == null)
+            {
+                return;
+            }
+
+            var entry = (sender as FrameworkElement)?.DataContext as LaunchPluginFriendEntry;
+            if (entry == null)
+            {
+                return;
+            }
+
+            Plugin.Settings.Friends.Remove(entry);
+        }
     }
 
     
 }
-

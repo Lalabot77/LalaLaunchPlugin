@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using SimHub.Plugins;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -2977,6 +2978,7 @@ namespace LaunchPlugin
         private readonly double[] _carSaCarClassEstLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly int[] _carSaClassPositionByIdx = new int[CarSAEngine.MaxCars];
         private readonly int[] _carSaIRatingByIdx = new int[CarSAEngine.MaxCars];
+        private readonly HashSet<int> _friendUserIds = new HashSet<int>();
         private bool _carSaBestLapFallbackInfoLogged;
 
         private enum LaunchState
@@ -3595,6 +3597,7 @@ namespace LaunchPlugin
             AttachCore("Car.Player.SafetyRating", () => _carSaEngine?.Outputs.PlayerSlot.SafetyRating ?? double.NaN);
             AttachCore("Car.Player.LicLevel", () => _carSaEngine?.Outputs.PlayerSlot.LicLevel ?? 0);
             AttachCore("Car.Player.TeamID", () => _carSaEngine?.Outputs.PlayerSlot.TeamID ?? 0);
+            AttachCore("Car.Player.IsFriend", () => _carSaEngine?.Outputs.PlayerSlot.IsFriend ?? false);
             AttachCore("Car.Player.LapsSincePit", () => _carSaEngine?.Outputs.PlayerSlot.LapsSincePit ?? -1);
             AttachCore("Car.Player.Status", () => _carSaEngine?.Outputs.PlayerSlot.Status ?? 0);
             AttachCore("Car.Player.StatusE", () => _carSaEngine?.Outputs.PlayerSlot.StatusE ?? 0);
@@ -3645,6 +3648,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.LicLevel", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LicLevel ?? 0);
                 AttachCore($"Car.Ahead{label}.UserID", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].UserID ?? 0);
                 AttachCore($"Car.Ahead{label}.TeamID", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TeamID ?? 0);
+                AttachCore($"Car.Ahead{label}.IsFriend", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsFriend ?? false);
                 AttachCore($"Car.Ahead{label}.LapsSincePit", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapsSincePit ?? -1);
                 AttachCore($"Car.Ahead{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLapTimeSec ?? double.NaN);
@@ -3702,6 +3706,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.LicLevel", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LicLevel ?? 0);
                 AttachCore($"Car.Behind{label}.UserID", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].UserID ?? 0);
                 AttachCore($"Car.Behind{label}.TeamID", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TeamID ?? 0);
+                AttachCore($"Car.Behind{label}.IsFriend", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsFriend ?? false);
                 AttachCore($"Car.Behind{label}.LapsSincePit", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapsSincePit ?? -1);
                 AttachCore($"Car.Behind{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLapTimeSec ?? double.NaN);
@@ -4056,6 +4061,33 @@ namespace LaunchPlugin
 
             settings.CarSAStatusEBackgroundColors = NormalizeStatusColorMap(settings.CarSAStatusEBackgroundColors);
             settings.CarSABorderColors = NormalizeBorderColorMap(settings.CarSABorderColors);
+            NormalizeFriendSettings(settings);
+        }
+
+        private static void NormalizeFriendSettings(LaunchPluginSettings settings)
+        {
+            if (settings.Friends == null)
+            {
+                settings.Friends = new ObservableCollection<LaunchPluginFriendEntry>();
+                return;
+            }
+
+            for (int i = settings.Friends.Count - 1; i >= 0; i--)
+            {
+                var entry = settings.Friends[i];
+                if (entry == null)
+                {
+                    settings.Friends.RemoveAt(i);
+                    continue;
+                }
+
+                string label = entry.Label?.Trim() ?? string.Empty;
+                entry.Label = string.IsNullOrWhiteSpace(label) ? "Friend" : label;
+                if (entry.UserId < 0)
+                {
+                    entry.UserId = 0;
+                }
+            }
         }
 
         private static Dictionary<int, string> NormalizeStatusColorMap(Dictionary<int, string> source)
@@ -4747,6 +4779,10 @@ namespace LaunchPlugin
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.AheadSlots, carIdxLapDistPct, sessionTimeSec);
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.BehindSlots, carIdxLapDistPct, sessionTimeSec);
                 UpdateCarSaPlayerTelemetry(pluginManager, playerCarIdx);
+                RefreshFriendUserIds();
+                UpdateCarSaFriendFlags(_carSaEngine.Outputs.AheadSlots);
+                UpdateCarSaFriendFlags(_carSaEngine.Outputs.BehindSlots);
+                UpdateCarSaPlayerFriendFlag();
                 string playerClassColor = GetCarClassColorHex(pluginManager, "IRacingExtraProperties.iRacing_Player_ClassColor");
                 if (string.IsNullOrWhiteSpace(playerClassColor) && playerCarIdx >= 0)
                 {
@@ -6581,6 +6617,63 @@ namespace LaunchPlugin
 
         private const double LiveDeltaClampSec = 30.0;
 
+        private void RefreshFriendUserIds()
+        {
+            _friendUserIds.Clear();
+            var friends = Settings?.Friends;
+            if (friends == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < friends.Count; i++)
+            {
+                var entry = friends[i];
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                int userId = entry.UserId;
+                if (userId > 0)
+                {
+                    _friendUserIds.Add(userId);
+                }
+            }
+        }
+
+        private void UpdateCarSaFriendFlags(CarSASlot[] slots)
+        {
+            if (slots == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < slots.Length; i++)
+            {
+                var slot = slots[i];
+                if (slot == null)
+                {
+                    continue;
+                }
+
+                int userId = slot.UserID;
+                slot.IsFriend = userId > 0 && _friendUserIds.Contains(userId);
+            }
+        }
+
+        private void UpdateCarSaPlayerFriendFlag()
+        {
+            var playerSlot = _carSaEngine?.Outputs?.PlayerSlot;
+            if (playerSlot == null)
+            {
+                return;
+            }
+
+            int userId = playerSlot.UserID;
+            playerSlot.IsFriend = userId > 0 && _friendUserIds.Contains(userId);
+        }
+
         private void UpdateCarSaSlotStyles(CarSASlot[] slots, string playerClassColorHex)
         {
             if (slots == null)
@@ -6598,7 +6691,7 @@ namespace LaunchPlugin
                     continue;
                 }
 
-                if (!slot.StyleInputsChanged(slot.StatusE, slot.ClassColorHex, slot.PositionInClass, playerClassColorHex, slot.CarIdx, slot.IsValid))
+                if (!slot.StyleInputsChanged(slot.StatusE, slot.ClassColorHex, slot.PositionInClass, playerClassColorHex, slot.CarIdx, slot.IsValid, slot.IsFriend))
                 {
                     continue;
                 }
@@ -6610,6 +6703,7 @@ namespace LaunchPlugin
                 CarSAStyleResolver.Resolve(
                     slot.StatusE,
                     slot.ClassColorHex,
+                    slot.IsFriend,
                     isTeammate,
                     isClassLeader,
                     isOtherClass,
@@ -6927,6 +7021,7 @@ namespace LaunchPlugin
                     slot.LicLevel = 0;
                     slot.UserID = 0;
                     slot.TeamID = 0;
+                    slot.IsFriend = false;
                     slot.LapsSincePit = -1;
                     slot.BestLapTimeSec = double.NaN;
                     slot.LastLapTimeSec = double.NaN;
@@ -7033,6 +7128,7 @@ namespace LaunchPlugin
                 playerSlot.LicLevel = 0;
                 playerSlot.UserID = 0;
                 playerSlot.TeamID = 0;
+                playerSlot.IsFriend = false;
                 return;
             }
 
@@ -10040,6 +10136,12 @@ namespace LaunchPlugin
         }
     }
 
+    public class LaunchPluginFriendEntry
+    {
+        public string Label { get; set; } = "Friend";
+        public int UserId { get; set; }
+    }
+
     public class LaunchPluginSettings : INotifyPropertyChanged
     {
         [JsonProperty]
@@ -10092,6 +10194,7 @@ namespace LaunchPlugin
             { CarSAStyleResolver.BorderModeOtherClass, "#0000FF" },
             { CarSAStyleResolver.BorderModeDefault, "#A9A9A9" }
         };
+        public ObservableCollection<LaunchPluginFriendEntry> Friends { get; set; } = new ObservableCollection<LaunchPluginFriendEntry>();
 
         // --- LalaDash Toggles (Default ON) ---
         public bool LalaDashShowLaunchScreen { get; set; } = true;
