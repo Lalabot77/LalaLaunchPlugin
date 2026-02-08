@@ -102,6 +102,11 @@ Branch: work
 | Car.Debug.* | mixed | Debug telemetry for player/slot identity, raw telemetry availability, and slot filtering: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `SessionTimeSec`, `SourceFastPathUsed`, `HasCarIdxPaceFlags`, `HasCarIdxSessionFlags`, `HasCarIdxTrackSurfaceMaterial`, `RawTelemetryReadMode`, `RawTelemetryFailReason`, `Ahead01.CarIdx`, `Ahead01.ForwardDistPct`, `Behind01.CarIdx`, `Behind01.BackwardDistPct`, `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`, `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`, `LapTimeEstimateSec`, `LapTimeUsedSec`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`. | Per tick. | `CarSAEngine.cs` debug fields + `AttachCore`【F:CarSAEngine.cs†L85-L283】【F:LalaLaunch.cs†L3482-L3510】 |
 
 
+## Radio
+| Exported name | Type | Units / meaning | Update cadence | Defined in |
+| --- | --- | --- | --- | --- |
+| Radio.TransmitClassPosLabel | string | Class position label for the currently transmitting car, formatted as `P{pos} {class}` when available (empty when no transmitter or identity missing). | Per tick. | `LalaLaunch.cs` transmit caching + `AttachCore`【F:LalaLaunch.cs†L3551-L3557】【F:LalaLaunch.cs†L6612-L6756】 |
+
 **CarSA style helper exports (30 total)**
 - `Car.Ahead01.StatusBgHex`, `Car.Ahead01.BorderMode`, `Car.Ahead01.BorderHex`
 - `Car.Ahead02.StatusBgHex`, `Car.Ahead02.BorderMode`, `Car.Ahead02.BorderHex`
