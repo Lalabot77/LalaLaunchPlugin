@@ -54,6 +54,10 @@ namespace LaunchPlugin
         public string BorderHex { get; set; } = "#A9A9A9";
         public int SessionFlagsRaw { get; set; } = -1;
         public int TrackSurfaceMaterialRaw { get; set; } = -1;
+        public bool IsTalking { get; private set; }
+        public int TalkRadioIdx { get; private set; } = -1;
+        public int TalkFrequencyIdx { get; private set; } = -1;
+        public string TalkFrequencyName { get; private set; } = string.Empty;
         public int PositionInClass { get; set; }
         public string ClassName { get; set; } = string.Empty;
         public string ClassColorHex { get; set; } = string.Empty;
@@ -135,6 +139,14 @@ namespace LaunchPlugin
         private bool _styleLastIsValid;
         private int _styleLastCarIdx;
 
+        public void SetTransmitState(bool isTalking, int radioIdx, int frequencyIdx, string frequencyName)
+        {
+            IsTalking = isTalking;
+            TalkRadioIdx = radioIdx;
+            TalkFrequencyIdx = frequencyIdx;
+            TalkFrequencyName = frequencyName ?? string.Empty;
+        }
+
         public bool StyleInputsChanged(int statusE, string classColorHex, int positionInClass, string playerClassColorHex, int carIdx, bool isValid)
         {
             classColorHex = classColorHex ?? string.Empty;
@@ -181,6 +193,10 @@ namespace LaunchPlugin
             BorderHex = "#A9A9A9";
             SessionFlagsRaw = -1;
             TrackSurfaceMaterialRaw = -1;
+            IsTalking = false;
+            TalkRadioIdx = -1;
+            TalkFrequencyIdx = -1;
+            TalkFrequencyName = string.Empty;
             PositionInClass = 0;
             ClassName = string.Empty;
             ClassColorHex = string.Empty;

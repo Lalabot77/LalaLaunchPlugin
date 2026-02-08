@@ -2876,6 +2876,16 @@ namespace LaunchPlugin
         private PitEngine _pit;
         private OpponentsEngine _opponentsEngine;
         private CarSAEngine _carSaEngine;
+        private readonly RadioFrequencyNameCache _radioFrequencyNameCache = new RadioFrequencyNameCache();
+        private int _lastTransmitCarIdx = -1;
+        private int _lastTransmitRadioIdx = -1;
+        private int _lastTransmitFrequencyIdx = -1;
+        private string _lastTransmitFrequencyName = string.Empty;
+        private int _lastTransmitTalkingSlotKey = -1;
+        private string _radioTransmitClassPosLabel = string.Empty;
+        private int _lastTransmitClassPosCarIdx = -1;
+        private int _lastTransmitClassPosition = 0;
+        private string _lastTransmitClassShort = string.Empty;
         private StringBuilder _carSaDebugExportBuffer;
         private string _carSaDebugExportPath;
         private string _carSaDebugExportToken;
@@ -2895,6 +2905,7 @@ namespace LaunchPlugin
         private const int CarSaDebugCadenceTick = 0;
         private const int CarSaDebugCadenceMiniSector = 1;
         private const int CarSaDebugCadenceEventOnly = 2;
+        private const int TransmitSlotKeyBehindOffset = 100;
         private int _carSaDebugCheckpointIndexNow = -1;
         private int _carSaDebugCheckpointIndexCrossed = -1;
         private int _carSaDebugMiniSectorTickId = 0;
@@ -3564,6 +3575,7 @@ namespace LaunchPlugin
             AttachCore("PitExit.Behind.ClassColor", () => _opponentsEngine?.Outputs.PitExit.BehindClassColor ?? string.Empty);
             AttachCore("PitExit.Behind.GapSec", () => _opponentsEngine?.Outputs.PitExit.BehindGapSec ?? 0.0);
 
+            AttachCore("Radio.TransmitClassPosLabel", () => _radioTransmitClassPosLabel ?? string.Empty);
             AttachCore("Car.Valid", () => _carSaEngine?.Outputs.Valid ?? false);
             AttachCore("Car.Source", () => _carSaEngine?.Outputs.Source ?? string.Empty);
             AttachCore("Car.SlotsAhead", () => _carSaEngine?.Outputs.SlotsAhead ?? 0);
@@ -3600,6 +3612,10 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.IsOnTrack", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsOnTrack ?? false);
                 AttachCore($"Car.Ahead{label}.IsOnPitRoad", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsOnPitRoad ?? false);
                 AttachCore($"Car.Ahead{label}.IsValid", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsValid ?? false);
+                AttachCore($"Car.Ahead{label}.IsTalking", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsTalking ?? false);
+                AttachCore($"Car.Ahead{label}.TalkRadioIdx", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TalkRadioIdx ?? -1);
+                AttachCore($"Car.Ahead{label}.TalkFrequencyIdx", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TalkFrequencyIdx ?? -1);
+                AttachCore($"Car.Ahead{label}.TalkFrequencyName", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TalkFrequencyName ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.LapDelta", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapDelta ?? 0);
                 AttachCore($"Car.Ahead{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapTrackSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.Gap.RelativeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].GapRelativeSec ?? double.NaN);
@@ -3653,6 +3669,10 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.IsOnTrack", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsOnTrack ?? false);
                 AttachCore($"Car.Behind{label}.IsOnPitRoad", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsOnPitRoad ?? false);
                 AttachCore($"Car.Behind{label}.IsValid", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsValid ?? false);
+                AttachCore($"Car.Behind{label}.IsTalking", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsTalking ?? false);
+                AttachCore($"Car.Behind{label}.TalkRadioIdx", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TalkRadioIdx ?? -1);
+                AttachCore($"Car.Behind{label}.TalkFrequencyIdx", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TalkFrequencyIdx ?? -1);
+                AttachCore($"Car.Behind{label}.TalkFrequencyName", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TalkFrequencyName ?? string.Empty);
                 AttachCore($"Car.Behind{label}.LapDelta", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapDelta ?? 0);
                 AttachCore($"Car.Behind{label}.Gap.TrackSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapTrackSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.Gap.RelativeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].GapRelativeSec ?? double.NaN);
@@ -4459,6 +4479,8 @@ namespace LaunchPlugin
                 _pit?.ResetPitPhaseState();
                 _opponentsEngine?.Reset();
                 _carSaEngine?.Reset();
+                _radioFrequencyNameCache.Reset();
+                ResetTransmitState();
                 ResetCarSaIdentityState();
                 ResetCarSaDebugExportState();
                 ResetOffTrackDebugExportState();
@@ -4675,6 +4697,7 @@ namespace LaunchPlugin
             if (_carSaEngine != null)
             {
                 UpdateCarSaTelemetryCaches(pluginManager);
+                UpdateCarSaTransmitState(pluginManager, _carSaEngine.Outputs);
                 bool carSaDebugExportEnabled = debugMaster && Settings?.EnableCarSADebugExport == true;
                 if (carSaDebugExportEnabled)
                 {
@@ -6622,6 +6645,257 @@ namespace LaunchPlugin
             _ = slot;
             // TODO: Wire teammate detection when shared teammate list settings are available.
             return false;
+        }
+
+        private void UpdateCarSaTransmitState(PluginManager pluginManager, CarSAOutputs outputs)
+        {
+            if (outputs == null)
+            {
+                return;
+            }
+
+            int transmitCarIdx = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.RadioTransmitCarIdx", -1);
+            int transmitRadioIdx = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.RadioTransmitRadioIdx", -1);
+            int transmitFrequencyIdx = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.RadioTransmitFrequencyIdx", -1);
+
+            if (transmitCarIdx < 0)
+            {
+                if (_lastTransmitCarIdx < 0)
+                {
+                    return;
+                }
+
+                ClearAllTransmitSlots(outputs);
+                ResetTransmitState();
+                return;
+            }
+
+            if (_carIdxToClassShortName.Count == 0)
+            {
+                RefreshClassMetadata(pluginManager);
+            }
+
+            UpdateTransmitClassPosLabel(transmitCarIdx);
+
+            bool changed = transmitCarIdx != _lastTransmitCarIdx
+                || transmitRadioIdx != _lastTransmitRadioIdx
+                || transmitFrequencyIdx != _lastTransmitFrequencyIdx;
+
+            if (!changed && TryGetSlotByKey(outputs, _lastTransmitTalkingSlotKey, out var cachedSlot))
+            {
+                if (cachedSlot.IsValid && cachedSlot.CarIdx == transmitCarIdx)
+                {
+                    cachedSlot.SetTransmitState(true, transmitRadioIdx, transmitFrequencyIdx, _lastTransmitFrequencyName);
+                    return;
+                }
+            }
+
+            if (changed)
+            {
+                object radioInfo = null;
+                try
+                {
+                    radioInfo = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.RadioInfo");
+                }
+                catch
+                {
+                    radioInfo = null;
+                }
+
+                _radioFrequencyNameCache.EnsureBuilt(_currentSessionToken, radioInfo);
+                if (!_radioFrequencyNameCache.TryGetName(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName))
+                {
+                    _lastTransmitFrequencyName = string.Empty;
+                }
+            }
+
+            if (changed)
+            {
+                ClearAllTransmitSlots(outputs);
+            }
+            else if (_lastTransmitTalkingSlotKey >= 0)
+            {
+                ClearTransmitSlot(outputs, _lastTransmitTalkingSlotKey);
+            }
+
+            if (TryFindTransmitSlot(outputs, transmitCarIdx, out var slot, out var slotKey))
+            {
+                slot.SetTransmitState(true, transmitRadioIdx, transmitFrequencyIdx, _lastTransmitFrequencyName);
+                _lastTransmitTalkingSlotKey = slotKey;
+            }
+            else
+            {
+                _lastTransmitTalkingSlotKey = -1;
+            }
+
+            _lastTransmitCarIdx = transmitCarIdx;
+            _lastTransmitRadioIdx = transmitRadioIdx;
+            _lastTransmitFrequencyIdx = transmitFrequencyIdx;
+        }
+
+        private void ResetTransmitState()
+        {
+            _lastTransmitCarIdx = -1;
+            _lastTransmitRadioIdx = -1;
+            _lastTransmitFrequencyIdx = -1;
+            _lastTransmitFrequencyName = string.Empty;
+            _lastTransmitTalkingSlotKey = -1;
+            _radioTransmitClassPosLabel = string.Empty;
+            _lastTransmitClassPosCarIdx = -1;
+            _lastTransmitClassPosition = 0;
+            _lastTransmitClassShort = string.Empty;
+        }
+
+        private void ClearAllTransmitSlots(CarSAOutputs outputs)
+        {
+            if (outputs?.AheadSlots != null)
+            {
+                for (int i = 0; i < outputs.AheadSlots.Length; i++)
+                {
+                    outputs.AheadSlots[i]?.SetTransmitState(false, -1, -1, string.Empty);
+                }
+            }
+
+            if (outputs?.BehindSlots != null)
+            {
+                for (int i = 0; i < outputs.BehindSlots.Length; i++)
+                {
+                    outputs.BehindSlots[i]?.SetTransmitState(false, -1, -1, string.Empty);
+                }
+            }
+        }
+
+        private void ClearTransmitSlot(CarSAOutputs outputs, int slotKey)
+        {
+            if (!TryGetSlotByKey(outputs, slotKey, out var slot))
+            {
+                return;
+            }
+
+            slot.SetTransmitState(false, -1, -1, string.Empty);
+        }
+
+        private bool TryGetSlotByKey(CarSAOutputs outputs, int slotKey, out CarSASlot slot)
+        {
+            slot = null;
+            if (outputs == null || slotKey < 0)
+            {
+                return false;
+            }
+
+            if (slotKey >= TransmitSlotKeyBehindOffset)
+            {
+                int index = slotKey - TransmitSlotKeyBehindOffset;
+                if (outputs.BehindSlots != null && index >= 0 && index < outputs.BehindSlots.Length)
+                {
+                    slot = outputs.BehindSlots[index];
+                }
+            }
+            else
+            {
+                int index = slotKey;
+                if (outputs.AheadSlots != null && index >= 0 && index < outputs.AheadSlots.Length)
+                {
+                    slot = outputs.AheadSlots[index];
+                }
+            }
+
+            return slot != null;
+        }
+
+        private bool TryFindTransmitSlot(CarSAOutputs outputs, int transmitCarIdx, out CarSASlot slot, out int slotKey)
+        {
+            slot = null;
+            slotKey = -1;
+            if (outputs == null || transmitCarIdx < 0)
+            {
+                return false;
+            }
+
+            if (outputs.AheadSlots != null)
+            {
+                for (int i = 0; i < outputs.AheadSlots.Length; i++)
+                {
+                    var candidate = outputs.AheadSlots[i];
+                    if (candidate != null && candidate.IsValid && candidate.CarIdx == transmitCarIdx)
+                    {
+                        slot = candidate;
+                        slotKey = i;
+                        return true;
+                    }
+                }
+            }
+
+            if (outputs.BehindSlots != null)
+            {
+                for (int i = 0; i < outputs.BehindSlots.Length; i++)
+                {
+                    var candidate = outputs.BehindSlots[i];
+                    if (candidate != null && candidate.IsValid && candidate.CarIdx == transmitCarIdx)
+                    {
+                        slot = candidate;
+                        slotKey = TransmitSlotKeyBehindOffset + i;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private void UpdateTransmitClassPosLabel(int transmitCarIdx)
+        {
+            if (transmitCarIdx < 0)
+            {
+                _radioTransmitClassPosLabel = string.Empty;
+                _lastTransmitClassPosCarIdx = -1;
+                _lastTransmitClassPosition = 0;
+                _lastTransmitClassShort = string.Empty;
+                return;
+            }
+
+            int positionInClass = 0;
+            string classShort = string.Empty;
+            TryGetCarIdxIdentity(transmitCarIdx, out positionInClass, out classShort);
+
+            bool changed = transmitCarIdx != _lastTransmitClassPosCarIdx
+                || positionInClass != _lastTransmitClassPosition
+                || !string.Equals(classShort ?? string.Empty, _lastTransmitClassShort ?? string.Empty, StringComparison.Ordinal);
+
+            if (!changed)
+            {
+                return;
+            }
+
+            _lastTransmitClassPosCarIdx = transmitCarIdx;
+            _lastTransmitClassPosition = positionInClass;
+            _lastTransmitClassShort = classShort ?? string.Empty;
+
+            if (positionInClass > 0)
+            {
+                _radioTransmitClassPosLabel = !string.IsNullOrWhiteSpace(classShort)
+                    ? $"P{positionInClass} {classShort}"
+                    : $"P{positionInClass}";
+            }
+            else
+            {
+                _radioTransmitClassPosLabel = string.Empty;
+            }
+        }
+
+        private bool TryGetCarIdxIdentity(int carIdx, out int positionInClass, out string classShort)
+        {
+            positionInClass = 0;
+            classShort = string.Empty;
+
+            if (carIdx < 0 || carIdx >= _carSaClassPositionByIdx.Length)
+            {
+                return false;
+            }
+
+            positionInClass = _carSaClassPositionByIdx[carIdx];
+            classShort = GetCachedClassShortName(carIdx) ?? string.Empty;
+            return positionInClass > 0 || !string.IsNullOrWhiteSpace(classShort);
         }
 
         private void UpdateCarSaSlotTelemetry(PluginManager pluginManager, CarSASlot[] slots, float[] carIdxLapDistPct, double sessionTimeSec)
