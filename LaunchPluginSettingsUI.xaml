@@ -100,20 +100,6 @@
                 </StackPanel>
             </styles:SHSection>
 
-            <styles:SHSection Title="DEBUG" ShowSeparator="True">
-                <StackPanel>
-                    <styles:SHToggleCheckbox Content="OffTrack Debug CSV" Margin="0,5,0,0"
-                                             IsChecked="{Binding Settings.EnableOffTrackDebugCsv, Mode=TwoWay}"
-                                             ToolTip="Enable per-tick OffTrack debug CSV logging for the probed car."/>
-                    <StackPanel Orientation="Horizontal" Margin="20,6,0,0">
-                        <TextBlock Text="Probe CarIdx" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                        <TextBox Width="80" Text="{Binding Settings.OffTrackDebugProbeCarIdx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                    </StackPanel>
-                    <TextBlock Margin="20,6,0,0" Foreground="LightGray"
-                               Text="Tip: find your PlayerCarIdx in SimHub property list"/>
-                </StackPanel>
-            </styles:SHSection>
-
         </StackPanel>
     </ScrollViewer>
 </UserControl>
