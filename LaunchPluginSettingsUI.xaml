@@ -115,12 +115,12 @@
                             <DataGridTextColumn Header="NAME"
                                                 Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 Width="*" />
-                            <DataGridCheckBoxColumn Header="TEAMMATE"
-                                                    Binding="{Binding IsTeammate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    Width="110" />
                             <DataGridTextColumn Header="UserId"
                                                 Binding="{Binding UserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 Width="120" />
+                            <DataGridCheckBoxColumn Header="TEAMMATE"
+                                                    Binding="{Binding IsTeammate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="110" />
                             <DataGridTemplateColumn Header="" Width="Auto">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>

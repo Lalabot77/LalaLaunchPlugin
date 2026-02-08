@@ -10323,20 +10323,6 @@ namespace LaunchPlugin
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        [JsonProperty("Label")]
-        private string LegacyLabel
-        {
-            set
-            {
-                if (!string.IsNullOrWhiteSpace(_name) && !string.Equals(_name, "Friend", StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                Name = value;
-            }
-        }
-
         public string Name
         {
             get => _name;
@@ -10358,12 +10344,13 @@ namespace LaunchPlugin
             get => _userId;
             set
             {
-                if (value == _userId)
+                int normalized = value < 0 ? 0 : value;
+                if (normalized == _userId)
                 {
                     return;
                 }
 
-                _userId = value;
+                _userId = normalized;
                 OnPropertyChanged();
             }
         }
