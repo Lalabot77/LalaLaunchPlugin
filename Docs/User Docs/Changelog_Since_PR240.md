@@ -14,3 +14,8 @@
 - **CarSA StatusE redesign**: penalty vs off-track labels, pit-area classification, class-rank-aware Faster/Slower class tagging, and lapping text output.
 - **CarSA debug export improvements**: aligned CSV columns with cross-check gaps, StatusE reason fields, and class-rank metadata for multi-class auditing.
 - **CarSA GateGap v2**: mini-sector gate timing feeds a filtered, direction-safe `Gap.RelativeSec` with predictive correction and sticky publish hold, improving relative proximity during S/F wraps.
+- **CarSA GateGap v2 fixes**: direction mapping, lapped-car normalization, and track-gap mismatch fallbacks reduce wraps and stale-gap artifacts.
+- **Precision gaps + slot info banners**: new `Car.Ahead01P/Behind01P` precision gaps plus rotating slot info/visibility outputs (last-lap delta, delta-best, laps-since-pit) for compact traffic widgets.
+- **CarSA lap-time determinism**: standardized lap-time selection and gap track robustness to keep `Gap.TrackSec`/relative gaps stable across updates.
+- **Debug controls refresh**: two-level debug gating and debug UI moved to the Dashes tab to avoid accidental overhead during normal use.
+- **Off-track debug CSV**: optional `OffTrackDebug_*.csv` export with probe CarIdx telemetry, latch state, and incident deltas to audit compromised laps.

@@ -2,16 +2,16 @@
 
 # Code Snapshot
 
-- Source commit/PR: 3b98c50 (current HEAD; PR347 CarSA GateGap v2 relative-gap model)
-- Generated date: 2026-02-06 (updated)
+- Source commit/PR: 9d77f4a (current HEAD; PR361 CarSA GateGap v2 stability fixes + precision gap outputs)
+- Generated date: 2026-02-10 (updated)
 - Regeneration: manual snapshot; no regen pipeline defined
 - Branch: work
 
 If this conflicts with Project_Index.md or contract docs, treat this as stale.
 
 ## Snapshot metadata (legacy)
-- Commit: 3b98c50 (current HEAD)
-- Date: 2026-02-06 (updated)
+- Commit: 9d77f4a (current HEAD)
+- Date: 2026-02-10 (updated)
 
 ## Architectural notes (profiles, storage, fuel persistence)
 - **Standardized JSON storage** now resolves all plugin JSON data into `PluginsData/Common/LalaPlugin/` via `PluginStorage`, with built-in legacy migration helpers. Car profiles, race presets, message definitions, global settings, and track markers all use this storage helper for consistent locations and one-time migrations.【F:PluginStorage.cs†L1-L76】【F:ProfilesManagerViewModel.cs†L545-L936】【F:RacePresetStore.cs†L11-L140】【F:Messaging/MessageDefinitionStore.cs†L10-L120】【F:LalaLaunch.cs†L3469-L3510】
@@ -26,20 +26,22 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - **CarSA SA-Core v2** uses car-centric LapDistPct deltas for distance-based gaps/closing with a 0.5s grace window, car-centric status memory for out-lap/compromised/penalty detection, and replay-safe identity refreshes for slot names/classes.【F:CarSAEngine.cs†L70-L590】【F:LalaLaunch.cs†L5485-L5692】
 - **CarSA StatusE + class rank** now distinguishes penalty vs off-track compromises, uses pit-surface classification, and prefers class-rank (CarClassRelSpeed/CarClassEstLapTime) for Faster/Slower class labels with a safe fallback when rank data is missing.【F:CarSAEngine.cs†L930-L1372】【F:LalaLaunch.cs†L4943-L5039】
 - **CarSA CSV debug export** adds StatusE reason + class-rank metadata and normalizes cross-check gap columns, with alignment fixes to keep headers and rows consistent.【F:LalaLaunch.cs†L4814-L5440】
-- **CarSA GateGap v2** publishes `Gap.RelativeSec` using mini-sector gate timing, predictive filtering, and sticky publish hold to keep relative proximity direction-safe during S/F wraps (falls back to distance-based gap when gate data is missing).【F:CarSAEngine.cs†L823-L1337】
+- **CarSA GateGap v2** now includes lapped-car normalization, direction-safe mapping, slot-rebind guardrails, and track-gap mismatch fallback; `Gap.RelativeSource` tracks the selected source (filtered/truth/track/hold).【F:CarSAEngine.cs†L823-L1435】
+- **CarSA precision gap + info surfaces** add slot-01 precision gaps (`Car.Ahead01P.Gap.Sec`, `Car.Behind01P.Gap.Sec`) and rotating info strings/visibility to support compact traffic banners.【F:CarSAEngine.cs†L1441-L1637】【F:LalaLaunch.cs†L3553-L3650】
+- **CarSA debug exports** now include gap source columns, event-only CSV modes, and a dedicated off-track probe CSV (with probe CarIdx + incident deltas). Debug exports are gated by soft debug toggles to avoid unintentional overhead.【F:LalaLaunch.cs†L5172-L6251】
 
 ## Included .cs Files
 - CarProfiles.cs — last modified 2026-02-08T00:00:00+00:00
-- CarSAEngine.cs — last modified 2026-02-06 (updated)
-- CarSASlot.cs — last modified 2026-02-06 (updated)
+- CarSAEngine.cs — last modified 2026-02-08
+- CarSASlot.cs — last modified 2026-02-08
 - CopyProfileDialog.xaml.cs — last modified 2025-09-14T19:32:49+01:00
-- DashesTabView.xaml.cs — last modified 2025-09-14T19:32:49+01:00
+- DashesTabView.xaml.cs — last modified 2026-01-19
 - EnumEqualsConverter.cs — last modified 2025-11-04T19:13:41-06:00
 - FuelCalcs.cs — last modified 2026-01-13
 - FuelCalculatorView.xaml.cs — last modified 2025-11-27T07:30:04-06:00
 - FuelProjectionMath.cs — last modified 2025-12-27T12:32:10+00:00
 - InvertBooleanConverter.cs — last modified 2025-09-14T19:32:49+01:00
-- LalaLaunch.cs — last modified 2026-02-06
+- LalaLaunch.cs — last modified 2026-02-07
 - LapTimeValidationRule.cs — last modified 2025-09-14T19:32:49+01:00
 - LaunchAnalysisControl.xaml.cs — last modified 2025-11-27T11:49:07-06:00
 - LaunchPluginCombinedSettingsControl.xaml.cs — last modified 2025-11-04T19:13:41-06:00

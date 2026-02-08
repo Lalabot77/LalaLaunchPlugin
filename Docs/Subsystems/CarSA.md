@@ -1,7 +1,7 @@
 # CarSA (Car System) — SA-Core v2
 
 ## Scope
-CarSA provides **session-agnostic**, **class-aware** spatial awareness using iRacing CarIdx telemetry arrays as the source of truth. It publishes the 5 nearest cars ahead and 5 behind on track for Practice, Qualifying, and Race sessions using distance-based gaps derived from car-centric LapDistPct deltas.
+CarSA provides **session-agnostic**, **class-aware** spatial awareness using iRacing CarIdx telemetry arrays as the source of truth. It publishes the 5 nearest cars ahead and 5 behind on track for Practice, Qualifying, and Race sessions using distance-based gaps derived from car-centric LapDistPct deltas, plus gate-gap v2 relative proximity.
 
 CarSA is independent of the race-only Opponents subsystem and does not change Opponents or Rejoin Assist behavior.
 
@@ -10,6 +10,7 @@ CarSA is independent of the race-only Opponents subsystem and does not change Op
 - **Raw flags (optional):** `CarIdxSessionFlags`, `CarIdxPaceFlags`, and `CarIdxTrackSurfaceMaterial` when raw telemetry read mode is enabled (drives compromised evidence and debug exports).
 - **Identity:** Slot Name/CarNumber/ClassColor are pulled from session info (`DriverInfo.DriversXX` preferred, fallback to `DriverInfo.CompetingDrivers`) with retry logic so replays can resolve identities once the session data arrives.
 - **Class rank map:** CarSA builds a per-session class rank map from `CarClassRelSpeed` (preferred) or `CarClassEstLapTime` to label Faster/Slower class statuses.
+- **Strength-of-field:** An iRating SOF average is computed across active CarSA slots for quick session context.
 
 ## Car-centric state cache
 CarSA keeps a car-centric shadow state per `CarIdx` that is authoritative for StatusE decisions and gap/closing-rate stability:
@@ -35,7 +36,9 @@ CarSA keeps a car-centric shadow state per `CarIdx` that is authoritative for St
 
 ## Gap & closing semantics
 - **Gap.TrackSec:** `distPct * lapTimeEstimateSec` (distance-based proximity gap).
-- **Gap.RelativeSec (GateGap v2):** mini-sector gate timing produces a gate truth gap that is filtered forward in time with a rate EMA, corrected toward fresh truth, and held briefly (sticky publish) if inputs drop; values are mapped to ahead/behind sign so wraps stay direction-safe. Falls back to `Gap.TrackSec` when no gate data exists.
+- **Gap.RelativeSec (GateGap v2):** mini-sector gate timing produces a gate truth gap that is filtered forward in time with a rate EMA, corrected toward fresh truth, and held briefly (sticky publish) if inputs drop; values are mapped to ahead/behind sign so wraps stay direction-safe. Falls back to `Gap.TrackSec` when no gate data exists. Normalization guards handle lapped cars and mismatch fallbacks when gate gaps diverge from track gaps.
+- **Gap.RelativeSource:** tracks which input fed the relative gap (filtered, truth, track fallback, sticky hold, invalid).
+- **Slot 01 precision gaps:** `Car.Ahead01P.Gap.Sec` / `Car.Behind01P.Gap.Sec` surface the best available gate-gap truth/filtered proximity (falling back to track gaps) for the closest ahead/behind slot.
 - **ClosingRateSecPerSec:** derived from change in absolute delta pct over time; **positive values mean closing**; clamped to ±5 s/s.
 - **Lap time estimate:** player average pace, else last lap, else 120 s fallback.
 - **LapDelta:** computed from CarIdx lap counters with S/F straddle guards to avoid one-tick spikes when cars are physically close around the line.
@@ -58,8 +61,10 @@ CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. 
 | MID | 110 | InPits | PIT | In pits |
 | MID | 121 | CompromisedOffTrack | OFF | Lap Invalid |
 | MID | 122 | CompromisedPenalty | PEN | Penalty |
-| MID | 130 | HotLap | HOT | Hot lap |
-| MID | 140 | CoolLap | COL | Cool lap |
+| MID | 130 | HotlapWarning | HOT | Hot lap (warning) |
+| MID | 131 | HotlapCaution | HOT! | Hot lap (caution) |
+| MID | 140 | CoolLapWarning | COL | Cool lap (warning) |
+| MID | 141 | CoolLapCaution | COL! | Cool lap (caution) |
 | HIGH | 200 | FasterClass | FCL | Faster class |
 | HIGH | 210 | SlowerClass | SCL | Slower class |
 | HIGH | 220 | Racing | RCE | Racing |
@@ -86,8 +91,8 @@ Gap-based relevance gating is disabled in SA-Core v2.
 - **Lone Qualify + Offline Testing:** StatusE is forced to `Unknown` for all slots.
 
 ## Raw telemetry flags
-- Player-level raw flags are published as `Car.Player.PaceFlagsRaw`, `Car.Player.SessionFlagsRaw`, `Car.Player.TrackSurfaceMaterialRaw`.
-- Slot-level raw flags (`SessionFlagsRaw`, `TrackSurfaceMaterialRaw`) are populated when raw telemetry mode includes slots.
+- Player-level raw flags are published as `Car.Player.PaceFlagsRaw`, `Car.Player.SessionFlagsRaw`, `Car.Player.TrackSurfaceMaterialRaw` when soft debug + raw telemetry mode are enabled.
+- Slot-level raw flags (`SessionFlagsRaw`, `TrackSurfaceMaterialRaw`) are populated when raw telemetry mode includes slots (and soft debug is on).
 - Debug outputs report whether each raw array was readable and the read mode/failure reason.
 
 ## Exports (SA-Core v2)
@@ -98,6 +103,9 @@ System:
 - `Car.Source` (`CarIdxTruth`)
 - `Car.SlotsAhead` (5)
 - `Car.SlotsBehind` (5)
+- `Car.iRatingSOF`
+- `Car.Ahead01P.Gap.Sec`
+- `Car.Behind01P.Gap.Sec`
 - `Car.Player.PaceFlagsRaw`
 - `Car.Player.SessionFlagsRaw`
 - `Car.Player.TrackSurfaceMaterialRaw`
@@ -105,8 +113,9 @@ System:
 Slots (Ahead01..Ahead05, Behind01..Behind05):
 - Identity: `CarIdx`, `Name`, `CarNumber`, `ClassColor`, `ClassColorHex`, `ClassName`, `PositionInClass`, `IRating`, `Licence`, `SafetyRating`
 - State: `IsOnTrack`, `IsOnPitRoad`, `IsValid`
-- Spatial: `LapDelta`, `Gap.TrackSec`, `Gap.RelativeSec`, `LapsSincePit`, `BestLapTimeSec`, `LastLapTimeSec`, `BestLap`, `LastLap`, `DeltaBestSec`, `DeltaBest`
+- Spatial: `LapDelta`, `Gap.TrackSec`, `Gap.RelativeSec`, `Gap.RelativeSource`, `LapsSincePit`, `BestLapTimeSec`, `LastLapTimeSec`, `BestLap`, `BestLapIsEstimated`, `LastLap`, `DeltaBestSec`, `DeltaBest`, `EstLapTimeSec`, `EstLapTime`
 - Derived: `ClosingRateSecPerSec`, `Status`, `StatusE`, `StatusShort`, `StatusLong`, `StatusEReason`, `HotScore`, `HotVia`
+- Info banners: `InfoVisibility`, `Info` (rotating last-lap delta / delta-best / laps-since-pit)
 - Raw telemetry (mode permitting): `SessionFlagsRaw`, `TrackSurfaceMaterialRaw`
 
 Debug (`Car.Debug.*`):
@@ -115,14 +124,21 @@ Debug (`Car.Debug.*`):
 - Slot debug: `Ahead01.CarIdx`, `Ahead01.ForwardDistPct`, `Behind01.CarIdx`, `Behind01.BackwardDistPct`
 - Sanity/counters: `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`, `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`
 - Optional (debug-gated): `LapTimeEstimateSec`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`
+- Optional (debug-gated): `LapTimeUsedSec`
 
 ## Debug export (optional)
-When `EnableCarSADebugExport` is enabled, CarSA writes a lightweight CSV snapshot on **every DataUpdate tick** (buffered, flushed every 20 lines or 4 KB):
+When `EnableCarSADebugExport` is enabled (and soft debug is on), CarSA writes a lightweight CSV snapshot on **every DataUpdate tick** (buffered, flushed every 20 lines or 4 KB):
 - Path: `SimHub/Logs/LalapluginData/CarSA_Debug_YYYY-MM-DD_HH-mm-ss_<TrackName>.csv` (UTC timestamp, sanitized track name; repeated `_` collapsed, trimmed, clamped to 60 chars)
 - Columns (grouped, validation export; expect HotLap/CoolLap extensions later):
   - **Top-level context:** `SessionTimeSec`, `SessionState`, `SessionTypeName`, `PlayerCarIdx`, `PlayerLap`, `PlayerLapPct`, `PlayerCheckpointIndexNow`, `PlayerCheckpointIndexCrossed`, `NotRelevantGapSec`.
-  - **Per-slot (Ahead01..Ahead05, Behind01..Behind05):** `CarIdx`, `CarNumber`, `Name`, `ClassColor`, `DistPct`, `GapTrackSec`, `ClosingRateSecPerSec`, `LapDelta`, `IsOnPitRoad`, `StatusE`, `StatusEReason`, `TrackSurfaceRaw`, `SessionFlagsRaw`.
+- **Per-slot (Ahead01..Ahead05, Behind01..Behind05):** `CarIdx`, `CarNumber`, `Name`, `ClassColor`, `DistPct`, `GapTrackSec`, `GapRelativeSec`, `GapRelativeSource`, `ClosingRateSecPerSec`, `LapDelta`, `IsOnPitRoad`, `StatusE`, `StatusEReason`, `TrackSurfaceRaw`, `SessionFlagsRaw`.
   - **Player tail:** `PlayerTrackSurfaceRaw`, `PlayerSessionFlagsRaw`.
+
+## Off-track probe export (optional)
+When `EnableOffTrackDebugCsv` is enabled (and a probe `OffTrackDebugProbeCarIdx` is configured), the plugin writes `OffTrackDebug_<Track>_<Timestamp>.csv` under `SimHub/Logs/LalapluginData/` with raw telemetry and latch state for the probe car:
+- **Context:** session time/state, session flags (hex + dec), probe CarIdx, and per-car telemetry (`CarIdxTrackSurface`, `CarIdxTrackSurfaceMaterial`, `CarIdxSessionFlags`, `CarIdxOnPitRoad`, `CarIdxLap`, `CarIdxLapDistPct`).
+- **Latch state:** off-track now, off-track streak, first-seen time, compromised-until lap, compromised-off-track/penalty active flags, and latch enable.
+- **Player incidents:** player CarIdx, incident count, and incident delta for the tick.
 
 ## Performance notes
 - Single-pass candidate selection with fixed arrays (no per-tick allocations).
