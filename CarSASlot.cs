@@ -131,6 +131,10 @@ namespace LaunchPlugin
         internal int InfoGateState { get; set; } = 0;
         internal int InfoPendingGateState { get; set; } = 0;
         internal double InfoPendingSinceSec { get; set; } = double.NaN;
+        internal int LastSFBurstLap { get; set; } = int.MinValue;
+        internal int LastHalfBurstLap { get; set; } = int.MinValue;
+        internal double SFBurstStartSec { get; set; } = -1.0;
+        internal double HalfBurstStartSec { get; set; } = -1.0;
 
         private bool _styleCacheInitialized;
         private int _styleLastStatusE;
@@ -268,6 +272,10 @@ namespace LaunchPlugin
             InfoGateState = 0;
             InfoPendingGateState = 0;
             InfoPendingSinceSec = double.NaN;
+            LastSFBurstLap = int.MinValue;
+            LastHalfBurstLap = int.MinValue;
+            SFBurstStartSec = -1.0;
+            HalfBurstStartSec = -1.0;
 
             _styleCacheInitialized = false;
             _styleLastStatusE = (int)CarSAStatusE.Unknown;

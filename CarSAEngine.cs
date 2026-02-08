@@ -1492,13 +1492,13 @@ namespace LaunchPlugin
 
         private void UpdateInfoForSlots(CarSASlot[] slots, bool isAhead, double nowSec)
         {
-            _ = isAhead;
             if (slots == null)
             {
                 return;
             }
 
             double playerLastLap = _outputs.PlayerSlot != null ? _outputs.PlayerSlot.LastLapTimeSec : double.NaN;
+            double playerLapPct = _outputs.Debug != null ? _outputs.Debug.PlayerLapPct : double.NaN;
             for (int i = 0; i < slots.Length; i++)
             {
                 var slot = slots[i];
@@ -1551,98 +1551,177 @@ namespace LaunchPlugin
                 {
                     slot.InfoVisibility = 0;
                     slot.Info = string.Empty;
+                    slot.SFBurstStartSec = -1.0;
+                    slot.HalfBurstStartSec = -1.0;
                     continue;
                 }
 
-                int slotNumber = i + 1;
-                double offsetSec = slotNumber;
-                long window = (long)Math.Floor((nowSec + offsetSec) / 5.0);
-                int msgIndex = (int)(window % 3);
-                bool fightOn = (window % 2) == 0;
+                double oppLapPct = double.NaN;
+                if (!double.IsNaN(playerLapPct) && !double.IsInfinity(playerLapPct))
+                {
+                    if (isAhead && !double.IsNaN(slot.ForwardDistPct) && !double.IsInfinity(slot.ForwardDistPct))
+                    {
+                        oppLapPct = playerLapPct + slot.ForwardDistPct;
+                    }
+                    else if (!isAhead && !double.IsNaN(slot.BackwardDistPct) && !double.IsInfinity(slot.BackwardDistPct))
+                    {
+                        oppLapPct = playerLapPct - slot.BackwardDistPct;
+                    }
+                }
+
+                if (!double.IsNaN(oppLapPct))
+                {
+                    if (oppLapPct >= 1.0)
+                    {
+                        oppLapPct -= 1.0;
+                    }
+                    else if (oppLapPct < 0.0)
+                    {
+                        oppLapPct += 1.0;
+                    }
+                }
+
+                bool sfActive = slot.SFBurstStartSec >= 0.0 && (nowSec - slot.SFBurstStartSec) < 9.0;
+                bool halfActive = slot.HalfBurstStartSec >= 0.0 && (nowSec - slot.HalfBurstStartSec) < 9.0;
+                if (!sfActive)
+                {
+                    slot.SFBurstStartSec = -1.0;
+                }
+                if (!halfActive)
+                {
+                    slot.HalfBurstStartSec = -1.0;
+                }
+
+                if (!sfActive && !halfActive && !double.IsNaN(oppLapPct))
+                {
+                    if (oppLapPct >= 0.0 && oppLapPct <= 0.05 && slot.CurrentLap != slot.LastSFBurstLap)
+                    {
+                        slot.LastSFBurstLap = slot.CurrentLap;
+                        slot.SFBurstStartSec = nowSec;
+                        sfActive = true;
+                    }
+                    else if (oppLapPct >= 0.55 && oppLapPct <= 1.0 && slot.CurrentLap != slot.LastHalfBurstLap)
+                    {
+                        slot.LastHalfBurstLap = slot.CurrentLap;
+                        slot.HalfBurstStartSec = nowSec;
+                        halfActive = true;
+                    }
+                }
+
+                string message = string.Empty;
+                if (sfActive)
+                {
+                    int phase = (int)((nowSec - slot.SFBurstStartSec) / 3.0);
+                    if (phase <= 0)
+                    {
+                        message = BuildLapsSincePitMessage(slot);
+                    }
+                    else if (phase == 1)
+                    {
+                        message = BuildLastLapVsBestMessage(slot);
+                    }
+                    else
+                    {
+                        message = BuildLastLapVsMeMessage(slot, playerLastLap);
+                    }
+                    slot.InfoVisibility = 1;
+                    slot.Info = message ?? string.Empty;
+                    continue;
+                }
+
+                if (halfActive)
+                {
+                    int phase = (int)((nowSec - slot.HalfBurstStartSec) / 3.0);
+                    if (phase <= 0 || phase >= 2)
+                    {
+                        message = BuildLiveDeltaMessage(slot);
+                    }
+                    else
+                    {
+                        message = BuildLapsSincePitMessage(slot);
+                    }
+                    slot.InfoVisibility = 1;
+                    slot.Info = message ?? string.Empty;
+                    continue;
+                }
 
                 if (slot.InfoGateState == 1)
                 {
                     slot.InfoVisibility = 1;
-                }
-                else if (slot.InfoGateState == 2)
-                {
-                    slot.InfoVisibility = fightOn ? 1 : 0;
+                    slot.Info = BuildLiveDeltaMessage(slot);
                 }
                 else
                 {
                     slot.InfoVisibility = 0;
                     slot.Info = string.Empty;
-                    continue;
-                }
-
-                if (slot.InfoVisibility == 0)
-                {
-                    slot.Info = string.Empty;
-                    continue;
-                }
-
-                string message;
-                if (TryBuildInfoMessage(msgIndex, slot, playerLastLap, out message)
-                    || TryBuildInfoMessage((msgIndex + 1) % 3, slot, playerLastLap, out message)
-                    || TryBuildInfoMessage((msgIndex + 2) % 3, slot, playerLastLap, out message))
-                {
-                    slot.Info = message;
-                }
-                else
-                {
-                    slot.Info = string.Empty;
                 }
             }
         }
 
-        private static bool TryBuildInfoMessage(int msgIndex, CarSASlot slot, double playerLastLap, out string message)
+        private static string BuildLapsSincePitMessage(CarSASlot slot)
         {
-            message = string.Empty;
-            if (slot == null)
+            if (slot == null || slot.LapsSincePit < 0)
             {
-                return false;
+                return string.Empty;
             }
 
-            switch (msgIndex)
+            return $"{slot.LapsSincePit} Laps Since Pit";
+        }
+
+        private static string BuildLiveDeltaMessage(CarSASlot slot)
+        {
+            if (slot == null || string.IsNullOrWhiteSpace(slot.DeltaBest))
             {
-                case 0:
-                    if (!double.IsNaN(slot.LastLapTimeSec) && !double.IsInfinity(slot.LastLapTimeSec)
-                        && !double.IsNaN(playerLastLap) && !double.IsInfinity(playerLastLap))
-                    {
-                        double delta = slot.LastLapTimeSec - playerLastLap;
-                        if (Math.Abs(delta) <= 0.10)
-                        {
-                            message = "LLΔme OK";
-                        }
-                        else
-                        {
-                            string sign = delta >= 0.0 ? "+" : "-";
-                            message = $"LLΔme {sign}{Math.Abs(delta):0.1}";
-                        }
-                        return true;
-                    }
-                    return false;
-                case 1:
-                    if (!string.IsNullOrWhiteSpace(slot.DeltaBest))
-                    {
-                        message = $"ΔBL {slot.DeltaBest}";
-                        return true;
-                    }
-                    return false;
-                case 2:
-                    if (slot.LapsSincePit >= 0
-                        && !double.IsNaN(slot.ForwardDistPct)
-                        && !double.IsInfinity(slot.ForwardDistPct)
-                        && slot.ForwardDistPct >= 0.0
-                        && slot.ForwardDistPct <= 0.20)
-                    {
-                        message = $"{slot.LapsSincePit} Laps Since Pit";
-                        return true;
-                    }
-                    return false;
-                default:
-                    return false;
+                return string.Empty;
             }
+
+            return $"Live Δ {slot.DeltaBest}";
+        }
+
+        private static string BuildLastLapVsBestMessage(CarSASlot slot)
+        {
+            if (slot == null)
+            {
+                return string.Empty;
+            }
+
+            double lastLap = slot.LastLapTimeSec;
+            double bestLap = slot.BestLapTimeSec;
+            if (!IsValidLapTimeSec(lastLap) || !IsValidLapTimeSec(bestLap))
+            {
+                return string.Empty;
+            }
+
+            double delta = lastLap - bestLap;
+            return FormatDeltaMessage("LL vs BL", delta);
+        }
+
+        private static string BuildLastLapVsMeMessage(CarSASlot slot, double playerLastLap)
+        {
+            if (slot == null)
+            {
+                return string.Empty;
+            }
+
+            double oppLastLap = slot.LastLapTimeSec;
+            if (!IsValidLapTimeSec(oppLastLap) || !IsValidLapTimeSec(playerLastLap))
+            {
+                return string.Empty;
+            }
+
+            double delta = playerLastLap - oppLastLap;
+            return FormatDeltaMessage("LL vs Me", delta);
+        }
+
+        private static string FormatDeltaMessage(string label, double delta)
+        {
+            if (Math.Abs(delta) <= 0.10)
+            {
+                return $"{label} Even";
+            }
+
+            string sign = delta >= 0.0 ? "+" : "-";
+            return $"{label} {sign}{Math.Abs(delta):0.1}";
         }
 
         private static double NormalizeGateGapSec(double rawGapSec, int lapDelta, double lapTimeUsed)
@@ -1981,6 +2060,10 @@ namespace LaunchPlugin
                 slot.InfoGateState = 0;
                 slot.InfoPendingGateState = 0;
                 slot.InfoPendingSinceSec = double.NaN;
+                slot.LastSFBurstLap = int.MinValue;
+                slot.LastHalfBurstLap = int.MinValue;
+                slot.SFBurstStartSec = -1.0;
+                slot.HalfBurstStartSec = -1.0;
 
                 // Phase 2: prevent stale StatusE labels carrying across car rebinds
                 slot.StatusE = (int)CarSAStatusE.Unknown;
