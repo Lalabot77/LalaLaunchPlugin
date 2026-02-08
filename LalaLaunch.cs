@@ -3683,6 +3683,7 @@ namespace LaunchPlugin
             AttachCore("Car.Debug.PlayerLapPct", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerLapPct ?? double.NaN) : double.NaN);
             AttachCore("Car.Debug.PlayerLap", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.PlayerLap ?? 0) : 0);
             AttachCore("Car.Debug.SessionTimeSec", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.SessionTimeSec ?? 0.0) : 0.0);
+            AttachCore("Car.Debug.OffTrack.ProbeCarIdx", () => SoftDebugEnabled ? (Settings?.OffTrackDebugProbeCarIdx ?? -1) : -1);
             AttachCore("Car.Debug.SourceFastPathUsed", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.SourceFastPathUsed ?? false) : false);
             AttachCore("Car.Debug.HasCarIdxPaceFlags", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.HasCarIdxPaceFlags ?? false) : false);
             AttachCore("Car.Debug.HasCarIdxSessionFlags", () => SoftDebugEnabled ? (_carSaEngine?.Outputs.Debug.HasCarIdxSessionFlags ?? false) : false);
