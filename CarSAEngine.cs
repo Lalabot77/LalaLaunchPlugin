@@ -1581,7 +1581,10 @@ namespace LaunchPlugin
                     }
                     return false;
                 case 1:
-                    if (!double.IsNaN(slot.DeltaBestSec) && !double.IsInfinity(slot.DeltaBestSec))
+                    if (!double.IsNaN(slot.DeltaBestSec) && !double.IsInfinity(slot.DeltaBestSec)
+                        && !double.IsNaN(slot.BestLapTimeSec) && !double.IsInfinity(slot.BestLapTimeSec)
+                        && !double.IsNaN(slot.LastLapTimeSec) && !double.IsInfinity(slot.LastLapTimeSec)
+                        && slot.BestLapTimeSec > 0.0 && slot.LastLapTimeSec > 0.0)
                     {
                         string sign = slot.DeltaBestSec >= 0.0 ? "+" : "-";
                         message = $"ΔBL {sign}{Math.Abs(slot.DeltaBestSec):0.1}";
