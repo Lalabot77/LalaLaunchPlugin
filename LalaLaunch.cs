@@ -10328,7 +10328,7 @@ namespace LaunchPlugin
         {
             set
             {
-                if (!string.IsNullOrWhiteSpace(Name) && !string.Equals(Name, "Friend", StringComparison.Ordinal))
+                if (!string.IsNullOrWhiteSpace(_name) && !string.Equals(_name, "Friend", StringComparison.Ordinal))
                 {
                     return;
                 }
@@ -10342,7 +10342,7 @@ namespace LaunchPlugin
             get => _name;
             set
             {
-                var normalized = string.IsNullOrWhiteSpace(value) ? "Friend" : value;
+                var normalized = string.IsNullOrWhiteSpace(value) ? "Friend" : value.Trim();
                 if (normalized == _name)
                 {
                     return;
