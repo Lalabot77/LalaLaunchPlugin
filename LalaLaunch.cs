@@ -2980,6 +2980,7 @@ namespace LaunchPlugin
         private readonly int[] _carSaClassPositionByIdx = new int[CarSAEngine.MaxCars];
         private readonly int[] _carSaIRatingByIdx = new int[CarSAEngine.MaxCars];
         private readonly HashSet<int> _friendUserIds = new HashSet<int>();
+        private readonly HashSet<int> _teammateUserIds = new HashSet<int>();
         private int _friendsCount;
         private readonly HashSet<LaunchPluginFriendEntry> _friendEntrySubscriptions = new HashSet<LaunchPluginFriendEntry>();
         private ObservableCollection<LaunchPluginFriendEntry> _friendsCollection;
@@ -3606,6 +3607,7 @@ namespace LaunchPlugin
             AttachCore("Car.Player.LicLevel", () => _carSaEngine?.Outputs.PlayerSlot.LicLevel ?? 0);
             AttachCore("Car.Player.TeamID", () => _carSaEngine?.Outputs.PlayerSlot.TeamID ?? 0);
             AttachCore("Car.Player.IsFriend", () => _carSaEngine?.Outputs.PlayerSlot.IsFriend ?? false);
+            AttachCore("Car.Player.IsTeammate", () => _carSaEngine?.Outputs.PlayerSlot.IsTeammate ?? false);
             AttachCore("Car.Player.LapsSincePit", () => _carSaEngine?.Outputs.PlayerSlot.LapsSincePit ?? -1);
             AttachCore("Car.Player.Status", () => _carSaEngine?.Outputs.PlayerSlot.Status ?? 0);
             AttachCore("Car.Player.StatusE", () => _carSaEngine?.Outputs.PlayerSlot.StatusE ?? 0);
@@ -3657,6 +3659,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.UserID", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].UserID ?? 0);
                 AttachCore($"Car.Ahead{label}.TeamID", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TeamID ?? 0);
                 AttachCore($"Car.Ahead{label}.IsFriend", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsFriend ?? false);
+                AttachCore($"Car.Ahead{label}.IsTeammate", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsTeammate ?? false);
                 AttachCore($"Car.Ahead{label}.LapsSincePit", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapsSincePit ?? -1);
                 AttachCore($"Car.Ahead{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLapTimeSec ?? double.NaN);
@@ -3715,6 +3718,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.UserID", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].UserID ?? 0);
                 AttachCore($"Car.Behind{label}.TeamID", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TeamID ?? 0);
                 AttachCore($"Car.Behind{label}.IsFriend", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsFriend ?? false);
+                AttachCore($"Car.Behind{label}.IsTeammate", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsTeammate ?? false);
                 AttachCore($"Car.Behind{label}.LapsSincePit", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapsSincePit ?? -1);
                 AttachCore($"Car.Behind{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLapTimeSec ?? double.NaN);
@@ -4089,8 +4093,8 @@ namespace LaunchPlugin
                     continue;
                 }
 
-                string label = entry.Label?.Trim() ?? string.Empty;
-                entry.Label = string.IsNullOrWhiteSpace(label) ? "Friend" : label;
+                string name = entry.Name?.Trim() ?? string.Empty;
+                entry.Name = string.IsNullOrWhiteSpace(name) ? "Friend" : name;
                 if (entry.UserId < 0)
                 {
                     entry.UserId = 0;
@@ -6634,6 +6638,11 @@ namespace LaunchPlugin
             _friendsDirty = true;
         }
 
+        public void NotifyFriendsChanged()
+        {
+            MarkFriendsDirty();
+        }
+
         private void HookFriendSettings(LaunchPluginSettings settings)
         {
             var friends = settings?.Friends;
@@ -6767,8 +6776,9 @@ namespace LaunchPlugin
                 return;
             }
 
-            if (e.PropertyName == nameof(LaunchPluginFriendEntry.Label)
-                || e.PropertyName == nameof(LaunchPluginFriendEntry.UserId))
+            if (e.PropertyName == nameof(LaunchPluginFriendEntry.Name)
+                || e.PropertyName == nameof(LaunchPluginFriendEntry.UserId)
+                || e.PropertyName == nameof(LaunchPluginFriendEntry.IsTeammate))
             {
                 MarkFriendsDirty();
             }
@@ -6777,6 +6787,7 @@ namespace LaunchPlugin
         private void RefreshFriendUserIds()
         {
             _friendUserIds.Clear();
+            _teammateUserIds.Clear();
             _friendsCount = 0;
             var friends = Settings?.Friends;
             if (friends == null)
@@ -6797,6 +6808,10 @@ namespace LaunchPlugin
                 {
                     _friendsCount++;
                     _friendUserIds.Add(userId);
+                    if (entry.IsTeammate)
+                    {
+                        _teammateUserIds.Add(userId);
+                    }
                 }
             }
         }
@@ -6818,6 +6833,7 @@ namespace LaunchPlugin
 
                 int userId = slot.UserID;
                 slot.IsFriend = userId > 0 && _friendUserIds.Contains(userId);
+                slot.IsTeammate = userId > 0 && _teammateUserIds.Contains(userId);
             }
         }
 
@@ -6831,6 +6847,7 @@ namespace LaunchPlugin
 
             int userId = playerSlot.UserID;
             playerSlot.IsFriend = userId > 0 && _friendUserIds.Contains(userId);
+            playerSlot.IsTeammate = userId > 0 && _teammateUserIds.Contains(userId);
         }
 
         private void UpdateCarSaSlotStyles(CarSASlot[] slots, string playerClassColorHex)
@@ -6850,20 +6867,21 @@ namespace LaunchPlugin
                     continue;
                 }
 
-                if (!slot.StyleInputsChanged(slot.StatusE, slot.ClassColorHex, slot.PositionInClass, playerClassColorHex, slot.CarIdx, slot.IsValid, slot.IsFriend))
+                bool isManualTeammate = slot.IsTeammate;
+                bool isTelemetryTeammate = CanMarkTeammate(slot);
+                if (!slot.StyleInputsChanged(slot.StatusE, slot.ClassColorHex, slot.PositionInClass, playerClassColorHex, slot.CarIdx, slot.IsValid, slot.IsFriend, isManualTeammate, isTelemetryTeammate))
                 {
                     continue;
                 }
 
                 bool isOtherClass = IsOtherClassSlot(slot, playerClassColorHex);
                 bool isClassLeader = slot.IsValid && slot.IsOnTrack && slot.PositionInClass == 1;
-                bool isTeammate = CanMarkTeammate(slot);
-
                 CarSAStyleResolver.Resolve(
                     slot.StatusE,
                     slot.ClassColorHex,
                     slot.IsFriend,
-                    isTeammate,
+                    isManualTeammate,
+                    isTelemetryTeammate,
                     isClassLeader,
                     isOtherClass,
                     statusMap,
@@ -7181,6 +7199,7 @@ namespace LaunchPlugin
                     slot.UserID = 0;
                     slot.TeamID = 0;
                     slot.IsFriend = false;
+                    slot.IsTeammate = false;
                     slot.LapsSincePit = -1;
                     slot.BestLapTimeSec = double.NaN;
                     slot.LastLapTimeSec = double.NaN;
@@ -7288,6 +7307,7 @@ namespace LaunchPlugin
                 playerSlot.UserID = 0;
                 playerSlot.TeamID = 0;
                 playerSlot.IsFriend = false;
+                playerSlot.IsTeammate = false;
                 return;
             }
 
@@ -10297,22 +10317,24 @@ namespace LaunchPlugin
 
     public class LaunchPluginFriendEntry : INotifyPropertyChanged
     {
-        private string _label = "Friend";
+        private string _name = "Friend";
         private int _userId;
+        private bool _isTeammate;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        public string Label
+        public string Name
         {
-            get => _label;
+            get => _name;
             set
             {
-                if (value == _label)
+                var normalized = string.IsNullOrWhiteSpace(value) ? "Friend" : value.Trim();
+                if (normalized == _name)
                 {
                     return;
                 }
 
-                _label = value;
+                _name = normalized;
                 OnPropertyChanged();
             }
         }
@@ -10322,12 +10344,28 @@ namespace LaunchPlugin
             get => _userId;
             set
             {
-                if (value == _userId)
+                int normalized = value < 0 ? 0 : value;
+                if (normalized == _userId)
                 {
                     return;
                 }
 
-                _userId = value;
+                _userId = normalized;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsTeammate
+        {
+            get => _isTeammate;
+            set
+            {
+                if (value == _isTeammate)
+                {
+                    return;
+                }
+
+                _isTeammate = value;
                 OnPropertyChanged();
             }
         }

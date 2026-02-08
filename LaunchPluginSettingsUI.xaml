@@ -109,14 +109,18 @@
                               CanUserAddRows="False"
                               CanUserDeleteRows="False"
                               HeadersVisibility="Column"
+                              RowEditEnding="FriendsGrid_RowEditEnding"
                               Margin="0,0,0,8">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Label"
-                                                Binding="{Binding Label, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                            <DataGridTextColumn Header="NAME"
+                                                Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 Width="*" />
                             <DataGridTextColumn Header="UserId"
                                                 Binding="{Binding UserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 Width="120" />
+                            <DataGridCheckBoxColumn Header="TEAMMATE"
+                                                    Binding="{Binding IsTeammate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="110" />
                             <DataGridTemplateColumn Header="" Width="Auto">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
