@@ -6,6 +6,7 @@ using SimHub.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -2979,6 +2980,9 @@ namespace LaunchPlugin
         private readonly int[] _carSaClassPositionByIdx = new int[CarSAEngine.MaxCars];
         private readonly int[] _carSaIRatingByIdx = new int[CarSAEngine.MaxCars];
         private readonly HashSet<int> _friendUserIds = new HashSet<int>();
+        private readonly HashSet<LaunchPluginFriendEntry> _friendEntrySubscriptions = new HashSet<LaunchPluginFriendEntry>();
+        private ObservableCollection<LaunchPluginFriendEntry> _friendsCollection;
+        private bool _friendsDirty = true;
         private bool _carSaBestLapFallbackInfoLogged;
 
         private enum LaunchState
@@ -3120,6 +3124,8 @@ namespace LaunchPlugin
             PluginStorage.Initialize(pluginManager);
             Settings = LoadSettings();
             EnforceHardDebugSettings(Settings);
+            HookFriendSettings(Settings);
+            MarkFriendsDirty();
 
 #if DEBUG
             FuelProjectionMath.RunSelfTests();
@@ -4779,7 +4785,11 @@ namespace LaunchPlugin
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.AheadSlots, carIdxLapDistPct, sessionTimeSec);
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.BehindSlots, carIdxLapDistPct, sessionTimeSec);
                 UpdateCarSaPlayerTelemetry(pluginManager, playerCarIdx);
-                RefreshFriendUserIds();
+                if (_friendsDirty)
+                {
+                    RefreshFriendUserIds();
+                    _friendsDirty = false;
+                }
                 UpdateCarSaFriendFlags(_carSaEngine.Outputs.AheadSlots);
                 UpdateCarSaFriendFlags(_carSaEngine.Outputs.BehindSlots);
                 UpdateCarSaPlayerFriendFlag();
@@ -6616,6 +6626,151 @@ namespace LaunchPlugin
         }
 
         private const double LiveDeltaClampSec = 30.0;
+
+        private void MarkFriendsDirty()
+        {
+            _friendsDirty = true;
+        }
+
+        private void HookFriendSettings(LaunchPluginSettings settings)
+        {
+            var friends = settings?.Friends;
+            if (friends == null)
+            {
+                if (_friendsCollection != null)
+                {
+                    _friendsCollection.CollectionChanged -= OnFriendsCollectionChanged;
+                    _friendsCollection = null;
+                }
+
+                UnsubscribeAllFriendEntries();
+                return;
+            }
+
+            if (ReferenceEquals(_friendsCollection, friends))
+            {
+                return;
+            }
+
+            if (_friendsCollection != null)
+            {
+                _friendsCollection.CollectionChanged -= OnFriendsCollectionChanged;
+            }
+
+            UnsubscribeAllFriendEntries();
+            _friendsCollection = friends;
+            _friendsCollection.CollectionChanged += OnFriendsCollectionChanged;
+            SubscribeFriendEntries(_friendsCollection);
+            MarkFriendsDirty();
+        }
+
+        private void SubscribeFriendEntries(IList<LaunchPluginFriendEntry> entries)
+        {
+            if (entries == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < entries.Count; i++)
+            {
+                SubscribeFriendEntry(entries[i]);
+            }
+        }
+
+        private void SubscribeFriendEntry(LaunchPluginFriendEntry entry)
+        {
+            if (entry == null)
+            {
+                return;
+            }
+
+            if (_friendEntrySubscriptions.Add(entry))
+            {
+                entry.PropertyChanged += OnFriendEntryPropertyChanged;
+            }
+        }
+
+        private void UnsubscribeFriendEntry(LaunchPluginFriendEntry entry)
+        {
+            if (entry == null)
+            {
+                return;
+            }
+
+            if (_friendEntrySubscriptions.Remove(entry))
+            {
+                entry.PropertyChanged -= OnFriendEntryPropertyChanged;
+            }
+        }
+
+        private void UnsubscribeAllFriendEntries()
+        {
+            if (_friendEntrySubscriptions.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var entry in _friendEntrySubscriptions)
+            {
+                if (entry != null)
+                {
+                    entry.PropertyChanged -= OnFriendEntryPropertyChanged;
+                }
+            }
+
+            _friendEntrySubscriptions.Clear();
+        }
+
+        private void OnFriendsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            MarkFriendsDirty();
+            if (e == null)
+            {
+                return;
+            }
+
+            if (e.Action == NotifyCollectionChangedAction.Reset)
+            {
+                UnsubscribeAllFriendEntries();
+                var entries = sender as IList<LaunchPluginFriendEntry>;
+                if (entries != null)
+                {
+                    SubscribeFriendEntries(entries);
+                }
+                return;
+            }
+
+            if (e.OldItems != null)
+            {
+                for (int i = 0; i < e.OldItems.Count; i++)
+                {
+                    UnsubscribeFriendEntry(e.OldItems[i] as LaunchPluginFriendEntry);
+                }
+            }
+
+            if (e.NewItems != null)
+            {
+                for (int i = 0; i < e.NewItems.Count; i++)
+                {
+                    SubscribeFriendEntry(e.NewItems[i] as LaunchPluginFriendEntry);
+                }
+            }
+        }
+
+        private void OnFriendEntryPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e == null || string.IsNullOrWhiteSpace(e.PropertyName))
+            {
+                MarkFriendsDirty();
+                return;
+            }
+
+            if (e.PropertyName == nameof(LaunchPluginFriendEntry.Label)
+                || e.PropertyName == nameof(LaunchPluginFriendEntry.UserId))
+            {
+                MarkFriendsDirty();
+            }
+        }
 
         private void RefreshFriendUserIds()
         {
@@ -10136,10 +10291,47 @@ namespace LaunchPlugin
         }
     }
 
-    public class LaunchPluginFriendEntry
+    public class LaunchPluginFriendEntry : INotifyPropertyChanged
     {
-        public string Label { get; set; } = "Friend";
-        public int UserId { get; set; }
+        private string _label = "Friend";
+        private int _userId;
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public string Label
+        {
+            get => _label;
+            set
+            {
+                if (value == _label)
+                {
+                    return;
+                }
+
+                _label = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int UserId
+        {
+            get => _userId;
+            set
+            {
+                if (value == _userId)
+                {
+                    return;
+                }
+
+                _userId = value;
+                OnPropertyChanged();
+            }
+        }
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     public class LaunchPluginSettings : INotifyPropertyChanged
