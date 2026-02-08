@@ -100,6 +100,7 @@ namespace LaunchPlugin
         internal bool StatusETextDirty { get; set; } = true;
         internal int LastStatusELapDelta { get; set; } = int.MinValue;
         internal bool LastStatusEIsAhead { get; set; }
+        internal int LastBoundCarIdx { get; set; } = -1;
         internal int TrackSurfaceRaw { get; set; } = int.MinValue;
         internal int CurrentLap { get; set; }
         internal int LastLapNumber { get; set; } = int.MinValue;
@@ -225,6 +226,7 @@ namespace LaunchPlugin
             StatusETextDirty = true;
             LastStatusELapDelta = int.MinValue;
             LastStatusEIsAhead = false;
+            LastBoundCarIdx = -1;
             TrackSurfaceRaw = int.MinValue;
             CurrentLap = 0;
             LastLapNumber = int.MinValue;
