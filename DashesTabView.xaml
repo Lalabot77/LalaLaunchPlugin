@@ -213,22 +213,33 @@
                             <styles:SHToggleCheckbox Content="Enable Debug Logging" Margin="0,10,0,0"
                                                      IsChecked="{Binding Settings.EnableDebugLogging, Mode=TwoWay}"
                                                      ToolTip="Enables verbose logging for troubleshooting the plugin."/>
-                            <styles:SHToggleCheckbox Content="Enable CarSA Debug Export" Margin="0,10,0,0"
-                                                     IsChecked="{Binding Settings.EnableCarSADebugExport, Mode=TwoWay}"
-                                                     ToolTip="Writes CarSA debug CSV logs to SimHub\Logs\LalapluginData."/>
-                            <TextBlock Margin="25,6,0,0" Text="CarSA debug cadence mode"/>
-                            <ComboBox Margin="25,4,0,0" Width="220" SelectedIndex="{Binding Settings.CarSADebugExportCadence, Mode=TwoWay}">
-                                <ComboBoxItem Content="Tick (Hz capped)" />
-                                <ComboBoxItem Content="MiniSector (default)" />
-                                <ComboBoxItem Content="EventOnly" />
-                            </ComboBox>
-                            <TextBlock Margin="25,6,0,0" Text="Tick mode max Hz"/>
-                            <TextBox Margin="25,4,0,0" Width="80" Text="{Binding Settings.CarSADebugExportTickMaxHz, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <styles:SHToggleCheckbox Content="EventOnly: write CarSA_Events CSV" Margin="25,6,0,0"
-                                                     IsChecked="{Binding Settings.CarSADebugExportWriteEventsCsv, Mode=TwoWay}"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <styles:SHToggleCheckbox Content="Enable CarSA Debug Export" Margin="0,0,15,0"
+                                                         IsChecked="{Binding Settings.EnableCarSADebugExport, Mode=TwoWay}"
+                                                         ToolTip="Writes CarSA debug CSV logs to SimHub\Logs\LalapluginData."/>
+                                <TextBlock Text="CarSA debug cadence mode" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <ComboBox Width="220" SelectedIndex="{Binding Settings.CarSADebugExportCadence, Mode=TwoWay}">
+                                    <ComboBoxItem Content="Tick (Hz capped)" />
+                                    <ComboBoxItem Content="MiniSector (default)" />
+                                    <ComboBoxItem Content="EventOnly" />
+                                </ComboBox>
+                                <TextBlock Text="Tick mode max Hz" VerticalAlignment="Center" Margin="15,0,8,0"/>
+                                <TextBox Width="80" Text="{Binding Settings.CarSADebugExportTickMaxHz, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <styles:SHToggleCheckbox Content="EventOnly: write CarSA_Events CSV" Margin="15,0,0,0"
+                                                         IsChecked="{Binding Settings.CarSADebugExportWriteEventsCsv, Mode=TwoWay}"/>
+                            </StackPanel>
                             <styles:SHToggleCheckbox Content="PitExit Verbose Logging" Margin="0,10,0,0"
                                                      IsChecked="{Binding Settings.PitExitVerboseLogging, Mode=TwoWay}"
                                                      ToolTip="Adds PitExit math audit details to pit-in snapshots for troubleshooting."/>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <styles:SHToggleCheckbox Content="OffTrack Debug CSV" Margin="0,0,15,0"
+                                                         IsChecked="{Binding Settings.EnableOffTrackDebugCsv, Mode=TwoWay}"
+                                                         ToolTip="Enable per-tick OffTrack debug CSV logging for the probed car."/>
+                                <TextBlock Text="Probe CarIdx" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox Width="80" Text="{Binding Settings.OffTrackDebugProbeCarIdx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="15,0,0,0" Foreground="LightGray" VerticalAlignment="Center"
+                                           Text="Tip: find your PlayerCarIdx in SimHub property list"/>
+                            </StackPanel>
                         </StackPanel>
                     </Expander>
                 </StackPanel>
