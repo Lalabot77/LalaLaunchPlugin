@@ -1418,7 +1418,7 @@ namespace LaunchPlugin
                 }
 
                 candidateValid = !double.IsNaN(candidateValue) && !double.IsInfinity(candidateValue);
-                if (candidateValid)
+                if (candidateValid && (gapSource == 1 || gapSource == 2))
                 {
                     _gateGapLastPublishedSecByCar[slot.CarIdx] = candidateValue;
                     _gateGapLastPublishedTimeSecByCar[slot.CarIdx] = sessionTimeSec;
