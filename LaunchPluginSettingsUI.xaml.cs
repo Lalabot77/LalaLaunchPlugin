@@ -58,7 +58,8 @@ namespace LaunchPlugin
                 Plugin.Settings.Friends = new ObservableCollection<LaunchPluginFriendEntry>();
             }
 
-            Plugin.Settings.Friends.Add(new LaunchPluginFriendEntry { Label = "Friend", UserId = 0 });
+            Plugin.Settings.Friends.Add(new LaunchPluginFriendEntry { Name = "Friend", UserId = 0, IsTeammate = false });
+            Plugin.NotifyFriendsChanged();
         }
 
         private void RemoveFriend_Click(object sender, RoutedEventArgs e)
@@ -75,6 +76,12 @@ namespace LaunchPlugin
             }
 
             Plugin.Settings.Friends.Remove(entry);
+            Plugin.NotifyFriendsChanged();
+        }
+
+        private void FriendsGrid_RowEditEnding(object sender, DataGridRowEditEndingEventArgs e)
+        {
+            Plugin?.NotifyFriendsChanged();
         }
     }
 

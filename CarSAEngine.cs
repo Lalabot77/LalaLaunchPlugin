@@ -1960,6 +1960,7 @@ namespace LaunchPlugin
                 slot.UserID = 0;
                 slot.TeamID = 0;
                 slot.IsFriend = false;
+                slot.IsTeammate = false;
                 slot.BestLapTimeSec = double.NaN;
                 slot.LastLapTimeSec = double.NaN;
                 slot.BestLap = string.Empty;

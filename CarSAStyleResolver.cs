@@ -16,7 +16,8 @@ namespace LaunchPlugin
             int statusE,
             string classColorHex,
             bool isFriend,
-            bool isTeammate,
+            bool isManualTeammate,
+            bool isTelemetryTeammate,
             bool isClassLeader,
             bool isOtherClass,
             IDictionary<int, string> statusEColorMap,
@@ -25,7 +26,7 @@ namespace LaunchPlugin
             out string borderMode,
             out string borderHex)
         {
-            borderMode = ResolveBorderMode(isFriend, isTeammate, isClassLeader, isOtherClass);
+            borderMode = ResolveBorderMode(isFriend, isManualTeammate, isTelemetryTeammate, isClassLeader, isOtherClass);
             statusBgHex = ResolveStatusBackgroundHex(statusE, classColorHex, statusEColorMap);
             borderHex = ResolveBorderHex(borderMode, borderColorMap);
         }
@@ -50,14 +51,19 @@ namespace LaunchPlugin
             return "#000000";
         }
 
-        private static string ResolveBorderMode(bool isFriend, bool isTeammate, bool isClassLeader, bool isOtherClass)
+        private static string ResolveBorderMode(bool isFriend, bool isManualTeammate, bool isTelemetryTeammate, bool isClassLeader, bool isOtherClass)
         {
+            if (isManualTeammate)
+            {
+                return BorderModeTeam;
+            }
+
             if (isFriend)
             {
                 return BorderModeFriend;
             }
 
-            if (isTeammate)
+            if (isTelemetryTeammate)
             {
                 return BorderModeTeam;
             }

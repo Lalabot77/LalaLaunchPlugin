@@ -71,6 +71,7 @@ namespace LaunchPlugin
         public int UserID { get; set; }
         public int TeamID { get; set; }
         public bool IsFriend { get; set; }
+        public bool IsTeammate { get; set; }
         public int LapsSincePit { get; set; } = -1;
         public double BestLapTimeSec { get; set; } = double.NaN;
         public double LastLapTimeSec { get; set; } = double.NaN;
@@ -140,6 +141,8 @@ namespace LaunchPlugin
         private bool _styleLastIsValid;
         private int _styleLastCarIdx;
         private bool _styleLastIsFriend;
+        private bool _styleLastIsManualTeammate;
+        private bool _styleLastIsTelemetryTeammate;
 
         public void SetTransmitState(bool isTalking, int radioIdx, int frequencyIdx, string frequencyName)
         {
@@ -149,7 +152,7 @@ namespace LaunchPlugin
             TalkFrequencyName = frequencyName ?? string.Empty;
         }
 
-        public bool StyleInputsChanged(int statusE, string classColorHex, int positionInClass, string playerClassColorHex, int carIdx, bool isValid, bool isFriend)
+        public bool StyleInputsChanged(int statusE, string classColorHex, int positionInClass, string playerClassColorHex, int carIdx, bool isValid, bool isFriend, bool isManualTeammate, bool isTelemetryTeammate)
         {
             classColorHex = classColorHex ?? string.Empty;
             playerClassColorHex = playerClassColorHex ?? string.Empty;
@@ -160,6 +163,8 @@ namespace LaunchPlugin
                 || _styleLastIsValid != isValid
                 || _styleLastCarIdx != carIdx
                 || _styleLastIsFriend != isFriend
+                || _styleLastIsManualTeammate != isManualTeammate
+                || _styleLastIsTelemetryTeammate != isTelemetryTeammate
                 || !string.Equals(_styleLastClassColorHex, classColorHex, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(_styleLastPlayerClassColor, playerClassColorHex, StringComparison.OrdinalIgnoreCase);
 
@@ -170,6 +175,8 @@ namespace LaunchPlugin
             _styleLastIsValid = isValid;
             _styleLastCarIdx = carIdx;
             _styleLastIsFriend = isFriend;
+            _styleLastIsManualTeammate = isManualTeammate;
+            _styleLastIsTelemetryTeammate = isTelemetryTeammate;
             _styleCacheInitialized = true;
 
             return changed;
@@ -214,6 +221,7 @@ namespace LaunchPlugin
             UserID = 0;
             TeamID = 0;
             IsFriend = false;
+            IsTeammate = false;
             LapsSincePit = -1;
             BestLapTimeSec = double.NaN;
             LastLapTimeSec = double.NaN;
@@ -276,6 +284,9 @@ namespace LaunchPlugin
             _styleLastPlayerClassColor = string.Empty;
             _styleLastIsValid = false;
             _styleLastCarIdx = -1;
+            _styleLastIsFriend = false;
+            _styleLastIsManualTeammate = false;
+            _styleLastIsTelemetryTeammate = false;
         }
     }
 
