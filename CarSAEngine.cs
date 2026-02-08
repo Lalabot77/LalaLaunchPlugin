@@ -1457,22 +1457,11 @@ namespace LaunchPlugin
             }
 
             double playerLastLap = _outputs.PlayerSlot != null ? _outputs.PlayerSlot.LastLapTimeSec : double.NaN;
-            bool playerHasLastLap = _outputs.PlayerSlot != null
-                && !double.IsNaN(_outputs.PlayerSlot.LastLapTimeSec)
-                && !double.IsInfinity(_outputs.PlayerSlot.LastLapTimeSec)
-                && _outputs.PlayerSlot.LastLapTimeSec > 0.0;
             for (int i = 0; i < slots.Length; i++)
             {
                 var slot = slots[i];
                 if (slot == null)
                 {
-                    continue;
-                }
-
-                if (!playerHasLastLap)
-                {
-                    slot.InfoVisibility = 0;
-                    slot.Info = string.Empty;
                     continue;
                 }
 
