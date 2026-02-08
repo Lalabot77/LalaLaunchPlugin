@@ -104,6 +104,9 @@
     <Compile Include="FuelCalculatorView.xaml.cs">
       <DependentUpon>FuelCalculatorView.xaml</DependentUpon>
     </Compile>
+    <Compile Include="GlobalSettingsView.xaml.cs">
+      <DependentUpon>GlobalSettingsView.xaml</DependentUpon>
+    </Compile>
     <Compile Include="LaunchSummaryExpander.xaml.cs">
       <DependentUpon>LaunchSummaryExpander.xaml</DependentUpon>
     </Compile>
@@ -166,6 +169,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="FuelCalculatorView.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="GlobalSettingsView.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

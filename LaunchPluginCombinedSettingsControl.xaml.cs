@@ -10,6 +10,13 @@ namespace LaunchPlugin
         {
             InitializeComponent();
 
+            var globalSettingsTab = new SHTabItem
+            {
+                Header = "GLOBAL SETTINGS",
+                Content = new GlobalSettingsView(mainPluginInstance)
+            };
+            MainTabControl.Items.Add(globalSettingsTab);
+
             var dashesTab = new SHTabItem
             {
                 Header = "DASH CONTROL",
