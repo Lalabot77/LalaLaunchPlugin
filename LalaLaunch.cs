@@ -4638,6 +4638,7 @@ namespace LaunchPlugin
                 playerBestLapTimeSec = _carSaBestLapTimeSecByIdx[playerCarIdx];
             }
             playerBestLapTimeSec = SanitizeCarSaLapTimeSec(playerBestLapTimeSec);
+            double playerLastLapTimeSec = SanitizeCarSaLapTimeSec(lastLapSec);
             double classEstLapTimeSec = (playerCarIdx >= 0 && playerCarIdx < _carSaCarClassEstLapTimeSecByIdx.Length)
                 ? _carSaCarClassEstLapTimeSecByIdx[playerCarIdx]
                 : double.NaN;
@@ -4646,7 +4647,7 @@ namespace LaunchPlugin
             {
                 notRelevantGapSec = CarSANotRelevantGapSecDefault;
             }
-            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugMaster);
+            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, playerLastLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugMaster);
             if (_carSaEngine != null)
             {
                 UpdateCarSaTelemetryCaches(pluginManager);

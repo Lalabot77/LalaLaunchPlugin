@@ -404,6 +404,7 @@ namespace LaunchPlugin
             int[] carIdxSessionFlags,
             int[] carIdxPaceFlags,
             double playerBestLapTimeSec,
+            double playerLastLapTimeSec,
             double lapTimeEstimateSec,
             double classEstLapTimeSec,
             double notRelevantGapSec,
@@ -413,6 +414,10 @@ namespace LaunchPlugin
             _outputs.Source = "CarIdxTruth";
             _outputs.Debug.SessionTimeSec = sessionTimeSec;
             _outputs.Debug.SourceFastPathUsed = false;
+            if (_outputs.PlayerSlot != null)
+            {
+                _outputs.PlayerSlot.LastLapTimeSec = playerLastLapTimeSec;
+            }
 
             int carCount = carIdxLapDistPct != null ? carIdxLapDistPct.Length : 0;
             int onPitRoadCount = 0;
@@ -1612,24 +1617,24 @@ namespace LaunchPlugin
                         else
                         {
                             string sign = delta >= 0.0 ? "+" : "-";
-                            message = $"LLΔme {sign}{Math.Abs(delta):0.0}";
+                            message = $"LLΔme {sign}{Math.Abs(delta):0.1}";
                         }
                         return true;
                     }
                     return false;
                 case 1:
-                    if (!double.IsNaN(slot.DeltaBestSec) && !double.IsInfinity(slot.DeltaBestSec)
-                        && !double.IsNaN(slot.BestLapTimeSec) && !double.IsInfinity(slot.BestLapTimeSec)
-                        && !double.IsNaN(slot.LastLapTimeSec) && !double.IsInfinity(slot.LastLapTimeSec)
-                        && slot.BestLapTimeSec > 0.0 && slot.LastLapTimeSec > 0.0)
+                    if (!string.IsNullOrWhiteSpace(slot.DeltaBest))
                     {
-                        string sign = slot.DeltaBestSec >= 0.0 ? "+" : "-";
-                        message = $"ΔBL {sign}{Math.Abs(slot.DeltaBestSec):0.1}";
+                        message = $"ΔBL {slot.DeltaBest}";
                         return true;
                     }
                     return false;
                 case 2:
-                    if (slot.LapsSincePit >= 0)
+                    if (slot.LapsSincePit >= 0
+                        && !double.IsNaN(slot.ForwardDistPct)
+                        && !double.IsInfinity(slot.ForwardDistPct)
+                        && slot.ForwardDistPct >= 0.0
+                        && slot.ForwardDistPct <= 0.20)
                     {
                         message = $"{slot.LapsSincePit} Laps Since Pit";
                         return true;
