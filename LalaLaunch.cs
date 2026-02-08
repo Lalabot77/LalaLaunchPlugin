@@ -6637,6 +6637,13 @@ namespace LaunchPlugin
             var friends = settings?.Friends;
             if (friends == null)
             {
+                if (_friendsCollection != null)
+                {
+                    _friendsCollection.CollectionChanged -= OnFriendsCollectionChanged;
+                    _friendsCollection = null;
+                }
+
+                UnsubscribeAllFriendEntries();
                 return;
             }
 
