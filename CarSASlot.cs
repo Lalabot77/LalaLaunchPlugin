@@ -70,6 +70,7 @@ namespace LaunchPlugin
         public int LicLevel { get; set; }
         public int UserID { get; set; }
         public int TeamID { get; set; }
+        public bool IsFriend { get; set; }
         public int LapsSincePit { get; set; } = -1;
         public double BestLapTimeSec { get; set; } = double.NaN;
         public double LastLapTimeSec { get; set; } = double.NaN;
@@ -138,6 +139,7 @@ namespace LaunchPlugin
         private string _styleLastPlayerClassColor = string.Empty;
         private bool _styleLastIsValid;
         private int _styleLastCarIdx;
+        private bool _styleLastIsFriend;
 
         public void SetTransmitState(bool isTalking, int radioIdx, int frequencyIdx, string frequencyName)
         {
@@ -147,7 +149,7 @@ namespace LaunchPlugin
             TalkFrequencyName = frequencyName ?? string.Empty;
         }
 
-        public bool StyleInputsChanged(int statusE, string classColorHex, int positionInClass, string playerClassColorHex, int carIdx, bool isValid)
+        public bool StyleInputsChanged(int statusE, string classColorHex, int positionInClass, string playerClassColorHex, int carIdx, bool isValid, bool isFriend)
         {
             classColorHex = classColorHex ?? string.Empty;
             playerClassColorHex = playerClassColorHex ?? string.Empty;
@@ -157,6 +159,7 @@ namespace LaunchPlugin
                 || _styleLastPositionInClass != positionInClass
                 || _styleLastIsValid != isValid
                 || _styleLastCarIdx != carIdx
+                || _styleLastIsFriend != isFriend
                 || !string.Equals(_styleLastClassColorHex, classColorHex, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(_styleLastPlayerClassColor, playerClassColorHex, StringComparison.OrdinalIgnoreCase);
 
@@ -166,6 +169,7 @@ namespace LaunchPlugin
             _styleLastPlayerClassColor = playerClassColorHex;
             _styleLastIsValid = isValid;
             _styleLastCarIdx = carIdx;
+            _styleLastIsFriend = isFriend;
             _styleCacheInitialized = true;
 
             return changed;
@@ -209,6 +213,7 @@ namespace LaunchPlugin
             LicLevel = 0;
             UserID = 0;
             TeamID = 0;
+            IsFriend = false;
             LapsSincePit = -1;
             BestLapTimeSec = double.NaN;
             LastLapTimeSec = double.NaN;

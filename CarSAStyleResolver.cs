@@ -5,14 +5,17 @@ namespace LaunchPlugin
 {
     public static class CarSAStyleResolver
     {
+        public const string BorderModeFriend = "FRIEND";
         public const string BorderModeTeam = "TEAM";
         public const string BorderModeLead = "LEAD";
         public const string BorderModeOtherClass = "OCLS";
         public const string BorderModeDefault = "DEF";
+        private const string FriendBorderHex = "#00FF00";
 
         public static void Resolve(
             int statusE,
             string classColorHex,
+            bool isFriend,
             bool isTeammate,
             bool isClassLeader,
             bool isOtherClass,
@@ -22,7 +25,7 @@ namespace LaunchPlugin
             out string borderMode,
             out string borderHex)
         {
-            borderMode = ResolveBorderMode(isTeammate, isClassLeader, isOtherClass);
+            borderMode = ResolveBorderMode(isFriend, isTeammate, isClassLeader, isOtherClass);
             statusBgHex = ResolveStatusBackgroundHex(statusE, classColorHex, statusEColorMap);
             borderHex = ResolveBorderHex(borderMode, borderColorMap);
         }
@@ -47,8 +50,13 @@ namespace LaunchPlugin
             return "#000000";
         }
 
-        private static string ResolveBorderMode(bool isTeammate, bool isClassLeader, bool isOtherClass)
+        private static string ResolveBorderMode(bool isFriend, bool isTeammate, bool isClassLeader, bool isOtherClass)
         {
+            if (isFriend)
+            {
+                return BorderModeFriend;
+            }
+
             if (isTeammate)
             {
                 return BorderModeTeam;
@@ -69,6 +77,11 @@ namespace LaunchPlugin
 
         private static string ResolveBorderHex(string borderMode, IDictionary<string, string> borderColorMap)
         {
+            if (string.Equals(borderMode, BorderModeFriend, StringComparison.OrdinalIgnoreCase))
+            {
+                return FriendBorderHex;
+            }
+
             if (borderColorMap != null && !string.IsNullOrWhiteSpace(borderMode) &&
                 borderColorMap.TryGetValue(borderMode, out var color) && IsValidHexColor(color))
             {
