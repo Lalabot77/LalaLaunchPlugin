@@ -172,6 +172,9 @@
                             <styles:SHToggleCheckbox Content="OffTrack Debug CSV" Margin="0,0,15,0"
                                                      IsChecked="{Binding Settings.EnableOffTrackDebugCsv, Mode=TwoWay}"
                                                      ToolTip="Enable per-tick OffTrack debug CSV logging for the probed car."/>
+                            <styles:SHToggleCheckbox Content="Log changes/events only" Margin="0,0,15,0"
+                                                     IsChecked="{Binding Settings.OffTrackDebugLogChangesOnly, Mode=TwoWay}"
+                                                     ToolTip="When enabled, only logs when values change or event marker is active."/>
                             <TextBlock Text="Probe CarIdx" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBox Width="80" Text="{Binding Settings.OffTrackDebugProbeCarIdx, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Margin="15,0,0,0" Foreground="LightGray" VerticalAlignment="Center"

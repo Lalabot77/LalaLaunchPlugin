@@ -2829,6 +2829,7 @@ namespace LaunchPlugin
         private bool _dashLastIgnitionOn = false;
         private bool _launchAbortLatched = false;
         private const int DashPulseMs = 500;
+        private const int EventMarkerPulseMs = 5000;
 
         // --- FSM Helper Flags ---
         private bool IsIdle => _currentLaunchState == LaunchState.Idle;
@@ -2854,6 +2855,64 @@ namespace LaunchPlugin
         {
             _eventMarkerPressed = true;
             _eventMarkerCooldownTimer.Restart();
+        }
+
+        private struct OffTrackDebugSnapshot
+        {
+            public int EventFired;
+            public int SessionState;
+            public int SessionFlagsRaw;
+            public int ProbeCarIdx;
+            public int TrackSurface;
+            public int TrackSurfaceMaterial;
+            public int CarSessionFlags;
+            public bool? CarOnPitRoad;
+            public int CarLap;
+            public double CarLapDistPct;
+            public bool? OffTrackNow;
+            public int OffTrackStreak;
+            public double OffTrackFirstSeenTimeSec;
+            public int CompromisedUntilLap;
+            public bool? CompromisedOffTrackActive;
+            public bool? CompromisedPenaltyActive;
+            public bool? AllowLatches;
+            public int PlayerCarIdx;
+            public int PlayerIncidentCount;
+            public int PlayerIncidentDelta;
+        }
+
+        private static bool OffTrackDebugSnapshotEquals(OffTrackDebugSnapshot left, OffTrackDebugSnapshot right)
+        {
+            return left.EventFired == right.EventFired
+                && left.SessionState == right.SessionState
+                && left.SessionFlagsRaw == right.SessionFlagsRaw
+                && left.ProbeCarIdx == right.ProbeCarIdx
+                && left.TrackSurface == right.TrackSurface
+                && left.TrackSurfaceMaterial == right.TrackSurfaceMaterial
+                && left.CarSessionFlags == right.CarSessionFlags
+                && left.CarOnPitRoad == right.CarOnPitRoad
+                && left.CarLap == right.CarLap
+                && OffTrackDebugDoubleEquals(left.CarLapDistPct, right.CarLapDistPct)
+                && left.OffTrackNow == right.OffTrackNow
+                && left.OffTrackStreak == right.OffTrackStreak
+                && OffTrackDebugDoubleEquals(left.OffTrackFirstSeenTimeSec, right.OffTrackFirstSeenTimeSec)
+                && left.CompromisedUntilLap == right.CompromisedUntilLap
+                && left.CompromisedOffTrackActive == right.CompromisedOffTrackActive
+                && left.CompromisedPenaltyActive == right.CompromisedPenaltyActive
+                && left.AllowLatches == right.AllowLatches
+                && left.PlayerCarIdx == right.PlayerCarIdx
+                && left.PlayerIncidentCount == right.PlayerIncidentCount
+                && left.PlayerIncidentDelta == right.PlayerIncidentDelta;
+        }
+
+        private static bool OffTrackDebugDoubleEquals(double left, double right)
+        {
+            if (double.IsNaN(left))
+            {
+                return double.IsNaN(right);
+            }
+
+            return left.Equals(right);
         }
 
         // Centralized state machine for launch phases
@@ -2897,6 +2956,9 @@ namespace LaunchPlugin
         private string _offTrackDebugExportToken;
         private int _offTrackDebugExportPendingLines;
         private double _offTrackDebugLastSessionTimeSec = double.NaN;
+        private OffTrackDebugSnapshot _offTrackDebugLastSnapshot;
+        private bool _offTrackDebugSnapshotInitialized;
+        private bool _offTrackDebugLastChangeOnlyEnabled;
         private bool _playerLapInvalid;
         private int _playerLapInvalidLap = int.MinValue;
         private int _playerLastIncidentCount = int.MinValue;
@@ -4452,7 +4514,7 @@ namespace LaunchPlugin
                 _msgCxPressed = false;
             }
 
-            if (_eventMarkerCooldownTimer.IsRunning && _eventMarkerCooldownTimer.ElapsedMilliseconds > DashPulseMs)
+            if (_eventMarkerCooldownTimer.IsRunning && _eventMarkerCooldownTimer.ElapsedMilliseconds > EventMarkerPulseMs)
             {
                 _eventMarkerCooldownTimer.Reset();
                 _eventMarkerPressed = false;
@@ -5378,6 +5440,13 @@ namespace LaunchPlugin
                 return;
             }
 
+            bool changeOnlyEnabled = Settings?.OffTrackDebugLogChangesOnly == true;
+            if (_offTrackDebugLastChangeOnlyEnabled != changeOnlyEnabled)
+            {
+                _offTrackDebugLastChangeOnlyEnabled = changeOnlyEnabled;
+                _offTrackDebugSnapshotInitialized = false;
+            }
+
             if (!double.IsNaN(_offTrackDebugLastSessionTimeSec)
                 && sessionTimeSec < _offTrackDebugLastSessionTimeSec - 0.5)
             {
@@ -5386,15 +5455,7 @@ namespace LaunchPlugin
 
             EnsureOffTrackDebugExportFile(pluginManager);
 
-            StringBuilder buffer = _offTrackDebugExportBuffer ?? (_offTrackDebugExportBuffer = new StringBuilder(512));
-            buffer.Append(sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
-            buffer.Append(_eventMarkerPressed ? '1' : '0').Append(',');
-            buffer.Append(sessionState).Append(',');
-            AppendCsvHexValue(buffer, sessionFlagsRaw);
-            buffer.Append(',');
-            AppendCsvOptionalInt(buffer, sessionFlagsRaw, -1);
-            buffer.Append(',');
-            buffer.Append(probeCarIdx).Append(',');
+            int eventFired = _eventMarkerPressed ? 1 : 0;
 
             int trackSurface = ReadCarIdxInt(carIdxTrackSurface, probeCarIdx, int.MinValue);
             int trackSurfaceMaterial = ReadCarIdxInt(carIdxTrackSurfaceMaterial, probeCarIdx, int.MinValue);
@@ -5403,6 +5464,68 @@ namespace LaunchPlugin
             int carLap = ReadCarIdxInt(carIdxLap, probeCarIdx, int.MinValue);
             double carLapDistPct = ReadCarIdxFloat(carIdxLapDistPct, probeCarIdx);
 
+            CarSAEngine.OffTrackDebugState offTrackState = default;
+            bool hasState = false;
+            if (_carSaEngine != null)
+            {
+                hasState = _carSaEngine.TryGetOffTrackDebugState(probeCarIdx, out offTrackState);
+            }
+            bool? offTrackNow = hasState ? (bool?)offTrackState.OffTrackNow : null;
+            int offTrackStreak = hasState ? offTrackState.OffTrackStreak : int.MinValue;
+            double offTrackFirstSeenTimeSec = hasState ? offTrackState.OffTrackFirstSeenTimeSec : double.NaN;
+            int compromisedUntilLap = hasState ? offTrackState.CompromisedUntilLap : int.MinValue;
+            bool? compromisedOffTrackActive = hasState ? (bool?)offTrackState.CompromisedOffTrackActive : null;
+            bool? compromisedPenaltyActive = hasState ? (bool?)offTrackState.CompromisedPenaltyActive : null;
+            bool? allowLatches = hasState ? (bool?)offTrackState.AllowLatches : null;
+
+            OffTrackDebugSnapshot snapshot = new OffTrackDebugSnapshot
+            {
+                EventFired = eventFired,
+                SessionState = sessionState,
+                SessionFlagsRaw = sessionFlagsRaw,
+                ProbeCarIdx = probeCarIdx,
+                TrackSurface = trackSurface,
+                TrackSurfaceMaterial = trackSurfaceMaterial,
+                CarSessionFlags = carSessionFlags,
+                CarOnPitRoad = carOnPitRoad,
+                CarLap = carLap,
+                CarLapDistPct = carLapDistPct,
+                OffTrackNow = offTrackNow,
+                OffTrackStreak = offTrackStreak,
+                OffTrackFirstSeenTimeSec = offTrackFirstSeenTimeSec,
+                CompromisedUntilLap = compromisedUntilLap,
+                CompromisedOffTrackActive = compromisedOffTrackActive,
+                CompromisedPenaltyActive = compromisedPenaltyActive,
+                AllowLatches = allowLatches,
+                PlayerCarIdx = playerCarIdx,
+                PlayerIncidentCount = playerIncidentCount,
+                PlayerIncidentDelta = playerIncidentDelta
+            };
+
+            bool shouldWrite = true;
+            if (changeOnlyEnabled)
+            {
+                shouldWrite = !_offTrackDebugSnapshotInitialized
+                    || _eventMarkerPressed
+                    || !OffTrackDebugSnapshotEquals(snapshot, _offTrackDebugLastSnapshot);
+                if (!shouldWrite)
+                {
+                    return;
+                }
+
+                _offTrackDebugLastSnapshot = snapshot;
+                _offTrackDebugSnapshotInitialized = true;
+            }
+
+            StringBuilder buffer = _offTrackDebugExportBuffer ?? (_offTrackDebugExportBuffer = new StringBuilder(512));
+            buffer.Append(sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture)).Append(',');
+            buffer.Append(eventFired).Append(',');
+            buffer.Append(sessionState).Append(',');
+            AppendCsvHexValue(buffer, sessionFlagsRaw);
+            buffer.Append(',');
+            AppendCsvOptionalInt(buffer, sessionFlagsRaw, -1);
+            buffer.Append(',');
+            buffer.Append(probeCarIdx).Append(',');
             AppendCsvOptionalInt(buffer, trackSurface, int.MinValue);
             buffer.Append(',');
             AppendCsvOptionalInt(buffer, trackSurfaceMaterial, int.MinValue);
@@ -5417,28 +5540,20 @@ namespace LaunchPlugin
             buffer.Append(',');
             AppendCsvOptionalDouble(buffer, carLapDistPct, "F6");
             buffer.Append(',');
-
-            CarSAEngine.OffTrackDebugState offTrackState = default;
-            bool hasState = false;
-            if (_carSaEngine != null)
-            {
-                hasState = _carSaEngine.TryGetOffTrackDebugState(probeCarIdx, out offTrackState);
-            }
-            AppendCsvOptionalBool(buffer, hasState ? (bool?)offTrackState.OffTrackNow : null);
+            AppendCsvOptionalBool(buffer, offTrackNow);
             buffer.Append(',');
-            AppendCsvOptionalInt(buffer, hasState ? offTrackState.OffTrackStreak : int.MinValue, int.MinValue);
+            AppendCsvOptionalInt(buffer, offTrackStreak, int.MinValue);
             buffer.Append(',');
-            AppendCsvOptionalDouble(buffer, hasState ? offTrackState.OffTrackFirstSeenTimeSec : double.NaN, "F3");
+            AppendCsvOptionalDouble(buffer, offTrackFirstSeenTimeSec, "F3");
             buffer.Append(',');
-            AppendCsvOptionalInt(buffer, hasState ? offTrackState.CompromisedUntilLap : int.MinValue, int.MinValue);
+            AppendCsvOptionalInt(buffer, compromisedUntilLap, int.MinValue);
             buffer.Append(',');
-            AppendCsvOptionalBool(buffer, hasState ? (bool?)offTrackState.CompromisedOffTrackActive : null);
+            AppendCsvOptionalBool(buffer, compromisedOffTrackActive);
             buffer.Append(',');
-            AppendCsvOptionalBool(buffer, hasState ? (bool?)offTrackState.CompromisedPenaltyActive : null);
+            AppendCsvOptionalBool(buffer, compromisedPenaltyActive);
             buffer.Append(',');
-            AppendCsvOptionalBool(buffer, hasState ? (bool?)offTrackState.AllowLatches : null);
+            AppendCsvOptionalBool(buffer, allowLatches);
             buffer.Append(',');
-
             AppendCsvOptionalInt(buffer, playerCarIdx, -1);
             buffer.Append(',');
             AppendCsvOptionalInt(buffer, playerIncidentCount, -1);
@@ -6297,6 +6412,9 @@ namespace LaunchPlugin
             _offTrackDebugExportToken = null;
             _offTrackDebugExportPendingLines = 0;
             _offTrackDebugLastSessionTimeSec = double.NaN;
+            _offTrackDebugLastSnapshot = default;
+            _offTrackDebugSnapshotInitialized = false;
+            _offTrackDebugLastChangeOnlyEnabled = false;
         }
 
         private void ResetPlayerLapInvalidState()
@@ -10389,6 +10507,7 @@ namespace LaunchPlugin
         public bool EnableDebugLogging { get; set; } = false;
         public bool EnableCarSADebugExport { get; set; } = false;
         public bool EnableOffTrackDebugCsv { get; set; } = false;
+        public bool OffTrackDebugLogChangesOnly { get; set; } = false;
         public int CarSADebugExportCadence { get; set; } = 1;
         public int CarSADebugExportTickMaxHz { get; set; } = 20;
         public bool CarSADebugExportWriteEventsCsv { get; set; } = true;
