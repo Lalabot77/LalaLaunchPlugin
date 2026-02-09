@@ -9,6 +9,7 @@ namespace LaunchPlugin
     public sealed class RadioFrequencyNameCache
     {
         private readonly Dictionary<long, FrequencyInfo> _frequencyInfoByKey = new Dictionary<long, FrequencyInfo>();
+        private readonly Dictionary<int, RadioEntry> _radioEntryByIdx = new Dictionary<int, RadioEntry>();
         private string _lastSessionToken = string.Empty;
         private bool _hasBuilt;
         private object _lastRadioInfo;
@@ -27,6 +28,18 @@ namespace LaunchPlugin
             public Func<object, bool> MutedAccessor { get; }
         }
 
+        private readonly struct RadioEntry
+        {
+            public RadioEntry(object entry, Func<object, int> tunedFrequencyAccessor)
+            {
+                Entry = entry;
+                TunedFrequencyAccessor = tunedFrequencyAccessor;
+            }
+
+            public object Entry { get; }
+            public Func<object, int> TunedFrequencyAccessor { get; }
+        }
+
         private readonly struct IndexedObject
         {
             public IndexedObject(int index, object value)
@@ -42,6 +55,7 @@ namespace LaunchPlugin
         public void Reset()
         {
             _frequencyInfoByKey.Clear();
+            _radioEntryByIdx.Clear();
             _lastSessionToken = string.Empty;
             _hasBuilt = false;
             _lastRadioInfo = null;
@@ -56,6 +70,7 @@ namespace LaunchPlugin
             {
                 _lastSessionToken = sessionToken;
                 _frequencyInfoByKey.Clear();
+                _radioEntryByIdx.Clear();
                 _hasBuilt = false;
                 _lastRadioInfo = null;
             }
@@ -99,6 +114,31 @@ namespace LaunchPlugin
                 entry = found.Entry;
                 mutedAccessor = found.MutedAccessor;
                 return true;
+            }
+
+            return false;
+        }
+
+        public bool TryGetTunedFrequencyNum(int radioIdx, out int frequencyNum)
+        {
+            frequencyNum = -1;
+            if (radioIdx < 0)
+            {
+                return false;
+            }
+
+            if (_radioEntryByIdx.TryGetValue(radioIdx, out var entryInfo) && entryInfo.TunedFrequencyAccessor != null)
+            {
+                try
+                {
+                    frequencyNum = entryInfo.TunedFrequencyAccessor(entryInfo.Entry);
+                    return frequencyNum >= 0;
+                }
+                catch
+                {
+                    frequencyNum = -1;
+                    return false;
+                }
             }
 
             return false;
@@ -160,6 +200,7 @@ namespace LaunchPlugin
         private void BuildMap(object radioInfo)
         {
             _frequencyInfoByKey.Clear();
+            _radioEntryByIdx.Clear();
 
             foreach (var radioEntry in EnumerateRadios(radioInfo))
             {
@@ -173,6 +214,10 @@ namespace LaunchPlugin
                 {
                     continue;
                 }
+
+                var tunedProperty = GetFirstProperty(radioEntry.Value, "TunedToFrequencyNum", "TunedToFrequencyIdx", "TunedToFrequencyIndex");
+                var tunedAccessor = CreateIntAccessor(radioEntry.Value, tunedProperty);
+                _radioEntryByIdx[radioIdx] = new RadioEntry(radioEntry.Value, tunedAccessor);
 
                 foreach (var freqEntry in EnumerateFrequencies(radioEntry.Value))
                 {
@@ -372,6 +417,25 @@ namespace LaunchPlugin
             return prop != null && prop.CanRead ? prop : null;
         }
 
+        private static PropertyInfo GetFirstProperty(object source, params string[] names)
+        {
+            if (source == null || names == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < names.Length; i++)
+            {
+                var prop = GetProperty(source, names[i]);
+                if (prop != null)
+                {
+                    return prop;
+                }
+            }
+
+            return null;
+        }
+
         private static Func<object, bool> CreateMutedAccessor(object entry, PropertyInfo mutedProperty)
         {
             if (entry == null || mutedProperty == null || !mutedProperty.CanRead)
@@ -395,6 +459,20 @@ namespace LaunchPlugin
             }
 
             return Expression.Lambda<Func<object, bool>>(body, targetParam).Compile();
+        }
+
+        private static Func<object, int> CreateIntAccessor(object entry, PropertyInfo intProperty)
+        {
+            if (entry == null || intProperty == null || !intProperty.CanRead)
+            {
+                return null;
+            }
+
+            var targetParam = Expression.Parameter(typeof(object), "target");
+            var castTarget = Expression.Convert(targetParam, intProperty.DeclaringType);
+            var propertyAccess = Expression.Property(castTarget, intProperty);
+            var converted = Expression.Convert(propertyAccess, typeof(int));
+            return Expression.Lambda<Func<object, int>>(converted, targetParam).Compile();
         }
 
         private static bool TryParseTrailingIndex(string name, out int index)
