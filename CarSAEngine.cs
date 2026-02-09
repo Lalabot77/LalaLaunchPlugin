@@ -1638,7 +1638,7 @@ namespace LaunchPlugin
                 string message = string.Empty;
                 if (sfActive)
                 {
-                    int phase = (int)((nowSec - slot.SFBurstStartSec) / 3.0);
+                    int phase = (int)((nowSec - slot.SFBurstStartSec) / 5.0);
                     message = BuildSFBurstMessage(slot, playerLastLap, phase);
                     if (string.IsNullOrEmpty(message))
                     {
@@ -1655,7 +1655,7 @@ namespace LaunchPlugin
 
                 if (halfActive)
                 {
-                    int phase = (int)((nowSec - slot.HalfBurstStartSec) / 3.0);
+                    int phase = (int)((nowSec - slot.HalfBurstStartSec) / 5.0);
                     message = BuildHalfBurstMessage(slot, phase);
                     if (string.IsNullOrEmpty(message))
                     {
