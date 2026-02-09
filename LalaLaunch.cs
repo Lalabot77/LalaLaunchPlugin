@@ -2953,9 +2953,17 @@ namespace LaunchPlugin
         private int _lastTransmitFrequencyIdx = -1;
         private string _lastTransmitFrequencyName = string.Empty;
         private string _radioTransmitShortName = string.Empty;
+        private string _radioTransmitFullName = string.Empty;
         private bool _radioTransmitFrequencyMuted;
         private object _radioTransmitFrequencyEntry;
         private Func<object, bool> _radioTransmitFrequencyMutedAccessor;
+        private int _localTxRadioIdx = -1;
+        private int _localTxFrequencyNum = -1;
+        private string _localTxFrequencyName = string.Empty;
+        private bool _localTxFrequencyMuted;
+        private object _localTxFrequencyEntry;
+        private Func<object, bool> _localTxFrequencyMutedAccessor;
+        private bool _radioIsPlayerTransmitting;
         private int _lastTransmitTalkingSlotKey = -1;
         private string _radioTransmitClassPosLabel = string.Empty;
         private int _lastTransmitClassPosCarIdx = -1;
@@ -3664,9 +3672,14 @@ namespace LaunchPlugin
             AttachCore("PitExit.Behind.GapSec", () => _opponentsEngine?.Outputs.PitExit.BehindGapSec ?? 0.0);
 
             AttachCore("Radio.TransmitShortName", () => _radioTransmitShortName ?? string.Empty);
-            AttachCore("Radio.TransmitFrequencyName", () => _lastTransmitFrequencyName ?? string.Empty);
+            AttachCore("Radio.TransmitFullName", () => _radioTransmitFullName ?? string.Empty);
+            AttachCore("Radio.TransmitFrequencyName", () => string.Empty);
             AttachCore("Radio.TransmitFrequencyMuted", () => _radioTransmitFrequencyMuted);
             AttachCore("Radio.TransmitClassPosLabel", () => _radioTransmitClassPosLabel ?? string.Empty);
+            AttachCore("Radio.LocalTxFrequencyNum", () => _localTxFrequencyNum);
+            AttachCore("Radio.LocalTxFrequencyName", () => _localTxFrequencyName ?? string.Empty);
+            AttachCore("Radio.LocalTxFrequencyMuted", () => _localTxFrequencyMuted);
+            AttachCore("Radio.IsPlayerTransmitting", () => _radioIsPlayerTransmitting);
             AttachCore("Car.Valid", () => _carSaEngine?.Outputs.Valid ?? false);
             AttachCore("Car.Source", () => _carSaEngine?.Outputs.Source ?? string.Empty);
             AttachCore("Car.SlotsAhead", () => _carSaEngine?.Outputs.SlotsAhead ?? 0);
@@ -7073,6 +7086,21 @@ namespace LaunchPlugin
             int transmitCarIdx = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.RadioTransmitCarIdx", -1);
             int transmitRadioIdx = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.RadioTransmitRadioIdx", -1);
             int transmitFrequencyIdx = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.RadioTransmitFrequencyIdx", -1);
+            int playerCarIdx = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.PlayerCarIdx", -1);
+
+            object radioInfo = null;
+            try
+            {
+                radioInfo = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.RadioInfo");
+            }
+            catch
+            {
+                radioInfo = null;
+            }
+
+            _radioFrequencyNameCache.EnsureBuilt(_currentSessionToken, radioInfo);
+            UpdateLocalTxState(transmitRadioIdx, transmitFrequencyIdx);
+            _radioIsPlayerTransmitting = transmitCarIdx >= 0 && playerCarIdx >= 0 && transmitCarIdx == playerCarIdx;
 
             if (transmitCarIdx < 0)
             {
@@ -7098,24 +7126,14 @@ namespace LaunchPlugin
             bool frequencyChanged = transmitFrequencyIdx != _lastTransmitFrequencyIdx;
             bool changed = carChanged || radioChanged || frequencyChanged;
 
-            if (carChanged || string.IsNullOrEmpty(_radioTransmitShortName))
+            if (carChanged || string.IsNullOrEmpty(_radioTransmitShortName) || string.IsNullOrEmpty(_radioTransmitFullName))
             {
                 _radioTransmitShortName = ResolveTransmitShortName(pluginManager, transmitCarIdx);
+                _radioTransmitFullName = ResolveTransmitFullName(pluginManager, transmitCarIdx);
             }
 
             if (changed || !_radioFrequencyNameCache.HasBuilt || string.IsNullOrEmpty(_lastTransmitFrequencyName) || _radioTransmitFrequencyEntry == null)
             {
-                object radioInfo = null;
-                try
-                {
-                    radioInfo = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.RadioInfo");
-                }
-                catch
-                {
-                    radioInfo = null;
-                }
-
-                _radioFrequencyNameCache.EnsureBuilt(_currentSessionToken, radioInfo);
                 bool hasInfo = _radioFrequencyNameCache.TryGetInfo(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName, out _radioTransmitFrequencyEntry, out _radioTransmitFrequencyMutedAccessor);
                 if (!hasInfo || string.IsNullOrEmpty(_lastTransmitFrequencyName))
                 {
@@ -7136,6 +7154,7 @@ namespace LaunchPlugin
             }
 
             _radioTransmitFrequencyMuted = ReadTransmitFrequencyMuted();
+            _lastTransmitFrequencyName = string.Empty;
 
             if (changed)
             {
@@ -7168,6 +7187,7 @@ namespace LaunchPlugin
             _lastTransmitFrequencyIdx = -1;
             _lastTransmitFrequencyName = string.Empty;
             _radioTransmitShortName = string.Empty;
+            _radioTransmitFullName = string.Empty;
             _radioTransmitFrequencyMuted = false;
             _radioTransmitFrequencyEntry = null;
             _radioTransmitFrequencyMutedAccessor = null;
@@ -7176,6 +7196,7 @@ namespace LaunchPlugin
             _lastTransmitClassPosCarIdx = -1;
             _lastTransmitClassPosition = 0;
             _lastTransmitClassShort = string.Empty;
+            _radioIsPlayerTransmitting = false;
         }
 
         private void ClearAllTransmitSlots(CarSAOutputs outputs)
@@ -7332,6 +7353,66 @@ namespace LaunchPlugin
             }
         }
 
+        private void UpdateLocalTxState(int transmitRadioIdx, int transmitFrequencyIdx)
+        {
+            int localRadioIdx = transmitRadioIdx;
+            int localFrequencyNum = -1;
+
+            if (localRadioIdx >= 0 && _radioFrequencyNameCache.TryGetTunedFrequencyNum(localRadioIdx, out var tunedFrequencyNum))
+            {
+                localFrequencyNum = tunedFrequencyNum;
+            }
+            else
+            {
+                localFrequencyNum = transmitFrequencyIdx;
+            }
+
+            bool localChanged = localRadioIdx != _localTxRadioIdx
+                                || localFrequencyNum != _localTxFrequencyNum
+                                || !_radioFrequencyNameCache.HasBuilt
+                                || _localTxFrequencyEntry == null;
+
+            _localTxRadioIdx = localRadioIdx;
+            _localTxFrequencyNum = localFrequencyNum;
+
+            if (localChanged)
+            {
+                if (localRadioIdx >= 0 && localFrequencyNum >= 0
+                    && _radioFrequencyNameCache.TryGetInfo(localRadioIdx, localFrequencyNum, out var localName, out var localEntry, out var localMutedAccessor))
+                {
+                    _localTxFrequencyName = localName ?? string.Empty;
+                    _localTxFrequencyEntry = localEntry;
+                    _localTxFrequencyMutedAccessor = localMutedAccessor;
+                }
+                else
+                {
+                    _localTxFrequencyName = string.Empty;
+                    _localTxFrequencyEntry = null;
+                    _localTxFrequencyMutedAccessor = null;
+                    _localTxFrequencyMuted = false;
+                }
+            }
+
+            _localTxFrequencyMuted = ReadLocalTxFrequencyMuted();
+        }
+
+        private bool ReadLocalTxFrequencyMuted()
+        {
+            if (_localTxFrequencyEntry == null || _localTxFrequencyMutedAccessor == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return _localTxFrequencyMutedAccessor(_localTxFrequencyEntry);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private string ResolveTransmitShortName(PluginManager pluginManager, int carIdx)
         {
             if (pluginManager == null || carIdx < 0)
@@ -7349,6 +7430,61 @@ namespace LaunchPlugin
                 }
 
                 return GetString(pluginManager, $"{basePath}.AbbrevName") ?? string.Empty;
+            }
+
+            return string.Empty;
+        }
+
+        private string ResolveTransmitFullName(PluginManager pluginManager, int carIdx)
+        {
+            if (pluginManager == null || carIdx < 0)
+            {
+                return string.Empty;
+            }
+
+            for (int i = 1; i <= 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.Drivers{i:00}";
+                int idx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (idx == int.MinValue || idx != carIdx)
+                {
+                    continue;
+                }
+
+                string fullName = GetString(pluginManager, $"{basePath}.UserName");
+                if (string.IsNullOrWhiteSpace(fullName))
+                {
+                    fullName = GetString(pluginManager, $"{basePath}.DisplayName");
+                }
+
+                if (string.IsNullOrWhiteSpace(fullName))
+                {
+                    fullName = GetString(pluginManager, $"{basePath}.Name");
+                }
+
+                if (!string.IsNullOrWhiteSpace(fullName))
+                {
+                    return fullName.Trim();
+                }
+
+                string firstName = GetString(pluginManager, $"{basePath}.FirstName");
+                string lastName = GetString(pluginManager, $"{basePath}.LastName");
+                if (!string.IsNullOrWhiteSpace(firstName) && !string.IsNullOrWhiteSpace(lastName))
+                {
+                    return $"{firstName.Trim()} {lastName.Trim()}";
+                }
+
+                if (!string.IsNullOrWhiteSpace(firstName))
+                {
+                    return firstName.Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(lastName))
+                {
+                    return lastName.Trim();
+                }
+
+                return string.Empty;
             }
 
             return string.Empty;
