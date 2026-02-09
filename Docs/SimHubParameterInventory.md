@@ -105,7 +105,10 @@ Branch: work
 ## Radio
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |
-| Radio.TransmitClassPosLabel | string | Class position label for the currently transmitting car, formatted as `P{pos} {class}` when available (empty when no transmitter or identity missing). | Per tick. | `LalaLaunch.cs` transmit caching + `AttachCore`【F:LalaLaunch.cs†L3551-L3557】【F:LalaLaunch.cs†L6612-L6756】 |
+| Radio.TransmitShortName | string | Abbreviated name for the currently transmitting car (from `SessionData.DriverInfo.DriversXX.AbbrevName`), empty when no transmitter or missing. | Per tick. | `LalaLaunch.cs` transmit caching + `AttachCore`【F:LalaLaunch.cs†L3653-L3656】【F:LalaLaunch.cs†L7044-L7310】 |
+| Radio.TransmitFrequencyName | string | Frequency name for the currently transmitting car (matched by radio index + `FrequencyNum`), empty when no transmitter or mapping missing. | Per tick. | `RadioFrequencyNameCache.cs` + `LalaLaunch.cs` transmit caching + `AttachCore`【F:RadioFrequencyNameCache.cs†L1-L171】【F:LalaLaunch.cs†L3653-L3656】【F:LalaLaunch.cs†L7044-L7310】 |
+| Radio.TransmitFrequencyMuted | bool | Channel-level mute state for the currently transmitting frequency (from `FrequenciesYY.Muted`), false when no transmitter or mapping missing. This reflects the channel setting only (not per-driver mutes). | Per tick. | `RadioFrequencyNameCache.cs` + `LalaLaunch.cs` transmit caching + `AttachCore`【F:RadioFrequencyNameCache.cs†L1-L171】【F:LalaLaunch.cs†L3653-L3656】【F:LalaLaunch.cs†L7044-L7310】 |
+| Radio.TransmitClassPosLabel | string | Class position label for the currently transmitting car, formatted as `P{pos} {class}` when available (empty when no transmitter or identity missing). | Per tick. | `LalaLaunch.cs` transmit caching + `AttachCore`【F:LalaLaunch.cs†L3653-L3656】【F:LalaLaunch.cs†L7249-L7287】 |
 
 **CarSA style helper exports (30 total)**
 - `Car.Ahead01.StatusBgHex`, `Car.Ahead01.BorderMode`, `Car.Ahead01.BorderHex`

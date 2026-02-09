@@ -7,9 +7,21 @@ namespace LaunchPlugin
 {
     public sealed class RadioFrequencyNameCache
     {
-        private readonly Dictionary<long, string> _frequencyNameByKey = new Dictionary<long, string>();
+        private readonly Dictionary<long, FrequencyInfo> _frequencyInfoByKey = new Dictionary<long, FrequencyInfo>();
         private string _lastSessionToken = string.Empty;
         private bool _hasBuilt;
+
+        private readonly struct FrequencyInfo
+        {
+            public FrequencyInfo(string name, bool muted)
+            {
+                Name = name;
+                Muted = muted;
+            }
+
+            public string Name { get; }
+            public bool Muted { get; }
+        }
 
         private readonly struct IndexedObject
         {
@@ -25,10 +37,12 @@ namespace LaunchPlugin
 
         public void Reset()
         {
-            _frequencyNameByKey.Clear();
+            _frequencyInfoByKey.Clear();
             _lastSessionToken = string.Empty;
             _hasBuilt = false;
         }
+
+        public bool HasBuilt => _hasBuilt;
 
         public void EnsureBuilt(string sessionToken, object radioInfo)
         {
@@ -36,7 +50,7 @@ namespace LaunchPlugin
             if (!string.Equals(sessionToken, _lastSessionToken, StringComparison.Ordinal))
             {
                 _lastSessionToken = sessionToken;
-                _frequencyNameByKey.Clear();
+                _frequencyInfoByKey.Clear();
                 _hasBuilt = false;
             }
 
@@ -52,14 +66,28 @@ namespace LaunchPlugin
         public bool TryGetName(int radioIdx, int frequencyIdx, out string name)
         {
             name = string.Empty;
+            if (TryGetInfo(radioIdx, frequencyIdx, out var infoName, out _))
+            {
+                name = infoName;
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool TryGetInfo(int radioIdx, int frequencyIdx, out string name, out bool muted)
+        {
+            name = string.Empty;
+            muted = false;
             if (radioIdx < 0 || frequencyIdx < 0)
             {
                 return false;
             }
 
-            if (_frequencyNameByKey.TryGetValue(ToKey(radioIdx, frequencyIdx), out var found))
+            if (_frequencyInfoByKey.TryGetValue(ToKey(radioIdx, frequencyIdx), out var found))
             {
-                name = found ?? string.Empty;
+                name = found.Name ?? string.Empty;
+                muted = found.Muted;
                 return true;
             }
 
@@ -73,7 +101,7 @@ namespace LaunchPlugin
 
         private void BuildMap(object radioInfo)
         {
-            _frequencyNameByKey.Clear();
+            _frequencyInfoByKey.Clear();
 
             foreach (var radioEntry in EnumerateRadios(radioInfo))
             {
@@ -102,7 +130,8 @@ namespace LaunchPlugin
                     }
 
                     string name = GetStringProperty(freqEntry.Value, "FrequencyName") ?? string.Empty;
-                    _frequencyNameByKey[ToKey(radioIdx, frequencyIdx)] = name;
+                    bool muted = TryGetIntProperty(freqEntry.Value, "Muted", out var mutedValue) && mutedValue != 0;
+                    _frequencyInfoByKey[ToKey(radioIdx, frequencyIdx)] = new FrequencyInfo(name, muted);
                 }
             }
         }
