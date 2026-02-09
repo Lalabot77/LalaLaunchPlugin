@@ -3,7 +3,7 @@
 ## What exists in this checkout right now
 - Only one local branch is present: `work`.
 - There is no Git remote configured, so nothing in this checkout is currently linked to GitHub.
-- The latest commit on `work` is the current HEAD with PR #361 (CarSA GateGap v2 stability fixes, slot rebind guardrails, and precision gap outputs). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
+- The latest commit on `work` is the current HEAD with PR #381 (Declutter mode rename + dash action updates). Use `git log --oneline -n 22` to see the recent merges if you want to double-check.
 
 ## How to connect this checkout to your GitHub repo
 1. Add your GitHub remote (replace the URL with your actual repository clone URL):
@@ -63,8 +63,10 @@
 - **Opponents subsystem:** **COMPLETE** — race-only opponent pace/fight and pit-exit prediction exports with lap gate ≥1, summary strings, and log support.
 - **CarSA SA-Core v2:** **INTEGRATED** — distance-based car-centric gaps/closing with telemetry grace windows, StatusE redesign (penalty/off-track splits, lapping text, pit-area handling), class-rank-aware other-class labeling, replay-safe identity retries, and debug CSV instrumentation alignment/cross-checks.
 - **CarSA GateGap v2:** **INTEGRATED** — mini-sector gate timing feeds filtered `Gap.RelativeSec` with predictive correction and sticky publish hold, plus lapped-car normalization, direction mapping fixes, slot rebind guards, and track-gap mismatch fallbacks (see `Gap.RelativeSource`). Slot-01 precision gaps (`Car.Ahead01P/Behind01P`) provide a focused high-fidelity readout.
+- **CarSA info bursts:** **INTEGRATED** — slot info banners now use short S/F and half-lap bursts with per-car latch protection, replacing the continuous rotation model to keep messages stable through slot changes.
 - **CarSA slot info + debug controls:** **COMPLETE** — rotating slot info/visibility outputs for quick deltas, soft+hard debug gating, and Dashes tab placement for debug controls.
 - **Off-track debug CSV:** **COMPLETE** — optional `OffTrackDebug_*.csv` probe export with raw telemetry flags, off-track latch state, and incident deltas to audit compromised laps.
+- **Off-track debug change-only logging:** **COMPLETE** — optional change-only mode trims CSV spam by writing rows only when the probe snapshot changes.
 - **Dry/Wet condition lock UI:** **COMPLETE** — per-track dry/wet condition lock toggles persist immediately in profiles (no save prompt).
 - **Session summary + trace v2:** **COMPLETE** — session summary CSV v2, lap trace rows with pit-stop index/phase, corrected pit-stop counting semantics, and explicit CSV column mapping for summary exports.
 - **Profile storage & schema:** **COMPLETE** — car profiles now save in a schema-v2 wrapper with opt-in track stats serialization, normalized track keys, and legacy JSON migration from older filenames/locations.
@@ -76,6 +78,9 @@
 - **Messaging signals:** **COMPLETE** — `MSG.OtherClassBehindGap` exported for multi-class approach messaging; no `MSGOtherClassBehindGap` alias remains.
 - **Stint burn targets:** **COMPLETE** — live “current tank” burn guidance exported with banding (SAVE/HOLD/PUSH/OKAY) and a configurable pit-in reserve expressed as % of one lap’s stable burn.
 - **Dash overlay visibility:** **COMPLETE** — overlay dash receives the same show/hide toggles as main/message dashes, including pit/launch/rejoin/race flags and traffic alerts.
+- **Declutter mode (secondary dash):** **COMPLETE** — the secondary dash button now cycles a 0/1/2 declutter export with a legacy alias preserved for older bindings.
+- **Friends + iOverlay import:** **COMPLETE** — friends list supports immediate-apply edits, dedupe, count exports, and iOverlay tag import via the Global Settings tab.
+- **Radio transmit exports:** **COMPLETE** — live frequency names/mute state/position labels exported with improved fallback and live updates while a driver transmits.
 - **Wet/dry stat gating:** **COMPLETE** — wet mode is detected via tire compound signals, wet stats are captured separately, and wet/dry confidence applies a cross-mode penalty when using opposite-condition data.
 - **Wet surface telemetry exports:** **COMPLETE** — track wetness and label are exported alongside live wet/dry mode updates for dashboards and live snapshot UI.
 

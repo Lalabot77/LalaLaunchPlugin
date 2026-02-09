@@ -2,9 +2,9 @@
 
 **CANONICAL OBSERVABILITY MAP**
 
-Validated against: 9d77f4a  
-Last reviewed: 2026-02-10  
-Last updated: 2026-02-10  
+Validated against: b7e67df  
+Last reviewed: 2026-02-09  
+Last updated: 2026-02-09  
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
@@ -20,6 +20,7 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Dash] PrimaryDashMode action fired (placeholder).`** — Action binding confirmed; no behaviour implemented yet.【F:LalaLaunch.cs†L10-L50】
 - **`[LalaPlugin:Dash] DeclutterMode action fired -> DeclutterMode=0/1/2.`** — Declutter control pressed; cycles the 0/1/2 export used for dash visibility bindings.【F:LalaLaunch.cs†L10-L50】
 - **`[LalaPlugin:Dash] SecondaryDashMode action fired (legacy) -> DeclutterMode=0/1/2.`** — Legacy alias for the same declutter cycle to preserve old bindings.【F:LalaLaunch.cs†L10-L50】
+- **`[LalaPlugin:Dash] Event marker action fired (pressed latched).`** — Event marker action pressed; pulses the event marker latch for CSV tracing.【F:LalaLaunch.cs†L10-L70】
 - **`[LalaPlugin:Launch] LaunchMode pressed -> re-enabled launch mode.`** — User pressed Launch while feature was user-disabled; flag cleared.【F:LalaLaunch.cs†L17-L45】
 - **`[LalaPlugin:Launch] LaunchMode blocked (inPits=..., seriousRejoin=...).`** — Launch button ignored due to pit/rejoin guard.【F:LalaLaunch.cs†L17-L45】
 - **`[LalaPlugin:Launch] LaunchMode pressed -> ManualPrimed.`** — Launch primed manually after passing guards.【F:LalaLaunch.cs†L17-L45】
@@ -30,6 +31,7 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Launch] State change: <old> -> <new>.`** — Launch state machine transition (e.g., primed → logging).【F:LalaLaunch.cs†L2470-L2494】
 - **`[LalaPlugin:Launch Trace] <reason> – cancelling to Idle.`** — Launch trace aborted to idle with the provided reason (debounced).【F:LalaLaunch.cs†L3048-L3074】
 - **`[LalaPlugin:Launch] ManualPrimed timeout fired ...`** — Manual prime exceeded 30 s; launch cancelled and user-disabled latched.【F:LalaLaunch.cs†L4993-L5004】
+- **`[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock`** — Init-time action registration summary for SimHub bindings.【F:LalaLaunch.cs†L3276-L3290】
 
 ## Fuel seeds, session change, and identity
 - **`[LalaPlugin:Fuel Burn] Captured seed from session ... dry=X (n=a), wet=Y (n=b).`** — Saves rolling dry/wet fuel figures before session change for seeding Race.【F:LalaLaunch.cs†L790-L830】
