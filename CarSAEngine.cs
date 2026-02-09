@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace LaunchPlugin
 {
@@ -1865,7 +1866,9 @@ namespace LaunchPlugin
             }
 
             string sign = delta >= 0.0 ? "+" : "-";
-            return $"{label} {sign}{Math.Abs(delta):0.1}";
+            string val = Math.Abs(delta).ToString("0.0", CultureInfo.InvariantCulture);
+            return $"{label} {sign}{val}";
+
         }
 
         private static double NormalizeGateGapSec(double rawGapSec, int lapDelta, double lapTimeUsed)
