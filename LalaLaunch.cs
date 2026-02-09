@@ -2942,6 +2942,10 @@ namespace LaunchPlugin
         private int _lastTransmitRadioIdx = -1;
         private int _lastTransmitFrequencyIdx = -1;
         private string _lastTransmitFrequencyName = string.Empty;
+        private string _radioTransmitShortName = string.Empty;
+        private bool _radioTransmitFrequencyMuted;
+        private object _radioTransmitFrequencyEntry;
+        private Func<object, bool> _radioTransmitFrequencyMutedAccessor;
         private int _lastTransmitTalkingSlotKey = -1;
         private string _radioTransmitClassPosLabel = string.Empty;
         private int _lastTransmitClassPosCarIdx = -1;
@@ -3648,6 +3652,9 @@ namespace LaunchPlugin
             AttachCore("PitExit.Behind.ClassColor", () => _opponentsEngine?.Outputs.PitExit.BehindClassColor ?? string.Empty);
             AttachCore("PitExit.Behind.GapSec", () => _opponentsEngine?.Outputs.PitExit.BehindGapSec ?? 0.0);
 
+            AttachCore("Radio.TransmitShortName", () => _radioTransmitShortName ?? string.Empty);
+            AttachCore("Radio.TransmitFrequencyName", () => _lastTransmitFrequencyName ?? string.Empty);
+            AttachCore("Radio.TransmitFrequencyMuted", () => _radioTransmitFrequencyMuted);
             AttachCore("Radio.TransmitClassPosLabel", () => _radioTransmitClassPosLabel ?? string.Empty);
             AttachCore("Car.Valid", () => _carSaEngine?.Outputs.Valid ?? false);
             AttachCore("Car.Source", () => _carSaEngine?.Outputs.Source ?? string.Empty);
@@ -7066,20 +7073,17 @@ namespace LaunchPlugin
 
             UpdateTransmitClassPosLabel(transmitCarIdx);
 
-            bool changed = transmitCarIdx != _lastTransmitCarIdx
-                || transmitRadioIdx != _lastTransmitRadioIdx
-                || transmitFrequencyIdx != _lastTransmitFrequencyIdx;
+            bool carChanged = transmitCarIdx != _lastTransmitCarIdx;
+            bool radioChanged = transmitRadioIdx != _lastTransmitRadioIdx;
+            bool frequencyChanged = transmitFrequencyIdx != _lastTransmitFrequencyIdx;
+            bool changed = carChanged || radioChanged || frequencyChanged;
 
-            if (!changed && TryGetSlotByKey(outputs, _lastTransmitTalkingSlotKey, out var cachedSlot))
+            if (carChanged || string.IsNullOrEmpty(_radioTransmitShortName))
             {
-                if (cachedSlot.IsValid && cachedSlot.CarIdx == transmitCarIdx)
-                {
-                    cachedSlot.SetTransmitState(true, transmitRadioIdx, transmitFrequencyIdx, _lastTransmitFrequencyName);
-                    return;
-                }
+                _radioTransmitShortName = ResolveTransmitShortName(pluginManager, transmitCarIdx);
             }
 
-            if (changed)
+            if (changed || !_radioFrequencyNameCache.HasBuilt || string.IsNullOrEmpty(_lastTransmitFrequencyName) || _radioTransmitFrequencyEntry == null)
             {
                 object radioInfo = null;
                 try
@@ -7092,11 +7096,16 @@ namespace LaunchPlugin
                 }
 
                 _radioFrequencyNameCache.EnsureBuilt(_currentSessionToken, radioInfo);
-                if (!_radioFrequencyNameCache.TryGetName(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName))
+                if (!_radioFrequencyNameCache.TryGetInfo(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName, out _radioTransmitFrequencyEntry, out _radioTransmitFrequencyMutedAccessor))
                 {
                     _lastTransmitFrequencyName = string.Empty;
+                    _radioTransmitFrequencyEntry = null;
+                    _radioTransmitFrequencyMutedAccessor = null;
+                    _radioTransmitFrequencyMuted = false;
                 }
             }
+
+            _radioTransmitFrequencyMuted = ReadTransmitFrequencyMuted();
 
             if (changed)
             {
@@ -7128,6 +7137,10 @@ namespace LaunchPlugin
             _lastTransmitRadioIdx = -1;
             _lastTransmitFrequencyIdx = -1;
             _lastTransmitFrequencyName = string.Empty;
+            _radioTransmitShortName = string.Empty;
+            _radioTransmitFrequencyMuted = false;
+            _radioTransmitFrequencyEntry = null;
+            _radioTransmitFrequencyMutedAccessor = null;
             _lastTransmitTalkingSlotKey = -1;
             _radioTransmitClassPosLabel = string.Empty;
             _lastTransmitClassPosCarIdx = -1;
@@ -7263,13 +7276,52 @@ namespace LaunchPlugin
             if (positionInClass > 0)
             {
                 _radioTransmitClassPosLabel = !string.IsNullOrWhiteSpace(classShort)
-                    ? $"P{positionInClass} {classShort}"
+                    ? $"{classShort} P{positionInClass}"
                     : $"P{positionInClass}";
             }
             else
             {
                 _radioTransmitClassPosLabel = string.Empty;
             }
+        }
+
+        private bool ReadTransmitFrequencyMuted()
+        {
+            if (_radioTransmitFrequencyEntry == null || _radioTransmitFrequencyMutedAccessor == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return _radioTransmitFrequencyMutedAccessor(_radioTransmitFrequencyEntry);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string ResolveTransmitShortName(PluginManager pluginManager, int carIdx)
+        {
+            if (pluginManager == null || carIdx < 0)
+            {
+                return string.Empty;
+            }
+
+            for (int i = 1; i <= 64; i++)
+            {
+                string basePath = $"DataCorePlugin.GameRawData.SessionData.DriverInfo.Drivers{i:00}";
+                int idx = GetInt(pluginManager, $"{basePath}.CarIdx", int.MinValue);
+                if (idx == int.MinValue || idx != carIdx)
+                {
+                    continue;
+                }
+
+                return GetString(pluginManager, $"{basePath}.AbbrevName") ?? string.Empty;
+            }
+
+            return string.Empty;
         }
 
         private bool TryGetCarIdxIdentity(int carIdx, out int positionInClass, out string classShort)

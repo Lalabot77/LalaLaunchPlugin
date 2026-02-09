@@ -1,15 +1,30 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace LaunchPlugin
 {
     public sealed class RadioFrequencyNameCache
     {
-        private readonly Dictionary<long, string> _frequencyNameByKey = new Dictionary<long, string>();
+        private readonly Dictionary<long, FrequencyInfo> _frequencyInfoByKey = new Dictionary<long, FrequencyInfo>();
         private string _lastSessionToken = string.Empty;
         private bool _hasBuilt;
+
+        private readonly struct FrequencyInfo
+        {
+            public FrequencyInfo(string name, object entry, Func<object, bool> mutedAccessor)
+            {
+                Name = name;
+                Entry = entry;
+                MutedAccessor = mutedAccessor;
+            }
+
+            public string Name { get; }
+            public object Entry { get; }
+            public Func<object, bool> MutedAccessor { get; }
+        }
 
         private readonly struct IndexedObject
         {
@@ -25,10 +40,12 @@ namespace LaunchPlugin
 
         public void Reset()
         {
-            _frequencyNameByKey.Clear();
+            _frequencyInfoByKey.Clear();
             _lastSessionToken = string.Empty;
             _hasBuilt = false;
         }
+
+        public bool HasBuilt => _hasBuilt;
 
         public void EnsureBuilt(string sessionToken, object radioInfo)
         {
@@ -36,7 +53,7 @@ namespace LaunchPlugin
             if (!string.Equals(sessionToken, _lastSessionToken, StringComparison.Ordinal))
             {
                 _lastSessionToken = sessionToken;
-                _frequencyNameByKey.Clear();
+                _frequencyInfoByKey.Clear();
                 _hasBuilt = false;
             }
 
@@ -52,14 +69,30 @@ namespace LaunchPlugin
         public bool TryGetName(int radioIdx, int frequencyIdx, out string name)
         {
             name = string.Empty;
+            if (TryGetInfo(radioIdx, frequencyIdx, out var infoName, out _, out _))
+            {
+                name = infoName;
+                return true;
+            }
+
+            return false;
+        }
+
+        public bool TryGetInfo(int radioIdx, int frequencyIdx, out string name, out object entry, out Func<object, bool> mutedAccessor)
+        {
+            name = string.Empty;
+            entry = null;
+            mutedAccessor = null;
             if (radioIdx < 0 || frequencyIdx < 0)
             {
                 return false;
             }
 
-            if (_frequencyNameByKey.TryGetValue(ToKey(radioIdx, frequencyIdx), out var found))
+            if (_frequencyInfoByKey.TryGetValue(ToKey(radioIdx, frequencyIdx), out var found))
             {
-                name = found ?? string.Empty;
+                name = found.Name ?? string.Empty;
+                entry = found.Entry;
+                mutedAccessor = found.MutedAccessor;
                 return true;
             }
 
@@ -73,7 +106,7 @@ namespace LaunchPlugin
 
         private void BuildMap(object radioInfo)
         {
-            _frequencyNameByKey.Clear();
+            _frequencyInfoByKey.Clear();
 
             foreach (var radioEntry in EnumerateRadios(radioInfo))
             {
@@ -102,7 +135,9 @@ namespace LaunchPlugin
                     }
 
                     string name = GetStringProperty(freqEntry.Value, "FrequencyName") ?? string.Empty;
-                    _frequencyNameByKey[ToKey(radioIdx, frequencyIdx)] = name;
+                    var mutedProperty = GetProperty(freqEntry.Value, "Muted");
+                    var mutedAccessor = CreateMutedAccessor(freqEntry.Value, mutedProperty);
+                    _frequencyInfoByKey[ToKey(radioIdx, frequencyIdx)] = new FrequencyInfo(name, freqEntry.Value, mutedAccessor);
                 }
             }
         }
@@ -271,6 +306,42 @@ namespace LaunchPlugin
 
             value = prop.GetValue(source);
             return true;
+        }
+
+        private static PropertyInfo GetProperty(object source, string name)
+        {
+            if (source == null)
+            {
+                return null;
+            }
+
+            var prop = source.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+            return prop != null && prop.CanRead ? prop : null;
+        }
+
+        private static Func<object, bool> CreateMutedAccessor(object entry, PropertyInfo mutedProperty)
+        {
+            if (entry == null || mutedProperty == null || !mutedProperty.CanRead)
+            {
+                return null;
+            }
+
+            var targetParam = Expression.Parameter(typeof(object), "target");
+            var castTarget = Expression.Convert(targetParam, mutedProperty.DeclaringType);
+            var propertyAccess = Expression.Property(castTarget, mutedProperty);
+            Expression body;
+
+            if (mutedProperty.PropertyType == typeof(bool))
+            {
+                body = propertyAccess;
+            }
+            else
+            {
+                var converted = Expression.Convert(propertyAccess, typeof(int));
+                body = Expression.NotEqual(converted, Expression.Constant(0));
+            }
+
+            return Expression.Lambda<Func<object, bool>>(body, targetParam).Compile();
         }
 
         private static bool TryParseTrailingIndex(string name, out int index)
