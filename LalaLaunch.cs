@@ -2951,7 +2951,6 @@ namespace LaunchPlugin
         private int _lastTransmitCarIdx = -1;
         private int _lastTransmitRadioIdx = -1;
         private int _lastTransmitFrequencyIdx = -1;
-        private string _lastTransmitFrequencyName = string.Empty;
         private string _radioTransmitShortName = string.Empty;
         private string _radioTransmitFullName = string.Empty;
         private bool _radioTransmitFrequencyMuted;
@@ -7132,20 +7131,18 @@ namespace LaunchPlugin
                 _radioTransmitFullName = ResolveTransmitFullName(pluginManager, transmitCarIdx);
             }
 
-            if (changed || !_radioFrequencyNameCache.HasBuilt || string.IsNullOrEmpty(_lastTransmitFrequencyName) || _radioTransmitFrequencyEntry == null)
+            if (changed || !_radioFrequencyNameCache.HasBuilt || _radioTransmitFrequencyEntry == null)
             {
-                bool hasInfo = _radioFrequencyNameCache.TryGetInfo(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName, out _radioTransmitFrequencyEntry, out _radioTransmitFrequencyMutedAccessor);
-                if (!hasInfo || string.IsNullOrEmpty(_lastTransmitFrequencyName))
+                bool hasInfo = _radioFrequencyNameCache.TryGetInfo(transmitRadioIdx, transmitFrequencyIdx, out _, out _radioTransmitFrequencyEntry, out _radioTransmitFrequencyMutedAccessor);
+                if (!hasInfo)
                 {
-                    if (_radioFrequencyNameCache.TryGetInfoByTransmittingCar(transmitRadioIdx, transmitCarIdx, out var fallbackName, out var fallbackEntry, out var fallbackMutedAccessor))
+                    if (_radioFrequencyNameCache.TryGetInfoByTransmittingCar(transmitRadioIdx, transmitCarIdx, out _, out var fallbackEntry, out var fallbackMutedAccessor))
                     {
-                        _lastTransmitFrequencyName = fallbackName;
                         _radioTransmitFrequencyEntry = fallbackEntry;
                         _radioTransmitFrequencyMutedAccessor = fallbackMutedAccessor;
                     }
                     else if (!hasInfo)
                     {
-                        _lastTransmitFrequencyName = string.Empty;
                         _radioTransmitFrequencyEntry = null;
                         _radioTransmitFrequencyMutedAccessor = null;
                         _radioTransmitFrequencyMuted = false;
@@ -7154,7 +7151,6 @@ namespace LaunchPlugin
             }
 
             _radioTransmitFrequencyMuted = ReadTransmitFrequencyMuted();
-            _lastTransmitFrequencyName = string.Empty;
 
             if (changed)
             {
@@ -7167,7 +7163,7 @@ namespace LaunchPlugin
 
             if (TryFindTransmitSlot(outputs, transmitCarIdx, out var slot, out var slotKey))
             {
-                slot.SetTransmitState(true, transmitRadioIdx, transmitFrequencyIdx, _lastTransmitFrequencyName);
+                slot.SetTransmitState(true, transmitRadioIdx, transmitFrequencyIdx, string.Empty);
                 _lastTransmitTalkingSlotKey = slotKey;
             }
             else
@@ -7185,7 +7181,6 @@ namespace LaunchPlugin
             _lastTransmitCarIdx = -1;
             _lastTransmitRadioIdx = -1;
             _lastTransmitFrequencyIdx = -1;
-            _lastTransmitFrequencyName = string.Empty;
             _radioTransmitShortName = string.Empty;
             _radioTransmitFullName = string.Empty;
             _radioTransmitFrequencyMuted = false;
