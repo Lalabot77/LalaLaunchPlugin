@@ -56,6 +56,42 @@
                 <StackPanel>
                     <TextBlock Margin="0,0,0,5" Foreground="LightGray"
                                Text="Add iRacing Customer IDs to highlight friends in CarSA." />
+                    <StackPanel Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Import iOverlay"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
+                            <ComboBox x:Name="IOverlayCategoryComboBox"
+                                      Grid.Column="1"
+                                      MinWidth="220"
+                                      Margin="0,0,8,0" />
+                            <CheckBox x:Name="IOverlayTeammateCheckBox"
+                                      Grid.Column="2"
+                                      Content="Import as teammate"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,8,0" />
+                            <styles:SHButtonPrimary Grid.Column="3"
+                                                    Content="Import"
+                                                    Padding="8,2"
+                                                    Margin="0,0,8,0"
+                                                    Click="ImportIOverlay_Click" />
+                            <styles:SHButtonPrimary Grid.Column="4"
+                                                    Content="Reload"
+                                                    Padding="8,2"
+                                                    Click="ReloadIOverlay_Click" />
+                        </Grid>
+                        <TextBlock x:Name="IOverlayStatusText"
+                                   Margin="0,4,0,0"
+                                   Foreground="LightGray" />
+                    </StackPanel>
                     <DataGrid ItemsSource="{Binding Settings.Friends}"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
