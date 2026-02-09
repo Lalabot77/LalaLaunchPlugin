@@ -109,9 +109,25 @@ namespace LaunchPlugin
                 Plugin.Settings.Friends = new ObservableCollection<LaunchPluginFriendEntry>();
             }
 
-            var existingById = Plugin.Settings.Friends
-                .Where(entry => entry != null)
-                .ToDictionary(entry => entry.UserId, entry => entry);
+            var existingById = new Dictionary<int, LaunchPluginFriendEntry>();
+            foreach (var entry in Plugin.Settings.Friends)
+            {
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                var id = entry.UserId;
+                if (id <= 0)
+                {
+                    continue;
+                }
+
+                if (!existingById.ContainsKey(id))
+                {
+                    existingById[id] = entry;
+                }
+            }
 
             int newCount = 0;
             int updatedCount = 0;
