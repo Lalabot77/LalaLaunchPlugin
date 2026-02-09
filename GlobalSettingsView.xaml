@@ -81,11 +81,13 @@
                             <styles:SHButtonPrimary Grid.Column="3"
                                                     Content="Import"
                                                     Padding="8,2"
+                                                    MinWidth="70"
                                                     Margin="0,0,8,0"
                                                     Click="ImportIOverlay_Click" />
                             <styles:SHButtonPrimary Grid.Column="4"
                                                     Content="Reload"
                                                     Padding="8,2"
+                                                    MinWidth="70"
                                                     Click="ReloadIOverlay_Click" />
                         </Grid>
                         <TextBlock x:Name="IOverlayStatusText"
@@ -109,12 +111,15 @@
                             <DataGridCheckBoxColumn Header="TEAMMATE"
                                                     Binding="{Binding IsTeammate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                     Width="110" />
-                            <DataGridTemplateColumn Header="" Width="Auto">
+                            <DataGridTemplateColumn Header="REMOVE" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <styles:SHButtonPrimary Content="Remove"
                                                                 Padding="8,2"
-                                                                Margin="2"
+                                                                Margin="0"
+                                                                MinWidth="70"
+                                                                Background="#C62828"
+                                                                Foreground="White"
                                                                 Click="RemoveFriend_Click" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
