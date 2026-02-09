@@ -7105,12 +7105,22 @@ namespace LaunchPlugin
                 }
 
                 _radioFrequencyNameCache.EnsureBuilt(_currentSessionToken, radioInfo);
-                if (!_radioFrequencyNameCache.TryGetInfo(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName, out _radioTransmitFrequencyEntry, out _radioTransmitFrequencyMutedAccessor))
+                bool hasInfo = _radioFrequencyNameCache.TryGetInfo(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName, out _radioTransmitFrequencyEntry, out _radioTransmitFrequencyMutedAccessor);
+                if (!hasInfo || string.IsNullOrEmpty(_lastTransmitFrequencyName))
                 {
-                    _lastTransmitFrequencyName = string.Empty;
-                    _radioTransmitFrequencyEntry = null;
-                    _radioTransmitFrequencyMutedAccessor = null;
-                    _radioTransmitFrequencyMuted = false;
+                    if (_radioFrequencyNameCache.TryGetInfoByTransmittingCar(transmitRadioIdx, transmitCarIdx, out var fallbackName, out var fallbackEntry, out var fallbackMutedAccessor))
+                    {
+                        _lastTransmitFrequencyName = fallbackName;
+                        _radioTransmitFrequencyEntry = fallbackEntry;
+                        _radioTransmitFrequencyMutedAccessor = fallbackMutedAccessor;
+                    }
+                    else if (!hasInfo)
+                    {
+                        _lastTransmitFrequencyName = string.Empty;
+                        _radioTransmitFrequencyEntry = null;
+                        _radioTransmitFrequencyMutedAccessor = null;
+                        _radioTransmitFrequencyMuted = false;
+                    }
                 }
             }
 
