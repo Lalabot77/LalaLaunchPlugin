@@ -1614,6 +1614,12 @@ namespace LaunchPlugin
                 {
                     if (oppLapPct >= 0.0 && oppLapPct <= 0.05 && slot.CurrentLap != slot.LastSFBurstLap)
                     {
+                        if (!IsValidLapTimeSec(slot.LastLapTimeSec)
+                            || !IsValidLapTimeSec(slot.BestLapTimeSec)
+                            || !IsValidLapTimeSec(playerLastLap))
+                        {
+                            continue;
+                        }
                         slot.LastSFBurstLap = slot.CurrentLap;
                         slot.SFBurstStartSec = nowSec;
                         slot.SfBurstCarIdxLatched = slot.CarIdx;
@@ -1698,6 +1704,8 @@ namespace LaunchPlugin
             slot.HalfBurstStartSec = -1.0;
             slot.SfBurstCarIdxLatched = -1;
             slot.HalfBurstCarIdxLatched = -1;
+            slot.LastSFBurstLap = int.MinValue;
+            slot.LastHalfBurstLap = int.MinValue;
         }
 
         private static bool IsSameClass(CarSASlot slot, string playerClassColor, string playerClassName)
@@ -1752,12 +1760,12 @@ namespace LaunchPlugin
 
         private static string BuildHalfBurstMessage(CarSASlot slot, int phase)
         {
-            for (int offset = 0; offset < 2; offset++)
+            for (int offset = 0; offset < 3; offset++)
             {
-                int step = ((phase % 2) + offset) % 2;
-                string message = step == 0
-                    ? BuildLiveDeltaMessage(slot)
-                    : BuildLapsSincePitMessage(slot);
+                int step = ((phase % 3) + offset) % 3;
+                string message = step == 1
+                    ? BuildLapsSincePitMessage(slot)
+                    : BuildLiveDeltaMessage(slot);
                 if (!string.IsNullOrEmpty(message))
                 {
                     return message;
@@ -1780,6 +1788,12 @@ namespace LaunchPlugin
         private static string BuildLiveDeltaMessage(CarSASlot slot)
         {
             if (slot == null || string.IsNullOrWhiteSpace(slot.DeltaBest))
+            {
+                return string.Empty;
+            }
+
+            string delta = slot.DeltaBest.Trim();
+            if (string.Equals(delta, "-", StringComparison.Ordinal) || string.Equals(delta, "—", StringComparison.Ordinal))
             {
                 return string.Empty;
             }
