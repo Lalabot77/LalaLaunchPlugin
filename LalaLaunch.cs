@@ -2944,6 +2944,8 @@ namespace LaunchPlugin
         private string _lastTransmitFrequencyName = string.Empty;
         private string _radioTransmitShortName = string.Empty;
         private bool _radioTransmitFrequencyMuted;
+        private object _radioTransmitFrequencyEntry;
+        private Func<object, bool> _radioTransmitFrequencyMutedAccessor;
         private int _lastTransmitTalkingSlotKey = -1;
         private string _radioTransmitClassPosLabel = string.Empty;
         private int _lastTransmitClassPosCarIdx = -1;
@@ -7076,21 +7078,12 @@ namespace LaunchPlugin
             bool frequencyChanged = transmitFrequencyIdx != _lastTransmitFrequencyIdx;
             bool changed = carChanged || radioChanged || frequencyChanged;
 
-            if (!changed && TryGetSlotByKey(outputs, _lastTransmitTalkingSlotKey, out var cachedSlot))
-            {
-                if (cachedSlot.IsValid && cachedSlot.CarIdx == transmitCarIdx)
-                {
-                    cachedSlot.SetTransmitState(true, transmitRadioIdx, transmitFrequencyIdx, _lastTransmitFrequencyName);
-                    return;
-                }
-            }
-
-            if (carChanged)
+            if (carChanged || string.IsNullOrEmpty(_radioTransmitShortName))
             {
                 _radioTransmitShortName = ResolveTransmitShortName(pluginManager, transmitCarIdx);
             }
 
-            if (changed || !_radioFrequencyNameCache.HasBuilt)
+            if (changed || !_radioFrequencyNameCache.HasBuilt || string.IsNullOrEmpty(_lastTransmitFrequencyName) || _radioTransmitFrequencyEntry == null)
             {
                 object radioInfo = null;
                 try
@@ -7103,12 +7096,16 @@ namespace LaunchPlugin
                 }
 
                 _radioFrequencyNameCache.EnsureBuilt(_currentSessionToken, radioInfo);
-                if (!_radioFrequencyNameCache.TryGetInfo(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName, out _radioTransmitFrequencyMuted))
+                if (!_radioFrequencyNameCache.TryGetInfo(transmitRadioIdx, transmitFrequencyIdx, out _lastTransmitFrequencyName, out _radioTransmitFrequencyEntry, out _radioTransmitFrequencyMutedAccessor))
                 {
                     _lastTransmitFrequencyName = string.Empty;
+                    _radioTransmitFrequencyEntry = null;
+                    _radioTransmitFrequencyMutedAccessor = null;
                     _radioTransmitFrequencyMuted = false;
                 }
             }
+
+            _radioTransmitFrequencyMuted = ReadTransmitFrequencyMuted();
 
             if (changed)
             {
@@ -7142,6 +7139,8 @@ namespace LaunchPlugin
             _lastTransmitFrequencyName = string.Empty;
             _radioTransmitShortName = string.Empty;
             _radioTransmitFrequencyMuted = false;
+            _radioTransmitFrequencyEntry = null;
+            _radioTransmitFrequencyMutedAccessor = null;
             _lastTransmitTalkingSlotKey = -1;
             _radioTransmitClassPosLabel = string.Empty;
             _lastTransmitClassPosCarIdx = -1;
@@ -7277,12 +7276,29 @@ namespace LaunchPlugin
             if (positionInClass > 0)
             {
                 _radioTransmitClassPosLabel = !string.IsNullOrWhiteSpace(classShort)
-                    ? $"P{positionInClass} {classShort}"
+                    ? $"{classShort} P{positionInClass}"
                     : $"P{positionInClass}";
             }
             else
             {
                 _radioTransmitClassPosLabel = string.Empty;
+            }
+        }
+
+        private bool ReadTransmitFrequencyMuted()
+        {
+            if (_radioTransmitFrequencyEntry == null || _radioTransmitFrequencyMutedAccessor == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return _radioTransmitFrequencyMutedAccessor(_radioTransmitFrequencyEntry);
+            }
+            catch
+            {
+                return false;
             }
         }
 
