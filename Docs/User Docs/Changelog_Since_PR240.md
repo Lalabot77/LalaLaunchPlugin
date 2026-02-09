@@ -19,3 +19,9 @@
 - **CarSA lap-time determinism**: standardized lap-time selection and gap track robustness to keep `Gap.TrackSec`/relative gaps stable across updates.
 - **Debug controls refresh**: two-level debug gating and debug UI moved to the Dashes tab to avoid accidental overhead during normal use.
 - **Off-track debug CSV**: optional `OffTrackDebug_*.csv` export with probe CarIdx telemetry, latch state, and incident deltas to audit compromised laps.
+- **CarSA info burst model**: slot info banners now use short S/F and half-lap bursts with latch protection, replacing the continuous rotation cadence.
+- **Friends list updates**: immediate-apply edits, improved dedupe, and a new `LalaLaunch.Friends.Count` export for dashboards.
+- **Global Settings + iOverlay import**: new Global Settings tab supports iOverlay driver tag import into the friends list.
+- **Declutter dash control**: secondary dash mode renamed to declutter with a 0/1/2 visibility cycle (legacy alias preserved).
+- **Radio transmit exports**: live frequency names, mute state, and class position labels updated with more robust fallbacks and live refresh.
+- **Off-track debug change-only logging**: optional setting writes CSV rows only when the probe snapshot changes to reduce file size.

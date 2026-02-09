@@ -2,16 +2,16 @@
 
 # Code Snapshot
 
-- Source commit/PR: 9d77f4a (current HEAD; PR361 CarSA GateGap v2 stability fixes + precision gap outputs)
-- Generated date: 2026-02-10 (updated)
+- Source commit/PR: b7e67df (current HEAD; PR381 Declutter mode rename + dash action updates)
+- Generated date: 2026-02-09 (updated)
 - Regeneration: manual snapshot; no regen pipeline defined
 - Branch: work
 
 If this conflicts with Project_Index.md or contract docs, treat this as stale.
 
 ## Snapshot metadata (legacy)
-- Commit: 9d77f4a (current HEAD)
-- Date: 2026-02-10 (updated)
+- Commit: b7e67df (current HEAD)
+- Date: 2026-02-09 (updated)
 
 ## Architectural notes (profiles, storage, fuel persistence)
 - **Standardized JSON storage** now resolves all plugin JSON data into `PluginsData/Common/LalaPlugin/` via `PluginStorage`, with built-in legacy migration helpers. Car profiles, race presets, message definitions, global settings, and track markers all use this storage helper for consistent locations and one-time migrations.【F:PluginStorage.cs†L1-L76】【F:ProfilesManagerViewModel.cs†L545-L936】【F:RacePresetStore.cs†L11-L140】【F:Messaging/MessageDefinitionStore.cs†L10-L120】【F:LalaLaunch.cs†L3469-L3510】
@@ -29,10 +29,15 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - **CarSA GateGap v2** now includes lapped-car normalization, direction-safe mapping, slot-rebind guardrails, and track-gap mismatch fallback; `Gap.RelativeSource` tracks the selected source (filtered/truth/track/hold).【F:CarSAEngine.cs†L823-L1435】
 - **CarSA precision gap + info surfaces** add slot-01 precision gaps (`Car.Ahead01P.Gap.Sec`, `Car.Behind01P.Gap.Sec`) and rotating info strings/visibility to support compact traffic banners.【F:CarSAEngine.cs†L1441-L1637】【F:LalaLaunch.cs†L3553-L3650】
 - **CarSA debug exports** now include gap source columns, event-only CSV modes, and a dedicated off-track probe CSV (with probe CarIdx + incident deltas). Debug exports are gated by soft debug toggles to avoid unintentional overhead.【F:LalaLaunch.cs†L5172-L6251】
+- **CarSA info bursts** switch rotating info banners to a burst model at S/F and half-lap checkpoints with latch protection to prevent slot swaps mid-burst.【F:CarSAEngine.cs†L1488-L1709】
+- **Declutter mode** now replaces the secondary dash mode, cycling a 0/1/2 export for dash visibility bindings with a legacy action alias preserved for older bindings.【F:LalaLaunch.cs†L60-L108】
+- **Friends list upgrades** include immediate-apply ordering updates, improved dedupe, an iOverlay driver tag importer, and a `LalaLaunch.Friends.Count` export for dashboard/UI use.【F:LalaLaunch.cs†L3280-L3334】【F:GlobalSettingsView.xaml.cs†L15-L309】
+- **Radio transmit exports** were hardened to map frequency names/mutes correctly and update live while a driver transmits on a channel.【F:LalaLaunch.cs†L3655-L3725】【F:RadioFrequencyNameCache.cs†L1-L347】
+- **Off-track debug CSV** gains a change-only logging mode to reduce file size during steady state while still capturing state transitions.【F:LalaLaunch.cs†L5485-L5554】
 
 ## Included .cs Files
 - CarProfiles.cs — last modified 2026-02-08T00:00:00+00:00
-- CarSAEngine.cs — last modified 2026-02-08
+- CarSAEngine.cs — last modified 2026-02-09
 - CarSASlot.cs — last modified 2026-02-08
 - CopyProfileDialog.xaml.cs — last modified 2025-09-14T19:32:49+01:00
 - DashesTabView.xaml.cs — last modified 2026-01-19
@@ -41,7 +46,7 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - FuelCalculatorView.xaml.cs — last modified 2025-11-27T07:30:04-06:00
 - FuelProjectionMath.cs — last modified 2025-12-27T12:32:10+00:00
 - InvertBooleanConverter.cs — last modified 2025-09-14T19:32:49+01:00
-- LalaLaunch.cs — last modified 2026-02-07
+- LalaLaunch.cs — last modified 2026-02-09
 - LapTimeValidationRule.cs — last modified 2025-09-14T19:32:49+01:00
 - LaunchAnalysisControl.xaml.cs — last modified 2025-11-27T11:49:07-06:00
 - LaunchPluginCombinedSettingsControl.xaml.cs — last modified 2025-11-04T19:13:41-06:00
@@ -66,3 +71,5 @@ If this conflicts with Project_Index.md or contract docs, treat this as stale.
 - RacePresetStore.cs — last modified 2025-11-04T19:13:41-06:00
 - RejoinAssistEngine.cs — last modified 2025-12-27T12:32:10+00:00
 - TelemetryLogger.cs — last modified 2025-09-14T19:32:49+01:00
+- GlobalSettingsView.xaml.cs — last modified 2026-02-09
+- RadioFrequencyNameCache.cs — last modified 2026-02-09

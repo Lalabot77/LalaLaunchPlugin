@@ -43,6 +43,13 @@ CarSA keeps a car-centric shadow state per `CarIdx` that is authoritative for St
 - **Lap time estimate:** player average pace, else last lap, else 120 s fallback.
 - **LapDelta:** computed from CarIdx lap counters with S/F straddle guards to avoid one-tick spikes when cars are physically close around the line.
 
+## Info banner behaviour
+- **Burst model:** `InfoVisibility`/`Info` are driven by short bursts instead of continuous rotation.
+  - **S/F burst:** when a same-class slot crosses the start/finish window (0.00–0.05 lap pct), a 9 s burst cycles through **laps-since-pit**, **LL vs BL**, and **LL vs Me** messages (3 s each).
+  - **Half-lap burst:** when a same-class slot enters the 0.55–1.00 lap pct window, a 9 s burst cycles **Live Δ** and **laps-since-pit** (3 s phases with fallback to available messages).
+  - **Baseline gating:** outside bursts, baseline info only shows when `StatusE == Unknown` with a 1 s debounce to prevent flicker; info is cleared for invalid slots, cross-class opponents, or slot swaps.
+- **Burst latching:** bursts are latched per CarIdx and cancelled if the slot changes identity mid-burst.
+
 ## Status enums
 CarSA publishes a minimal base status enum:
 - `Unknown = 0`
@@ -115,7 +122,7 @@ Slots (Ahead01..Ahead05, Behind01..Behind05):
 - State: `IsOnTrack`, `IsOnPitRoad`, `IsValid`
 - Spatial: `LapDelta`, `Gap.TrackSec`, `Gap.RelativeSec`, `Gap.RelativeSource`, `LapsSincePit`, `BestLapTimeSec`, `LastLapTimeSec`, `BestLap`, `BestLapIsEstimated`, `LastLap`, `DeltaBestSec`, `DeltaBest`, `EstLapTimeSec`, `EstLapTime`
 - Derived: `ClosingRateSecPerSec`, `Status`, `StatusE`, `StatusShort`, `StatusLong`, `StatusEReason`, `HotScore`, `HotVia`
-- Info banners: `InfoVisibility`, `Info` (rotating last-lap delta / delta-best / laps-since-pit)
+- Info banners: `InfoVisibility`, `Info` (bursted: laps-since-pit, last-lap vs best, last-lap vs me, live Δ; baseline gated to `StatusE == Unknown`)
 - Raw telemetry (mode permitting): `SessionFlagsRaw`, `TrackSurfaceMaterialRaw`
 
 Debug (`Car.Debug.*`):
@@ -135,7 +142,7 @@ When `EnableCarSADebugExport` is enabled (and soft debug is on), CarSA writes a 
   - **Player tail:** `PlayerTrackSurfaceRaw`, `PlayerSessionFlagsRaw`.
 
 ## Off-track probe export (optional)
-When `EnableOffTrackDebugCsv` is enabled (and a probe `OffTrackDebugProbeCarIdx` is configured), the plugin writes `OffTrackDebug_<Track>_<Timestamp>.csv` under `SimHub/Logs/LalapluginData/` with raw telemetry and latch state for the probe car:
+When `EnableOffTrackDebugCsv` is enabled (and a probe `OffTrackDebugProbeCarIdx` is configured), the plugin writes `OffTrackDebug_<Track>_<Timestamp>.csv` under `SimHub/Logs/LalapluginData/` with raw telemetry and latch state for the probe car. If `OffTrackDebugLogChangesOnly` is enabled, rows are written only when the snapshot changes:
 - **Context:** session time/state, session flags (hex + dec), probe CarIdx, and per-car telemetry (`CarIdxTrackSurface`, `CarIdxTrackSurfaceMaterial`, `CarIdxSessionFlags`, `CarIdxOnPitRoad`, `CarIdxLap`, `CarIdxLapDistPct`).
 - **Latch state:** off-track now, off-track streak, first-seen time, compromised-until lap, compromised-off-track/penalty active flags, and latch enable.
 - **Player incidents:** player CarIdx, incident count, and incident delta for the tick.

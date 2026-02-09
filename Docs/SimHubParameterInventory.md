@@ -2,9 +2,9 @@
 
 **CANONICAL CONTRACT**
 
-Validated against: 9d77f4a  
-Last reviewed: 2026-02-10  
-Last updated: 2026-02-10  
+Validated against: b7e67df  
+Last reviewed: 2026-02-09  
+Last updated: 2026-02-09  
 Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
@@ -99,7 +99,7 @@ Branch: work
 | Car.Player.PaceFlagsRaw / SessionFlagsRaw / TrackSurfaceMaterialRaw | int | Raw telemetry flags for the player CarIdx row (or -1 if missing). Populated only when soft debug + raw-telemetry mode are enabled. | Per tick. | `LalaLaunch.cs` raw telemetry debug + `AttachCore`【F:LalaLaunch.cs†L3557-L3560】【F:LalaLaunch.cs†L4874-L4917】 |
 | Car.Ahead01..Ahead05.* | mixed | Slot outputs for nearest ahead cars: CarIdx, Name, CarNumber, ClassColor, ClassColorHex, ClassName, CarClassShortName, Initials, AbbrevName, LicLevel, UserID, TeamID, PositionInClass, IRating, Licence, SafetyRating, IsOnTrack, IsOnPitRoad, IsValid, IsTalking (false when not transmitting), TalkRadioIdx (-1 default), TalkFrequencyIdx (-1 default), TalkFrequencyName (empty when unknown), LapDelta, LapsSincePit, BestLapTimeSec, LastLapTimeSec, BestLap, BestLapIsEstimated, LastLap, DeltaBestSec, DeltaBest, EstLapTimeSec, EstLapTime, HotScore, HotVia, Gap.TrackSec (distance-based proximity), Gap.RelativeSec (gate-gap v2 filtered proximity; may be NaN), Gap.RelativeSource (0 invalid, 1 filtered, 2 truth, 3 track fallback, 4 sticky hold), InfoVisibility, Info, ClosingRateSecPerSec (player-centric; positive = closing), Status, StatusE, StatusShort, StatusLong, StatusEReason, StatusBgHex, BorderMode, BorderHex, SessionFlagsRaw, TrackSurfaceMaterialRaw. | Per tick; distance gaps derived from car-centric LapDistPct deltas. | `CarSAEngine.cs` slot update + `AttachCore`【F:CarSAEngine.cs†L248-L709】【F:LalaLaunch.cs†L3419-L3508】 |
 | Car.Behind01..Behind05.* | mixed | Slot outputs for nearest behind cars: CarIdx, Name, CarNumber, ClassColor, ClassColorHex, ClassName, CarClassShortName, Initials, AbbrevName, LicLevel, UserID, TeamID, PositionInClass, IRating, Licence, SafetyRating, IsOnTrack, IsOnPitRoad, IsValid, IsTalking (false when not transmitting), TalkRadioIdx (-1 default), TalkFrequencyIdx (-1 default), TalkFrequencyName (empty when unknown), LapDelta, LapsSincePit, BestLapTimeSec, LastLapTimeSec, BestLap, BestLapIsEstimated, LastLap, DeltaBestSec, DeltaBest, EstLapTimeSec, EstLapTime, HotScore, HotVia, Gap.TrackSec (distance-based proximity), Gap.RelativeSec (gate-gap v2 filtered proximity; may be NaN), Gap.RelativeSource (0 invalid, 1 filtered, 2 truth, 3 track fallback, 4 sticky hold), InfoVisibility, Info, ClosingRateSecPerSec (player-centric; positive = closing), Status, StatusE, StatusShort, StatusLong, StatusEReason, StatusBgHex, BorderMode, BorderHex, SessionFlagsRaw, TrackSurfaceMaterialRaw. | Per tick; distance gaps derived from car-centric LapDistPct deltas. | `CarSAEngine.cs` slot update + `AttachCore`【F:CarSAEngine.cs†L248-L709】【F:LalaLaunch.cs†L3526-L3587】 |
-| Car.Debug.* | mixed | Debug telemetry for player/slot identity, raw telemetry availability, and slot filtering: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `SessionTimeSec`, `SourceFastPathUsed`, `HasCarIdxPaceFlags`, `HasCarIdxSessionFlags`, `HasCarIdxTrackSurfaceMaterial`, `RawTelemetryReadMode`, `RawTelemetryFailReason`, `Ahead01.CarIdx`, `Ahead01.ForwardDistPct`, `Behind01.CarIdx`, `Behind01.BackwardDistPct`, `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`, `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`, `LapTimeEstimateSec`, `LapTimeUsedSec`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`. | Per tick. | `CarSAEngine.cs` debug fields + `AttachCore`【F:CarSAEngine.cs†L85-L283】【F:LalaLaunch.cs†L3482-L3510】 |
+| Car.Debug.* | mixed | Debug telemetry for player/slot identity, raw telemetry availability, and slot filtering: `PlayerCarIdx`, `PlayerLapPct`, `PlayerLap`, `SessionTimeSec`, `SourceFastPathUsed`, `HasCarIdxPaceFlags`, `HasCarIdxSessionFlags`, `HasCarIdxTrackSurfaceMaterial`, `RawTelemetryReadMode`, `RawTelemetryFailReason`, `Ahead01.CarIdx`, `Ahead01.ForwardDistPct`, `Behind01.CarIdx`, `Behind01.BackwardDistPct`, `InvalidLapPctCount`, `OnPitRoadCount`, `OnTrackCount`, `TimestampUpdatesThisTick`, `FilteredHalfLapCountAhead`, `FilteredHalfLapCountBehind`, `LapTimeEstimateSec`, `LapTimeUsedSec`, `HysteresisReplacementsThisTick`, `SlotCarIdxChangedThisTick`, `OffTrack.ProbeCarIdx`. | Per tick. | `CarSAEngine.cs` debug fields + `AttachCore`【F:CarSAEngine.cs†L85-L283】【F:LalaLaunch.cs†L3482-L3510】 |
 
 
 ## Radio
@@ -127,7 +127,7 @@ Branch: work
 - CarSA style helpers now publish `StatusBgHex`, `BorderMode`, and `BorderHex` for Ahead/Behind slots. `StatusBgHex` is keyed by `StatusE` from settings (except `FasterClass`/`SlowerClass`, which use the slot `ClassColorHex`), and border resolution uses priority TEAM > LEAD > OCLS > DEF with colors from settings.
 - Gate-gap v2 publishes `Gap.RelativeSec` using mini-sector gate timing with prediction and sticky hold, keeping directionally correct proximity even during wraps; it falls back to `Gap.TrackSec` when no gate data exists.
 - `Gap.RelativeSource` indicates which input fed the relative gap: filtered (1), truth (2), track fallback (3), sticky hold (4), or invalid (0). Slot01 precision gaps mirror the same source priority but bypass sticky-hold unless a valid gate/track source exists.【F:CarSAEngine.cs†L1336-L1490】
-- `InfoVisibility`/`Info` expose rotating slot info (last-lap delta, delta-best, laps-since-pit) with a 5 s cadence and gate delays; visibility is suppressed outside Unknown/Racing states and when the slot is invalid.【F:CarSAEngine.cs†L1488-L1637】
+- `InfoVisibility`/`Info` now use burst-based slot info: 9 s bursts near S/F (laps-since-pit, last-lap vs best, last-lap vs player) plus 9 s half-lap bursts (live Δ + laps-since-pit), with a debounced gate that only shows baseline info when `StatusE == Unknown`. Bursts are latched per car and reset on slot swaps or invalid data.【F:CarSAEngine.cs†L1488-L1709】
 
 ## Pit timing and PitLite
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
@@ -216,11 +216,17 @@ Branch: work
 | --- | --- | --- | --- | --- |
 | CurrentDashPage | string | Current dash page set by `ScreenManager`. | Per tick. | `LalaLaunch.cs` — `Screens` state + `AttachCore`【F:LalaLaunch.cs†L2805-L2810】【F:LalaLaunch.cs†L3688-L3730】 |
 | DashControlMode | string | Dash control mode (“manual”/“auto”). | Per tick. | `LalaLaunch.cs` — `Screens.Mode` + `AttachCore`【F:LalaLaunch.cs†L2805-L2810】【F:LalaLaunch.cs†L3688-L3730】 |
+| DeclutterMode | int | Dash declutter mode (0/1/2) cycled by the Declutter/Secondary dash action; used for visibility bindings. | Per tick. | `LalaLaunch.cs` — action handler + `AttachCore`【F:LalaLaunch.cs†L60-L108】【F:LalaLaunch.cs†L3278-L3449】 |
 | PitScreenActive | bool | Whether pit screen is currently shown. | Per tick. | `LalaLaunch.cs` — pit screen state + `AttachCore`【F:LalaLaunch.cs†L3732-L3878】【F:LalaLaunch.cs†L3158-L3162】 |
 | PitScreenMode | string | Pit screen mode (`auto` or `manual`). | Per tick. | `LalaLaunch.cs` — pit screen state + `AttachCore`【F:LalaLaunch.cs†L3837-L3878】【F:LalaLaunch.cs†L3158-L3162】 |
 | LalaDashShowLaunchScreen / LalaDashShowPitLimiter / LalaDashShowPitScreen / LalaDashShowRejoinAssist / LalaDashShowVerboseMessaging / LalaDashShowRaceFlags / LalaDashShowRadioMessages / LalaDashShowTraffic | bool | User visibility toggles for Lala dash. | Per tick. | `LaunchPluginSettings` persisted values + `AttachCore`【F:LalaLaunch.cs†L3177-L3185】 |
 | MsgDashShowLaunchScreen / MsgDashShowPitLimiter / MsgDashShowPitScreen / MsgDashShowRejoinAssist / MsgDashShowVerboseMessaging / MsgDashShowRaceFlags / MsgDashShowRadioMessages / MsgDashShowTraffic | bool | User visibility toggles for messaging dash. | Per tick. | `LaunchPluginSettings` persisted values + `AttachCore`【F:LalaLaunch.cs†L3187-L3195】 |
 | OverlayDashShowLaunchScreen / OverlayDashShowPitLimiter / OverlayDashShowPitScreen / OverlayDashShowRejoinAssist / OverlayDashShowVerboseMessaging / OverlayDashShowRaceFlags / OverlayDashShowRadioMessages / OverlayDashShowTraffic | bool | User visibility toggles for overlay dash. | Per tick. | `LaunchPluginSettings` persisted values + `AttachCore`【F:LalaLaunch.cs†L3197-L3205】 |
+
+## Friends
+| Exported name | Type | Units / meaning | Update cadence | Defined in |
+| --- | --- | --- | --- | --- |
+| LalaLaunch.Friends.Count | int | Count of active friends entries used by the friends list UI (after cleanup of empty rows). | Per tick. | `LalaLaunch.cs` — friends cache + `AttachCore`【F:LalaLaunch.cs†L3280-L3334】 |
 
 ## Debug (verbose-only)
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
@@ -239,3 +245,4 @@ Branch: work
 ## CSV exports (debug)
 * `OffTrackDebug_<Track>_<Timestamp>.csv` includes an `EventFired` column immediately after `SessionTimeSec`, populated with `1`/`0` based on the event marker pulse state.【F:LalaLaunch.cs†L5278-L5338】【F:LalaLaunch.cs†L6212-L6218】
 * `CarSA_Debug_YYYY-MM-DD_HH-mm-ss_<TrackName>.csv` includes an `EventFired` column immediately after `SessionTimeSec`, populated with `1`/`0` based on the event marker pulse state.【F:LalaLaunch.cs†L5189-L5222】【F:LalaLaunch.cs†L6220-L6242】
+* `OffTrackDebugLogChangesOnly` (settings) can be enabled to write `OffTrackDebug_*.csv` rows only when the snapshot changes, reducing file size during steady-state runs.【F:LalaLaunch.cs†L5485-L5554】
