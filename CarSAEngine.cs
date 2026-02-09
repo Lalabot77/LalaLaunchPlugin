@@ -89,6 +89,7 @@ namespace LaunchPlugin
         private const int SessionFlagRepair = 0x00080000;
         private const int SessionFlagDisqualify = 0x00100000;
         private const int SessionFlagMaskCompromised = 0x00010000 | 0x00080000 | 0x00100000 | 0x00020000;
+        private const bool DisableInfoWhenMulticlass = false;
 
         private static int NormalizeTrackSurfaceRaw(int raw)
         {
@@ -162,6 +163,7 @@ namespace LaunchPlugin
         private readonly double[] _gateGapLastPublishedTimeSecByCar = new double[MaxCars];
         private double _trackGapLastGoodScaleSec = double.NaN;
         private bool _hadValidTick;
+        private bool _hasMultipleClassOpponents;
 
         private sealed class CarSA_CarState
         {
@@ -397,6 +399,7 @@ namespace LaunchPlugin
             int sessionState,
             string sessionTypeName,
             int playerCarIdx,
+            bool hasMultipleClassOpponents,
             float[] carIdxLapDistPct,
             int[] carIdxLap,
             int[] carIdxTrackSurface,
@@ -411,6 +414,7 @@ namespace LaunchPlugin
             bool debugEnabled)
         {
             _ = notRelevantGapSec;
+            _hasMultipleClassOpponents = hasMultipleClassOpponents;
             _outputs.Source = "CarIdxTruth";
             _outputs.Debug.SessionTimeSec = sessionTimeSec;
             _outputs.Debug.SourceFastPathUsed = false;
@@ -1499,11 +1503,26 @@ namespace LaunchPlugin
 
             double playerLastLap = _outputs.PlayerSlot != null ? _outputs.PlayerSlot.LastLapTimeSec : double.NaN;
             double playerLapPct = _outputs.Debug != null ? _outputs.Debug.PlayerLapPct : double.NaN;
+            string playerClassColor = _outputs.PlayerSlot != null ? _outputs.PlayerSlot.ClassColor : string.Empty;
+            string playerClassName = _outputs.PlayerSlot != null ? _outputs.PlayerSlot.ClassName : string.Empty;
+            bool disableInfoForMulticlass = DisableInfoWhenMulticlass && _hasMultipleClassOpponents;
             for (int i = 0; i < slots.Length; i++)
             {
                 var slot = slots[i];
                 if (slot == null)
                 {
+                    continue;
+                }
+
+                if (disableInfoForMulticlass)
+                {
+                    ClearSlotInfo(slot);
+                    continue;
+                }
+
+                if (!IsSameClass(slot, playerClassColor, playerClassName))
+                {
+                    ClearSlotInfo(slot);
                     continue;
                 }
 
@@ -1537,10 +1556,7 @@ namespace LaunchPlugin
 
                 if (!slot.IsValid)
                 {
-                    slot.InfoVisibility = 0;
-                    slot.Info = string.Empty;
-                    slot.SFBurstStartSec = -1.0;
-                    slot.HalfBurstStartSec = -1.0;
+                    ClearSlotInfo(slot);
                     continue;
                 }
 
@@ -1571,13 +1587,27 @@ namespace LaunchPlugin
 
                 bool sfActive = slot.SFBurstStartSec >= 0.0 && (nowSec - slot.SFBurstStartSec) < 9.0;
                 bool halfActive = slot.HalfBurstStartSec >= 0.0 && (nowSec - slot.HalfBurstStartSec) < 9.0;
+                if (sfActive && (slot.CarIdx < 0 || slot.CarIdx != slot.SfBurstCarIdxLatched))
+                {
+                    sfActive = false;
+                    slot.SFBurstStartSec = -1.0;
+                    slot.SfBurstCarIdxLatched = -1;
+                }
+                if (halfActive && (slot.CarIdx < 0 || slot.CarIdx != slot.HalfBurstCarIdxLatched))
+                {
+                    halfActive = false;
+                    slot.HalfBurstStartSec = -1.0;
+                    slot.HalfBurstCarIdxLatched = -1;
+                }
                 if (!sfActive)
                 {
                     slot.SFBurstStartSec = -1.0;
+                    slot.SfBurstCarIdxLatched = -1;
                 }
                 if (!halfActive)
                 {
                     slot.HalfBurstStartSec = -1.0;
+                    slot.HalfBurstCarIdxLatched = -1;
                 }
 
                 if (!sfActive && !halfActive && !double.IsNaN(oppLapPct))
@@ -1586,12 +1616,14 @@ namespace LaunchPlugin
                     {
                         slot.LastSFBurstLap = slot.CurrentLap;
                         slot.SFBurstStartSec = nowSec;
+                        slot.SfBurstCarIdxLatched = slot.CarIdx;
                         sfActive = true;
                     }
                     else if (oppLapPct >= 0.55 && oppLapPct <= 1.0 && slot.CurrentLap != slot.LastHalfBurstLap)
                     {
                         slot.LastHalfBurstLap = slot.CurrentLap;
                         slot.HalfBurstStartSec = nowSec;
+                        slot.HalfBurstCarIdxLatched = slot.CarIdx;
                         halfActive = true;
                     }
                 }
@@ -1600,36 +1632,34 @@ namespace LaunchPlugin
                 if (sfActive)
                 {
                     int phase = (int)((nowSec - slot.SFBurstStartSec) / 3.0);
-                    if (phase <= 0)
+                    message = BuildSFBurstMessage(slot, playerLastLap, phase);
+                    if (string.IsNullOrEmpty(message))
                     {
-                        message = BuildLapsSincePitMessage(slot);
-                    }
-                    else if (phase == 1)
-                    {
-                        message = BuildLastLapVsBestMessage(slot);
+                        slot.InfoVisibility = 0;
+                        slot.Info = string.Empty;
                     }
                     else
                     {
-                        message = BuildLastLapVsMeMessage(slot, playerLastLap);
+                        slot.InfoVisibility = 1;
+                        slot.Info = message;
                     }
-                    slot.InfoVisibility = 1;
-                    slot.Info = message ?? string.Empty;
                     continue;
                 }
 
                 if (halfActive)
                 {
                     int phase = (int)((nowSec - slot.HalfBurstStartSec) / 3.0);
-                    if (phase <= 0 || phase >= 2)
+                    message = BuildHalfBurstMessage(slot, phase);
+                    if (string.IsNullOrEmpty(message))
                     {
-                        message = BuildLiveDeltaMessage(slot);
+                        slot.InfoVisibility = 0;
+                        slot.Info = string.Empty;
                     }
                     else
                     {
-                        message = BuildLapsSincePitMessage(slot);
+                        slot.InfoVisibility = 1;
+                        slot.Info = message;
                     }
-                    slot.InfoVisibility = 1;
-                    slot.Info = message ?? string.Empty;
                     continue;
                 }
 
@@ -1653,6 +1683,88 @@ namespace LaunchPlugin
                     slot.Info = string.Empty;
                 }
             }
+        }
+
+        private static void ClearSlotInfo(CarSASlot slot)
+        {
+            if (slot == null)
+            {
+                return;
+            }
+
+            slot.InfoVisibility = 0;
+            slot.Info = string.Empty;
+            slot.SFBurstStartSec = -1.0;
+            slot.HalfBurstStartSec = -1.0;
+            slot.SfBurstCarIdxLatched = -1;
+            slot.HalfBurstCarIdxLatched = -1;
+        }
+
+        private static bool IsSameClass(CarSASlot slot, string playerClassColor, string playerClassName)
+        {
+            if (slot == null)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(playerClassColor) && string.IsNullOrWhiteSpace(playerClassName))
+            {
+                return true;
+            }
+
+            string slotClassColor = slot.ClassColor ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(playerClassColor)
+                && !string.IsNullOrWhiteSpace(slotClassColor)
+                && string.Equals(playerClassColor, slotClassColor, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            string slotClassName = slot.ClassName ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(playerClassName)
+                && !string.IsNullOrWhiteSpace(slotClassName)
+                && string.Equals(playerClassName, slotClassName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private static string BuildSFBurstMessage(CarSASlot slot, double playerLastLap, int phase)
+        {
+            for (int offset = 0; offset < 3; offset++)
+            {
+                int step = ((phase % 3) + offset) % 3;
+                string message = step == 0
+                    ? BuildLapsSincePitMessage(slot)
+                    : step == 1
+                        ? BuildLastLapVsBestMessage(slot)
+                        : BuildLastLapVsMeMessage(slot, playerLastLap);
+                if (!string.IsNullOrEmpty(message))
+                {
+                    return message;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static string BuildHalfBurstMessage(CarSASlot slot, int phase)
+        {
+            for (int offset = 0; offset < 2; offset++)
+            {
+                int step = ((phase % 2) + offset) % 2;
+                string message = step == 0
+                    ? BuildLiveDeltaMessage(slot)
+                    : BuildLapsSincePitMessage(slot);
+                if (!string.IsNullOrEmpty(message))
+                {
+                    return message;
+                }
+            }
+
+            return string.Empty;
         }
 
         private static string BuildLapsSincePitMessage(CarSASlot slot)

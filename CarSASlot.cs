@@ -136,6 +136,8 @@ namespace LaunchPlugin
         internal int LastHalfBurstLap { get; set; } = int.MinValue;
         internal double SFBurstStartSec { get; set; } = -1.0;
         internal double HalfBurstStartSec { get; set; } = -1.0;
+        internal int SfBurstCarIdxLatched { get; set; } = -1;
+        internal int HalfBurstCarIdxLatched { get; set; } = -1;
 
         private bool _styleCacheInitialized;
         private int _styleLastStatusE;
@@ -284,6 +286,8 @@ namespace LaunchPlugin
             LastHalfBurstLap = int.MinValue;
             SFBurstStartSec = -1.0;
             HalfBurstStartSec = -1.0;
+            SfBurstCarIdxLatched = -1;
+            HalfBurstCarIdxLatched = -1;
 
             _styleCacheInitialized = false;
             _styleLastStatusE = (int)CarSAStatusE.Unknown;

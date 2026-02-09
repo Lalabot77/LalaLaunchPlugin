@@ -4806,7 +4806,16 @@ namespace LaunchPlugin
             {
                 notRelevantGapSec = CarSANotRelevantGapSecDefault;
             }
-            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, playerLastLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugMaster);
+            bool hasMultipleClassOpponents = false;
+            try
+            {
+                hasMultipleClassOpponents = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.HasMultipleClassOpponents") ?? false);
+            }
+            catch
+            {
+                hasMultipleClassOpponents = false;
+            }
+            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, hasMultipleClassOpponents, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, playerLastLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugMaster);
             if (_carSaEngine != null)
             {
                 UpdateCarSaTelemetryCaches(pluginManager);
