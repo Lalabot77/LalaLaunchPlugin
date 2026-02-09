@@ -28,7 +28,7 @@
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="0,0,0,0">
                         <ui:ControlsEditor ActionName="LalaLaunch.PrimaryDashMode" FriendlyName="Change Primary Dash Mode" ToolTip="Assign a button to cycle primary dash modes (main screen views)." />
-                        <ui:ControlsEditor ActionName="LalaLaunch.SecondaryDashMode" FriendlyName="Change Secondary Dash Mode" ToolTip="Assign a button to cycle secondary dash modes (widgets/aux views)." />
+                        <ui:ControlsEditor ActionName="LalaLaunch.DeclutterMode" FriendlyName="Cycle Declutter Mode" ToolTip="Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings." />
                         <ui:ControlsEditor ActionName="LalaLaunch.EventMarker" FriendlyName="Event Marker" ToolTip="Assign a button to fire a short event marker pulse for dashboards and CSV exports." />
                     </StackPanel>
                 </Grid>
