@@ -11,6 +11,7 @@ namespace LaunchPlugin
         private readonly Dictionary<long, FrequencyInfo> _frequencyInfoByKey = new Dictionary<long, FrequencyInfo>();
         private string _lastSessionToken = string.Empty;
         private bool _hasBuilt;
+        private object _lastRadioInfo;
 
         private readonly struct FrequencyInfo
         {
@@ -43,6 +44,7 @@ namespace LaunchPlugin
             _frequencyInfoByKey.Clear();
             _lastSessionToken = string.Empty;
             _hasBuilt = false;
+            _lastRadioInfo = null;
         }
 
         public bool HasBuilt => _hasBuilt;
@@ -55,13 +57,16 @@ namespace LaunchPlugin
                 _lastSessionToken = sessionToken;
                 _frequencyInfoByKey.Clear();
                 _hasBuilt = false;
+                _lastRadioInfo = null;
             }
 
             if (_hasBuilt || radioInfo == null)
             {
+                _lastRadioInfo = radioInfo;
                 return;
             }
 
+            _lastRadioInfo = radioInfo;
             BuildMap(radioInfo);
             _hasBuilt = true;
         }
@@ -94,6 +99,54 @@ namespace LaunchPlugin
                 entry = found.Entry;
                 mutedAccessor = found.MutedAccessor;
                 return true;
+            }
+
+            return false;
+        }
+
+        public bool TryGetInfoByTransmittingCar(int radioIdx, int transmitCarIdx, out string name, out object entry, out Func<object, bool> mutedAccessor)
+        {
+            name = string.Empty;
+            entry = null;
+            mutedAccessor = null;
+
+            if (radioIdx < 0 || transmitCarIdx < 0 || _lastRadioInfo == null)
+            {
+                return false;
+            }
+
+            foreach (var radioEntry in EnumerateRadios(_lastRadioInfo))
+            {
+                if (radioEntry.Value == null)
+                {
+                    continue;
+                }
+
+                int resolvedRadioIdx = ResolveIndex(radioEntry.Value, radioEntry.Index, "RadioIdx", "RadioIndex", "RadioNum", "RadioNumber");
+                if (resolvedRadioIdx != radioIdx)
+                {
+                    continue;
+                }
+
+                foreach (var freqEntry in EnumerateFrequencies(radioEntry.Value))
+                {
+                    if (freqEntry.Value == null)
+                    {
+                        continue;
+                    }
+
+                    int carIdxTalking = ResolveIndex(freqEntry.Value, freqEntry.Index, "CarIdx", "CarIndex");
+                    if (carIdxTalking != transmitCarIdx)
+                    {
+                        continue;
+                    }
+
+                    name = GetStringProperty(freqEntry.Value, "FrequencyName") ?? string.Empty;
+                    var mutedProperty = GetProperty(freqEntry.Value, "Muted");
+                    mutedAccessor = CreateMutedAccessor(freqEntry.Value, mutedProperty);
+                    entry = freqEntry.Value;
+                    return true;
+                }
             }
 
             return false;
