@@ -17,8 +17,9 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **Message system logs** (`MSGV1`) surface missing evaluators and active stack debug—check when adding new messages.
 
 ## Action, dash, and launch controls
-- **`[LalaPlugin:Dash] PrimaryDashMode action fired (placeholder).`** — Action binding confirmed; no behaviour implemented yet.【F:LalaLaunch.cs†L10-L36】
-- **`[LalaPlugin:Dash] SecondaryDashMode action fired (placeholder).`** — Same as above for secondary dash action.【F:LalaLaunch.cs†L10-L36】
+- **`[LalaPlugin:Dash] PrimaryDashMode action fired (placeholder).`** — Action binding confirmed; no behaviour implemented yet.【F:LalaLaunch.cs†L10-L50】
+- **`[LalaPlugin:Dash] DeclutterMode action fired -> DeclutterMode=0/1/2.`** — Declutter control pressed; cycles the 0/1/2 export used for dash visibility bindings.【F:LalaLaunch.cs†L10-L50】
+- **`[LalaPlugin:Dash] SecondaryDashMode action fired (legacy) -> DeclutterMode=0/1/2.`** — Legacy alias for the same declutter cycle to preserve old bindings.【F:LalaLaunch.cs†L10-L50】
 - **`[LalaPlugin:Launch] LaunchMode pressed -> re-enabled launch mode.`** — User pressed Launch while feature was user-disabled; flag cleared.【F:LalaLaunch.cs†L17-L45】
 - **`[LalaPlugin:Launch] LaunchMode blocked (inPits=..., seriousRejoin=...).`** — Launch button ignored due to pit/rejoin guard.【F:LalaLaunch.cs†L17-L45】
 - **`[LalaPlugin:Launch] LaunchMode pressed -> ManualPrimed.`** — Launch primed manually after passing guards.【F:LalaLaunch.cs†L17-L45】
