@@ -51,7 +51,8 @@
                                      ToolTip="Distance before pit entry to start the braking assist (m)." />
                 </StackPanel>
             </Grid>
-
+ 
+            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" Height="2" />
             <styles:SHSection Title="FRIENDS" ShowSeparator="True">
                 <StackPanel>
                     <TextBlock Margin="0,0,0,5" Foreground="LightGray"
@@ -82,7 +83,7 @@
                                                     Content="Import"
                                                     Padding="8,2"
                                                     MinWidth="70"
-                                                    Margin="0,0,8,0"
+  
                                                     Click="ImportIOverlay_Click" />
                             <styles:SHButtonPrimary Grid.Column="4"
                                                     Content="Reload"
@@ -132,8 +133,6 @@
                                             Click="AddFriend_Click" />
                 </StackPanel>
             </styles:SHSection>
-
-            <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" />
 
             <StackPanel Visibility="{Binding HardDebugEnabledForUi, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <TextBlock Text="DEBUG" FontSize="16" FontWeight="Bold" Margin="0,5,10,0"/>

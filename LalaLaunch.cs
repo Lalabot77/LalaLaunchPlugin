@@ -10587,7 +10587,7 @@ namespace LaunchPlugin
         public Dictionary<int, string> CarSAStatusEBackgroundColors { get; set; } = new Dictionary<int, string>
         {
             { (int)CarSAStatusE.Unknown, "#000000" },
-            { (int)CarSAStatusE.OutLap, "#C0C0C0" },
+            { (int)CarSAStatusE.OutLap, "#696969" },
             { (int)CarSAStatusE.InPits, "#C0C0C0" },
             { (int)CarSAStatusE.CompromisedOffTrack, "#FFFF00" },
             { (int)CarSAStatusE.CompromisedPenalty, "#FFA500" },
@@ -10597,16 +10597,16 @@ namespace LaunchPlugin
             { (int)CarSAStatusE.CoolLapCaution, "#FFFF00" },
             { (int)CarSAStatusE.FasterClass, "#000000" },
             { (int)CarSAStatusE.SlowerClass, "#000000" },
-            { (int)CarSAStatusE.Racing, "#00FF00" },
+            { (int)CarSAStatusE.Racing, "#008000" },
             { (int)CarSAStatusE.LappingYou, "#0000FF" },
             { (int)CarSAStatusE.BeingLapped, "#ADD8E6" }
         };
         public Dictionary<string, string> CarSABorderColors { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            { CarSAStyleResolver.BorderModeTeam, "#4B0082" },
+            { CarSAStyleResolver.BorderModeTeam, "#FF69B4" },
             { CarSAStyleResolver.BorderModeLead, "#FF00FF" },
             { CarSAStyleResolver.BorderModeOtherClass, "#0000FF" },
-            { CarSAStyleResolver.BorderModeDefault, "#A9A9A9" }
+            { CarSAStyleResolver.BorderModeDefault, "#F5F5F5" }
         };
         public ObservableCollection<LaunchPluginFriendEntry> Friends { get; set; } = new ObservableCollection<LaunchPluginFriendEntry>();
 
