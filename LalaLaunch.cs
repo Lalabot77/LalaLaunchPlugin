@@ -2891,7 +2891,10 @@ namespace LaunchPlugin
             public int PlayerIncidentDelta;
         }
 
-        private static bool OffTrackDebugSnapshotEquals(OffTrackDebugSnapshot left, OffTrackDebugSnapshot right)
+        private static bool OffTrackDebugSnapshotEquals(
+            OffTrackDebugSnapshot left,
+            OffTrackDebugSnapshot right,
+            bool ignoreContextFields)
         {
             return left.EventFired == right.EventFired
                 && left.SessionState == right.SessionState
@@ -2902,7 +2905,7 @@ namespace LaunchPlugin
                 && left.CarSessionFlags == right.CarSessionFlags
                 && left.CarOnPitRoad == right.CarOnPitRoad
                 && left.CarLap == right.CarLap
-                && OffTrackDebugDoubleEquals(left.CarLapDistPct, right.CarLapDistPct)
+                && (ignoreContextFields || OffTrackDebugDoubleEquals(left.CarLapDistPct, right.CarLapDistPct))
                 && left.OffTrackNow == right.OffTrackNow
                 && left.OffTrackStreak == right.OffTrackStreak
                 && OffTrackDebugDoubleEquals(left.OffTrackFirstSeenTimeSec, right.OffTrackFirstSeenTimeSec)
@@ -2977,6 +2980,7 @@ namespace LaunchPlugin
         private string _offTrackDebugExportToken;
         private int _offTrackDebugExportPendingLines;
         private double _offTrackDebugLastSessionTimeSec = double.NaN;
+        private double _offTrackDebugEventWindowUntilSessionTimeSec = double.NaN;
         private OffTrackDebugSnapshot _offTrackDebugLastSnapshot;
         private bool _offTrackDebugSnapshotInitialized;
         private bool _offTrackDebugLastChangeOnlyEnabled;
@@ -5494,7 +5498,19 @@ namespace LaunchPlugin
 
             EnsureOffTrackDebugExportFile(pluginManager);
 
-            int eventFired = _eventMarkerPressed ? 1 : 0;
+            if (_eventMarkerPressed)
+            {
+                _offTrackDebugEventWindowUntilSessionTimeSec = sessionTimeSec + 5.0;
+            }
+
+            bool eventActive = !double.IsNaN(_offTrackDebugEventWindowUntilSessionTimeSec)
+                && sessionTimeSec <= _offTrackDebugEventWindowUntilSessionTimeSec;
+            if (!eventActive)
+            {
+                _offTrackDebugEventWindowUntilSessionTimeSec = double.NaN;
+            }
+
+            int eventFired = eventActive ? 1 : 0;
 
             int trackSurface = ReadCarIdxInt(carIdxTrackSurface, probeCarIdx, int.MinValue);
             int trackSurfaceMaterial = ReadCarIdxInt(carIdxTrackSurfaceMaterial, probeCarIdx, int.MinValue);
@@ -5545,8 +5561,8 @@ namespace LaunchPlugin
             if (changeOnlyEnabled)
             {
                 shouldWrite = !_offTrackDebugSnapshotInitialized
-                    || _eventMarkerPressed
-                    || !OffTrackDebugSnapshotEquals(snapshot, _offTrackDebugLastSnapshot);
+                    || eventActive
+                    || !OffTrackDebugSnapshotEquals(snapshot, _offTrackDebugLastSnapshot, ignoreContextFields: true);
                 if (!shouldWrite)
                 {
                     return;
@@ -6451,6 +6467,7 @@ namespace LaunchPlugin
             _offTrackDebugExportToken = null;
             _offTrackDebugExportPendingLines = 0;
             _offTrackDebugLastSessionTimeSec = double.NaN;
+            _offTrackDebugEventWindowUntilSessionTimeSec = double.NaN;
             _offTrackDebugLastSnapshot = default;
             _offTrackDebugSnapshotInitialized = false;
             _offTrackDebugLastChangeOnlyEnabled = false;
