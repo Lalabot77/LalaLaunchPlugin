@@ -2907,9 +2907,9 @@ namespace LaunchPlugin
                 && left.CarLap == right.CarLap
                 && (ignoreContextFields || OffTrackDebugDoubleEquals(left.CarLapDistPct, right.CarLapDistPct))
                 && left.OffTrackNow == right.OffTrackNow
-                && left.OffTrackStreak == right.OffTrackStreak
-                && OffTrackDebugDoubleEquals(left.OffTrackFirstSeenTimeSec, right.OffTrackFirstSeenTimeSec)
-                && left.CompromisedUntilLap == right.CompromisedUntilLap
+                && (ignoreContextFields || left.OffTrackStreak == right.OffTrackStreak)
+                && (ignoreContextFields || OffTrackDebugDoubleEquals(left.OffTrackFirstSeenTimeSec, right.OffTrackFirstSeenTimeSec))
+                && (ignoreContextFields || left.CompromisedUntilLap == right.CompromisedUntilLap)
                 && left.CompromisedOffTrackActive == right.CompromisedOffTrackActive
                 && left.CompromisedPenaltyActive == right.CompromisedPenaltyActive
                 && left.AllowLatches == right.AllowLatches
