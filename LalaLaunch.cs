@@ -57,20 +57,6 @@ namespace LaunchPlugin
         // --- Dashboard Manager ---
         public ScreenManager Screens = new ScreenManager();
         private int _declutterMode = 0;
-        public int DeclutterMode
-        {
-            get => _declutterMode;
-            private set
-            {
-                if (_declutterMode == value)
-                {
-                    return;
-                }
-
-                _declutterMode = value;
-                OnPropertyChanged();
-            }
-        }
 
         // --- button dash helpers ---
         // NOTE: This region is intended to expose SimHub Actions and keep cancel semantics stable.
@@ -84,12 +70,12 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info("[LalaPlugin:Dash] PrimaryDashMode action fired (placeholder).");
         }
 
-        public void SecondaryDashMode()
-        {
-            ToggleDeclutterMode("SecondaryDashMode action fired (legacy)");
-        }
 
-        public void DeclutterMode()
+        // Exposed dash mode value: 0,1,2
+        public int DeclutterMode { get; private set; } = 0;
+
+        // Binding action (button press)
+        public void DeclutterMode0()
         {
             ToggleDeclutterMode("DeclutterMode action fired");
         }
@@ -3274,8 +3260,7 @@ namespace LaunchPlugin
             this.AddAction("MsgCx", (a, b) => MsgCx());
             this.AddAction("TogglePitScreen", (a, b) => TogglePitScreen());
             this.AddAction("PrimaryDashMode", (a, b) => PrimaryDashMode());
-            this.AddAction("SecondaryDashMode", (a, b) => SecondaryDashMode());
-            this.AddAction("DeclutterMode", (a, b) => DeclutterMode());
+            this.AddAction("DeclutterMode", (a, b) => DeclutterMode0());
             this.AddAction("EventMarker", (a, b) => EventMarker());
             this.AddAction("LaunchMode", (a, b) => LaunchMode());
             this.AddAction("TrackMarkersLock", (a, b) => SetTrackMarkersLocked(true));
