@@ -429,8 +429,8 @@ namespace LaunchPlugin
             bool surfaceOffTrackNow = carState.TrackSurfaceRaw == TrackSurfaceOffTrack;
             bool materialAvailableNow = carState.TrackSurfaceMaterialRaw >= 0;
             bool definitiveOffTrackNow = materialAvailableNow
-                ? surfaceOffTrackNow && IsDefinitiveOffTrackMaterial(carState.TrackSurfaceMaterialRaw)
-                : surfaceOffTrackNow;
+                && surfaceOffTrackNow
+                && IsDefinitiveOffTrackMaterial(carState.TrackSurfaceMaterialRaw);
             state = new OffTrackDebugState
             {
                 OffTrackNow = surfaceOffTrackNow,
@@ -440,9 +440,9 @@ namespace LaunchPlugin
                     && carState.TrackSurfaceRaw == TrackSurfaceOnTrack
                     && (carState.TrackSurfaceMaterialRaw == 9 || carState.TrackSurfaceMaterialRaw == 10),
                 TrackSurfaceMaterialRaw = carState.TrackSurfaceMaterialRaw,
-                SuspectOffTrackNow = materialAvailableNow
-                    && surfaceOffTrackNow
-                    && IsSuspectOffTrackMaterial(carState.TrackSurfaceMaterialRaw),
+                SuspectOffTrackNow = surfaceOffTrackNow
+                    && ((materialAvailableNow && IsSuspectOffTrackMaterial(carState.TrackSurfaceMaterialRaw))
+                        || !materialAvailableNow),
                 OffTrackStreak = carState.OffTrackStreak,
                 OffTrackFirstSeenTimeSec = carState.OffTrackFirstSeenTimeSec,
                 SuspectOffTrackStreak = carState.SuspectOffTrackStreak,
@@ -872,11 +872,11 @@ namespace LaunchPlugin
                 bool onTrackNow = IsOnTrackSurface(state.TrackSurfaceRaw);
                 bool surfaceOffTrackNow = state.TrackSurfaceRaw == TrackSurfaceOffTrack;
                 bool definitiveOffTrackNow = materialAvailable
-                    ? surfaceOffTrackNow && IsDefinitiveOffTrackMaterial(state.TrackSurfaceMaterialRaw)
-                    : surfaceOffTrackNow;
-                bool suspectOffTrackNow = materialAvailable
-                    ? surfaceOffTrackNow && IsSuspectOffTrackMaterial(state.TrackSurfaceMaterialRaw)
-                    : false;
+                    && surfaceOffTrackNow
+                    && IsDefinitiveOffTrackMaterial(state.TrackSurfaceMaterialRaw);
+                bool suspectOffTrackNow = surfaceOffTrackNow
+                    && ((materialAvailable && IsSuspectOffTrackMaterial(state.TrackSurfaceMaterialRaw))
+                        || !materialAvailable);
 
                 if (isRace && sessionState == 4 && inWorldNow && !state.HasStartLap)
                 {
@@ -1342,9 +1342,9 @@ namespace LaunchPlugin
                 return false;
             }
 
-            return string.Equals(name, "Practice", StringComparison.OrdinalIgnoreCase)
+            return name.IndexOf("Practice", StringComparison.OrdinalIgnoreCase) >= 0
                 || string.Equals(name, "Warmup", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(name, "Open Qualify", StringComparison.OrdinalIgnoreCase);
+                || name.IndexOf("Open Qual", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static bool IsUnknownSessionType(string name)
@@ -2660,7 +2660,10 @@ namespace LaunchPlugin
 
             UpdateHotCoolIntent(slot, isAhead);
 
-            if (IsHardStatusE(statusE))
+            if ((carState != null && carState.CompromisedPenaltyActive)
+                || (carState != null && carState.CompromisedOffTrackActive)
+                || (carState != null && carState.SuspectOffTrackActive)
+                || IsHardStatusE(statusE))
             {
                 return;
             }
