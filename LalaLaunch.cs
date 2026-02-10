@@ -711,10 +711,10 @@ namespace LaunchPlugin
         private static readonly Dictionary<int, string> DefaultCarSAStatusEBackgroundColors = new Dictionary<int, string>
         {
             { (int)CarSAStatusE.Unknown, "#000000" },
-            { (int)CarSAStatusE.OutLap, "#C0C0C0" },
+            { (int)CarSAStatusE.OutLap, "#696969" },
             { (int)CarSAStatusE.InPits, "#C0C0C0" },
-            { (int)CarSAStatusE.SuspectInvalid, "#FFFF00" },
-            { (int)CarSAStatusE.CompromisedOffTrack, "#FFFF00" },
+            { (int)CarSAStatusE.SuspectInvalid, "#FFA500" },
+            { (int)CarSAStatusE.CompromisedOffTrack, "#FF0000" },
             { (int)CarSAStatusE.CompromisedPenalty, "#FFA500" },
             { (int)CarSAStatusE.HotlapWarning, "#FF0000" },
             { (int)CarSAStatusE.HotlapCaution, "#FFFF00" },
@@ -722,17 +722,17 @@ namespace LaunchPlugin
             { (int)CarSAStatusE.CoolLapCaution, "#FFFF00" },
             { (int)CarSAStatusE.FasterClass, "#000000" },
             { (int)CarSAStatusE.SlowerClass, "#000000" },
-            { (int)CarSAStatusE.Racing, "#00FF00" },
+            { (int)CarSAStatusE.Racing, "#008000" },
             { (int)CarSAStatusE.LappingYou, "#0000FF" },
             { (int)CarSAStatusE.BeingLapped, "#ADD8E6" }
         };
 
         private static readonly Dictionary<string, string> DefaultCarSABorderColors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            { CarSAStyleResolver.BorderModeTeam, "#4B0082" },
+            { CarSAStyleResolver.BorderModeTeam, "#FF69B4" },
             { CarSAStyleResolver.BorderModeLead, "#FF00FF" },
             { CarSAStyleResolver.BorderModeOtherClass, "#0000FF" },
-            { CarSAStyleResolver.BorderModeDefault, "#A9A9A9" }
+            { CarSAStyleResolver.BorderModeDefault, "#F5F5F5" }
         };
         private const int LapTimeConfidenceSwitchOn = 50;
         private const double StableFuelPerLapDeadband = 0.03; // 0.03 L/lap chosen to suppress lap-to-lap noise and prevent delta chatter
@@ -10837,8 +10837,8 @@ namespace LaunchPlugin
             { (int)CarSAStatusE.Unknown, "#000000" },
             { (int)CarSAStatusE.OutLap, "#696969" },
             { (int)CarSAStatusE.InPits, "#C0C0C0" },
-            { (int)CarSAStatusE.SuspectInvalid, "#FFFF00" },
-            { (int)CarSAStatusE.CompromisedOffTrack, "#FFFF00" },
+            { (int)CarSAStatusE.SuspectInvalid, "#FFA500" },
+            { (int)CarSAStatusE.CompromisedOffTrack, "#FF0000" },
             { (int)CarSAStatusE.CompromisedPenalty, "#FFA500" },
             { (int)CarSAStatusE.HotlapWarning, "#FF0000" },
             { (int)CarSAStatusE.HotlapCaution, "#FFFF00" },
