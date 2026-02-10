@@ -228,6 +228,7 @@ namespace LaunchPlugin
             public bool SuspectOffTrackActive { get; set; }
             public int SuspectOffTrackStreak { get; set; }
             public double SuspectOffTrackFirstSeenTimeSec { get; set; } = double.NaN;
+            public bool SuspectLatchEligibleLastTick { get; set; }
             public int SuspectEventId { get; set; }
             public double SuspectPulseUntilTimeSec { get; set; } = double.NaN;
             public bool SuspectPulseActive { get; set; }
@@ -276,6 +277,7 @@ namespace LaunchPlugin
                 SuspectOffTrackActive = false;
                 SuspectOffTrackStreak = 0;
                 SuspectOffTrackFirstSeenTimeSec = double.NaN;
+                SuspectLatchEligibleLastTick = false;
                 SuspectEventId = 0;
                 SuspectPulseUntilTimeSec = double.NaN;
                 SuspectPulseActive = false;
@@ -929,6 +931,7 @@ namespace LaunchPlugin
                         state.SuspectUntilLap = int.MinValue;
                         state.SuspectOffTrackStreak = 0;
                         state.SuspectOffTrackFirstSeenTimeSec = double.NaN;
+                        state.SuspectLatchEligibleLastTick = false;
                         state.SuspectEventId = 0;
                         state.SuspectPulseUntilTimeSec = double.NaN;
                         state.SuspectPulseActive = false;
@@ -1005,15 +1008,15 @@ namespace LaunchPlugin
                     double suspectStreakAgeSec = !double.IsNaN(state.SuspectOffTrackFirstSeenTimeSec)
                         ? (sessionTimeSec - state.SuspectOffTrackFirstSeenTimeSec)
                         : 0.0;
-                    bool suspectLatchEligibleBeforeIncrement = state.SuspectOffTrackStreak >= 3
-                        || suspectStreakAgeSec >= 0.25;
 
                     state.SuspectOffTrackStreak++;
                     bool allowSuspectLatch = state.SuspectOffTrackStreak >= 3
                         || suspectStreakAgeSec >= 0.25;
+                    bool suspectEpisodeStarted = allowSuspectLatch && !state.SuspectLatchEligibleLastTick;
+                    state.SuspectLatchEligibleLastTick = allowSuspectLatch;
                     if (allowSuspectLatch)
                     {
-                        if (!suspectLatchEligibleBeforeIncrement)
+                        if (suspectEpisodeStarted)
                         {
                             state.SuspectEventId++;
                             state.SuspectPulseUntilTimeSec = sessionTimeSec + SuspectPulseDurationSec;
@@ -1030,6 +1033,7 @@ namespace LaunchPlugin
                 {
                     state.SuspectOffTrackStreak = 0;
                     state.SuspectOffTrackFirstSeenTimeSec = double.NaN;
+                    state.SuspectLatchEligibleLastTick = false;
                 }
 
                 bool pitExitToTrack = prevWasPitArea && !pitAreaNow && onTrackNow;
@@ -3131,6 +3135,7 @@ namespace LaunchPlugin
                 state.OffTrackFirstSeenTimeSec = double.NaN;
                 state.SuspectOffTrackStreak = 0;
                 state.SuspectOffTrackFirstSeenTimeSec = double.NaN;
+                state.SuspectLatchEligibleLastTick = false;
                 state.StartLapAtGreen = int.MinValue;
                 state.HasStartLap = false;
                 state.HasSeenPitExit = false;
