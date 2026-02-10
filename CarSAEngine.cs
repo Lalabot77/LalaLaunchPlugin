@@ -146,7 +146,7 @@ namespace LaunchPlugin
 
         private static bool IsSuspectOffTrackMaterial(int mat)
         {
-            return mat == 27 || mat == 9 || mat == 10;
+            return mat == 27;
         }
 
         private readonly CarSAOutputs _outputs;
@@ -288,6 +288,9 @@ namespace LaunchPlugin
         public struct OffTrackDebugState
         {
             public bool OffTrackNow { get; set; }
+            public bool SurfaceOffTrackNow { get; set; }
+            public bool DefinitiveOffTrackNow { get; set; }
+            public bool BoundaryEvidenceNow { get; set; }
             public int TrackSurfaceMaterialRaw { get; set; }
             public bool SuspectOffTrackNow { get; set; }
             public int OffTrackStreak { get; set; }
@@ -423,11 +426,18 @@ namespace LaunchPlugin
             }
 
             var carState = _carStates[carIdx];
+            bool surfaceOffTrackNow = carState.TrackSurfaceRaw == TrackSurfaceOffTrack;
+            bool definitiveOffTrackNow = surfaceOffTrackNow
+                && IsDefinitiveOffTrackMaterial(carState.TrackSurfaceMaterialRaw);
             state = new OffTrackDebugState
             {
-                OffTrackNow = carState.TrackSurfaceRaw == TrackSurfaceOffTrack,
+                OffTrackNow = surfaceOffTrackNow,
+                SurfaceOffTrackNow = surfaceOffTrackNow,
+                DefinitiveOffTrackNow = definitiveOffTrackNow,
+                BoundaryEvidenceNow = carState.TrackSurfaceRaw == TrackSurfaceOnTrack
+                    && (carState.TrackSurfaceMaterialRaw == 9 || carState.TrackSurfaceMaterialRaw == 10),
                 TrackSurfaceMaterialRaw = carState.TrackSurfaceMaterialRaw,
-                SuspectOffTrackNow = carState.TrackSurfaceRaw == TrackSurfaceOffTrack
+                SuspectOffTrackNow = surfaceOffTrackNow
                     && IsSuspectOffTrackMaterial(carState.TrackSurfaceMaterialRaw),
                 OffTrackStreak = carState.OffTrackStreak,
                 OffTrackFirstSeenTimeSec = carState.OffTrackFirstSeenTimeSec,

@@ -2927,6 +2927,9 @@ namespace LaunchPlugin
             public int CarLap;
             public double CarLapDistPct;
             public bool? OffTrackNow;
+            public bool? SurfaceOffTrackNow;
+            public bool? DefinitiveOffTrackNow;
+            public bool? BoundaryEvidenceNow;
             public int OffTrackStreak;
             public double OffTrackFirstSeenTimeSec;
             public bool? SuspectOffTrackNow;
@@ -2958,6 +2961,9 @@ namespace LaunchPlugin
                 && left.CarLap == right.CarLap
                 && (ignoreContextFields || OffTrackDebugDoubleEquals(left.CarLapDistPct, right.CarLapDistPct))
                 && left.OffTrackNow == right.OffTrackNow
+                && left.SurfaceOffTrackNow == right.SurfaceOffTrackNow
+                && left.DefinitiveOffTrackNow == right.DefinitiveOffTrackNow
+                && left.BoundaryEvidenceNow == right.BoundaryEvidenceNow
                 && (ignoreContextFields || left.OffTrackStreak == right.OffTrackStreak)
                 && (ignoreContextFields || OffTrackDebugDoubleEquals(left.OffTrackFirstSeenTimeSec, right.OffTrackFirstSeenTimeSec))
                 && left.SuspectOffTrackNow == right.SuspectOffTrackNow
@@ -5571,6 +5577,9 @@ namespace LaunchPlugin
                 hasState = _carSaEngine.TryGetOffTrackDebugState(probeCarIdx, out offTrackState);
             }
             bool? offTrackNow = hasState ? (bool?)offTrackState.OffTrackNow : null;
+            bool? surfaceOffTrackNow = hasState ? (bool?)offTrackState.SurfaceOffTrackNow : null;
+            bool? definitiveOffTrackNow = hasState ? (bool?)offTrackState.DefinitiveOffTrackNow : null;
+            bool? boundaryEvidenceNow = hasState ? (bool?)offTrackState.BoundaryEvidenceNow : null;
             int offTrackStreak = hasState ? offTrackState.OffTrackStreak : int.MinValue;
             double offTrackFirstSeenTimeSec = hasState ? offTrackState.OffTrackFirstSeenTimeSec : double.NaN;
             bool? suspectOffTrackNow = hasState ? (bool?)offTrackState.SuspectOffTrackNow : null;
@@ -5595,6 +5604,9 @@ namespace LaunchPlugin
                 CarLap = carLap,
                 CarLapDistPct = carLapDistPct,
                 OffTrackNow = offTrackNow,
+                SurfaceOffTrackNow = surfaceOffTrackNow,
+                DefinitiveOffTrackNow = definitiveOffTrackNow,
+                BoundaryEvidenceNow = boundaryEvidenceNow,
                 OffTrackStreak = offTrackStreak,
                 OffTrackFirstSeenTimeSec = offTrackFirstSeenTimeSec,
                 SuspectOffTrackNow = suspectOffTrackNow,
@@ -5649,6 +5661,12 @@ namespace LaunchPlugin
             AppendCsvOptionalDouble(buffer, carLapDistPct, "F6");
             buffer.Append(',');
             AppendCsvOptionalBool(buffer, offTrackNow);
+            buffer.Append(',');
+            AppendCsvOptionalBool(buffer, surfaceOffTrackNow);
+            buffer.Append(',');
+            AppendCsvOptionalBool(buffer, definitiveOffTrackNow);
+            buffer.Append(',');
+            AppendCsvOptionalBool(buffer, boundaryEvidenceNow);
             buffer.Append(',');
             AppendCsvOptionalInt(buffer, offTrackStreak, int.MinValue);
             buffer.Append(',');
@@ -6550,7 +6568,7 @@ namespace LaunchPlugin
             buffer.Append("SessionTimeSec,EventFired,SessionState,SessionFlagsHex,SessionFlagsDec,ProbeCarIdx,");
             buffer.Append("CarIdxTrackSurface,CarIdxTrackSurfaceMaterial,CarIdxSessionFlagsHex,CarIdxSessionFlagsDec,");
             buffer.Append("CarIdxOnPitRoad,CarIdxLap,CarIdxLapDistPct,");
-            buffer.Append("OffTrackNow,OffTrackStreak,OffTrackFirstSeenTimeSec,");
+            buffer.Append("OffTrackNow,SurfaceOffTrackNow,DefinitiveOffTrackNow,BoundaryEvidenceNow,OffTrackStreak,OffTrackFirstSeenTimeSec,");
             buffer.Append("SuspectOffTrackNow,SuspectOffTrackStreak,SuspectOffTrackFirstSeenTimeSec,SuspectOffTrackActive,");
             buffer.Append("CompromisedUntilLap,CompromisedOffTrackActive,CompromisedPenaltyActive,AllowLatches,");
             buffer.Append("PlayerCarIdx,PlayerIncidentCount,PlayerIncidentDelta");
