@@ -2937,6 +2937,9 @@ namespace LaunchPlugin
             public int SuspectOffTrackStreak;
             public double SuspectOffTrackFirstSeenTimeSec;
             public bool? SuspectOffTrackActive;
+            public int SuspectEventId;
+            public double SuspectPulseUntilTimeSec;
+            public bool? SuspectPulseActive;
             public int CompromisedUntilLap;
             public bool? CompromisedOffTrackActive;
             public bool? CompromisedPenaltyActive;
@@ -2971,6 +2974,9 @@ namespace LaunchPlugin
                 && (ignoreContextFields || left.SuspectOffTrackStreak == right.SuspectOffTrackStreak)
                 && (ignoreContextFields || OffTrackDebugDoubleEquals(left.SuspectOffTrackFirstSeenTimeSec, right.SuspectOffTrackFirstSeenTimeSec))
                 && left.SuspectOffTrackActive == right.SuspectOffTrackActive
+                && left.SuspectEventId == right.SuspectEventId
+                && (ignoreContextFields || OffTrackDebugDoubleEquals(left.SuspectPulseUntilTimeSec, right.SuspectPulseUntilTimeSec))
+                && left.SuspectPulseActive == right.SuspectPulseActive
                 && (ignoreContextFields || left.CompromisedUntilLap == right.CompromisedUntilLap)
                 && left.CompromisedOffTrackActive == right.CompromisedOffTrackActive
                 && left.CompromisedPenaltyActive == right.CompromisedPenaltyActive
@@ -3772,6 +3778,8 @@ namespace LaunchPlugin
             AttachCore("Car.Player.StatusShort", () => _carSaEngine?.Outputs.PlayerSlot.StatusShort ?? string.Empty);
             AttachCore("Car.Player.StatusLong", () => _carSaEngine?.Outputs.PlayerSlot.StatusLong ?? string.Empty);
             AttachCore("Car.Player.StatusEReason", () => _carSaEngine?.Outputs.PlayerSlot.StatusEReason ?? string.Empty);
+            AttachCore("Car.Player.SuspectPulseActive", () => _carSaEngine?.Outputs.PlayerSlot.SuspectPulseActive ?? false);
+            AttachCore("Car.Player.SuspectEventId", () => _carSaEngine?.Outputs.PlayerSlot.SuspectEventId ?? 0);
             for (int i = 0; i < CarSAEngine.SlotsAhead; i++)
             {
                 int slotIndex = i;
@@ -3799,6 +3807,8 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.StatusShort", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusShort ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.StatusLong", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusLong ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.StatusEReason", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusEReason ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.SuspectPulseActive", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].SuspectPulseActive ?? false);
+                AttachCore($"Car.Ahead{label}.SuspectEventId", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].SuspectEventId ?? 0);
                 AttachCore($"Car.Ahead{label}.StatusBgHex", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].StatusBgHex ?? "#000000");
                 AttachCore($"Car.Ahead{label}.BorderMode", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BorderMode ?? CarSAStyleResolver.BorderModeDefault);
                 AttachCore($"Car.Ahead{label}.BorderHex", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BorderHex ?? "#A9A9A9");
@@ -3858,6 +3868,8 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.StatusShort", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusShort ?? string.Empty);
                 AttachCore($"Car.Behind{label}.StatusLong", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusLong ?? string.Empty);
                 AttachCore($"Car.Behind{label}.StatusEReason", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusEReason ?? string.Empty);
+                AttachCore($"Car.Behind{label}.SuspectPulseActive", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].SuspectPulseActive ?? false);
+                AttachCore($"Car.Behind{label}.SuspectEventId", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].SuspectEventId ?? 0);
                 AttachCore($"Car.Behind{label}.StatusBgHex", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].StatusBgHex ?? "#000000");
                 AttachCore($"Car.Behind{label}.BorderMode", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BorderMode ?? CarSAStyleResolver.BorderModeDefault);
                 AttachCore($"Car.Behind{label}.BorderHex", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BorderHex ?? "#A9A9A9");
@@ -5587,6 +5599,9 @@ namespace LaunchPlugin
             int suspectOffTrackStreak = hasState ? offTrackState.SuspectOffTrackStreak : int.MinValue;
             double suspectOffTrackFirstSeenTimeSec = hasState ? offTrackState.SuspectOffTrackFirstSeenTimeSec : double.NaN;
             bool? suspectOffTrackActive = hasState ? (bool?)offTrackState.SuspectOffTrackActive : null;
+            int suspectEventId = hasState ? offTrackState.SuspectEventId : 0;
+            double suspectPulseUntilTimeSec = hasState ? offTrackState.SuspectPulseUntilTimeSec : double.NaN;
+            bool? suspectPulseActive = hasState ? (bool?)offTrackState.SuspectPulseActive : null;
             int compromisedUntilLap = hasState ? offTrackState.CompromisedUntilLap : int.MinValue;
             bool? compromisedOffTrackActive = hasState ? (bool?)offTrackState.CompromisedOffTrackActive : null;
             bool? compromisedPenaltyActive = hasState ? (bool?)offTrackState.CompromisedPenaltyActive : null;
@@ -5614,6 +5629,9 @@ namespace LaunchPlugin
                 SuspectOffTrackStreak = suspectOffTrackStreak,
                 SuspectOffTrackFirstSeenTimeSec = suspectOffTrackFirstSeenTimeSec,
                 SuspectOffTrackActive = suspectOffTrackActive,
+                SuspectEventId = suspectEventId,
+                SuspectPulseUntilTimeSec = suspectPulseUntilTimeSec,
+                SuspectPulseActive = suspectPulseActive,
                 CompromisedUntilLap = compromisedUntilLap,
                 CompromisedOffTrackActive = compromisedOffTrackActive,
                 CompromisedPenaltyActive = compromisedPenaltyActive,
@@ -5678,6 +5696,12 @@ namespace LaunchPlugin
             AppendCsvOptionalDouble(buffer, suspectOffTrackFirstSeenTimeSec, "F3");
             buffer.Append(',');
             AppendCsvOptionalBool(buffer, suspectOffTrackActive);
+            buffer.Append(',');
+            AppendCsvOptionalInt(buffer, suspectEventId, 0);
+            buffer.Append(',');
+            AppendCsvOptionalDouble(buffer, suspectPulseUntilTimeSec, "F3");
+            buffer.Append(',');
+            AppendCsvOptionalBool(buffer, suspectPulseActive);
             buffer.Append(',');
             AppendCsvOptionalInt(buffer, compromisedUntilLap, int.MinValue);
             buffer.Append(',');
@@ -6569,6 +6593,7 @@ namespace LaunchPlugin
             buffer.Append("CarIdxOnPitRoad,CarIdxLap,CarIdxLapDistPct,");
             buffer.Append("SurfaceOffTrackNow,DefinitiveOffTrackNow,BoundaryEvidenceNow,OffTrackStreak,OffTrackFirstSeenTimeSec,");
             buffer.Append("SuspectOffTrackNow,SuspectOffTrackStreak,SuspectOffTrackFirstSeenTimeSec,SuspectOffTrackActive,");
+            buffer.Append("SuspectEventId,SuspectPulseUntilTimeSec,SuspectPulseActive,");
             buffer.Append("CompromisedUntilLap,CompromisedOffTrackActive,CompromisedPenaltyActive,AllowLatches,");
             buffer.Append("PlayerCarIdx,PlayerIncidentCount,PlayerIncidentDelta");
             return buffer.ToString();

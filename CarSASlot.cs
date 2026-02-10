@@ -50,6 +50,8 @@ namespace LaunchPlugin
         public string StatusShort { get; set; } = "---";
         public string StatusLong { get; set; } = string.Empty;
         public string StatusEReason { get; set; } = "unknown";
+        public bool SuspectPulseActive { get; set; }
+        public int SuspectEventId { get; set; }
         public string StatusBgHex { get; set; } = "#000000";
         public string BorderMode { get; set; } = CarSAStyleResolver.BorderModeDefault;
         public string BorderHex { get; set; } = "#A9A9A9";
@@ -206,6 +208,8 @@ namespace LaunchPlugin
             StatusShort = "---";
             StatusLong = string.Empty;
             StatusEReason = "unknown";
+            SuspectPulseActive = false;
+            SuspectEventId = 0;
             StatusBgHex = "#000000";
             BorderMode = CarSAStyleResolver.BorderModeDefault;
             BorderHex = "#A9A9A9";
