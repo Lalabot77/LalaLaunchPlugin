@@ -47,6 +47,59 @@ namespace LaunchPlugin
     {
         private const bool HARD_DEBUG_ENABLED = true;
 
+        // iRacing reports Warmup as a session type and we treat it as Practice-like.
+        private static string NormalizeSessionTypeName(string raw)
+        {
+            return string.IsNullOrWhiteSpace(raw) ? string.Empty : raw.Trim();
+        }
+
+        private static bool IsWarmupSession(string sessionTypeName)
+        {
+            return string.Equals(NormalizeSessionTypeName(sessionTypeName), "Warmup", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsPracticeLikeSession(string sessionTypeName)
+        {
+            string normalized = NormalizeSessionTypeName(sessionTypeName);
+            return string.Equals(normalized, "Practice", StringComparison.OrdinalIgnoreCase) ||
+                   IsWarmupSession(normalized);
+        }
+
+        private static bool IsQualLikeSession(string sessionTypeName)
+        {
+            string normalized = NormalizeSessionTypeName(sessionTypeName);
+            return string.Equals(normalized, "Open Qualify", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(normalized, "Lone Qualify", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(normalized, "Qualifying", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsRaceSession(string sessionTypeName)
+        {
+            return string.Equals(NormalizeSessionTypeName(sessionTypeName), "Race", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsOfflineTestingSession(string sessionTypeName)
+        {
+            return string.Equals(NormalizeSessionTypeName(sessionTypeName), "Offline Testing", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsDrivingSessionForFuelSeed(string sessionTypeName)
+        {
+            return IsOfflineTestingSession(sessionTypeName) ||
+                   IsPracticeLikeSession(sessionTypeName) ||
+                   IsQualLikeSession(sessionTypeName) ||
+                   IsRaceSession(sessionTypeName);
+        }
+
+        private static string GetDashDesiredPageForSession(string sessionTypeName)
+        {
+            string normalized = NormalizeSessionTypeName(sessionTypeName);
+            if (IsOfflineTestingSession(normalized)) return "practice";
+            if (IsQualLikeSession(normalized) || IsPracticeLikeSession(normalized)) return "timing";
+            if (IsRaceSession(normalized)) return "racing";
+            return "practice";
+        }
+
         // --- SimHub Interfaces ---
         public PluginManager PluginManager { get; set; }
         public LaunchPluginSettings Settings { get; private set; }
@@ -1058,7 +1111,7 @@ namespace LaunchPlugin
 
             // Only seed when entering Race with matching car/track
             if (applySeeds &&
-                newSessionType == "Race" &&
+                IsRaceSession(newSessionType) &&
                 _seedCarModel == CurrentCarModel &&
                 _seedTrackKey == CurrentTrackKey)
             {
@@ -1143,19 +1196,13 @@ namespace LaunchPlugin
                 }
 
                 bool isDrivingFrom =
-                    fromSession == "Offline Testing" ||
-                    fromSession == "Practice" ||
-                    fromSession == "Open Qualify" ||
-                    fromSession == "Lone Qualify" ||
-                    fromSession == "Qualifying" ||
-                    fromSession == "Warmup" ||
-                    fromSession == "Race";
+                    IsDrivingSessionForFuelSeed(fromSession);
 
-                bool isEnteringRace = toSession == "Race";
+                bool isEnteringRace = IsRaceSession(toSession);
 
                 if (isDrivingFrom && isEnteringRace)
                 {
-                    // Use fuel learnt in Practice/Qual/Warmup/etc as seed for Race.
+                    // Use fuel learnt in non-race driving sessions as seed for Race.
                     CaptureFuelSeedForNextSession(fromSession);
                     ResetLiveFuelModelForNewSession(toSession, true);
                 }
@@ -2554,7 +2601,7 @@ namespace LaunchPlugin
             int currentLapNumber = (int)Math.Max(1, Math.Floor(completedLaps) + 1);
             string sessionStateToken = ReadLapDetectorSessionState();
             bool sessionRunning = IsSessionRunningForLapDetector(sessionStateToken);
-            bool isRaceSession = string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase);
+            bool isRaceSession = IsRaceSession(data.NewData?.SessionTypeName);
             double fuelPerLapForPitWindow = LiveFuelPerLap_Stable > 0.0 ? LiveFuelPerLap_Stable : fuelPerLapForCalc;
             int pitWindowClosingLap = 0;
             double fuelReadyConfidence = GetFuelReadyConfidenceThreshold();
@@ -2709,7 +2756,7 @@ namespace LaunchPlugin
 
             UpdateSmoothedFuelOutputs(requestedAddLitresForSmooth);
 
-            if (lapCrossed && string.Equals(data.NewData?.SessionTypeName, "Race", StringComparison.OrdinalIgnoreCase))
+            if (lapCrossed && IsRaceSession(data.NewData?.SessionTypeName))
             {
                 double observedAfterZero = (_timerZeroSeen && sessionTime > _timerZeroSessionTime)
                     ? Math.Max(0.0, sessionTime - _timerZeroSessionTime)
@@ -4785,7 +4832,7 @@ namespace LaunchPlugin
             string sessionTypeForOpponents = !string.IsNullOrWhiteSpace(currentSessionTypeForConfidence)
                 ? currentSessionTypeForConfidence
                 : (data.NewData?.SessionTypeName ?? string.Empty);
-            bool isRaceSessionNow = string.Equals(sessionTypeForOpponents, "Race", StringComparison.OrdinalIgnoreCase);
+            bool isRaceSessionNow = IsRaceSession(sessionTypeForOpponents);
             bool pitExitRecently = (DateTime.UtcNow - _lastPitLaneSeenUtc).TotalSeconds < 1.0;
             bool pitTripActive = _wasInPitThisLap || inLane || pitExitRecently;
             double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
@@ -5218,13 +5265,13 @@ namespace LaunchPlugin
                 ExecuteLaunchTimers(pluginManager, ref data);
             }
 
-            string currentSession = Convert.ToString(
-            pluginManager.GetPropertyValue("DataCorePlugin.GameData.SessionTypeName") ?? "");
+            string currentSession = NormalizeSessionTypeName(Convert.ToString(
+                pluginManager.GetPropertyValue("DataCorePlugin.GameData.SessionTypeName") ?? ""));
 
             // Session summary: handle startup already-in-race case.
             // The session-change block below won't fire on first tick because _lastFuelSessionType is empty.
             if (string.IsNullOrEmpty(_lastFuelSessionType) &&
-                string.Equals(currentSession, "Race", StringComparison.OrdinalIgnoreCase))
+                IsRaceSession(currentSession))
             {
                 SessionSummaryRuntime.OnRaceSessionStart(
                     _currentSessionToken,
@@ -5241,7 +5288,7 @@ namespace LaunchPlugin
 
 
             // Fuel model session-change handling (independent of auto-dash setting)
-            if (!string.IsNullOrEmpty(_lastFuelSessionType) && currentSession != _lastFuelSessionType)
+            if (!string.IsNullOrEmpty(_lastFuelSessionType) && !string.Equals(currentSession, _lastFuelSessionType, StringComparison.OrdinalIgnoreCase))
             {
                 // First: let the fuel model handle phase transitions (including seed carry-over rules)
                 HandleSessionChangeForFuelModel(_lastFuelSessionType, currentSession);
@@ -5254,7 +5301,7 @@ namespace LaunchPlugin
                 // Message session state should not bleed across phase transitions
                 _msgV1Engine?.ResetSession();
 
-                if (string.Equals(currentSession, "Race", StringComparison.OrdinalIgnoreCase))
+                if (IsRaceSession(currentSession))
                 {
                     // NOTE: snapshot currently latched at Race session entry; will move to true green latch later
                     SessionSummaryRuntime.OnRaceSessionStart(
@@ -5271,30 +5318,21 @@ namespace LaunchPlugin
                 }
             }
 
-            _lastFuelSessionType = currentSession;
+            _lastFuelSessionType = NormalizeSessionTypeName(currentSession);
 
             // --- AUTO DASH SWITCHING (READINESS-GATED, NO GLOBAL RESET) ---
             bool ignitionOn = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.EngineIgnitionOn") ?? false);
             bool engineStarted = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameData.EngineStarted") ?? false);
 
-            if (Settings.EnableAutoDashSwitch && !string.IsNullOrWhiteSpace(currentSession) && !string.Equals(currentSession, _dashLastSessionType, StringComparison.Ordinal))
+            if (Settings.EnableAutoDashSwitch && !string.IsNullOrWhiteSpace(currentSession) && !string.Equals(currentSession, _dashLastSessionType, StringComparison.OrdinalIgnoreCase))
             {
-                _dashLastSessionType = currentSession;
+                _dashLastSessionType = NormalizeSessionTypeName(currentSession);
                 _dashPendingSwitch = true;
                 _dashExecutedForCurrentArm = false;
                 _dashSwitchToken++;
-                _lastSessionType = currentSession;
+                _lastSessionType = NormalizeSessionTypeName(currentSession);
 
-                switch (currentSession)
-                {
-                    case "Offline Testing": _dashDesiredPage = "practice"; break;
-                    case "Open Qualify":
-                    case "Lone Qualify":
-                    case "Qualifying":
-                    case "Warmup": _dashDesiredPage = "timing"; break;
-                    case "Race": _dashDesiredPage = "racing"; break;
-                    default: _dashDesiredPage = "practice"; break;
-                }
+                _dashDesiredPage = GetDashDesiredPageForSession(currentSession);
             }
 
             if (!ignitionOn && _dashLastIgnitionOn)
@@ -8379,7 +8417,7 @@ namespace LaunchPlugin
             string sessionTypeForOpponents = !string.IsNullOrWhiteSpace(sessionTypeToken)
                 ? sessionTypeToken
                 : (data.NewData?.SessionTypeName ?? string.Empty);
-            bool isRaceSessionNow = string.Equals(sessionTypeForOpponents, "Race", StringComparison.OrdinalIgnoreCase);
+            bool isRaceSessionNow = IsRaceSession(sessionTypeForOpponents);
 
             bool isOnPitRoadFlag = Convert.ToBoolean(
                 pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.Telemetry.OnPitRoad") ?? false
@@ -9692,7 +9730,7 @@ namespace LaunchPlugin
         long sessionId,
         string sessionType)
         {
-            bool isRace = string.Equals(sessionType, "Race", StringComparison.OrdinalIgnoreCase);
+            bool isRace = IsRaceSession(sessionType);
 
             // Reset cleanly on session change
             if (sessionId != _finishTimingSessionId || sessionType != _finishTimingSessionType)
@@ -10310,7 +10348,7 @@ namespace LaunchPlugin
 
             // --- ACTIVATION CONDITIONS ---
             bool isStandingStart = Convert.ToBoolean(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.WeekendOptions.StandingStart") ?? false);
-            bool isRaceSession = (data.NewData?.SessionTypeName ?? "") == "Race";
+            bool isRaceSession = IsRaceSession(data.NewData?.SessionTypeName);
 
             bool isAutoStartCondition = isStartReady && isStandingStart && isRaceSession && speed < 1;
             bool isManualPrimed = IsManualPrimed && speed < 2;
