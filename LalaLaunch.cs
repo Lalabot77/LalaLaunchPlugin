@@ -2929,6 +2929,10 @@ namespace LaunchPlugin
             public bool? OffTrackNow;
             public int OffTrackStreak;
             public double OffTrackFirstSeenTimeSec;
+            public bool? SuspectOffTrackNow;
+            public int SuspectOffTrackStreak;
+            public double SuspectOffTrackFirstSeenTimeSec;
+            public bool? SuspectOffTrackActive;
             public int CompromisedUntilLap;
             public bool? CompromisedOffTrackActive;
             public bool? CompromisedPenaltyActive;
@@ -2956,6 +2960,10 @@ namespace LaunchPlugin
                 && left.OffTrackNow == right.OffTrackNow
                 && (ignoreContextFields || left.OffTrackStreak == right.OffTrackStreak)
                 && (ignoreContextFields || OffTrackDebugDoubleEquals(left.OffTrackFirstSeenTimeSec, right.OffTrackFirstSeenTimeSec))
+                && left.SuspectOffTrackNow == right.SuspectOffTrackNow
+                && (ignoreContextFields || left.SuspectOffTrackStreak == right.SuspectOffTrackStreak)
+                && (ignoreContextFields || OffTrackDebugDoubleEquals(left.SuspectOffTrackFirstSeenTimeSec, right.SuspectOffTrackFirstSeenTimeSec))
+                && left.SuspectOffTrackActive == right.SuspectOffTrackActive
                 && (ignoreContextFields || left.CompromisedUntilLap == right.CompromisedUntilLap)
                 && left.CompromisedOffTrackActive == right.CompromisedOffTrackActive
                 && left.CompromisedPenaltyActive == right.CompromisedPenaltyActive
@@ -4850,6 +4858,7 @@ namespace LaunchPlugin
             float[] carIdxLapDistPct = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLapDistPct");
             int[] carIdxLap = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLap");
             int[] carIdxTrackSurface = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxTrackSurface");
+            int[] carIdxTrackSurfaceMaterial = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxTrackSurfaceMaterial");
             bool[] carIdxOnPitRoad = SafeReadBoolArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxOnPitRoad");
             UpdatePlayerLapInvalidState(pluginManager, sessionTimeSec, playerCarIdx, carIdxLap);
             int[] carIdxSessionFlags = null;
@@ -4889,7 +4898,7 @@ namespace LaunchPlugin
             {
                 hasMultipleClassOpponents = false;
             }
-            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, hasMultipleClassOpponents, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, playerLastLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugMaster);
+            _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, hasMultipleClassOpponents, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxTrackSurfaceMaterial, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, playerLastLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugMaster);
             if (_carSaEngine != null)
             {
                 UpdateCarSaTelemetryCaches(pluginManager);
@@ -4915,11 +4924,9 @@ namespace LaunchPlugin
 
                 int probeCarIdx = Settings?.OffTrackDebugProbeCarIdx ?? -1;
                 bool offTrackDebugEnabled = Settings?.EnableOffTrackDebugCsv == true && probeCarIdx >= 0;
-                int[] carIdxTrackSurfaceMaterial = null;
                 int sessionFlagsRaw = -1;
                 if (offTrackDebugEnabled)
                 {
-                    carIdxTrackSurfaceMaterial = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxTrackSurfaceMaterial");
                     sessionFlagsRaw = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionFlags", -1);
                 }
                 WriteOffTrackDebugExport(
@@ -5566,6 +5573,10 @@ namespace LaunchPlugin
             bool? offTrackNow = hasState ? (bool?)offTrackState.OffTrackNow : null;
             int offTrackStreak = hasState ? offTrackState.OffTrackStreak : int.MinValue;
             double offTrackFirstSeenTimeSec = hasState ? offTrackState.OffTrackFirstSeenTimeSec : double.NaN;
+            bool? suspectOffTrackNow = hasState ? (bool?)offTrackState.SuspectOffTrackNow : null;
+            int suspectOffTrackStreak = hasState ? offTrackState.SuspectOffTrackStreak : int.MinValue;
+            double suspectOffTrackFirstSeenTimeSec = hasState ? offTrackState.SuspectOffTrackFirstSeenTimeSec : double.NaN;
+            bool? suspectOffTrackActive = hasState ? (bool?)offTrackState.SuspectOffTrackActive : null;
             int compromisedUntilLap = hasState ? offTrackState.CompromisedUntilLap : int.MinValue;
             bool? compromisedOffTrackActive = hasState ? (bool?)offTrackState.CompromisedOffTrackActive : null;
             bool? compromisedPenaltyActive = hasState ? (bool?)offTrackState.CompromisedPenaltyActive : null;
@@ -5586,6 +5597,10 @@ namespace LaunchPlugin
                 OffTrackNow = offTrackNow,
                 OffTrackStreak = offTrackStreak,
                 OffTrackFirstSeenTimeSec = offTrackFirstSeenTimeSec,
+                SuspectOffTrackNow = suspectOffTrackNow,
+                SuspectOffTrackStreak = suspectOffTrackStreak,
+                SuspectOffTrackFirstSeenTimeSec = suspectOffTrackFirstSeenTimeSec,
+                SuspectOffTrackActive = suspectOffTrackActive,
                 CompromisedUntilLap = compromisedUntilLap,
                 CompromisedOffTrackActive = compromisedOffTrackActive,
                 CompromisedPenaltyActive = compromisedPenaltyActive,
@@ -5638,6 +5653,14 @@ namespace LaunchPlugin
             AppendCsvOptionalInt(buffer, offTrackStreak, int.MinValue);
             buffer.Append(',');
             AppendCsvOptionalDouble(buffer, offTrackFirstSeenTimeSec, "F3");
+            buffer.Append(',');
+            AppendCsvOptionalBool(buffer, suspectOffTrackNow);
+            buffer.Append(',');
+            AppendCsvOptionalInt(buffer, suspectOffTrackStreak, int.MinValue);
+            buffer.Append(',');
+            AppendCsvOptionalDouble(buffer, suspectOffTrackFirstSeenTimeSec, "F3");
+            buffer.Append(',');
+            AppendCsvOptionalBool(buffer, suspectOffTrackActive);
             buffer.Append(',');
             AppendCsvOptionalInt(buffer, compromisedUntilLap, int.MinValue);
             buffer.Append(',');
@@ -6527,8 +6550,9 @@ namespace LaunchPlugin
             buffer.Append("SessionTimeSec,EventFired,SessionState,SessionFlagsHex,SessionFlagsDec,ProbeCarIdx,");
             buffer.Append("CarIdxTrackSurface,CarIdxTrackSurfaceMaterial,CarIdxSessionFlagsHex,CarIdxSessionFlagsDec,");
             buffer.Append("CarIdxOnPitRoad,CarIdxLap,CarIdxLapDistPct,");
-            buffer.Append("OffTrackNow,OffTrackStreak,OffTrackFirstSeenTimeSec,CompromisedUntilLap,");
-            buffer.Append("CompromisedOffTrackActive,CompromisedPenaltyActive,AllowLatches,");
+            buffer.Append("OffTrackNow,OffTrackStreak,OffTrackFirstSeenTimeSec,");
+            buffer.Append("SuspectOffTrackNow,SuspectOffTrackStreak,SuspectOffTrackFirstSeenTimeSec,SuspectOffTrackActive,");
+            buffer.Append("CompromisedUntilLap,CompromisedOffTrackActive,CompromisedPenaltyActive,AllowLatches,");
             buffer.Append("PlayerCarIdx,PlayerIncidentCount,PlayerIncidentDelta");
             return buffer.ToString();
         }

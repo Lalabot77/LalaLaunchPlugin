@@ -50,6 +50,7 @@ namespace LaunchPlugin
         private const string StatusShortUnknown = "---";
         private const string StatusShortOutLap = "OUTLP";
         private const string StatusShortInPits = "PIT";
+        private const string StatusShortSuspectOffTrack = "SUS";
         private const string StatusShortCompromisedOffTrack = "OFFTK";
         private const string StatusShortCompromisedPenalty = "PEN";
         private const string StatusShortFasterClass = "FCL";
@@ -62,6 +63,7 @@ namespace LaunchPlugin
         private const string StatusLongUnknown = "";
         private const string StatusLongOutLap = "Out Lap";
         private const string StatusLongInPits = "In Pits";
+        private const string StatusLongSuspectOffTrack = "Suspect Lap";
         private const string StatusLongCompromisedOffTrack = "Lap Invalid";
         private const string StatusLongCompromisedPenalty = "Penalty";
         private const string StatusLongFasterClass = "Faster Class";
@@ -74,6 +76,7 @@ namespace LaunchPlugin
         private const string StatusEReasonPits = "pits";
         private const string StatusEReasonCompromisedOffTrack = "cmp_off";
         private const string StatusEReasonCompromisedPenalty = "cmp_pen";
+        private const string StatusEReasonSuspectOffTrack = "sus_off";
         private const string StatusEReasonOutLap = "outlap";
         private const string StatusEReasonLapAhead = "lap_ahead";
         private const string StatusEReasonLapBehind = "lap_behind";
@@ -120,6 +123,30 @@ namespace LaunchPlugin
         private static bool IsPitLaneSurface(int raw)
         {
             return raw == TrackSurfacePitLane;
+        }
+
+        private static bool IsDefinitiveOffTrackMaterial(int mat)
+        {
+            switch (mat)
+            {
+                case 12:
+                case 15:
+                case 16:
+                case 17:
+                case 18:
+                case 19:
+                case 22:
+                case 24:
+                case 26:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool IsSuspectOffTrackMaterial(int mat)
+        {
+            return mat == 27 || mat == 9 || mat == 10;
         }
 
         private readonly CarSAOutputs _outputs;
@@ -184,6 +211,7 @@ namespace LaunchPlugin
             public bool IsOnTrack { get; set; }
             public bool IsOnPitRoad { get; set; }
             public int TrackSurfaceRaw { get; set; } = TrackSurfaceUnknown;
+            public int TrackSurfaceMaterialRaw { get; set; } = -1;
             public int SessionFlagsRaw { get; set; } = -1;
             public double LastInWorldSessionTimeSec { get; set; } = double.NaN;
             public int LastLapSeen { get; set; } = int.MinValue;
@@ -195,6 +223,10 @@ namespace LaunchPlugin
             public bool CompromisedPenaltyActive { get; set; }
             public int OffTrackStreak { get; set; }
             public double OffTrackFirstSeenTimeSec { get; set; } = double.NaN;
+            public int SuspectUntilLap { get; set; } = int.MinValue;
+            public bool SuspectOffTrackActive { get; set; }
+            public int SuspectOffTrackStreak { get; set; }
+            public double SuspectOffTrackFirstSeenTimeSec { get; set; } = double.NaN;
             public int LapsSincePit { get; set; } = -1;
             public int StartLapAtGreen { get; set; } = int.MinValue;
             public bool HasStartLap { get; set; }
@@ -224,6 +256,7 @@ namespace LaunchPlugin
                 IsOnTrack = false;
                 IsOnPitRoad = false;
                 TrackSurfaceRaw = TrackSurfaceUnknown;
+                TrackSurfaceMaterialRaw = -1;
                 SessionFlagsRaw = -1;
                 LastInWorldSessionTimeSec = double.NaN;
                 LastLapSeen = int.MinValue;
@@ -235,6 +268,10 @@ namespace LaunchPlugin
                 CompromisedPenaltyActive = false;
                 OffTrackStreak = 0;
                 OffTrackFirstSeenTimeSec = double.NaN;
+                SuspectUntilLap = int.MinValue;
+                SuspectOffTrackActive = false;
+                SuspectOffTrackStreak = 0;
+                SuspectOffTrackFirstSeenTimeSec = double.NaN;
                 LapsSincePit = -1;
                 StartLapAtGreen = int.MinValue;
                 HasStartLap = false;
@@ -251,10 +288,15 @@ namespace LaunchPlugin
         public struct OffTrackDebugState
         {
             public bool OffTrackNow { get; set; }
+            public int TrackSurfaceMaterialRaw { get; set; }
+            public bool SuspectOffTrackNow { get; set; }
             public int OffTrackStreak { get; set; }
             public double OffTrackFirstSeenTimeSec { get; set; }
+            public int SuspectOffTrackStreak { get; set; }
+            public double SuspectOffTrackFirstSeenTimeSec { get; set; }
             public int CompromisedUntilLap { get; set; }
             public bool CompromisedOffTrackActive { get; set; }
+            public bool SuspectOffTrackActive { get; set; }
             public bool CompromisedPenaltyActive { get; set; }
             public bool AllowLatches { get; set; }
         }
@@ -384,10 +426,16 @@ namespace LaunchPlugin
             state = new OffTrackDebugState
             {
                 OffTrackNow = carState.TrackSurfaceRaw == TrackSurfaceOffTrack,
+                TrackSurfaceMaterialRaw = carState.TrackSurfaceMaterialRaw,
+                SuspectOffTrackNow = carState.TrackSurfaceRaw == TrackSurfaceOffTrack
+                    && IsSuspectOffTrackMaterial(carState.TrackSurfaceMaterialRaw),
                 OffTrackStreak = carState.OffTrackStreak,
                 OffTrackFirstSeenTimeSec = carState.OffTrackFirstSeenTimeSec,
+                SuspectOffTrackStreak = carState.SuspectOffTrackStreak,
+                SuspectOffTrackFirstSeenTimeSec = carState.SuspectOffTrackFirstSeenTimeSec,
                 CompromisedUntilLap = carState.CompromisedUntilLap,
                 CompromisedOffTrackActive = carState.CompromisedOffTrackActive,
+                SuspectOffTrackActive = carState.SuspectOffTrackActive,
                 CompromisedPenaltyActive = carState.CompromisedPenaltyActive,
                 AllowLatches = _allowLatchesThisTick
             };
@@ -404,6 +452,7 @@ namespace LaunchPlugin
             float[] carIdxLapDistPct,
             int[] carIdxLap,
             int[] carIdxTrackSurface,
+            int[] carIdxTrackSurfaceMaterial,
             bool[] carIdxOnPitRoad,
             int[] carIdxSessionFlags,
             int[] carIdxPaceFlags,
@@ -520,7 +569,7 @@ namespace LaunchPlugin
             _outputs.Debug.PlayerCheckpointIndexNow = _playerCheckpointIndexNow;
             _outputs.Debug.PlayerCheckpointIndexCrossed = _playerCheckpointIndexCrossed;
 
-            UpdateCarStates(sessionTimeSec, sessionState, isRace, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, playerLap, lapTimeEstimateSec, lapTimeUsed, allowLatches);
+            UpdateCarStates(sessionTimeSec, sessionState, isRace, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxTrackSurfaceMaterial, carIdxOnPitRoad, carIdxSessionFlags, carIdxPaceFlags, playerLapPctValid ? playerLapPct : double.NaN, playerLap, lapTimeEstimateSec, lapTimeUsed, allowLatches);
             PredictGateGapForward(sessionTimeSec, lapTimeUsed);
             if (_playerCheckpointChangedThisTick || _anyCheckpointCrossedThisTick)
             {
@@ -757,6 +806,7 @@ namespace LaunchPlugin
             float[] carIdxLapDistPct,
             int[] carIdxLap,
             int[] carIdxTrackSurface,
+            int[] carIdxTrackSurfaceMaterial,
             bool[] carIdxOnPitRoad,
             int[] carIdxSessionFlags,
             int[] carIdxPaceFlags,
@@ -793,6 +843,9 @@ namespace LaunchPlugin
                     state.TrackSurfaceRaw = TrackSurfaceUnknown;
                     state.IsOnTrack = false;
                 }
+                state.TrackSurfaceMaterialRaw = (carIdxTrackSurfaceMaterial != null && carIdx < carIdxTrackSurfaceMaterial.Length)
+                    ? carIdxTrackSurfaceMaterial[carIdx]
+                    : -1;
 
                 bool hasLapPct = !double.IsNaN(state.LapDistPct) && state.LapDistPct >= 0.0 && state.LapDistPct < 1.0;
                 bool hasPlayerPct = !double.IsNaN(playerLapPct) && playerLapPct >= 0.0 && playerLapPct < 1.0;
@@ -802,7 +855,9 @@ namespace LaunchPlugin
                     || IsPitLaneSurface(state.TrackSurfaceRaw)
                     || IsPitStallOrTowSurface(state.TrackSurfaceRaw);
                 bool onTrackNow = IsOnTrackSurface(state.TrackSurfaceRaw);
-                bool offTrackNow = state.TrackSurfaceRaw == TrackSurfaceOffTrack;
+                bool surfaceOffTrackNow = state.TrackSurfaceRaw == TrackSurfaceOffTrack;
+                bool isDefinitiveMaterial = surfaceOffTrackNow && IsDefinitiveOffTrackMaterial(state.TrackSurfaceMaterialRaw);
+                bool isSuspectMaterial = surfaceOffTrackNow && IsSuspectOffTrackMaterial(state.TrackSurfaceMaterialRaw);
 
                 if (isRace && sessionState == 4 && inWorldNow && !state.HasStartLap)
                 {
@@ -833,11 +888,15 @@ namespace LaunchPlugin
                         state.OutLapUntilLap = int.MinValue;
                         state.WasInPitArea = false;
                         state.CompromisedOffTrackActive = false;
+                        state.SuspectOffTrackActive = false;
                         state.OutLapActive = false;
                         state.SessionFlagsRaw = -1;
                         state.CompromisedPenaltyActive = false;
                         state.OffTrackStreak = 0;
                         state.OffTrackFirstSeenTimeSec = double.NaN;
+                        state.SuspectUntilLap = int.MinValue;
+                        state.SuspectOffTrackStreak = 0;
+                        state.SuspectOffTrackFirstSeenTimeSec = double.NaN;
                         state.LapsSincePit = -1;
                         continue;
                     }
@@ -856,6 +915,10 @@ namespace LaunchPlugin
                     {
                         state.OutLapUntilLap = int.MinValue;
                     }
+                    if (state.Lap >= state.SuspectUntilLap)
+                    {
+                        state.SuspectUntilLap = int.MinValue;
+                    }
                     if (state.LapsSincePit >= 0)
                     {
                         state.LapsSincePit += 1;
@@ -872,7 +935,7 @@ namespace LaunchPlugin
                     state.LapsSinceStart = 0;
                 }
 
-                if (allowLatches && offTrackNow && inWorldNow)
+                if (allowLatches && isDefinitiveMaterial && inWorldNow)
                 {
                     if (state.OffTrackStreak == 0)
                     {
@@ -897,6 +960,31 @@ namespace LaunchPlugin
                     state.OffTrackFirstSeenTimeSec = double.NaN;
                 }
 
+                if (allowLatches && isSuspectMaterial && inWorldNow)
+                {
+                    if (state.SuspectOffTrackStreak == 0)
+                    {
+                        state.SuspectOffTrackFirstSeenTimeSec = sessionTimeSec;
+                    }
+                    state.SuspectOffTrackStreak++;
+                    bool allowSuspectLatch = state.SuspectOffTrackStreak >= 3
+                        || (!double.IsNaN(state.SuspectOffTrackFirstSeenTimeSec)
+                            && (sessionTimeSec - state.SuspectOffTrackFirstSeenTimeSec) >= 0.25);
+                    if (allowSuspectLatch)
+                    {
+                        int untilLap = state.Lap + 1;
+                        if (state.SuspectUntilLap < untilLap)
+                        {
+                            state.SuspectUntilLap = untilLap;
+                        }
+                    }
+                }
+                else
+                {
+                    state.SuspectOffTrackStreak = 0;
+                    state.SuspectOffTrackFirstSeenTimeSec = double.NaN;
+                }
+
                 bool pitExitToTrack = prevWasPitArea && !pitAreaNow && onTrackNow;
                 if (pitExitToTrack && inWorldNow && allowLatches)
                 {
@@ -913,6 +1001,8 @@ namespace LaunchPlugin
                 state.LastLapSeen = state.Lap;
                 state.CompromisedOffTrackActive = state.CompromisedUntilLap != int.MinValue
                     && state.Lap < state.CompromisedUntilLap;
+                state.SuspectOffTrackActive = state.SuspectUntilLap != int.MinValue
+                    && state.Lap < state.SuspectUntilLap;
                 state.OutLapActive = state.OutLapUntilLap != int.MinValue
                     && state.Lap < state.OutLapUntilLap;
                 if (hasLapPct)
@@ -2416,18 +2506,20 @@ namespace LaunchPlugin
                 statusE = (int)CarSAStatusE.InPits;
                 statusEReason = StatusEReasonPits;
             }
-            else if (carState != null && (carState.CompromisedPenaltyActive || carState.CompromisedOffTrackActive))
+            else if (carState != null && carState.CompromisedPenaltyActive)
             {
-                if (carState.CompromisedPenaltyActive)
-                {
-                    statusE = (int)CarSAStatusE.CompromisedPenalty;
-                    statusEReason = StatusEReasonCompromisedPenalty;
-                }
-                else
-                {
-                    statusE = (int)CarSAStatusE.CompromisedOffTrack;
-                    statusEReason = StatusEReasonCompromisedOffTrack;
-                }
+                statusE = (int)CarSAStatusE.CompromisedPenalty;
+                statusEReason = StatusEReasonCompromisedPenalty;
+            }
+            else if (carState != null && carState.CompromisedOffTrackActive)
+            {
+                statusE = (int)CarSAStatusE.CompromisedOffTrack;
+                statusEReason = StatusEReasonCompromisedOffTrack;
+            }
+            else if (carState != null && carState.SuspectOffTrackActive)
+            {
+                statusE = (int)CarSAStatusE.SuspectInvalid;
+                statusEReason = StatusEReasonSuspectOffTrack;
             }
             else if (!slot.IsValid || slot.TrackSurfaceRaw == TrackSurfaceNotInWorld)
             {
@@ -2612,6 +2704,7 @@ namespace LaunchPlugin
         {
             return statusE == (int)CarSAStatusE.OutLap
                 || statusE == (int)CarSAStatusE.InPits
+                || statusE == (int)CarSAStatusE.SuspectInvalid
                 || statusE == (int)CarSAStatusE.CompromisedOffTrack
                 || statusE == (int)CarSAStatusE.CompromisedPenalty;
         }
@@ -2968,11 +3061,15 @@ namespace LaunchPlugin
                 var state = _carStates[i];
                 state.WasInPitArea = false;
                 state.CompromisedUntilLap = int.MinValue;
+                state.SuspectUntilLap = int.MinValue;
                 state.OutLapUntilLap = int.MinValue;
                 state.CompromisedOffTrackActive = false;
+                state.SuspectOffTrackActive = false;
                 state.OutLapActive = false;
                 state.OffTrackStreak = 0;
                 state.OffTrackFirstSeenTimeSec = double.NaN;
+                state.SuspectOffTrackStreak = 0;
+                state.SuspectOffTrackFirstSeenTimeSec = double.NaN;
                 state.StartLapAtGreen = int.MinValue;
                 state.HasStartLap = false;
                 state.HasSeenPitExit = false;
@@ -3343,6 +3440,10 @@ namespace LaunchPlugin
                 case (int)CarSAStatusE.InPits:
                     slot.StatusShort = StatusShortInPits;
                     slot.StatusLong = StatusLongInPits;
+                    break;
+                case (int)CarSAStatusE.SuspectInvalid:
+                    slot.StatusShort = StatusShortSuspectOffTrack;
+                    slot.StatusLong = StatusLongSuspectOffTrack;
                     break;
                 case (int)CarSAStatusE.CompromisedOffTrack:
                     slot.StatusShort = StatusShortCompromisedOffTrack;
