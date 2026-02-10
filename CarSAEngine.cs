@@ -427,17 +427,21 @@ namespace LaunchPlugin
 
             var carState = _carStates[carIdx];
             bool surfaceOffTrackNow = carState.TrackSurfaceRaw == TrackSurfaceOffTrack;
-            bool definitiveOffTrackNow = surfaceOffTrackNow
-                && IsDefinitiveOffTrackMaterial(carState.TrackSurfaceMaterialRaw);
+            bool materialAvailableNow = carState.TrackSurfaceMaterialRaw >= 0;
+            bool definitiveOffTrackNow = materialAvailableNow
+                ? surfaceOffTrackNow && IsDefinitiveOffTrackMaterial(carState.TrackSurfaceMaterialRaw)
+                : surfaceOffTrackNow;
             state = new OffTrackDebugState
             {
                 OffTrackNow = surfaceOffTrackNow,
                 SurfaceOffTrackNow = surfaceOffTrackNow,
                 DefinitiveOffTrackNow = definitiveOffTrackNow,
-                BoundaryEvidenceNow = carState.TrackSurfaceRaw == TrackSurfaceOnTrack
+                BoundaryEvidenceNow = materialAvailableNow
+                    && carState.TrackSurfaceRaw == TrackSurfaceOnTrack
                     && (carState.TrackSurfaceMaterialRaw == 9 || carState.TrackSurfaceMaterialRaw == 10),
                 TrackSurfaceMaterialRaw = carState.TrackSurfaceMaterialRaw,
-                SuspectOffTrackNow = surfaceOffTrackNow
+                SuspectOffTrackNow = materialAvailableNow
+                    && surfaceOffTrackNow
                     && IsSuspectOffTrackMaterial(carState.TrackSurfaceMaterialRaw),
                 OffTrackStreak = carState.OffTrackStreak,
                 OffTrackFirstSeenTimeSec = carState.OffTrackFirstSeenTimeSec,
@@ -853,7 +857,8 @@ namespace LaunchPlugin
                     state.TrackSurfaceRaw = TrackSurfaceUnknown;
                     state.IsOnTrack = false;
                 }
-                state.TrackSurfaceMaterialRaw = (carIdxTrackSurfaceMaterial != null && carIdx < carIdxTrackSurfaceMaterial.Length)
+                bool materialAvailable = carIdxTrackSurfaceMaterial != null && carIdx < carIdxTrackSurfaceMaterial.Length;
+                state.TrackSurfaceMaterialRaw = materialAvailable
                     ? carIdxTrackSurfaceMaterial[carIdx]
                     : -1;
 
@@ -866,8 +871,12 @@ namespace LaunchPlugin
                     || IsPitStallOrTowSurface(state.TrackSurfaceRaw);
                 bool onTrackNow = IsOnTrackSurface(state.TrackSurfaceRaw);
                 bool surfaceOffTrackNow = state.TrackSurfaceRaw == TrackSurfaceOffTrack;
-                bool isDefinitiveMaterial = surfaceOffTrackNow && IsDefinitiveOffTrackMaterial(state.TrackSurfaceMaterialRaw);
-                bool isSuspectMaterial = surfaceOffTrackNow && IsSuspectOffTrackMaterial(state.TrackSurfaceMaterialRaw);
+                bool definitiveOffTrackNow = materialAvailable
+                    ? surfaceOffTrackNow && IsDefinitiveOffTrackMaterial(state.TrackSurfaceMaterialRaw)
+                    : surfaceOffTrackNow;
+                bool suspectOffTrackNow = materialAvailable
+                    ? surfaceOffTrackNow && IsSuspectOffTrackMaterial(state.TrackSurfaceMaterialRaw)
+                    : false;
 
                 if (isRace && sessionState == 4 && inWorldNow && !state.HasStartLap)
                 {
@@ -945,7 +954,7 @@ namespace LaunchPlugin
                     state.LapsSinceStart = 0;
                 }
 
-                if (allowLatches && isDefinitiveMaterial && inWorldNow)
+                if (allowLatches && definitiveOffTrackNow && inWorldNow)
                 {
                     if (state.OffTrackStreak == 0)
                     {
@@ -970,7 +979,7 @@ namespace LaunchPlugin
                     state.OffTrackFirstSeenTimeSec = double.NaN;
                 }
 
-                if (allowLatches && isSuspectMaterial && inWorldNow)
+                if (allowLatches && suspectOffTrackNow && inWorldNow)
                 {
                     if (state.SuspectOffTrackStreak == 0)
                     {
