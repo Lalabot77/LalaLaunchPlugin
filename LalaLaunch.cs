@@ -5660,8 +5660,6 @@ namespace LaunchPlugin
             buffer.Append(',');
             AppendCsvOptionalDouble(buffer, carLapDistPct, "F6");
             buffer.Append(',');
-            AppendCsvOptionalBool(buffer, offTrackNow);
-            buffer.Append(',');
             AppendCsvOptionalBool(buffer, surfaceOffTrackNow);
             buffer.Append(',');
             AppendCsvOptionalBool(buffer, definitiveOffTrackNow);
@@ -6568,7 +6566,7 @@ namespace LaunchPlugin
             buffer.Append("SessionTimeSec,EventFired,SessionState,SessionFlagsHex,SessionFlagsDec,ProbeCarIdx,");
             buffer.Append("CarIdxTrackSurface,CarIdxTrackSurfaceMaterial,CarIdxSessionFlagsHex,CarIdxSessionFlagsDec,");
             buffer.Append("CarIdxOnPitRoad,CarIdxLap,CarIdxLapDistPct,");
-            buffer.Append("OffTrackNow,SurfaceOffTrackNow,DefinitiveOffTrackNow,BoundaryEvidenceNow,OffTrackStreak,OffTrackFirstSeenTimeSec,");
+            buffer.Append("SurfaceOffTrackNow,DefinitiveOffTrackNow,BoundaryEvidenceNow,OffTrackStreak,OffTrackFirstSeenTimeSec,");
             buffer.Append("SuspectOffTrackNow,SuspectOffTrackStreak,SuspectOffTrackFirstSeenTimeSec,SuspectOffTrackActive,");
             buffer.Append("CompromisedUntilLap,CompromisedOffTrackActive,CompromisedPenaltyActive,AllowLatches,");
             buffer.Append("PlayerCarIdx,PlayerIncidentCount,PlayerIncidentDelta");
