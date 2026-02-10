@@ -14,6 +14,7 @@ namespace LaunchPlugin
         Unknown = 0,
         OutLap = 100,
         InPits = 110,
+        SuspectInvalid = 120,
         CompromisedOffTrack = 121,
         CompromisedPenalty = 122,
         HotlapWarning = 130,
