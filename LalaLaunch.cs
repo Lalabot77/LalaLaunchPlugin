@@ -109,7 +109,7 @@ namespace LaunchPlugin
 
         // --- Dashboard Manager ---
         public ScreenManager Screens = new ScreenManager();
-        private int _declutterMode = 0;
+        //private int _declutterMode = 0;
 
         // --- button dash helpers ---
         // NOTE: This region is intended to expose SimHub Actions and keep cancel semantics stable.

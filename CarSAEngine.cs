@@ -1222,7 +1222,8 @@ namespace LaunchPlugin
             }
 
             return name.IndexOf("Practice", StringComparison.OrdinalIgnoreCase) >= 0
-                || name.IndexOf("Qualify", StringComparison.OrdinalIgnoreCase) >= 0;
+                || name.IndexOf("Qualify", StringComparison.OrdinalIgnoreCase) >= 0
+                || string.Equals(name, "Warmup", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsHotCoolSessionType(string name)
@@ -1233,6 +1234,7 @@ namespace LaunchPlugin
             }
 
             return string.Equals(name, "Practice", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(name, "Warmup", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(name, "Open Qualify", StringComparison.OrdinalIgnoreCase);
         }
 
