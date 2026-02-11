@@ -6844,13 +6844,17 @@ namespace LaunchPlugin
             float[] lastLapTimes = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLastLapTime");
             float[] estTimes = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxEstTime");
             int[] classPositions = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxClassPosition");
+            var previousBestLapTimes = new double[CarSAEngine.MaxCars];
+            var previousLastLapTimes = new double[CarSAEngine.MaxCars];
+            Array.Copy(_carSaPrevBestLapTimeSecByIdx, previousBestLapTimes, CarSAEngine.MaxCars);
+            Array.Copy(_carSaPrevLastLapTimeSecByIdx, previousLastLapTimes, CarSAEngine.MaxCars);
 
             for (int i = 0; i < CarSAEngine.MaxCars; i++)
             {
                 double currentBestLap = ReadCarIdxTime(bestLapTimes, i);
                 double currentLastLap = ReadCarIdxTime(lastLapTimes, i);
-                double previousBestLap = _carSaPrevBestLapTimeSecByIdx[i];
-                double previousLastLap = _carSaPrevLastLapTimeSecByIdx[i];
+                double previousBestLap = previousBestLapTimes[i];
+                double previousLastLap = previousLastLapTimes[i];
 
                 bool hasLapUpdate = IsValidCarSaLapTimeSec(currentLastLap)
                     && (!IsValidCarSaLapTimeSec(previousLastLap) || Math.Abs(currentLastLap - previousLastLap) > CarSaLapTimeEpsilonSec);
@@ -6861,7 +6865,7 @@ namespace LaunchPlugin
 
                 if (hasNewPersonalBest)
                 {
-                    bool hasNewSessionBestInClass = IsNewSessionBestInClass(i, currentBestLap, bestLapTimes);
+                    bool hasNewSessionBestInClass = IsNewSessionBestInClass(i, currentBestLap, bestLapTimes, previousBestLapTimes);
                     _carSaLapTimeUpdateByIdx[i] = hasNewSessionBestInClass ? "New SB" : "New PB";
                     _carSaLapTimeUpdateExpireAtSecByIdx[i] = sessionTimeSec + CarSaLapTimeUpdateVisibilitySeconds;
                 }
@@ -6870,9 +6874,10 @@ namespace LaunchPlugin
                 _carSaLastLapTimeSecByIdx[i] = currentLastLap;
                 _carSaEstTimeSecByIdx[i] = ReadCarIdxTime(estTimes, i);
                 _carSaClassPositionByIdx[i] = (classPositions != null && i < classPositions.Length) ? classPositions[i] : 0;
-                _carSaPrevBestLapTimeSecByIdx[i] = currentBestLap;
-                _carSaPrevLastLapTimeSecByIdx[i] = currentLastLap;
             }
+
+            Array.Copy(_carSaBestLapTimeSecByIdx, _carSaPrevBestLapTimeSecByIdx, CarSAEngine.MaxCars);
+            Array.Copy(_carSaLastLapTimeSecByIdx, _carSaPrevLastLapTimeSecByIdx, CarSAEngine.MaxCars);
 
             UpdateCarSaDriverInfoCache(pluginManager);
             _carSaEngine?.UpdateIRatingSof(_carSaIRatingByIdx);
@@ -8920,7 +8925,7 @@ namespace LaunchPlugin
             return _carIdxToClassShortName.TryGetValue(carIdx, out var cls) ? cls : null;
         }
 
-        private bool IsNewSessionBestInClass(int carIdx, double candidateBestLapSec, float[] currentBestLapTimes)
+        private bool IsNewSessionBestInClass(int carIdx, double candidateBestLapSec, float[] currentBestLapTimes, double[] previousBestLapTimes)
         {
             if (carIdx < 0 || carIdx >= CarSAEngine.MaxCars || !IsValidCarSaLapTimeSec(candidateBestLapSec))
             {
@@ -8943,7 +8948,9 @@ namespace LaunchPlugin
                     continue;
                 }
 
-                double prevBest = _carSaPrevBestLapTimeSecByIdx[i];
+                double prevBest = (previousBestLapTimes != null && i < previousBestLapTimes.Length)
+                    ? previousBestLapTimes[i]
+                    : _carSaPrevBestLapTimeSecByIdx[i];
                 if (IsValidCarSaLapTimeSec(prevBest) && (!IsValidCarSaLapTimeSec(previousClassBestSec) || prevBest < previousClassBestSec))
                 {
                     previousClassBestSec = prevBest;
