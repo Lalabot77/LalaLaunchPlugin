@@ -3131,6 +3131,10 @@ namespace LaunchPlugin
         private double _carSaIdentityLastRetrySessionTimeSec = -1.0;
         private readonly double[] _carSaBestLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly double[] _carSaLastLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
+        private readonly double[] _carSaPrevBestLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
+        private readonly double[] _carSaPrevLastLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
+        private readonly string[] _carSaLapTimeUpdateByIdx = new string[CarSAEngine.MaxCars];
+        private readonly double[] _carSaLapTimeUpdateExpireAtSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly double[] _carSaEstTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly double[] _carSaCarClassEstLapTimeSecByIdx = new double[CarSAEngine.MaxCars];
         private readonly int[] _carSaClassPositionByIdx = new int[CarSAEngine.MaxCars];
@@ -3143,6 +3147,8 @@ namespace LaunchPlugin
         private ObservableCollection<LaunchPluginFriendEntry> _friendsCollection;
         private bool _friendsDirty = true;
         private bool _carSaBestLapFallbackInfoLogged;
+        private const double CarSaLapTimeUpdateVisibilitySeconds = 3.0;
+        private const double CarSaLapTimeEpsilonSec = 0.001;
 
         private enum LaunchState
         {
@@ -3327,6 +3333,7 @@ namespace LaunchPlugin
             _telemetryTraceLogger = new TelemetryTraceLogger(this);
             _opponentsEngine = new OpponentsEngine();
             _carSaEngine = new CarSAEngine();
+            ResetCarSaLapTimeUpdateState();
             ResetCarSaIdentityState();
 
             _poll250ms.Start();
@@ -3842,6 +3849,8 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.DeltaBest", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].DeltaBest ?? string.Empty);
                 AttachCore($"Car.Ahead{label}.EstLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].EstLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.EstLapTime", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].EstLapTime ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.LapTimeUpdate", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapTimeUpdate ?? string.Empty);
+                AttachCore($"Car.Ahead{label}.LapTimeUpdateVisibilitySec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapTimeUpdateVisibilitySec ?? 0.0);
                 AttachCore($"Car.Ahead{label}.HotScore", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].HotScore ?? 0.0);
                 AttachCore($"Car.Ahead{label}.HotVia", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].HotVia ?? string.Empty);
             }
@@ -3904,6 +3913,8 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.DeltaBest", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].DeltaBest ?? string.Empty);
                 AttachCore($"Car.Behind{label}.EstLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].EstLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.EstLapTime", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].EstLapTime ?? string.Empty);
+                AttachCore($"Car.Behind{label}.LapTimeUpdate", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapTimeUpdate ?? string.Empty);
+                AttachCore($"Car.Behind{label}.LapTimeUpdateVisibilitySec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapTimeUpdateVisibilitySec ?? 0.0);
                 AttachCore($"Car.Behind{label}.HotScore", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].HotScore ?? 0.0);
                 AttachCore($"Car.Behind{label}.HotVia", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].HotVia ?? string.Empty);
             }
@@ -4701,6 +4712,7 @@ namespace LaunchPlugin
                 _radioFrequencyNameCache.Reset();
                 ResetTransmitState();
                 ResetCarSaIdentityState();
+                ResetCarSaLapTimeUpdateState();
                 ResetCarSaDebugExportState();
                 ResetOffTrackDebugExportState();
                 ResetPlayerLapInvalidState();
@@ -4925,7 +4937,7 @@ namespace LaunchPlugin
             _carSaEngine?.Update(sessionTimeSec, sessionState, sessionTypeName, playerCarIdx, hasMultipleClassOpponents, carIdxLapDistPct, carIdxLap, carIdxTrackSurface, carIdxTrackSurfaceMaterial, carIdxOnPitRoad, carIdxSessionFlags, null, playerBestLapTimeSec, playerLastLapTimeSec, lapTimeEstimateSec, classEstLapTimeSec, notRelevantGapSec, debugMaster);
             if (_carSaEngine != null)
             {
-                UpdateCarSaTelemetryCaches(pluginManager);
+                UpdateCarSaTelemetryCaches(pluginManager, sessionTimeSec);
                 UpdateCarSaTransmitState(pluginManager, _carSaEngine.Outputs);
                 bool carSaDebugExportEnabled = debugMaster && Settings?.EnableCarSADebugExport == true;
                 if (carSaDebugExportEnabled)
@@ -6810,7 +6822,18 @@ namespace LaunchPlugin
             }
         }
 
-        private void UpdateCarSaTelemetryCaches(PluginManager pluginManager)
+        private void ResetCarSaLapTimeUpdateState()
+        {
+            for (int i = 0; i < CarSAEngine.MaxCars; i++)
+            {
+                _carSaPrevBestLapTimeSecByIdx[i] = double.NaN;
+                _carSaPrevLastLapTimeSecByIdx[i] = double.NaN;
+                _carSaLapTimeUpdateByIdx[i] = string.Empty;
+                _carSaLapTimeUpdateExpireAtSecByIdx[i] = double.NaN;
+            }
+        }
+
+        private void UpdateCarSaTelemetryCaches(PluginManager pluginManager, double sessionTimeSec)
         {
             if (pluginManager == null)
             {
@@ -6821,14 +6844,40 @@ namespace LaunchPlugin
             float[] lastLapTimes = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxLastLapTime");
             float[] estTimes = SafeReadFloatArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxEstTime");
             int[] classPositions = SafeReadIntArray(pluginManager, "DataCorePlugin.GameRawData.Telemetry.CarIdxClassPosition");
+            var previousBestLapTimes = new double[CarSAEngine.MaxCars];
+            var previousLastLapTimes = new double[CarSAEngine.MaxCars];
+            Array.Copy(_carSaPrevBestLapTimeSecByIdx, previousBestLapTimes, CarSAEngine.MaxCars);
+            Array.Copy(_carSaPrevLastLapTimeSecByIdx, previousLastLapTimes, CarSAEngine.MaxCars);
 
             for (int i = 0; i < CarSAEngine.MaxCars; i++)
             {
-                _carSaBestLapTimeSecByIdx[i] = ReadCarIdxTime(bestLapTimes, i);
-                _carSaLastLapTimeSecByIdx[i] = ReadCarIdxTime(lastLapTimes, i);
+                double currentBestLap = ReadCarIdxTime(bestLapTimes, i);
+                double currentLastLap = ReadCarIdxTime(lastLapTimes, i);
+                double previousBestLap = previousBestLapTimes[i];
+                double previousLastLap = previousLastLapTimes[i];
+
+                bool hasLapUpdate = IsValidCarSaLapTimeSec(currentLastLap)
+                    && (!IsValidCarSaLapTimeSec(previousLastLap) || Math.Abs(currentLastLap - previousLastLap) > CarSaLapTimeEpsilonSec);
+                bool hasNewPersonalBest = hasLapUpdate
+                    && IsValidCarSaLapTimeSec(previousBestLap)
+                    && IsValidCarSaLapTimeSec(currentBestLap)
+                    && (currentBestLap + CarSaLapTimeEpsilonSec) < previousBestLap;
+
+                if (hasNewPersonalBest)
+                {
+                    bool hasNewSessionBestInClass = IsNewSessionBestInClass(i, currentBestLap, bestLapTimes, previousBestLapTimes);
+                    _carSaLapTimeUpdateByIdx[i] = hasNewSessionBestInClass ? "New SB" : "New PB";
+                    _carSaLapTimeUpdateExpireAtSecByIdx[i] = sessionTimeSec + CarSaLapTimeUpdateVisibilitySeconds;
+                }
+
+                _carSaBestLapTimeSecByIdx[i] = currentBestLap;
+                _carSaLastLapTimeSecByIdx[i] = currentLastLap;
                 _carSaEstTimeSecByIdx[i] = ReadCarIdxTime(estTimes, i);
                 _carSaClassPositionByIdx[i] = (classPositions != null && i < classPositions.Length) ? classPositions[i] : 0;
             }
+
+            Array.Copy(_carSaBestLapTimeSecByIdx, _carSaPrevBestLapTimeSecByIdx, CarSAEngine.MaxCars);
+            Array.Copy(_carSaLastLapTimeSecByIdx, _carSaPrevLastLapTimeSecByIdx, CarSAEngine.MaxCars);
 
             UpdateCarSaDriverInfoCache(pluginManager);
             _carSaEngine?.UpdateIRatingSof(_carSaIRatingByIdx);
@@ -7678,6 +7727,8 @@ namespace LaunchPlugin
                     slot.DeltaBest = "-";
                     slot.EstLapTimeSec = double.NaN;
                     slot.EstLapTime = "-";
+                    slot.LapTimeUpdate = string.Empty;
+                    slot.LapTimeUpdateVisibilitySec = 0.0;
                     slot.GapRelativeSec = double.NaN;
                     slot.GapRelativeSource = 0;
                     slot.HotScore = 0.0;
@@ -7714,6 +7765,14 @@ namespace LaunchPlugin
                 slot.BestLapIsEstimated = bestLapIsEstimated;
                 slot.LastLap = FormatLapTime(slot.LastLapTimeSec);
                 slot.EstLapTime = FormatEstLapTime(slot.EstLapTimeSec);
+                double lapTimeUpdateExpirySec = _carSaLapTimeUpdateExpireAtSecByIdx[carIdx];
+                double lapTimeUpdateRemainingSec = (!double.IsNaN(lapTimeUpdateExpirySec) && lapTimeUpdateExpirySec > sessionTimeSec)
+                    ? (lapTimeUpdateExpirySec - sessionTimeSec)
+                    : 0.0;
+                slot.LapTimeUpdate = lapTimeUpdateRemainingSec > 0.0
+                    ? (_carSaLapTimeUpdateByIdx[carIdx] ?? string.Empty)
+                    : string.Empty;
+                slot.LapTimeUpdateVisibilitySec = lapTimeUpdateRemainingSec > 0.0 ? lapTimeUpdateRemainingSec : 0.0;
                 if (_carSaEngine != null && _carSaEngine.ShouldUpdateMiniSectorForCar(carIdx))
                 {
                     slot.DeltaBestSec = ComputeLiveDeltaBestSec(carIdx, carIdxLapDistPct, sessionTimeSec, bestLapUsedSec);
@@ -8864,6 +8923,53 @@ namespace LaunchPlugin
         {
             if (carIdx < 0) return null;
             return _carIdxToClassShortName.TryGetValue(carIdx, out var cls) ? cls : null;
+        }
+
+        private bool IsNewSessionBestInClass(int carIdx, double candidateBestLapSec, float[] currentBestLapTimes, double[] previousBestLapTimes)
+        {
+            if (carIdx < 0 || carIdx >= CarSAEngine.MaxCars || !IsValidCarSaLapTimeSec(candidateBestLapSec))
+            {
+                return false;
+            }
+
+            string classShort = GetCachedClassShortName(carIdx);
+            if (string.IsNullOrWhiteSpace(classShort))
+            {
+                return false;
+            }
+
+            double previousClassBestSec = double.NaN;
+            double currentClassBestSec = double.NaN;
+            for (int i = 0; i < CarSAEngine.MaxCars; i++)
+            {
+                string classShortForCar = GetCachedClassShortName(i);
+                if (!string.Equals(classShortForCar, classShort, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                double prevBest = (previousBestLapTimes != null && i < previousBestLapTimes.Length)
+                    ? previousBestLapTimes[i]
+                    : _carSaPrevBestLapTimeSecByIdx[i];
+                if (IsValidCarSaLapTimeSec(prevBest) && (!IsValidCarSaLapTimeSec(previousClassBestSec) || prevBest < previousClassBestSec))
+                {
+                    previousClassBestSec = prevBest;
+                }
+
+                double currBest = ReadCarIdxTime(currentBestLapTimes, i);
+                if (IsValidCarSaLapTimeSec(currBest) && (!IsValidCarSaLapTimeSec(currentClassBestSec) || currBest < currentClassBestSec))
+                {
+                    currentClassBestSec = currBest;
+                }
+            }
+
+            if (!IsValidCarSaLapTimeSec(previousClassBestSec) || !IsValidCarSaLapTimeSec(currentClassBestSec))
+            {
+                return false;
+            }
+
+            return (currentClassBestSec + CarSaLapTimeEpsilonSec) < previousClassBestSec
+                && Math.Abs(candidateBestLapSec - currentClassBestSec) <= CarSaLapTimeEpsilonSec;
         }
 
         private int FindClassLeaderCarIdx(string playerClassShort, int[] classPositions, int[] trackSurfaces)

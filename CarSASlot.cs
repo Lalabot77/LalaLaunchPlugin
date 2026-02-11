@@ -86,6 +86,8 @@ namespace LaunchPlugin
         public string DeltaBest { get; set; } = string.Empty;
         public double EstLapTimeSec { get; set; } = double.NaN;
         public string EstLapTime { get; set; } = string.Empty;
+        public string LapTimeUpdate { get; set; } = string.Empty;
+        public double LapTimeUpdateVisibilitySec { get; set; }
         public double HotScore { get; set; }
         public string HotVia { get; set; } = string.Empty;
         public double ForwardDistPct { get; set; } = double.NaN;
@@ -248,6 +250,8 @@ namespace LaunchPlugin
             DeltaBest = "-";
             EstLapTimeSec = double.NaN;
             EstLapTime = "-";
+            LapTimeUpdate = string.Empty;
+            LapTimeUpdateVisibilitySec = 0.0;
             HotScore = 0.0;
             HotVia = string.Empty;
             ForwardDistPct = double.NaN;
