@@ -730,6 +730,7 @@ namespace LaunchPlugin
         private static readonly Dictionary<string, string> DefaultCarSABorderColors = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { CarSAStyleResolver.BorderModeTeam, "#FF69B4" },
+            { CarSAStyleResolver.BorderModeBad, "#FF0000" },
             { CarSAStyleResolver.BorderModeLead, "#FF00FF" },
             { CarSAStyleResolver.BorderModeOtherClass, "#0000FF" },
             { CarSAStyleResolver.BorderModeDefault, "#F5F5F5" }
@@ -3136,6 +3137,7 @@ namespace LaunchPlugin
         private readonly int[] _carSaIRatingByIdx = new int[CarSAEngine.MaxCars];
         private readonly HashSet<int> _friendUserIds = new HashSet<int>();
         private readonly HashSet<int> _teammateUserIds = new HashSet<int>();
+        private readonly HashSet<int> _badUserIds = new HashSet<int>();
         private int _friendsCount;
         private readonly HashSet<LaunchPluginFriendEntry> _friendEntrySubscriptions = new HashSet<LaunchPluginFriendEntry>();
         private ObservableCollection<LaunchPluginFriendEntry> _friendsCollection;
@@ -3772,6 +3774,7 @@ namespace LaunchPlugin
             AttachCore("Car.Player.TeamID", () => _carSaEngine?.Outputs.PlayerSlot.TeamID ?? 0);
             AttachCore("Car.Player.IsFriend", () => _carSaEngine?.Outputs.PlayerSlot.IsFriend ?? false);
             AttachCore("Car.Player.IsTeammate", () => _carSaEngine?.Outputs.PlayerSlot.IsTeammate ?? false);
+            AttachCore("Car.Player.IsBad", () => _carSaEngine?.Outputs.PlayerSlot.IsBad ?? false);
             AttachCore("Car.Player.LapsSincePit", () => _carSaEngine?.Outputs.PlayerSlot.LapsSincePit ?? -1);
             AttachCore("Car.Player.Status", () => _carSaEngine?.Outputs.PlayerSlot.Status ?? 0);
             AttachCore("Car.Player.StatusE", () => _carSaEngine?.Outputs.PlayerSlot.StatusE ?? 0);
@@ -3828,6 +3831,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Ahead{label}.TeamID", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].TeamID ?? 0);
                 AttachCore($"Car.Ahead{label}.IsFriend", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsFriend ?? false);
                 AttachCore($"Car.Ahead{label}.IsTeammate", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsTeammate ?? false);
+                AttachCore($"Car.Ahead{label}.IsBad", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].IsBad ?? false);
                 AttachCore($"Car.Ahead{label}.LapsSincePit", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LapsSincePit ?? -1);
                 AttachCore($"Car.Ahead{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Ahead{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.AheadSlots[slotIndex].LastLapTimeSec ?? double.NaN);
@@ -3889,6 +3893,7 @@ namespace LaunchPlugin
                 AttachCore($"Car.Behind{label}.TeamID", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].TeamID ?? 0);
                 AttachCore($"Car.Behind{label}.IsFriend", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsFriend ?? false);
                 AttachCore($"Car.Behind{label}.IsTeammate", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsTeammate ?? false);
+                AttachCore($"Car.Behind{label}.IsBad", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].IsBad ?? false);
                 AttachCore($"Car.Behind{label}.LapsSincePit", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LapsSincePit ?? -1);
                 AttachCore($"Car.Behind{label}.BestLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].BestLapTimeSec ?? double.NaN);
                 AttachCore($"Car.Behind{label}.LastLapTimeSec", () => _carSaEngine?.Outputs.BehindSlots[slotIndex].LastLapTimeSec ?? double.NaN);
@@ -7056,7 +7061,8 @@ namespace LaunchPlugin
 
             if (e.PropertyName == nameof(LaunchPluginFriendEntry.Name)
                 || e.PropertyName == nameof(LaunchPluginFriendEntry.UserId)
-                || e.PropertyName == nameof(LaunchPluginFriendEntry.IsTeammate))
+                || e.PropertyName == nameof(LaunchPluginFriendEntry.IsTeammate)
+                || e.PropertyName == nameof(LaunchPluginFriendEntry.IsBad))
             {
                 MarkFriendsDirty();
             }
@@ -7066,6 +7072,7 @@ namespace LaunchPlugin
         {
             _friendUserIds.Clear();
             _teammateUserIds.Clear();
+            _badUserIds.Clear();
             _friendsCount = 0;
             var friends = Settings?.Friends;
             if (friends == null)
@@ -7090,6 +7097,11 @@ namespace LaunchPlugin
                     {
                         _teammateUserIds.Add(userId);
                     }
+
+                    if (entry.IsBad)
+                    {
+                        _badUserIds.Add(userId);
+                    }
                 }
             }
         }
@@ -7112,6 +7124,7 @@ namespace LaunchPlugin
                 int userId = slot.UserID;
                 slot.IsFriend = userId > 0 && _friendUserIds.Contains(userId);
                 slot.IsTeammate = userId > 0 && _teammateUserIds.Contains(userId);
+                slot.IsBad = userId > 0 && _badUserIds.Contains(userId);
             }
         }
 
@@ -7126,6 +7139,7 @@ namespace LaunchPlugin
             int userId = playerSlot.UserID;
             playerSlot.IsFriend = userId > 0 && _friendUserIds.Contains(userId);
             playerSlot.IsTeammate = userId > 0 && _teammateUserIds.Contains(userId);
+            playerSlot.IsBad = userId > 0 && _badUserIds.Contains(userId);
         }
 
         private void UpdateCarSaSlotStyles(CarSASlot[] slots, string playerClassColorHex)
@@ -7147,7 +7161,7 @@ namespace LaunchPlugin
 
                 bool isManualTeammate = slot.IsTeammate;
                 bool isTelemetryTeammate = CanMarkTeammate(slot);
-                if (!slot.StyleInputsChanged(slot.StatusE, slot.ClassColorHex, slot.PositionInClass, playerClassColorHex, slot.CarIdx, slot.IsValid, slot.IsFriend, isManualTeammate, isTelemetryTeammate))
+                if (!slot.StyleInputsChanged(slot.StatusE, slot.ClassColorHex, slot.PositionInClass, playerClassColorHex, slot.CarIdx, slot.IsValid, slot.IsFriend, isManualTeammate, isTelemetryTeammate, slot.IsBad))
                 {
                     continue;
                 }
@@ -7160,6 +7174,7 @@ namespace LaunchPlugin
                     slot.IsFriend,
                     isManualTeammate,
                     isTelemetryTeammate,
+                    slot.IsBad,
                     isClassLeader,
                     isOtherClass,
                     statusMap,
@@ -7652,6 +7667,7 @@ namespace LaunchPlugin
                     slot.TeamID = 0;
                     slot.IsFriend = false;
                     slot.IsTeammate = false;
+                    slot.IsBad = false;
                     slot.LapsSincePit = -1;
                     slot.BestLapTimeSec = double.NaN;
                     slot.LastLapTimeSec = double.NaN;
@@ -7760,6 +7776,7 @@ namespace LaunchPlugin
                 playerSlot.TeamID = 0;
                 playerSlot.IsFriend = false;
                 playerSlot.IsTeammate = false;
+                playerSlot.IsBad = false;
                 return;
             }
 
@@ -10772,6 +10789,7 @@ namespace LaunchPlugin
         private string _name = "Friend";
         private int _userId;
         private bool _isTeammate;
+        private bool _isBad;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -10821,6 +10839,22 @@ namespace LaunchPlugin
                 OnPropertyChanged();
             }
         }
+
+        public bool IsBad
+        {
+            get => _isBad;
+            set
+            {
+                if (value == _isBad)
+                {
+                    return;
+                }
+
+                _isBad = value;
+                OnPropertyChanged();
+            }
+        }
+
 
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
@@ -10878,6 +10912,7 @@ namespace LaunchPlugin
         public Dictionary<string, string> CarSABorderColors { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { CarSAStyleResolver.BorderModeTeam, "#FF69B4" },
+            { CarSAStyleResolver.BorderModeBad, "#FF0000" },
             { CarSAStyleResolver.BorderModeLead, "#FF00FF" },
             { CarSAStyleResolver.BorderModeOtherClass, "#0000FF" },
             { CarSAStyleResolver.BorderModeDefault, "#F5F5F5" }

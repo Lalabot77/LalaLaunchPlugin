@@ -112,6 +112,9 @@
                             <DataGridCheckBoxColumn Header="TEAMMATE"
                                                     Binding="{Binding IsTeammate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                     Width="110" />
+                            <DataGridCheckBoxColumn Header="BAD"
+                                                    Binding="{Binding IsBad, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="90" />
                             <DataGridTemplateColumn Header="REMOVE" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>

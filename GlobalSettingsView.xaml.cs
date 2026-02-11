@@ -36,7 +36,7 @@ namespace LaunchPlugin
                 Plugin.Settings.Friends = new ObservableCollection<LaunchPluginFriendEntry>();
             }
 
-            Plugin.Settings.Friends.Add(new LaunchPluginFriendEntry { Name = "Friend", UserId = 0, IsTeammate = false });
+            Plugin.Settings.Friends.Add(new LaunchPluginFriendEntry { Name = "Friend", UserId = 0, IsTeammate = false, IsBad = false });
             Plugin.NotifyFriendsChanged();
         }
 
@@ -177,7 +177,8 @@ namespace LaunchPlugin
                 {
                     Name = string.IsNullOrWhiteSpace(driverTag.Name) ? "Friend" : driverTag.Name.Trim(),
                     UserId = userId,
-                    IsTeammate = importAsTeammate
+                    IsTeammate = importAsTeammate,
+                    IsBad = false
                 };
 
                 Plugin.Settings.Friends.Add(newEntry);
