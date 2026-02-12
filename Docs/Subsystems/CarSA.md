@@ -157,7 +157,7 @@ These tags feed the border-mode resolver above and therefore define the visual c
 Gap-based relevance gating is disabled in SA-Core v2.
 
 ## Hot/Cool intent bands
-Hot/Cool intent uses `DeltaBestSec` with seconds-based bands:
+Hot/Cool intent uses `DeltaBestSec` with seconds-based bands (full system in Practice/Qual/Warmup):
 - `deltaBest < 0.00` ⇒ **HOT** (intent `Hot`, status `HotlapHot` unless FAST conflict warning applies).
 - `0.00 <= deltaBest <= 0.50` ⇒ **PUSH** (intent `Push`, status `HotlapCaution` unless FAST conflict warning applies).
 - `0.50 < deltaBest <= 1.00` ⇒ **NONE** (no message, no Hot/Cool StatusE override).
@@ -166,8 +166,8 @@ Hot/Cool intent uses `DeltaBestSec` with seconds-based bands:
 `FAST!` and `SLOW!` remain interference warnings driven by the existing conflict test (`behind + conflict` for FAST, `ahead + conflict` for SLOW). They are not DeltaBest intent bands.
 
 ## SessionType policy
-- **Practice/Open Qualify:** suppress `Racing`/`LappingYou`/`BeingLapped` (220/230/240). Hot/Cool placeholders are allowed for future use. StatusE remains gated by `SessionState == 4` with the existing settle delay.
-- **Race:** normal ladder behavior; Hot/Cool (130/131/132/140/141) are suppressed.
+- **Practice/Qual/Warmup:** full Hot/Cool system applies per the existing intent and conflict rules. Existing non-race suppression remains `Racing`/`LappingYou`/`BeingLapped` (220/230/240), and StatusE stays gated by `SessionState == 4` with the current settle delay.
+- **Race:** FAST/SLOW interference warnings (`HotlapWarning`/`CoolLapWarning`, 130/140) remain enabled, while base intent messages HOT/PUSH/COOL (`HotlapHot`/`HotlapCaution`/`CoolLapCaution`, 132/131/141) are suppressed.
 - **Lone Qualify + Offline Testing:** StatusE is forced to `Unknown` for all slots.
 
 ## Raw telemetry flags
