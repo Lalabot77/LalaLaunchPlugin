@@ -79,6 +79,69 @@ CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. 
 | HIGH | 230 | LappingYou | +nL | Up +n Laps |
 | HIGH | 240 | BeingLapped | -nL | Down -n Laps |
 
+## StatusE + colour decode (plugin defaults)
+
+The dash uses **two colour channels** per CarSA slot:
+- `StatusBgHex`: background colour selected from the StatusE map.
+- `BorderHex`: border colour selected from the tag/priority border-mode resolver.
+
+### A) StatusE background colour map (`StatusBgHex`)
+
+Default map from `LaunchPluginSettings.CarSAStatusEColorMap`:
+
+| StatusE | Value | Hex | Colour name | Notes |
+| --- | ---: | --- | --- | --- |
+| Unknown | 0 | `#000000` | Black | Fallback/default state. |
+| OutLap | 100 | `#696969` | Dim Gray | Out-lap latch active. |
+| InPits | 110 | `#C0C0C0` | Silver | Pit road / pit-area state. |
+| SuspectInvalid | 120 | `#FFA500` | Orange | Enum exists; reserved/compat path. |
+| CompromisedOffTrack | 121 | `#FF0000` | Red | Off-track compromise latch. |
+| CompromisedPenalty | 122 | `#FFA500` | Orange | Penalty compromise latch. |
+| HotlapWarning | 130 | `#FF0000` | Red | FAST interference warning. |
+| HotlapCaution | 131 | `#FFFF00` | Yellow | PUSH intent band. |
+| HotlapHot | 132 | `#FFFF00` | Yellow | HOT intent band. |
+| CoolLapWarning | 140 | `#FF0000` | Red | SLOW interference warning. |
+| CoolLapCaution | 141 | `#FFFF00` | Yellow | COOL intent band. |
+| FasterClass | 200 | `#000000`* | Black* | *When `ClassColorHex` is valid, CarSA uses class colour instead of map value.* |
+| SlowerClass | 210 | `#000000`* | Black* | *When `ClassColorHex` is valid, CarSA uses class colour instead of map value.* |
+| Racing | 220 | `#008000` | Green | Same-class racing context. |
+| LappingYou | 230 | `#0000FF` | Blue | Opponent up laps on player. |
+| BeingLapped | 240 | `#ADD8E6` | Light Blue | Opponent down laps to player. |
+
+### B) Tagged-driver crossover (border decode via `BorderHex`)
+
+Tagging does **not** change StatusE value; it changes the border via a priority resolver.
+
+Border-mode priority (highest first):
+1. Manual **Teammate** tag → `TEAM`
+2. Manual **Bad** tag → `BAD`
+3. Manual **Friend** tag → `FRIEND`
+4. Telemetry teammate match → `TEAM`
+5. Class leader → `LEAD`
+6. Other class → `OCLS`
+7. Fallback → `DEF`
+
+Default border map from `LaunchPluginSettings.CarSABorderColorMap` + resolver override:
+
+| BorderMode | Trigger source | Hex | Colour name | Notes |
+| --- | --- | --- | --- | --- |
+| FRIEND | Manual Friend tag | `#00FF00` | Lime | Hardcoded resolver override (ignores map for FRIEND). |
+| TEAM | Manual Teammate tag OR telemetry teammate | `#FF69B4` | Hot Pink | Comes from border map defaults. |
+| BAD | Manual Bad tag | `#FF0000` | Red | Comes from border map defaults. |
+| LEAD | Position in class = 1 (same class) | `#FF00FF` | Magenta | Comes from border map defaults. |
+| OCLS | Other-class car | `#0000FF` | Blue | Comes from border map defaults. |
+| DEF | Default/no special flag | `#F5F5F5` | White Smoke | Comes from border map defaults. |
+| (final fallback) | Invalid/missing map values | `#A9A9A9` | Dark Gray | Resolver fallback if no valid default border colour. |
+
+### C) Tag names used by the driver-tag system
+
+Driver tags are normalized to one of:
+- `Friend`
+- `Teammate` (also accepts legacy `Team`)
+- `Bad`
+
+These tags feed the border-mode resolver above and therefore define the visual crossover between the tagged-driver system and CarSA slot styling.
+
 **StatusE logic (per slot, priority order):**
 1. If the slot is on pit road or in a pit-area surface ⇒ `InPits` (reason `pits`).
 2. If car-centric compromised penalty latch is active ⇒ `CompromisedPenalty` (reason `cmp_pen`).
