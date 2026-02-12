@@ -3022,10 +3022,8 @@ namespace LaunchPlugin
 
             if (IsRaceSessionType(sessionTypeName))
             {
-                if (slot.StatusE == (int)CarSAStatusE.HotlapWarning
-                    || slot.StatusE == (int)CarSAStatusE.HotlapHot
+                if (slot.StatusE == (int)CarSAStatusE.HotlapHot
                     || slot.StatusE == (int)CarSAStatusE.HotlapCaution
-                    || slot.StatusE == (int)CarSAStatusE.CoolLapWarning
                     || slot.StatusE == (int)CarSAStatusE.CoolLapCaution)
                 {
                     ForceStatusE(slot, (int)CarSAStatusE.Unknown, "sess_suppress");
