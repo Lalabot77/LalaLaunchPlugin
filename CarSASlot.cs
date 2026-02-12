@@ -19,6 +19,7 @@ namespace LaunchPlugin
         CompromisedPenalty = 122,
         HotlapWarning = 130,
         HotlapCaution = 131,
+        HotlapHot = 132,
         CoolLapWarning = 140,
         CoolLapCaution = 141,
         FasterClass = 200,

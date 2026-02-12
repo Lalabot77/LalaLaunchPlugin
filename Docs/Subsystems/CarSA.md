@@ -68,10 +68,11 @@ CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. 
 | MID | 110 | InPits | PIT | In pits |
 | MID | 121 | CompromisedOffTrack | OFF | Lap Invalid |
 | MID | 122 | CompromisedPenalty | PEN | Penalty |
-| MID | 130 | HotlapWarning | HOT | Hot lap (warning) |
-| MID | 131 | HotlapCaution | HOT! | Hot lap (caution) |
-| MID | 140 | CoolLapWarning | COL | Cool lap (warning) |
-| MID | 141 | CoolLapCaution | COL! | Cool lap (caution) |
+| MID | 130 | HotlapWarning | FAST! | Hot lap interference warning |
+| MID | 131 | HotlapCaution | PUSH | Push lap |
+| MID | 132 | HotlapHot | HOT | Hot lap |
+| MID | 140 | CoolLapWarning | SLOW! | Cool lap interference warning |
+| MID | 141 | CoolLapCaution | COOL | Cool lap |
 | HIGH | 200 | FasterClass | FCL | Faster class |
 | HIGH | 210 | SlowerClass | SCL | Slower class |
 | HIGH | 220 | Racing | RCE | Racing |
@@ -92,9 +93,18 @@ CarSA publishes a Traffic SA “E-number” ladder per slot for dash filtering. 
 
 Gap-based relevance gating is disabled in SA-Core v2.
 
+## Hot/Cool intent bands
+Hot/Cool intent uses `DeltaBestSec` with seconds-based bands:
+- `deltaBest < 0.00` ⇒ **HOT** (intent `Hot`, status `HotlapHot` unless FAST conflict warning applies).
+- `0.00 <= deltaBest <= 0.50` ⇒ **PUSH** (intent `Push`, status `HotlapCaution` unless FAST conflict warning applies).
+- `0.50 < deltaBest <= 1.00` ⇒ **NONE** (no message, no Hot/Cool StatusE override).
+- `deltaBest > 1.00` ⇒ **COOL** (intent `Cool`, status `CoolLapCaution` unless SLOW conflict warning applies).
+
+`FAST!` and `SLOW!` remain interference warnings driven by the existing conflict test (`behind + conflict` for FAST, `ahead + conflict` for SLOW). They are not DeltaBest intent bands.
+
 ## SessionType policy
 - **Practice/Open Qualify:** suppress `Racing`/`LappingYou`/`BeingLapped` (220/230/240). Hot/Cool placeholders are allowed for future use. StatusE remains gated by `SessionState == 4` with the existing settle delay.
-- **Race:** normal ladder behavior; Hot/Cool (130/140) are suppressed.
+- **Race:** normal ladder behavior; Hot/Cool (130/131/132/140/141) are suppressed.
 - **Lone Qualify + Offline Testing:** StatusE is forced to `Unknown` for all slots.
 
 ## Raw telemetry flags

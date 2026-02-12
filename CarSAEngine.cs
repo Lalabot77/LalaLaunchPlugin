@@ -34,14 +34,15 @@ namespace LaunchPlugin
         private const int MiniSectorCheckpointCount = 60;
         private const int HotCoolCoarseSectorCount = 6;
         private const int HotCoolMiniSectorsPerCoarse = 10;
-        private const double HotCoolPrimaryBandMin = -0.20;
-        private const double HotCoolPrimaryBandMax = 0.20;
-        private const double HotCoolSecondaryBandMax = 0.50;
+        private const double HotCoolHotThresholdSec = 0.00;
+        private const double HotCoolPushMaxSec = 0.50;
+        private const double HotCoolNoMessageMaxSec = 1.00;
         private const double HotCoolClosingRateThreshold = 0.10;
         private const double HotCoolGapMaxSec = 10.0;
-        private const int HotCoolIntentNeutral = 0;
-        private const int HotCoolIntentHot = 1;
-        private const int HotCoolIntentCool = 2;
+        private const int HotCoolIntentNone = 0;
+        private const int HotCoolIntentPush = 1;
+        private const int HotCoolIntentHot = 2;
+        private const int HotCoolIntentCool = 3;
         private const int TrackSurfaceUnknown = int.MinValue;
         private const int TrackSurfaceNotInWorld = -1;
         private const int TrackSurfaceOffTrack = 0;
@@ -57,6 +58,7 @@ namespace LaunchPlugin
         private const string StatusShortFasterClass = "FCL";
         private const string StatusShortSlowerClass = "SCL";
         private const string StatusShortRacing = "FIGHT";
+        private const string StatusShortHotlapHot = "HOT";
         private const string StatusShortHotlapWarning = "FAST!";
         private const string StatusShortHotlapCaution = "PUSH";
         private const string StatusShortCoolLapWarning = "SLOW!";
@@ -70,6 +72,7 @@ namespace LaunchPlugin
         private const string StatusLongFasterClass = "Faster Class";
         private const string StatusLongSlowerClass = "Slower Class";
         private const string StatusLongRacing = "Racing You";
+        private const string StatusLongHotlapHot = "Hot Lap";
         private const string StatusLongHotlapWarning = "Push Conflict";
         private const string StatusLongHotlapCaution = "Push Lap";
         private const string StatusLongCoolLapWarning = "Slow Conflict";
@@ -84,6 +87,7 @@ namespace LaunchPlugin
         private const string StatusEReasonRacing = "racing";
         private const string StatusEReasonOtherClass = "otherclass";
         private const string StatusEReasonOtherClassUnknownRank = "otherclass_unknownrank";
+        private const string StatusEReasonHotHot = "hot_hot";
         private const string StatusEReasonHotWarning = "hot_warning";
         private const string StatusEReasonHotCaution = "hot_caution";
         private const string StatusEReasonCoolWarning = "cool_warning";
@@ -2707,7 +2711,7 @@ namespace LaunchPlugin
             }
 
             int intent = slot.HotCoolIntent;
-            if (intent == HotCoolIntentNeutral)
+            if (intent == HotCoolIntentNone)
             {
                 return;
             }
@@ -2725,6 +2729,19 @@ namespace LaunchPlugin
                 conflict = slot.HotCoolConflictCached;
             }
             if (intent == HotCoolIntentHot)
+            {
+                if (!isAhead && conflict)
+                {
+                    statusE = (int)CarSAStatusE.HotlapWarning;
+                    statusEReason = StatusEReasonHotWarning;
+                }
+                else
+                {
+                    statusE = (int)CarSAStatusE.HotlapHot;
+                    statusEReason = StatusEReasonHotHot;
+                }
+            }
+            else if (intent == HotCoolIntentPush)
             {
                 if (!isAhead && conflict)
                 {
@@ -2790,7 +2807,7 @@ namespace LaunchPlugin
             }
 
             bool hasDeltaBest;
-            int candidateIntent = ComputeHotCoolCandidateIntent(slot, isAhead, out hasDeltaBest);
+            int candidateIntent = ComputeHotCoolCandidateIntent(slot, out hasDeltaBest);
             if (!hasDeltaBest)
             {
                 return;
@@ -2827,51 +2844,39 @@ namespace LaunchPlugin
             return coarseIdx;
         }
 
-        private static int ComputeHotCoolCandidateIntent(CarSASlot slot, bool isAhead, out bool hasDeltaBest)
+        private static int ComputeHotCoolCandidateIntent(CarSASlot slot, out bool hasDeltaBest)
         {
             if (slot == null)
             {
                 hasDeltaBest = false;
-                return HotCoolIntentNeutral;
+                return HotCoolIntentNone;
             }
 
             double deltaBest = slot.DeltaBestSec;
             if (double.IsNaN(deltaBest) || double.IsInfinity(deltaBest))
             {
                 hasDeltaBest = false;
-                return HotCoolIntentNeutral;
+                return HotCoolIntentNone;
             }
 
             hasDeltaBest = true;
 
-            if (deltaBest <= HotCoolPrimaryBandMin)
+            if (deltaBest < HotCoolHotThresholdSec)
             {
                 return HotCoolIntentHot;
             }
 
-            if (deltaBest <= HotCoolPrimaryBandMax)
+            if (deltaBest <= HotCoolPushMaxSec)
             {
-                return HotCoolIntentHot;
+                return HotCoolIntentPush;
             }
 
-            if (deltaBest > HotCoolPrimaryBandMax && deltaBest <= HotCoolSecondaryBandMax)
+            if (deltaBest <= HotCoolNoMessageMaxSec)
             {
-                if (!isAhead && slot.ClosingRateSecPerSec >= HotCoolClosingRateThreshold
-                    && !double.IsNaN(slot.ClosingRateSecPerSec)
-                    && !double.IsInfinity(slot.ClosingRateSecPerSec))
-                {
-                    return HotCoolIntentHot;
-                }
-
-                return HotCoolIntentNeutral;
+                return HotCoolIntentNone;
             }
 
-            if (deltaBest > HotCoolSecondaryBandMax)
-            {
-                return HotCoolIntentCool;
-            }
-
-            return HotCoolIntentNeutral;
+            return HotCoolIntentCool;
         }
 
         private static void ResetHotCoolState(CarSASlot slot)
@@ -2881,7 +2886,7 @@ namespace LaunchPlugin
                 return;
             }
 
-            slot.HotCoolIntent = HotCoolIntentNeutral;
+            slot.HotCoolIntent = HotCoolIntentNone;
             slot.HotCoolLastCoarseIdx = -1;
             slot.HotCoolConflictCached = false;
             slot.HotCoolConflictLastTickId = -1;
@@ -3018,6 +3023,7 @@ namespace LaunchPlugin
             if (IsRaceSessionType(sessionTypeName))
             {
                 if (slot.StatusE == (int)CarSAStatusE.HotlapWarning
+                    || slot.StatusE == (int)CarSAStatusE.HotlapHot
                     || slot.StatusE == (int)CarSAStatusE.HotlapCaution
                     || slot.StatusE == (int)CarSAStatusE.CoolLapWarning
                     || slot.StatusE == (int)CarSAStatusE.CoolLapCaution)
@@ -3532,6 +3538,10 @@ namespace LaunchPlugin
                 case (int)CarSAStatusE.Racing:
                     slot.StatusShort = StatusShortRacing;
                     slot.StatusLong = StatusLongRacing;
+                    break;
+                case (int)CarSAStatusE.HotlapHot:
+                    slot.StatusShort = StatusShortHotlapHot;
+                    slot.StatusLong = StatusLongHotlapHot;
                     break;
                 case (int)CarSAStatusE.HotlapWarning:
                     slot.StatusShort = StatusShortHotlapWarning;
