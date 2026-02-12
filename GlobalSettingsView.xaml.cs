@@ -36,7 +36,7 @@ namespace LaunchPlugin
                 Plugin.Settings.Friends = new ObservableCollection<LaunchPluginFriendEntry>();
             }
 
-            Plugin.Settings.Friends.Add(new LaunchPluginFriendEntry { Name = "Friend", UserId = 0, IsTeammate = false, IsBad = false });
+            Plugin.Settings.Friends.Add(new LaunchPluginFriendEntry { Name = "Friend", UserId = 0, Tag = LaunchPluginFriendEntry.TagFriend });
             Plugin.NotifyFriendsChanged();
         }
 
@@ -102,7 +102,8 @@ namespace LaunchPlugin
             UpdateIOverlayCategories(categories);
 
             var selectedCategoryId = selectedCategory.Id;
-            var importAsTeammate = IOverlayTeammateCheckBox?.IsChecked == true;
+            var importTag = IOverlayTagComboBox?.SelectedItem as string;
+            var normalizedImportTag = LaunchPluginFriendEntry.NormalizeTag(importTag);
 
             if (Plugin.Settings.Friends == null)
             {
@@ -149,9 +150,9 @@ namespace LaunchPlugin
                 if (existingById.TryGetValue(userId, out var existing))
                 {
                     bool updated = false;
-                    if (importAsTeammate && existing.IsTeammate == false)
+                    if (!string.Equals(existing.Tag, normalizedImportTag, StringComparison.OrdinalIgnoreCase))
                     {
-                        existing.IsTeammate = true;
+                        existing.Tag = normalizedImportTag;
                         updated = true;
                     }
 
@@ -177,8 +178,7 @@ namespace LaunchPlugin
                 {
                     Name = string.IsNullOrWhiteSpace(driverTag.Name) ? "Friend" : driverTag.Name.Trim(),
                     UserId = userId,
-                    IsTeammate = importAsTeammate,
-                    IsBad = false
+                    Tag = normalizedImportTag
                 };
 
                 Plugin.Settings.Friends.Add(newEntry);

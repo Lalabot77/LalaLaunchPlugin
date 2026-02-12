@@ -13,6 +13,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Data;
@@ -7142,6 +7143,7 @@ namespace LaunchPlugin
 
             if (e.PropertyName == nameof(LaunchPluginFriendEntry.Name)
                 || e.PropertyName == nameof(LaunchPluginFriendEntry.UserId)
+                || e.PropertyName == nameof(LaunchPluginFriendEntry.Tag)
                 || e.PropertyName == nameof(LaunchPluginFriendEntry.IsTeammate)
                 || e.PropertyName == nameof(LaunchPluginFriendEntry.IsBad))
             {
@@ -10924,10 +10926,13 @@ namespace LaunchPlugin
 
     public class LaunchPluginFriendEntry : INotifyPropertyChanged
     {
+        public const string TagFriend = "Friend";
+        public const string TagTeammate = "Teammate";
+        public const string TagBad = "Bad";
+
         private string _name = "Friend";
         private int _userId;
-        private bool _isTeammate;
-        private bool _isBad;
+        private string _tag = TagFriend;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -10963,36 +10968,104 @@ namespace LaunchPlugin
             }
         }
 
+        public string Tag
+        {
+            get => _tag;
+            set
+            {
+                var normalized = NormalizeTag(value);
+                if (string.Equals(normalized, _tag, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _tag = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsTeammate));
+                OnPropertyChanged(nameof(IsBad));
+            }
+        }
+
+        [JsonIgnore]
         public bool IsTeammate
         {
-            get => _isTeammate;
+            get => string.Equals(Tag, TagTeammate, StringComparison.OrdinalIgnoreCase);
             set
             {
-                if (value == _isTeammate)
+                if (value)
                 {
-                    return;
+                    Tag = TagTeammate;
                 }
-
-                _isTeammate = value;
-                OnPropertyChanged();
+                else if (IsTeammate)
+                {
+                    Tag = TagFriend;
+                }
             }
         }
 
+        [JsonIgnore]
         public bool IsBad
         {
-            get => _isBad;
+            get => string.Equals(Tag, TagBad, StringComparison.OrdinalIgnoreCase);
             set
             {
-                if (value == _isBad)
+                if (value)
                 {
-                    return;
+                    Tag = TagBad;
                 }
-
-                _isBad = value;
-                OnPropertyChanged();
+                else if (IsBad)
+                {
+                    Tag = TagFriend;
+                }
             }
         }
 
+
+        [JsonProperty("IsTeammate")]
+        private bool LegacyIsTeammate
+        {
+            set
+            {
+                if (value && !string.Equals(_tag, TagBad, StringComparison.OrdinalIgnoreCase))
+                {
+                    _tag = TagTeammate;
+                }
+            }
+        }
+
+        [JsonProperty("IsBad")]
+        private bool LegacyIsBad
+        {
+            set
+            {
+                if (value)
+                {
+                    _tag = TagBad;
+                }
+            }
+        }
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            _tag = NormalizeTag(_tag);
+        }
+
+        public static string NormalizeTag(string rawTag)
+        {
+            if (string.Equals(rawTag, TagTeammate, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(rawTag, "Team", StringComparison.OrdinalIgnoreCase))
+            {
+                return TagTeammate;
+            }
+
+            if (string.Equals(rawTag, TagBad, StringComparison.OrdinalIgnoreCase))
+            {
+                return TagBad;
+            }
+
+            return TagFriend;
+        }
 
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {

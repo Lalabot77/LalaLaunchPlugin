@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:local="clr-namespace:LaunchPlugin"
              xmlns:styles="clr-namespace:SimHub.Plugins.Styles;assembly=SimHub.Plugins"
              xmlns:ui="clr-namespace:SimHub.Plugins.UI;assembly=SimHub.Plugins"
@@ -12,6 +13,11 @@
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <x:Array x:Key="DriverTagOptions" Type="{x:Type sys:String}">
+            <sys:String>Friend</sys:String>
+            <sys:String>Teammate</sys:String>
+            <sys:String>Bad</sys:String>
+        </x:Array>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="10">
@@ -53,10 +59,10 @@
             </Grid>
  
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,10,0,5" Height="2" />
-            <styles:SHSection Title="FRIENDS" ShowSeparator="True">
+            <styles:SHSection Title="DRIVER TAGS" ShowSeparator="True">
                 <StackPanel>
                     <TextBlock Margin="0,0,0,5" Foreground="LightGray"
-                               Text="Add iRacing Customer IDs to highlight friends in CarSA." />
+                               Text="Add iRacing Customer IDs and assign a driver tag in CarSA." />
                     <StackPanel Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -74,11 +80,12 @@
                                       Grid.Column="1"
                                       MinWidth="220"
                                       Margin="0,0,8,0" />
-                            <CheckBox x:Name="IOverlayTeammateCheckBox"
+                            <ComboBox x:Name="IOverlayTagComboBox"
                                       Grid.Column="2"
-                                      Content="Import as teammate"
-                                      VerticalAlignment="Center"
-                                      Margin="0,0,8,0" />
+                                      MinWidth="130"
+                                      Margin="0,0,8,0"
+                                      ItemsSource="{StaticResource DriverTagOptions}"
+                                      SelectedIndex="0" />
                             <styles:SHButtonPrimary Grid.Column="3"
                                                     Content="Import"
                                                     Padding="8,2"
@@ -109,12 +116,10 @@
                             <DataGridTextColumn Header="UserId"
                                                 Binding="{Binding UserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 Width="120" />
-                            <DataGridCheckBoxColumn Header="TEAMMATE"
-                                                    Binding="{Binding IsTeammate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    Width="110" />
-                            <DataGridCheckBoxColumn Header="BAD"
-                                                    Binding="{Binding IsBad, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    Width="90" />
+                            <DataGridComboBoxColumn Header="TAG"
+                                                    SelectedItemBinding="{Binding Tag, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    ItemsSource="{StaticResource DriverTagOptions}"
+                                                    Width="120" />
                             <DataGridTemplateColumn Header="REMOVE" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -130,7 +135,7 @@
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
-                    <styles:SHButtonPrimary Content="Add Friend"
+                    <styles:SHButtonPrimary Content="Add Driver"
                                             Width="120"
                                             HorizontalAlignment="Left"
                                             Click="AddFriend_Click" />
