@@ -3793,6 +3793,8 @@ namespace LaunchPlugin
             AttachCore("Car.Player.StatusEReason", () => _carSaEngine?.Outputs.PlayerSlot.StatusEReason ?? string.Empty);
             AttachCore("Car.Player.SuspectPulseActive", () => _carSaEngine?.Outputs.PlayerSlot.SuspectPulseActive ?? false);
             AttachCore("Car.Player.SuspectEventId", () => _carSaEngine?.Outputs.PlayerSlot.SuspectEventId ?? 0);
+            AttachCore("Car.Player.LapTimeUpdate", () => _carSaEngine?.Outputs.PlayerSlot.LapTimeUpdate ?? string.Empty);
+            AttachCore("Car.Player.LapTimeUpdateVisibilitySec", () => _carSaEngine?.Outputs.PlayerSlot.LapTimeUpdateVisibilitySec ?? 0.0);
             AttachCore("Player.LapTimeUpdate", () => _carSaEngine?.Outputs.PlayerSlot.LapTimeUpdate ?? string.Empty);
             AttachCore("Player.LapTimeUpdateVisibilitySec", () => _carSaEngine?.Outputs.PlayerSlot.LapTimeUpdateVisibilitySec ?? 0.0);
             for (int i = 0; i < CarSAEngine.SlotsAhead; i++)
