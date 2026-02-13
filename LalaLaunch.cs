@@ -3793,6 +3793,8 @@ namespace LaunchPlugin
             AttachCore("Car.Player.StatusEReason", () => _carSaEngine?.Outputs.PlayerSlot.StatusEReason ?? string.Empty);
             AttachCore("Car.Player.SuspectPulseActive", () => _carSaEngine?.Outputs.PlayerSlot.SuspectPulseActive ?? false);
             AttachCore("Car.Player.SuspectEventId", () => _carSaEngine?.Outputs.PlayerSlot.SuspectEventId ?? 0);
+            AttachCore("Player.LapTimeUpdate", () => _carSaEngine?.Outputs.PlayerSlot.LapTimeUpdate ?? string.Empty);
+            AttachCore("Player.LapTimeUpdateVisibilitySec", () => _carSaEngine?.Outputs.PlayerSlot.LapTimeUpdateVisibilitySec ?? 0.0);
             for (int i = 0; i < CarSAEngine.SlotsAhead; i++)
             {
                 int slotIndex = i;
@@ -4988,7 +4990,7 @@ namespace LaunchPlugin
                 RefreshCarSaSlotIdentities(pluginManager, sessionTimeSec);
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.AheadSlots, carIdxLapDistPct, sessionTimeSec);
                 UpdateCarSaSlotTelemetry(pluginManager, _carSaEngine.Outputs.BehindSlots, carIdxLapDistPct, sessionTimeSec);
-                UpdateCarSaPlayerTelemetry(pluginManager, playerCarIdx);
+                UpdateCarSaPlayerTelemetry(pluginManager, playerCarIdx, sessionTimeSec);
                 if (_friendsDirty)
                 {
                     RefreshFriendUserIds();
@@ -6887,10 +6889,18 @@ namespace LaunchPlugin
                     && IsValidCarSaLapTimeSec(currentBestLap)
                     && (currentBestLap + CarSaLapTimeEpsilonSec) < previousBestLap;
 
-                if (hasCompletedLap && hasNewPersonalBest)
+                if (hasCompletedLap && hasLapUpdate)
                 {
-                    bool hasNewSessionBestInClass = IsNewSessionBestInClass(i, currentBestLap, bestLapTimes, previousBestLapTimes);
-                    _carSaLapTimeUpdateByIdx[i] = hasNewSessionBestInClass ? "New SB" : "New PB";
+                    if (hasNewPersonalBest)
+                    {
+                        bool hasNewSessionBestInClass = IsNewSessionBestInClass(i, currentBestLap, bestLapTimes, previousBestLapTimes);
+                        _carSaLapTimeUpdateByIdx[i] = hasNewSessionBestInClass ? "SB" : "PB";
+                    }
+                    else
+                    {
+                        _carSaLapTimeUpdateByIdx[i] = "LL";
+                    }
+
                     _carSaLapTimeUpdateExpireAtSecByIdx[i] = sessionTimeSec + CarSaLapTimeUpdateVisibilitySeconds;
                 }
 
@@ -7804,9 +7814,7 @@ namespace LaunchPlugin
                 double lapTimeUpdateRemainingSec = (!double.IsNaN(lapTimeUpdateExpirySec) && lapTimeUpdateExpirySec > sessionTimeSec)
                     ? (lapTimeUpdateExpirySec - sessionTimeSec)
                     : 0.0;
-                slot.LapTimeUpdate = lapTimeUpdateRemainingSec > 0.0
-                    ? (_carSaLapTimeUpdateByIdx[carIdx] ?? string.Empty)
-                    : string.Empty;
+                slot.LapTimeUpdate = _carSaLapTimeUpdateByIdx[carIdx] ?? string.Empty;
                 slot.LapTimeUpdateVisibilitySec = lapTimeUpdateRemainingSec > 0.0 ? lapTimeUpdateRemainingSec : 0.0;
                 if (_carSaEngine != null && _carSaEngine.ShouldUpdateMiniSectorForCar(carIdx))
                 {
@@ -7846,7 +7854,7 @@ namespace LaunchPlugin
             }
         }
 
-        private void UpdateCarSaPlayerTelemetry(PluginManager pluginManager, int playerCarIdx)
+        private void UpdateCarSaPlayerTelemetry(PluginManager pluginManager, int playerCarIdx, double sessionTimeSec)
         {
             if (_carSaEngine?.Outputs?.PlayerSlot == null)
             {
@@ -7871,8 +7879,17 @@ namespace LaunchPlugin
                 playerSlot.IsFriend = false;
                 playerSlot.IsTeammate = false;
                 playerSlot.IsBad = false;
+                playerSlot.LapTimeUpdate = string.Empty;
+                playerSlot.LapTimeUpdateVisibilitySec = 0.0;
                 return;
             }
+
+            double lapTimeUpdateExpirySec = _carSaLapTimeUpdateExpireAtSecByIdx[playerCarIdx];
+            double lapTimeUpdateRemainingSec = (!double.IsNaN(lapTimeUpdateExpirySec) && lapTimeUpdateExpirySec > sessionTimeSec)
+                ? (lapTimeUpdateExpirySec - sessionTimeSec)
+                : 0.0;
+            playerSlot.LapTimeUpdate = _carSaLapTimeUpdateByIdx[playerCarIdx] ?? string.Empty;
+            playerSlot.LapTimeUpdateVisibilitySec = lapTimeUpdateRemainingSec > 0.0 ? lapTimeUpdateRemainingSec : 0.0;
 
             if (TryGetCarIdentityFromSessionInfo(pluginManager, playerCarIdx, out _, out _, out string classColor))
             {
