@@ -6869,6 +6869,7 @@ namespace LaunchPlugin
                 double previousLastLap = previousLastLapTimes[i];
                 int currentLapCount = (lapCounts != null && i < lapCounts.Length) ? lapCounts[i] : -1;
                 int previousLapCount = previousLapCounts[i];
+                bool baselineUnknown = previousLapCount < 0;
                 bool hasCompletedLap = currentLapCount >= 1;
                 bool crossedIntoCompletedLapState = previousLapCount < 1 && hasCompletedLap;
 
@@ -6891,7 +6892,7 @@ namespace LaunchPlugin
                     && IsValidCarSaLapTimeSec(currentBestLap)
                     && (currentBestLap + CarSaLapTimeEpsilonSec) < previousBestLap;
 
-                if (hasCompletedLap && hasLapUpdate)
+                if (hasCompletedLap && hasLapUpdate && !baselineUnknown && !crossedIntoCompletedLapState)
                 {
                     if (hasNewPersonalBest)
                     {
