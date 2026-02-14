@@ -5522,17 +5522,20 @@ namespace LaunchPlugin
             }
 
             int gear = 0;
-            var gearRaw = data.NewData?.Gear;
-            if (gearRaw is int)
+            string gearRaw = data.NewData?.Gear;
+            if (!string.IsNullOrWhiteSpace(gearRaw))
             {
-                gear = (int)gearRaw;
-            }
-            else
-            {
+                gearRaw = gearRaw.Trim();
+
                 int parsedGear;
-                if (int.TryParse(Convert.ToString(gearRaw), out parsedGear))
+                if (int.TryParse(gearRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedGear))
                 {
                     gear = parsedGear;
+                }
+                else if (string.Equals(gearRaw, "N", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(gearRaw, "R", StringComparison.OrdinalIgnoreCase))
+                {
+                    gear = 0;
                 }
             }
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
