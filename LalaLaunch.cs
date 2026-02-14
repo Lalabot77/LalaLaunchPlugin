@@ -5521,7 +5521,20 @@ namespace LaunchPlugin
                 _shiftAssistLastEnabled = true;
             }
 
-            int gear = data.NewData?.Gear ?? 0;
+            int gear = 0;
+            var gearRaw = data.NewData?.Gear;
+            if (gearRaw is int)
+            {
+                gear = (int)gearRaw;
+            }
+            else
+            {
+                int parsedGear;
+                if (int.TryParse(Convert.ToString(gearRaw), out parsedGear))
+                {
+                    gear = parsedGear;
+                }
+            }
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
             double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
