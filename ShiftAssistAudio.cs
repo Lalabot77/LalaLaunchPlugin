@@ -26,6 +26,12 @@ namespace LaunchPlugin
 
         public ShiftAssistAudio(Func<LaunchPluginSettings> settingsProvider)
         {
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();  // Temp, to be removed
+            foreach (var n in asm.GetManifestResourceNames())
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Embedded resource found: {n}");
+            }
+
             _settingsProvider = settingsProvider;
         }
 
