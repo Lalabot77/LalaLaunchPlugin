@@ -49,6 +49,7 @@ namespace LaunchPlugin
         private readonly Func<string> _getShiftAssistCustomWavPath;
         private readonly Action<string> _setShiftAssistCustomWavPath;
         private readonly Action _playShiftAssistTestBeep;
+        private const int ShiftAssistMaxStoredGears = 8;
         private readonly string _profilesFilePath;
         private readonly string _legacyProfilesFilePath;
         private bool _suppressTrackMarkersLockAction;
@@ -156,6 +157,8 @@ namespace LaunchPlugin
                     SetSelectedShiftStackFromLiveOrDefault();
                     OnPropertyChanged(nameof(ShiftStackIds));
                     OnPropertyChanged(nameof(ShiftGearRows));
+                    OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
+                    OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
                     OnPropertyChanged(nameof(ActiveShiftStackLabel));
                 }
             }
@@ -582,6 +585,8 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(ActiveShiftStackLabel));
                 OnPropertyChanged(nameof(ShiftStackIds));
                 OnPropertyChanged(nameof(ShiftGearRows));
+                OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
+                OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
             }
         }
 
@@ -609,17 +614,57 @@ namespace LaunchPlugin
             }
         }
 
+        public int ShiftAssistMaxTargetGears
+        {
+            get
+            {
+                int maxGears = TryReadPluginInt("DataCorePlugin.GameData.CarSettings_MaxGears");
+                if (maxGears <= 0)
+                {
+                    return ShiftAssistMaxStoredGears;
+                }
+
+                int targets = maxGears - 1;
+                if (targets < 1)
+                {
+                    return 1;
+                }
+
+                if (targets > ShiftAssistMaxStoredGears)
+                {
+                    return ShiftAssistMaxStoredGears;
+                }
+
+                return targets;
+            }
+        }
+
+        public string ShiftAssistCurrentGearRedlineHint
+        {
+            get
+            {
+                int redlineRpm = TryReadPluginInt("DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM");
+                if (redlineRpm <= 0)
+                {
+                    return string.Empty;
+                }
+
+                return $"Current gear redline (SimHub): {redlineRpm.ToString(CultureInfo.InvariantCulture)} RPM";
+            }
+        }
+
         public IEnumerable<ShiftGearRow> ShiftGearRows
         {
             get
             {
                 var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
-                for (int i = 0; i < 8; i++)
+                int targetRows = ShiftAssistMaxTargetGears;
+                for (int i = 0; i < targetRows; i++)
                 {
                     int gearIdx = i;
                     yield return new ShiftGearRow
                     {
-                        GearLabel = $"Gear {gearIdx + 1}",
+                        GearLabel = $"Shift from Gear {gearIdx + 1}",
                         RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
                         SaveAction = txt =>
                         {
@@ -632,11 +677,69 @@ namespace LaunchPlugin
                             stack.ShiftRPM[gearIdx] = value;
                             SaveProfiles();
                             OnPropertyChanged(nameof(ShiftGearRows));
+                            OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
                         }
                     };
                 }
             }
         }
+
+        private int TryReadPluginInt(string propertyName)
+        {
+            if (_pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return 0;
+            }
+
+            try
+            {
+                object raw = _pluginManager.GetPropertyValue(propertyName);
+                if (raw == null)
+                {
+                    return 0;
+                }
+
+                if (raw is int intValue)
+                {
+                    return intValue;
+                }
+
+                if (raw is short shortValue)
+                {
+                    return shortValue;
+                }
+
+                if (raw is byte byteValue)
+                {
+                    return byteValue;
+                }
+
+                if (raw is long longValue)
+                {
+                    if (longValue < int.MinValue || longValue > int.MaxValue)
+                    {
+                        return 0;
+                    }
+
+                    return (int)longValue;
+                }
+
+                if (raw is string text)
+                {
+                    int parsed;
+                    if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed))
+                    {
+                        return parsed;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return 0;
+        }
+
 
         // --- Commands for UI Buttons ---
         public RelayCommand NewProfileCommand { get; }
