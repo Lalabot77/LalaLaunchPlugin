@@ -214,6 +214,7 @@ Branch: work
 | --- | --- | --- | --- | --- |
 | ShiftAssist.ActiveGearStackId | string | Active gear stack id read from `DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack` (falls back to `Default`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`【F:LalaLaunch.cs†L5420-L5515】【F:LalaLaunch.cs†L3638-L3641】 |
 | ShiftAssist.TargetRPM_CurrentGear | int | Current gear target RPM resolved from active car profile + active gear stack (0 = unset/no data). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`【F:LalaLaunch.cs†L5420-L5515】【F:LalaLaunch.cs†L3638-L3641】 |
+| ShiftAssist.Beep | bool | True briefly when shift assist would beep (dash flash fallback / testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
 | ShiftAssist.State | string | Runtime evaluator state (`Off` / `On` / `NoData` / `Cooldown`). | Per tick. | `ShiftAssistEngine.cs` state machine + `LalaLaunch.cs` export.【F:ShiftAssistEngine.cs†L5-L78】【F:LalaLaunch.cs†L3640-L3641】 |
 
 ## Session / Identity
