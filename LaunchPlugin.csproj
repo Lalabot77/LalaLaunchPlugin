@@ -118,6 +118,8 @@
     <Compile Include="SessionSummaryModel.cs" />
     <Compile Include="SessionSummaryRuntime.cs" />
     <Compile Include="SessionTraceLapRow.cs" />
+    <Compile Include="ShiftAssistAudio.cs" />
+    <Compile Include="ShiftAssistEngine.cs" />
     <Compile Include="LaunchAnalysisControl.xaml.cs">
       <DependentUpon>LaunchAnalysisControl.xaml</DependentUpon>
     </Compile>
@@ -164,6 +166,7 @@
     <Compile Include="TrackMarkerMessagingModels.cs" />
   </ItemGroup>
   <ItemGroup>
+    <!-- TODO(maintainer): add Resources\ShiftAssist_DefaultBeep.wav as EmbeddedResource manually after merge. -->
     <Page Include="CopyProfileDialog.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>

@@ -169,3 +169,9 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 
 ## Rejoin assist
 - **`[LalaPlugin:Rejoin Assist] MsgCx override triggered.`** — Message context override fired inside rejoin assist engine.【F:RejoinAssistEngine.cs†L601-L622】
+
+## Shift Assist
+- **`[LalaPlugin:ShiftAssist] Enabled=true/false`** — Shift assist runtime evaluation toggled on/off (startup + live toggle).【F:LalaLaunch.cs†L3388-L3390】【F:LalaLaunch.cs†L5440-L5457】
+- **`[LalaPlugin:ShiftAssist] Sound=Custom path='...'`** — Beep playback currently resolved to a valid custom WAV file path.【F:ShiftAssistAudio.cs†L132-L147】
+- **`[LalaPlugin:ShiftAssist] Sound=EmbeddedDefault path='...'`** — Beep playback resolved to the extracted embedded default WAV.【F:ShiftAssistAudio.cs†L132-L147】
+- **`[LalaPlugin:ShiftAssist] WARNING custom wav missing/invalid, falling back to embedded default`** — Custom WAV was enabled but missing/invalid; warning is emitted once per session and playback falls back to embedded default sound.【F:ShiftAssistAudio.cs†L104-L116】

@@ -3254,6 +3254,14 @@ namespace LaunchPlugin
         private const double EmaAlpha = 0.35;             // 0..1; higher = follow raw rate more
         private const double LearnCooldownSec = 20.0;     // block new learn saves for N seconds
 
+        private const int ShiftAssistCooldownMsDefault = 500;
+        private const int ShiftAssistResetHysteresisRpmDefault = 200;
+        private readonly ShiftAssistEngine _shiftAssistEngine = new ShiftAssistEngine();
+        private ShiftAssistAudio _shiftAssistAudio;
+        private string _shiftAssistActiveGearStackId = "Default";
+        private int _shiftAssistTargetCurrentGear;
+        private bool _shiftAssistLastEnabled;
+
         private double _lastFuel = 0.0;
 
         // ---Temporary for Testing Purposes ---
@@ -3294,6 +3302,7 @@ namespace LaunchPlugin
             EnforceHardDebugSettings(Settings);
             HookFriendSettings(Settings);
             MarkFriendsDirty();
+            _shiftAssistAudio = new ShiftAssistAudio(() => Settings);
 
 #if DEBUG
             FuelProjectionMath.RunSelfTests();
@@ -3317,7 +3326,29 @@ namespace LaunchPlugin
                 (trackKey) => GetTrackMarkersSnapshot(trackKey),
                 (trackKey, locked) => SetTrackMarkersLockedForKey(trackKey, locked),
                 () => ReloadTrackMarkersFromDisk(),
-                (trackKey) => ResetTrackMarkersForKey(trackKey)
+                (trackKey) => ResetTrackMarkersForKey(trackKey),
+                () => _shiftAssistActiveGearStackId,
+                () => Settings?.ShiftAssistEnabled == true,
+                (enabled) =>
+                {
+                    Settings.ShiftAssistEnabled = enabled;
+                    SaveSettings();
+                },
+                () => Settings?.ShiftAssistUseCustomWav == true,
+                (enabled) =>
+                {
+                    Settings.ShiftAssistUseCustomWav = enabled;
+                    _shiftAssistAudio.ResetInvalidCustomWarning();
+                    SaveSettings();
+                },
+                () => Settings?.ShiftAssistCustomWavPath ?? string.Empty,
+                (path) =>
+                {
+                    Settings.ShiftAssistCustomWavPath = path ?? string.Empty;
+                    _shiftAssistAudio.ResetInvalidCustomWarning();
+                    SaveSettings();
+                },
+                () => _shiftAssistAudio.PlayShiftBeep()
             );
 
 
@@ -3346,6 +3377,8 @@ namespace LaunchPlugin
             ResetAllValues();
             ResetFinishTimingState();
             _pit?.ResetPitPhaseState();
+
+            SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Enabled={Settings?.ShiftAssistEnabled == true}");
 
             // --- ACTIONS (exposed to Controls & Events) ---
             this.AddAction("MsgCx", (a, b) => MsgCx());
@@ -3622,6 +3655,10 @@ namespace LaunchPlugin
             AttachCore("WheelSpinDetected", () => _wheelSpinDetected);
             AttachCore("ZeroTo100Delta", () => _zeroTo100Delta);
             AttachCore("ZeroTo100Time", () => _hasValidLaunchData ? _zeroTo100LastTime : 0);
+
+            AttachCore("ShiftAssist.ActiveGearStackId", () => _shiftAssistActiveGearStackId ?? "Default");
+            AttachCore("ShiftAssist.TargetRPM_CurrentGear", () => _shiftAssistTargetCurrentGear);
+            AttachCore("ShiftAssist.State", () => _shiftAssistEngine.LastState.ToString());
 
             // --- TESTING / DEBUGGING (VERBOSE) ---
             // REMOVED: MSG.PitPhaseDebug (old vs new) — PitEngine is single source of truth now.
@@ -5299,6 +5336,7 @@ namespace LaunchPlugin
 
             UpdateLiveProperties(pluginManager, ref data);
             HandleLaunchState(pluginManager, ref data);
+            EvaluateShiftAssist(pluginManager, data);
 
             if (IsInProgress || IsLogging)
             {
@@ -5459,6 +5497,63 @@ namespace LaunchPlugin
 
 
         }
+
+        private void EvaluateShiftAssist(PluginManager pluginManager, GameData data)
+        {
+            var settings = Settings;
+            bool enabled = settings?.ShiftAssistEnabled == true;
+            if (!enabled)
+            {
+                _shiftAssistTargetCurrentGear = 0;
+                _shiftAssistActiveGearStackId = "Default";
+                _shiftAssistEngine.Reset();
+                if (_shiftAssistLastEnabled)
+                {
+                    SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Enabled=false");
+                    _shiftAssistLastEnabled = false;
+                }
+                return;
+            }
+
+            if (!_shiftAssistLastEnabled)
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Enabled=true");
+                _shiftAssistLastEnabled = true;
+            }
+
+            int gear = data.NewData?.Gear ?? 0;
+            int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
+            double throttleRaw = data.NewData?.Throttle ?? 0.0;
+            double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
+
+            string gearStackId = Convert.ToString(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack") ?? "");
+            if (string.IsNullOrWhiteSpace(gearStackId))
+            {
+                gearStackId = "Default";
+            }
+            else
+            {
+                gearStackId = gearStackId.Trim();
+            }
+
+            _shiftAssistActiveGearStackId = gearStackId;
+            int targetRpm = ActiveProfile?.GetShiftTargetForGear(gearStackId, gear) ?? 0;
+            _shiftAssistTargetCurrentGear = targetRpm;
+
+            bool beep = _shiftAssistEngine.Evaluate(
+                gear,
+                rpm,
+                throttle01,
+                targetRpm,
+                ShiftAssistCooldownMsDefault,
+                ShiftAssistResetHysteresisRpmDefault);
+
+            if (beep)
+            {
+                _shiftAssistAudio?.PlayShiftBeep();
+            }
+        }
+
         #endregion
 
         #region Private Helper Methods for DataUpdate
@@ -11122,6 +11217,9 @@ namespace LaunchPlugin
         public string CsvLogPath { get; set; } = "";
         public string TraceLogPath { get; set; } = "";
         public bool EnableTelemetryTracing { get; set; } = true;
+        public bool ShiftAssistEnabled { get; set; } = false;
+        public bool ShiftAssistUseCustomWav { get; set; } = false;
+        public string ShiftAssistCustomWavPath { get; set; } = "";
         public double NotRelevantGapSec { get; set; } = LalaLaunch.CarSANotRelevantGapSecDefault;
         public Dictionary<int, string> CarSAStatusEBackgroundColors { get; set; } = new Dictionary<int, string>
         {
