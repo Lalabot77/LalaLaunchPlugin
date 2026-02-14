@@ -616,10 +616,11 @@ namespace LaunchPlugin
                 var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
                 for (int i = 0; i < 8; i++)
                 {
+                    int gearIdx = i;
                     yield return new ShiftGearRow
                     {
-                        GearLabel = $"Gear {i + 1}",
-                        RpmText = stack.ShiftRPM[i] > 0 ? stack.ShiftRPM[i].ToString(CultureInfo.InvariantCulture) : string.Empty,
+                        GearLabel = $"Gear {gearIdx + 1}",
+                        RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
                         SaveAction = txt =>
                         {
                             int value;
@@ -628,7 +629,7 @@ namespace LaunchPlugin
                                 value = 0;
                             }
 
-                            stack.ShiftRPM[i] = value;
+                            stack.ShiftRPM[gearIdx] = value;
                             SaveProfiles();
                             OnPropertyChanged(nameof(ShiftGearRows));
                         }
