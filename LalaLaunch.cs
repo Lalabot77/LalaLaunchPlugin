@@ -5952,6 +5952,7 @@ namespace LaunchPlugin
 
         private void ResetShiftAssistDebugCsvState()
         {
+            _shiftAssistDebugCsvFailed = false;
             _shiftAssistDebugCsvLastWriteSessionSec = double.NaN;
             _shiftAssistDebugCsvLastWriteUtc = DateTime.MinValue;
             _shiftAssistDebugCsvPath = null;
