@@ -3365,6 +3365,9 @@ namespace LaunchPlugin
         internal const int ShiftAssistLeadTimeMsDefault = 200;
         private const int ShiftAssistLeadTimeMsMin = 0;
         private const int ShiftAssistLeadTimeMsMax = 500;
+        internal const int ShiftAssistDebugCsvMaxHzDefault = 10;
+        private const int ShiftAssistDebugCsvMaxHzMin = 1;
+        private const int ShiftAssistDebugCsvMaxHzMax = 20;
         private const int ShiftAssistDelayHistorySize = 5;
         private readonly ShiftAssistEngine _shiftAssistEngine = new ShiftAssistEngine();
         private ShiftAssistAudio _shiftAssistAudio;
@@ -3381,6 +3384,10 @@ namespace LaunchPlugin
         private readonly int[] _shiftAssistDelaySampleCounts = new int[8];
         private readonly int[] _shiftAssistDelaySampleNextIndex = new int[8];
         private readonly int[] _shiftAssistDelaySampleSums = new int[8];
+        private double _shiftAssistDebugCsvLastWriteSessionSec = double.NaN;
+        private DateTime _shiftAssistDebugCsvLastWriteUtc = DateTime.MinValue;
+        private string _shiftAssistDebugCsvPath;
+        private bool _shiftAssistDebugCsvFailed;
 
         private double _lastFuel = 0.0;
 
@@ -4500,6 +4507,15 @@ namespace LaunchPlugin
             else if (settings.ShiftAssistLeadTimeMs > ShiftAssistLeadTimeMsMax)
             {
                 settings.ShiftAssistLeadTimeMs = ShiftAssistLeadTimeMsMax;
+            }
+
+            if (settings.ShiftAssistDebugCsvMaxHz < ShiftAssistDebugCsvMaxHzMin)
+            {
+                settings.ShiftAssistDebugCsvMaxHz = ShiftAssistDebugCsvMaxHzMin;
+            }
+            else if (settings.ShiftAssistDebugCsvMaxHz > ShiftAssistDebugCsvMaxHzMax)
+            {
+                settings.ShiftAssistDebugCsvMaxHz = ShiftAssistDebugCsvMaxHzMax;
             }
         }
 
@@ -5734,6 +5750,7 @@ namespace LaunchPlugin
                 _shiftAssistLastGear = 0;
                 _shiftAssistEngine.Reset();
                 ClearShiftAssistDelayPending();
+                ResetShiftAssistDebugCsvState();
                 if (_shiftAssistLastEnabled)
                 {
                     SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Enabled=false");
@@ -5806,6 +5823,10 @@ namespace LaunchPlugin
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
             double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
+            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.SessionTime", double.NaN);
+
+            int maxForwardGears = ResolveShiftAssistMaxForwardGears(pluginManager);
+            LearnShiftAssistMaxForwardGearsHint(maxForwardGears);
 
             string gearStackId = Convert.ToString(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack") ?? "");
             if (string.IsNullOrWhiteSpace(gearStackId))
@@ -5828,9 +5849,18 @@ namespace LaunchPlugin
                 }
             }
 
+            bool topGearKnown = maxForwardGears >= 1;
+            bool canShiftUp = !topGearKnown || (gear >= 1 && gear < maxForwardGears);
+            if (!canShiftUp)
+            {
+                targetRpm = 0;
+            }
+
             _shiftAssistTargetCurrentGear = targetRpm;
 
             int leadTimeMs = GetShiftAssistLeadTimeMs();
+            bool suppressDownBeforeTrigger = _shiftAssistEngine.IsSuppressingDownshift;
+            bool suppressUpBeforeTrigger = _shiftAssistEngine.IsSuppressingUpshift;
             bool beep = _shiftAssistEngine.Evaluate(
                 gear,
                 rpm,
@@ -5858,8 +5888,146 @@ namespace LaunchPlugin
                 if (IsVerboseDebugLoggingOn)
                 {
                     SimHub.Logging.Current.Info(
-                        $"[LalaPlugin:ShiftAssist] Beep gear={gear} target={targetRpm} effectiveTarget={_shiftAssistEngine.LastEffectiveTargetRpm} rpm={rpm} throttle={throttle01:F2} leadMs={leadTimeMs}");
+                        $"[LalaPlugin:ShiftAssist] Beep gear={gear} maxForwardGears={maxForwardGears} target={targetRpm} effectiveTarget={_shiftAssistEngine.LastEffectiveTargetRpm} rpm={rpm} rpmRate={_shiftAssistEngine.LastRpmRate} throttle={throttle01:F2} leadMs={leadTimeMs} suppressDown={suppressDownBeforeTrigger} suppressUp={suppressUpBeforeTrigger}");
                 }
+            }
+
+            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep);
+        }
+
+        private int ResolveShiftAssistMaxForwardGears(PluginManager pluginManager)
+        {
+            int maxForwardGears;
+            if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_MaxGears", out maxForwardGears) || maxForwardGears <= 0)
+            {
+                if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward", out maxForwardGears) || maxForwardGears <= 0)
+                {
+                    maxForwardGears = ActiveProfile?.MaxForwardGearsHint ?? 0;
+                    if (maxForwardGears <= 0)
+                    {
+                        return 0;
+                    }
+                }
+            }
+
+            if (maxForwardGears > 8)
+            {
+                maxForwardGears = 8;
+            }
+
+            return maxForwardGears;
+        }
+
+        private void LearnShiftAssistMaxForwardGearsHint(int maxForwardGears)
+        {
+            if (maxForwardGears <= 0 || ActiveProfile == null)
+            {
+                return;
+            }
+
+            if (ActiveProfile.MaxForwardGearsHint == maxForwardGears)
+            {
+                return;
+            }
+
+            ActiveProfile.MaxForwardGearsHint = maxForwardGears;
+            ProfilesViewModel?.SaveProfiles();
+            ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+        }
+
+        private int GetShiftAssistDebugCsvMaxHz()
+        {
+            int value = Settings?.ShiftAssistDebugCsvMaxHz ?? ShiftAssistDebugCsvMaxHzDefault;
+            if (value < ShiftAssistDebugCsvMaxHzMin)
+            {
+                value = ShiftAssistDebugCsvMaxHzMin;
+            }
+            else if (value > ShiftAssistDebugCsvMaxHzMax)
+            {
+                value = ShiftAssistDebugCsvMaxHzMax;
+            }
+
+            return value;
+        }
+
+        private void ResetShiftAssistDebugCsvState()
+        {
+            _shiftAssistDebugCsvFailed = false;
+            _shiftAssistDebugCsvLastWriteSessionSec = double.NaN;
+            _shiftAssistDebugCsvLastWriteUtc = DateTime.MinValue;
+            _shiftAssistDebugCsvPath = null;
+        }
+
+        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered)
+        {
+            if (Settings?.EnableShiftAssistDebugCsv != true)
+            {
+                ResetShiftAssistDebugCsvState();
+                return;
+            }
+
+            if (_shiftAssistDebugCsvFailed)
+            {
+                return;
+            }
+
+            int maxHz = GetShiftAssistDebugCsvMaxHz();
+            double minIntervalSec = 1.0 / maxHz;
+            if (!double.IsNaN(sessionTimeSec) && !double.IsInfinity(sessionTimeSec))
+            {
+                if (!double.IsNaN(_shiftAssistDebugCsvLastWriteSessionSec) && sessionTimeSec < (_shiftAssistDebugCsvLastWriteSessionSec + minIntervalSec))
+                {
+                    return;
+                }
+
+                _shiftAssistDebugCsvLastWriteSessionSec = sessionTimeSec;
+            }
+            else if (_shiftAssistDebugCsvLastWriteUtc != DateTime.MinValue && (nowUtc - _shiftAssistDebugCsvLastWriteUtc).TotalSeconds < minIntervalSec)
+            {
+                return;
+            }
+
+            _shiftAssistDebugCsvLastWriteUtc = nowUtc;
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(_shiftAssistDebugCsvPath))
+                {
+                    string folder = Path.Combine(PluginStorage.GetPluginFolder(), "ShiftAssist");
+                    Directory.CreateDirectory(folder);
+                    _shiftAssistDebugCsvPath = Path.Combine(folder, "ShiftAssist_Debug.csv");
+                    if (!File.Exists(_shiftAssistDebugCsvPath))
+                    {
+                        File.WriteAllText(_shiftAssistDebugCsvPath,
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift" + Environment.NewLine);
+                    }
+                }
+
+                var line = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14}",
+                    nowUtc,
+                    double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) ? string.Empty : sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
+                    gear,
+                    maxForwardGears,
+                    rpm,
+                    throttle01,
+                    targetRpm,
+                    _shiftAssistEngine.LastEffectiveTargetRpm,
+                    _shiftAssistEngine.LastRpmRate,
+                    leadTimeMs,
+                    beepTriggered ? "1" : "0",
+                    _shiftAssistBeepLatched ? "1" : "0",
+                    _shiftAssistEngine.LastState.ToString(),
+                    _shiftAssistEngine.IsSuppressingDownshift ? "1" : "0",
+                    _shiftAssistEngine.IsSuppressingUpshift ? "1" : "0");
+
+                File.AppendAllText(_shiftAssistDebugCsvPath, line + Environment.NewLine);
+            }
+            catch (Exception ex)
+            {
+                _shiftAssistDebugCsvFailed = true;
+                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Debug CSV disabled for session after write failure path='{_shiftAssistDebugCsvPath ?? "(unset)"}' error='{ex.Message}'");
             }
         }
 
@@ -11589,6 +11757,8 @@ namespace LaunchPlugin
         public int ShiftAssistLeadTimeMs { get; set; } = LalaLaunch.ShiftAssistLeadTimeMsDefault;
         public bool ShiftAssistUseCustomWav { get; set; } = false;
         public string ShiftAssistCustomWavPath { get; set; } = "";
+        public bool EnableShiftAssistDebugCsv { get; set; } = false;
+        public int ShiftAssistDebugCsvMaxHz { get; set; } = LalaLaunch.ShiftAssistDebugCsvMaxHzDefault;
         public double NotRelevantGapSec { get; set; } = LalaLaunch.CarSANotRelevantGapSecDefault;
         public Dictionary<int, string> CarSAStatusEBackgroundColors { get; set; } = new Dictionary<int, string>
         {

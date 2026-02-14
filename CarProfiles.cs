@@ -135,6 +135,9 @@ namespace LaunchPlugin
         [JsonProperty]
         public Dictionary<string, ShiftStackData> ShiftAssistStacks { get; set; } = new Dictionary<string, ShiftStackData>(StringComparer.OrdinalIgnoreCase);
 
+        [JsonProperty]
+        public int MaxForwardGearsHint { get; set; } = 0;
+
         // --- Dash Display Properties ---
         private double _rejoinWarningLingerTime = 10.0;
         public double RejoinWarningLingerTime { get => _rejoinWarningLingerTime; set { if (_rejoinWarningLingerTime != value) { _rejoinWarningLingerTime = value; OnPropertyChanged(); } } }
@@ -283,6 +286,10 @@ namespace LaunchPlugin
             }
 
             ShiftAssistStacks = normalized;
+            if (MaxForwardGearsHint < 0)
+            {
+                MaxForwardGearsHint = 0;
+            }
         }
     }
 
