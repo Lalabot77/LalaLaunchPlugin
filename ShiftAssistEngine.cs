@@ -16,6 +16,9 @@ namespace LaunchPlugin
         private int _lastGear;
         private bool _wasAboveTarget;
         private DateTime _lastBeepAtUtc = DateTime.MinValue;
+        private int _lastRpm;
+        private DateTime _lastSampleAtUtc = DateTime.MinValue;
+        private bool _suppressUntilBelowReset;
 
         public ShiftAssistEngine(Func<DateTime> utcNow = null)
         {
@@ -24,19 +27,59 @@ namespace LaunchPlugin
 
         public ShiftAssistState LastState { get; private set; } = ShiftAssistState.Off;
         public int LastTargetRpm { get; private set; }
+        public int LastEffectiveTargetRpm { get; private set; }
+        public int LastRpmRate { get; private set; }
 
-        public bool Evaluate(int currentGear, int engineRpm, double throttle01, int targetRpm, int cooldownMs, int resetHysteresisRpm)
+        public bool Evaluate(int currentGear, int engineRpm, double throttle01, int targetRpm, int cooldownMs, int resetHysteresisRpm, int leadTimeMs)
         {
             LastTargetRpm = targetRpm;
+            LastEffectiveTargetRpm = targetRpm;
+            LastRpmRate = 0;
+
+            var nowUtc = _utcNow();
+
+            if (_lastSampleAtUtc != DateTime.MinValue)
+            {
+                double dtMs = (nowUtc - _lastSampleAtUtc).TotalMilliseconds;
+                if (dtMs >= 10.0 && dtMs <= 200.0)
+                {
+                    double dtSec = dtMs / 1000.0;
+                    if (dtSec > 0.0)
+                    {
+                        double rpmRate = (engineRpm - _lastRpm) / dtSec;
+                        int roundedRate = (int)Math.Round(rpmRate);
+                        if (roundedRate > 0 && roundedRate >= 500 && roundedRate <= 50000)
+                        {
+                            LastRpmRate = roundedRate;
+                            if (leadTimeMs > 0)
+                            {
+                                double rpmLead = rpmRate * (leadTimeMs / 1000.0);
+                                LastEffectiveTargetRpm = Math.Max(1, (int)Math.Round(targetRpm - rpmLead));
+                            }
+                        }
+                    }
+                }
+            }
+
+            _lastRpm = engineRpm;
+            _lastSampleAtUtc = nowUtc;
+
+            int effectiveTargetRpm = LastEffectiveTargetRpm;
 
             if (currentGear != _lastGear)
             {
+                if (currentGear < _lastGear)
+                {
+                    _suppressUntilBelowReset = true;
+                }
+
                 _lastGear = currentGear;
                 _wasAboveTarget = false;
             }
 
             if (currentGear < 1 || currentGear > 8 || targetRpm <= 0)
             {
+                _suppressUntilBelowReset = false;
                 LastState = ShiftAssistState.NoData;
                 return false;
             }
@@ -47,15 +90,21 @@ namespace LaunchPlugin
                 return false;
             }
 
-            if (engineRpm < (targetRpm - resetHysteresisRpm))
+            if (engineRpm < (effectiveTargetRpm - resetHysteresisRpm))
             {
                 _wasAboveTarget = false;
+                _suppressUntilBelowReset = false;
             }
 
-            var nowUtc = _utcNow();
+            if (_suppressUntilBelowReset)
+            {
+                LastState = ShiftAssistState.On;
+                return false;
+            }
+
             bool cooldownPassed = _lastBeepAtUtc == DateTime.MinValue || (nowUtc - _lastBeepAtUtc).TotalMilliseconds >= cooldownMs;
 
-            if (!_wasAboveTarget && engineRpm >= targetRpm)
+            if (!_wasAboveTarget && engineRpm >= effectiveTargetRpm)
             {
                 if (!cooldownPassed)
                 {
@@ -78,7 +127,12 @@ namespace LaunchPlugin
         {
             _lastGear = 0;
             _wasAboveTarget = false;
+            _suppressUntilBelowReset = false;
+            _lastRpm = 0;
+            _lastSampleAtUtc = DateTime.MinValue;
             LastTargetRpm = 0;
+            LastEffectiveTargetRpm = 0;
+            LastRpmRate = 0;
             LastState = ShiftAssistState.Off;
         }
     }

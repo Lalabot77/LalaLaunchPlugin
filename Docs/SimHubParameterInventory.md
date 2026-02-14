@@ -212,10 +212,14 @@ Branch: work
 ## Shift Assist
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |
-| ShiftAssist.ActiveGearStackId | string | Active gear stack id read from `DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack` (falls back to `Default`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`【F:LalaLaunch.cs†L5420-L5515】【F:LalaLaunch.cs†L3638-L3641】 |
-| ShiftAssist.TargetRPM_CurrentGear | int | Current gear target RPM resolved from active car profile + active gear stack (0 = unset/no data). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`【F:LalaLaunch.cs†L5420-L5515】【F:LalaLaunch.cs†L3638-L3641】 |
-| ShiftAssist.Beep | bool | True briefly when shift assist would beep (dash flash fallback / testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
-| ShiftAssist.State | string | Runtime evaluator state (`Off` / `On` / `NoData` / `Cooldown`). | Per tick. | `ShiftAssistEngine.cs` state machine + `LalaLaunch.cs` export.【F:ShiftAssistEngine.cs†L5-L78】【F:LalaLaunch.cs†L3640-L3641】 |
+| ShiftAssist.ActiveGearStackId | string | Active gear stack id read from `DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack` (falls back to `Default`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.TargetRPM_CurrentGear | int | Current gear target RPM resolved from active car profile + active gear stack (0 = unset/no data). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.EffectiveTargetRPM_CurrentGear | int | Effective target RPM after predictive lead-time adjustment (falls back to target RPM when predictive guards fail). | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
+| ShiftAssist.RpmRate | int | RPM/sec estimate used by predictive cueing; `0` when unavailable/guarded. | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
+| ShiftAssist.DelayAvg_G1..ShiftAssist.DelayAvg_G8 | int | Runtime rolling average beep→upshift delay (ms) per source gear, over last 5 valid samples. | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
+| ShiftAssist.DelayN_G1..ShiftAssist.DelayN_G8 | int | Runtime sample count currently included in each per-gear rolling average (0..5). | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
+| ShiftAssist.Beep | bool | True during configurable beep latch window (dash flash fallback / testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.State | string | Runtime evaluator state (`Off` / `On` / `NoData` / `Cooldown`). | Per tick. | `ShiftAssistEngine.cs` state machine + `LalaLaunch.cs` export. |
 
 ## Session / Identity
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
