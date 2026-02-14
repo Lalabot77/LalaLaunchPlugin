@@ -85,6 +85,8 @@ namespace LaunchPlugin
                 return;
             }
 
+            MaybeLogSoundChoice(path, usingCustom);
+
             try
             {
                 if (!string.Equals(_playerPath, path, StringComparison.OrdinalIgnoreCase) || _player == null)
@@ -101,8 +103,6 @@ namespace LaunchPlugin
             {
                 SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{path}': {ex.Message}");
             }
-
-            MaybeLogSoundChoice(path, usingCustom);
         }
 
         private string ResolvePlaybackPath(out bool usingCustom)

@@ -5506,7 +5506,6 @@ namespace LaunchPlugin
         private void EvaluateShiftAssist(PluginManager pluginManager, GameData data)
         {
             var settings = Settings;
-            _shiftAssistBeepLatched = DateTime.UtcNow <= _shiftAssistBeepUntilUtc;
             bool enabled = settings?.ShiftAssistEnabled == true;
             if (!enabled)
             {
@@ -5528,6 +5527,8 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Enabled=true");
                 _shiftAssistLastEnabled = true;
             }
+
+            _shiftAssistBeepLatched = DateTime.UtcNow <= _shiftAssistBeepUntilUtc;
 
             int gear = 0;
             string gearRaw = data.NewData?.Gear;
@@ -5575,7 +5576,6 @@ namespace LaunchPlugin
             if (beep)
             {
                 _shiftAssistBeepUntilUtc = DateTime.UtcNow.AddMilliseconds(200);
-                _shiftAssistBeepLatched = true;
                 _shiftAssistAudio?.PlayShiftBeep();
             }
         }
