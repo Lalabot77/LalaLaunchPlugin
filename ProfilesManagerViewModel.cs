@@ -656,7 +656,12 @@ namespace LaunchPlugin
 
                 if (maxGears <= 0)
                 {
-                    maxGears = ShiftAssistMaxStoredGears;
+                    maxGears = SelectedProfile?.MaxForwardGearsHint ?? 0;
+                }
+
+                if (maxGears <= 0)
+                {
+                    maxGears = ShiftAssistMaxStoredGears + 1;
                 }
 
                 int targets = maxGears - 1;
@@ -998,6 +1003,7 @@ namespace LaunchPlugin
             destination.PitEntryBufferM = source.PitEntryBufferM;
 
             CloneShiftStacks(source, destination);
+            destination.MaxForwardGearsHint = source.MaxForwardGearsHint;
         }
 
         private ShiftStackData EnsureShiftStackForSelectedProfile(string stackId)

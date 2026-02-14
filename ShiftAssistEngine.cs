@@ -19,6 +19,7 @@ namespace LaunchPlugin
         private int _lastRpm;
         private DateTime _lastSampleAtUtc = DateTime.MinValue;
         private bool _suppressUntilBelowReset;
+        private bool _suppressAfterUpshiftUntilBelowReset;
 
         public ShiftAssistEngine(Func<DateTime> utcNow = null)
         {
@@ -29,6 +30,8 @@ namespace LaunchPlugin
         public int LastTargetRpm { get; private set; }
         public int LastEffectiveTargetRpm { get; private set; }
         public int LastRpmRate { get; private set; }
+        public bool IsSuppressingDownshift { get { return _suppressUntilBelowReset; } }
+        public bool IsSuppressingUpshift { get { return _suppressAfterUpshiftUntilBelowReset; } }
 
         public bool Evaluate(int currentGear, int engineRpm, double throttle01, int targetRpm, int cooldownMs, int resetHysteresisRpm, int leadTimeMs)
         {
@@ -68,9 +71,15 @@ namespace LaunchPlugin
 
             if (currentGear != _lastGear)
             {
+                bool upshift = currentGear > _lastGear;
                 if (currentGear < _lastGear)
                 {
                     _suppressUntilBelowReset = true;
+                }
+
+                if (upshift && engineRpm >= (effectiveTargetRpm - resetHysteresisRpm))
+                {
+                    _suppressAfterUpshiftUntilBelowReset = true;
                 }
 
                 _lastGear = currentGear;
@@ -80,6 +89,7 @@ namespace LaunchPlugin
             if (currentGear < 1 || currentGear > 8 || targetRpm <= 0)
             {
                 _suppressUntilBelowReset = false;
+                _suppressAfterUpshiftUntilBelowReset = false;
                 LastState = ShiftAssistState.NoData;
                 return false;
             }
@@ -94,9 +104,10 @@ namespace LaunchPlugin
             {
                 _wasAboveTarget = false;
                 _suppressUntilBelowReset = false;
+                _suppressAfterUpshiftUntilBelowReset = false;
             }
 
-            if (_suppressUntilBelowReset)
+            if (_suppressUntilBelowReset || _suppressAfterUpshiftUntilBelowReset)
             {
                 LastState = ShiftAssistState.On;
                 return false;
@@ -128,8 +139,10 @@ namespace LaunchPlugin
             _lastGear = 0;
             _wasAboveTarget = false;
             _suppressUntilBelowReset = false;
+            _suppressAfterUpshiftUntilBelowReset = false;
             _lastRpm = 0;
             _lastSampleAtUtc = DateTime.MinValue;
+            _lastBeepAtUtc = DateTime.MinValue;
             LastTargetRpm = 0;
             LastEffectiveTargetRpm = 0;
             LastRpmRate = 0;
