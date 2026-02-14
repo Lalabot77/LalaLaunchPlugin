@@ -213,13 +213,14 @@ Branch: work
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |
 | ShiftAssist.ActiveGearStackId | string | Active gear stack id read from `DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack` (falls back to `Default`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
-| ShiftAssist.TargetRPM_CurrentGear | int | Current gear target RPM resolved from active car profile + active gear stack (0 = unset/no data). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
-| ShiftAssist.EffectiveTargetRPM_CurrentGear | int | Effective target RPM after predictive lead-time adjustment (falls back to target RPM when predictive guards fail). | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
+| ShiftAssist.TargetRPM_CurrentGear | int | Current gear target RPM resolved from active car profile + active gear stack; when profile target is `0`, falls back to `DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM` if available (else `0`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.EffectiveTargetRPM_CurrentGear | int | Effective target RPM after predictive lead-time adjustment, using the same chosen target source as `ShiftAssist.TargetRPM_CurrentGear` (profile target or redline fallback). | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
 | ShiftAssist.RpmRate | int | RPM/sec estimate used by predictive cueing; `0` when unavailable/guarded. | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
 | ShiftAssist.DelayAvg_G1..ShiftAssist.DelayAvg_G8 | int | Runtime rolling average beep→upshift delay (ms) per source gear, over last 5 valid samples. | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
 | ShiftAssist.DelayN_G1..ShiftAssist.DelayN_G8 | int | Runtime sample count currently included in each per-gear rolling average (0..5). | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
-| ShiftAssist.Beep | bool | True during configurable beep latch window (dash flash fallback / testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.Beep | bool | True during configurable beep latch window (default 250 ms, clamp 100..1000 ms; dash flash fallback/testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
 | ShiftAssist.State | string | Runtime evaluator state (`Off` / `On` / `NoData` / `Cooldown`). | Per tick. | `ShiftAssistEngine.cs` state machine + `LalaLaunch.cs` export. |
+| ShiftAssist UI gear rows | n/a | Profile storage remains 8 slots, but UI only shows up-shiftable gears `1..(maxForwardGears-1)` where max forward gears comes from `DataCorePlugin.GameData.CarSettings_MaxGears`, then `DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward`, then defaults to `8`. | On profile/UI refresh. | `ProfilesManagerViewModel.cs` — `ShiftAssistMaxTargetGears` + `ShiftGearRows`. |
 
 ## Session / Identity
 | Exported name | Type | Units / meaning | Update cadence | Defined in |

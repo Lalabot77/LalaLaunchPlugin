@@ -3359,10 +3359,10 @@ namespace LaunchPlugin
 
         private const int ShiftAssistCooldownMsDefault = 500;
         private const int ShiftAssistResetHysteresisRpmDefault = 200;
-        private const int ShiftAssistBeepDurationMsDefault = 250;
+        internal const int ShiftAssistBeepDurationMsDefault = 250;
         private const int ShiftAssistBeepDurationMsMin = 100;
         private const int ShiftAssistBeepDurationMsMax = 1000;
-        private const int ShiftAssistLeadTimeMsDefault = 200;
+        internal const int ShiftAssistLeadTimeMsDefault = 200;
         private const int ShiftAssistLeadTimeMsMin = 0;
         private const int ShiftAssistLeadTimeMsMax = 500;
         private const int ShiftAssistDelayHistorySize = 5;
@@ -5819,6 +5819,15 @@ namespace LaunchPlugin
 
             _shiftAssistActiveGearStackId = gearStackId;
             int targetRpm = ActiveProfile?.GetShiftTargetForGear(gearStackId, gear) ?? 0;
+            if (targetRpm <= 0)
+            {
+                int redLineRpm;
+                if (TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redLineRpm) && redLineRpm > 0)
+                {
+                    targetRpm = redLineRpm;
+                }
+            }
+
             _shiftAssistTargetCurrentGear = targetRpm;
 
             int leadTimeMs = GetShiftAssistLeadTimeMs();
