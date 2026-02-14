@@ -3261,6 +3261,8 @@ namespace LaunchPlugin
         private string _shiftAssistActiveGearStackId = "Default";
         private int _shiftAssistTargetCurrentGear;
         private bool _shiftAssistLastEnabled;
+        private DateTime _shiftAssistBeepUntilUtc = DateTime.MinValue;
+        private bool _shiftAssistBeepLatched;
 
         private double _lastFuel = 0.0;
 
@@ -3658,6 +3660,7 @@ namespace LaunchPlugin
 
             AttachCore("ShiftAssist.ActiveGearStackId", () => _shiftAssistActiveGearStackId ?? "Default");
             AttachCore("ShiftAssist.TargetRPM_CurrentGear", () => _shiftAssistTargetCurrentGear);
+            AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
             AttachCore("ShiftAssist.State", () => _shiftAssistEngine.LastState.ToString());
 
             // --- TESTING / DEBUGGING (VERBOSE) ---
@@ -4209,6 +4212,8 @@ namespace LaunchPlugin
 
             ResetOffTrackDebugExportState();
             ResetCarSaDebugExportState();
+
+            _shiftAssistAudio?.Dispose();
 
             // Persist settings
             SaveSettings();
@@ -5501,11 +5506,14 @@ namespace LaunchPlugin
         private void EvaluateShiftAssist(PluginManager pluginManager, GameData data)
         {
             var settings = Settings;
+            _shiftAssistBeepLatched = DateTime.UtcNow <= _shiftAssistBeepUntilUtc;
             bool enabled = settings?.ShiftAssistEnabled == true;
             if (!enabled)
             {
                 _shiftAssistTargetCurrentGear = 0;
                 _shiftAssistActiveGearStackId = "Default";
+                _shiftAssistBeepUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepLatched = false;
                 _shiftAssistEngine.Reset();
                 if (_shiftAssistLastEnabled)
                 {
@@ -5566,6 +5574,8 @@ namespace LaunchPlugin
 
             if (beep)
             {
+                _shiftAssistBeepUntilUtc = DateTime.UtcNow.AddMilliseconds(200);
+                _shiftAssistBeepLatched = true;
                 _shiftAssistAudio?.PlayShiftBeep();
             }
         }

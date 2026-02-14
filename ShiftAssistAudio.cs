@@ -17,6 +17,8 @@ namespace LaunchPlugin
         private bool _loggedSoundChoice;
         private string _lastLoggedPath;
         private bool _lastLoggedCustom;
+        private SoundPlayer _player;
+        private string _playerPath;
 
         public ShiftAssistAudio(Func<LaunchPluginSettings> settingsProvider)
         {
@@ -85,10 +87,15 @@ namespace LaunchPlugin
 
             try
             {
-                using (var player = new SoundPlayer(path))
+                if (!string.Equals(_playerPath, path, StringComparison.OrdinalIgnoreCase) || _player == null)
                 {
-                    player.Play();
+                    _player?.Dispose();
+                    _player = new SoundPlayer(path);
+                    _player.Load();
+                    _playerPath = path;
                 }
+
+                _player.Play();
             }
             catch (Exception ex)
             {
@@ -145,6 +152,13 @@ namespace LaunchPlugin
             {
                 SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Sound=EmbeddedDefault path='{path}'");
             }
+        }
+
+        public void Dispose()
+        {
+            _player?.Dispose();
+            _player = null;
+            _playerPath = null;
         }
     }
 }
