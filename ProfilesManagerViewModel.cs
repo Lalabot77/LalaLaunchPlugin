@@ -651,7 +651,12 @@ namespace LaunchPlugin
                 int maxGears = TryReadPluginInt("DataCorePlugin.GameData.CarSettings_MaxGears");
                 if (maxGears <= 0)
                 {
-                    return ShiftAssistMaxStoredGears;
+                    maxGears = TryReadPluginInt("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward");
+                }
+
+                if (maxGears <= 0)
+                {
+                    maxGears = ShiftAssistMaxStoredGears;
                 }
 
                 int targets = maxGears - 1;

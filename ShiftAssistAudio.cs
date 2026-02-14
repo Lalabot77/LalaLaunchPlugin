@@ -3,12 +3,12 @@ using System;
 using System.IO;
 using System.Media;
 using System.Reflection;
+using System.Linq;
 
 namespace LaunchPlugin
 {
     internal sealed class ShiftAssistAudio
     {
-        private const string EmbeddedResourceName = "LaunchPlugin.Resources.ShiftAssist_DefaultBeep.wav";
         private const string DefaultFileRelativePath = "ShiftAssist/DefaultBeep.wav";
 
         private readonly Func<LaunchPluginSettings> _settingsProvider;
@@ -19,6 +19,8 @@ namespace LaunchPlugin
         private bool _lastLoggedCustom;
         private bool _embeddedMissingLogged;
         private bool _embeddedUnavailable;
+        private bool _embeddedResourceNameResolved;
+        private string _embeddedResourceName;
         private SoundPlayer _player;
         private string _playerPath;
 
@@ -51,18 +53,18 @@ namespace LaunchPlugin
 
                 if (!File.Exists(targetPath))
                 {
+                    string resourceName = ResolveEmbeddedResourceName();
+                    if (string.IsNullOrWhiteSpace(resourceName))
+                    {
+                        return false;
+                    }
+
                     var assembly = Assembly.GetExecutingAssembly();
-                    using (var stream = assembly.GetManifestResourceStream(EmbeddedResourceName))
+                    using (var stream = assembly.GetManifestResourceStream(resourceName))
                     {
                         if (stream == null)
                         {
-                            if (!_embeddedMissingLogged)
-                            {
-                                _embeddedMissingLogged = true;
-                                SimHub.Logging.Current.Error("[LalaPlugin:ShiftAssist] Embedded default beep resource missing.");
-                            }
-
-                            _embeddedUnavailable = true;
+                            MarkEmbeddedUnavailable("[LalaPlugin:ShiftAssist] Embedded default beep resource stream missing.");
                             return false;
                         }
 
@@ -81,6 +83,45 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Error($"[LalaPlugin:ShiftAssist] Failed to extract embedded beep: {ex.Message}");
                 return false;
             }
+        }
+
+        private string ResolveEmbeddedResourceName()
+        {
+            if (_embeddedUnavailable)
+            {
+                return null;
+            }
+
+            if (_embeddedResourceNameResolved)
+            {
+                return _embeddedResourceName;
+            }
+
+            _embeddedResourceNameResolved = true;
+            var assembly = Assembly.GetExecutingAssembly();
+            _embeddedResourceName = assembly
+                .GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith("ShiftAssist_DefaultBeep.wav", StringComparison.OrdinalIgnoreCase));
+
+            if (string.IsNullOrWhiteSpace(_embeddedResourceName))
+            {
+                MarkEmbeddedUnavailable("[LalaPlugin:ShiftAssist] Embedded default beep resource missing.");
+                return null;
+            }
+
+            return _embeddedResourceName;
+        }
+
+        private void MarkEmbeddedUnavailable(string message)
+        {
+            _embeddedUnavailable = true;
+            if (_embeddedMissingLogged)
+            {
+                return;
+            }
+
+            _embeddedMissingLogged = true;
+            SimHub.Logging.Current.Error(message);
         }
 
         public void ResetInvalidCustomWarning()
