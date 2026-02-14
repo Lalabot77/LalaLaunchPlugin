@@ -2,9 +2,9 @@
 
 **CANONICAL CONTRACT**
 
-Validated against: b7e67df  
-Last reviewed: 2026-02-09  
-Last updated: 2026-02-09  
+Validated against: 2a38742  
+Last reviewed: 2026-02-14  
+Last updated: 2026-02-14  
 Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
