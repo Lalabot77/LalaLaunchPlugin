@@ -1,5 +1,9 @@
 # Plugin UI Tooltips
 
+Validated against commit: 2a38742  
+Last updated: 2026-02-14  
+Branch: work
+
 ## CopyProfileDialog.xaml
 - L17: Profile you are copying from.
 - L21: Choose whether to create a new profile or overwrite an existing one.
@@ -262,3 +266,10 @@
 - L763: Lock to prevent live wet data from overwriting these values.
 - L768: Clear wet data and relearn from new live laps (while unlocked).
 - L775: Computed deltas between wet and dry averages for this track.
+
+## Shift Assist controls (currently no tooltip text)
+- ProfilesManagerView.xaml L211: `Enable Shift Assist` toggle exists without a tooltip string.
+- ProfilesManagerView.xaml L222: `Beep Duration (ms)` textbox exists without a tooltip string.
+- ProfilesManagerView.xaml L224: `Lead Time (ms)` textbox exists without a tooltip string.
+- ProfilesManagerView.xaml L269: `Use custom sound` toggle exists without a tooltip string.
+- ProfilesManagerView.xaml L277: `Custom WAV path` textbox exists without a tooltip string.
