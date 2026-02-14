@@ -209,6 +209,13 @@ Branch: work
 | MsgCxPressed | bool | Latched true for 500 ms after MsgCx action. | Per tick. | `LalaLaunch.cs` — `RegisterMsgCxPress` + `AttachCore`【F:LalaLaunch.cs†L2475-L2479】【F:LalaLaunch.cs†L2815-L2820】 |
 | Debug.EventMarkerPressed | bool | Latched true for 500 ms after the Event Marker action. | Per tick. | `LalaLaunch.cs` — `RegisterEventMarkerPress` + `AttachCore`【F:LalaLaunch.cs†L2481-L2492】【F:LalaLaunch.cs†L2816-L2822】 |
 
+## Shift Assist
+| Exported name | Type | Units / meaning | Update cadence | Defined in |
+| --- | --- | --- | --- | --- |
+| ShiftAssist.ActiveGearStackId | string | Active gear stack id read from `DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack` (falls back to `Default`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`【F:LalaLaunch.cs†L5420-L5515】【F:LalaLaunch.cs†L3638-L3641】 |
+| ShiftAssist.TargetRPM_CurrentGear | int | Current gear target RPM resolved from active car profile + active gear stack (0 = unset/no data). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`【F:LalaLaunch.cs†L5420-L5515】【F:LalaLaunch.cs†L3638-L3641】 |
+| ShiftAssist.State | string | Runtime evaluator state (`Off` / `On` / `NoData` / `Cooldown`). | Per tick. | `ShiftAssistEngine.cs` state machine + `LalaLaunch.cs` export.【F:ShiftAssistEngine.cs†L5-L78】【F:LalaLaunch.cs†L3640-L3641】 |
+
 ## Session / Identity
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |

@@ -132,6 +132,9 @@ namespace LaunchPlugin
         [JsonProperty]
         public Dictionary<string, TrackStats> TrackStats { get; set; } = new Dictionary<string, TrackStats>(System.StringComparer.OrdinalIgnoreCase);
 
+        [JsonProperty]
+        public Dictionary<string, ShiftStackData> ShiftAssistStacks { get; set; } = new Dictionary<string, ShiftStackData>(StringComparer.OrdinalIgnoreCase);
+
         // --- Dash Display Properties ---
         private double _rejoinWarningLingerTime = 10.0;
         public double RejoinWarningLingerTime { get => _rejoinWarningLingerTime; set { if (_rejoinWarningLingerTime != value) { _rejoinWarningLingerTime = value; OnPropertyChanged(); } } }
@@ -222,6 +225,98 @@ namespace LaunchPlugin
                 };
                 TrackStats[canonicalKey] = newRecord;
                 return newRecord;
+            }
+        }
+
+        public ShiftStackData EnsureShiftStack(string gearStackId)
+        {
+            string key = string.IsNullOrWhiteSpace(gearStackId) ? "Default" : gearStackId.Trim();
+            if (ShiftAssistStacks == null)
+            {
+                ShiftAssistStacks = new Dictionary<string, ShiftStackData>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            ShiftStackData data;
+            if (!ShiftAssistStacks.TryGetValue(key, out data) || data == null)
+            {
+                data = new ShiftStackData();
+                ShiftAssistStacks[key] = data;
+            }
+
+            data.EnsureValidShape();
+            return data;
+        }
+
+        public int GetShiftTargetForGear(string gearStackId, int gear)
+        {
+            if (gear < 1 || gear > 8)
+            {
+                return 0;
+            }
+
+            string key = string.IsNullOrWhiteSpace(gearStackId) ? "Default" : gearStackId.Trim();
+            ShiftStackData data;
+            if (ShiftAssistStacks == null || !ShiftAssistStacks.TryGetValue(key, out data) || data == null)
+            {
+                return 0;
+            }
+
+            data.EnsureValidShape();
+            return data.ShiftRPM[gear - 1];
+        }
+
+        [OnDeserialized]
+        private void OnDeserialized(StreamingContext context)
+        {
+            if (ShiftAssistStacks == null)
+            {
+                ShiftAssistStacks = new Dictionary<string, ShiftStackData>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            var normalized = new Dictionary<string, ShiftStackData>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kvp in ShiftAssistStacks)
+            {
+                string key = string.IsNullOrWhiteSpace(kvp.Key) ? "Default" : kvp.Key.Trim();
+                ShiftStackData data = kvp.Value ?? new ShiftStackData();
+                data.EnsureValidShape();
+                normalized[key] = data;
+            }
+
+            ShiftAssistStacks = normalized;
+        }
+    }
+
+    [JsonObject(MemberSerialization.OptIn)]
+    public class ShiftStackData
+    {
+        [JsonProperty]
+        public int[] ShiftRPM { get; set; } = new int[8];
+
+        public void EnsureValidShape()
+        {
+            if (ShiftRPM == null || ShiftRPM.Length != 8)
+            {
+                var corrected = new int[8];
+                if (ShiftRPM != null)
+                {
+                    int count = Math.Min(8, ShiftRPM.Length);
+                    for (int i = 0; i < count; i++)
+                    {
+                        corrected[i] = ShiftRPM[i] < 0 ? 0 : ShiftRPM[i];
+                    }
+                }
+
+                ShiftRPM = corrected;
+            }
+            else
+            {
+                for (int i = 0; i < ShiftRPM.Length; i++)
+                {
+                    if (ShiftRPM[i] < 0)
+                    {
+                        ShiftRPM[i] = 0;
+                    }
+                }
             }
         }
     }

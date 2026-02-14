@@ -205,6 +205,67 @@
                 </styles:SHTabItem>
 
 
+                <styles:SHTabItem Header="SHIFT">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="10">
+                            <styles:SHToggleCheckbox Content="Enable Shift Assist" IsChecked="{Binding ShiftAssistEnabled, Mode=TwoWay}" />
+
+                            <TextBlock Text="Gear stack selection" FontWeight="SemiBold" Margin="0,10,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" ItemsSource="{Binding ShiftStackIds}" SelectedItem="{Binding SelectedShiftStackId, Mode=TwoWay}" MinWidth="180"/>
+                                <styles:SHButtonPrimary Grid.Column="1" Content="Add stack from current" Command="{Binding ShiftAddCurrentStackCommand}" Margin="8,0,0,0" />
+                            </Grid>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" ItemsSource="{Binding ShiftStackIds}" SelectedItem="{Binding ShiftCopySourceStackId, Mode=TwoWay}" MinWidth="180"/>
+                                <styles:SHButtonPrimary Grid.Column="1" Content="Copy from..." Command="{Binding ShiftCopyFromStackCommand}" Margin="8,0,0,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding ActiveShiftStackLabel}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            </Grid>
+
+                            <TextBlock Text="Gear targets (RPM)" FontWeight="SemiBold" Margin="0,12,0,6"/>
+                            <ItemsControl ItemsSource="{Binding ShiftGearRows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="120" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding GearLabel}" VerticalAlignment="Center" />
+                                            <TextBox Grid.Column="1" Text="{Binding RpmText, Mode=OneWay}" LostFocus="ShiftRpmTextBox_LostFocus" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Sound" FontWeight="SemiBold" Margin="0,14,0,6"/>
+                            <styles:SHToggleCheckbox Content="Use custom sound" IsChecked="{Binding ShiftAssistUseCustomWav, Mode=TwoWay}" />
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Text="{Binding ShiftAssistCustomWavPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center" />
+                                <styles:SHButtonPrimary Grid.Column="1" Content="Browse" Command="{Binding ShiftBrowseCustomWavCommand}" Margin="8,0,0,0" />
+                                <styles:SHButtonPrimary Grid.Column="2" Content="Use embedded default" Command="{Binding ShiftUseEmbeddedDefaultCommand}" Margin="8,0,0,0" />
+                                <styles:SHButtonPrimary Grid.Column="3" Content="Test Beep" Command="{Binding ShiftTestBeepCommand}" Margin="8,0,0,0" />
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </styles:SHTabItem>
+
+
                 <styles:SHTabItem Header="FUEL">
                     <StackPanel Margin="10" DataContext="{Binding SelectedProfile}">
                         <ui:TitledSlider Title="Contingency Laps/Litres" Minimum="0" Maximum="10" Value="{Binding FuelContingencyValue, Mode=TwoWay}"

@@ -4,11 +4,13 @@ using SimHub.Plugins; // Required for this.GetPluginManager()
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Data;
+using Microsoft.Win32;
 
 namespace LaunchPlugin
 {
@@ -39,6 +41,14 @@ namespace LaunchPlugin
         private readonly Action<string, bool> _setTrackMarkersLockForKey;
         private readonly Action _reloadTrackMarkersFromDisk;
         private readonly Action<string> _resetTrackMarkersForKey;
+        private readonly Func<string> _getCurrentGearStackId;
+        private readonly Func<bool> _getShiftAssistEnabled;
+        private readonly Action<bool> _setShiftAssistEnabled;
+        private readonly Func<bool> _getShiftAssistUseCustomWav;
+        private readonly Action<bool> _setShiftAssistUseCustomWav;
+        private readonly Func<string> _getShiftAssistCustomWavPath;
+        private readonly Action<string> _setShiftAssistCustomWavPath;
+        private readonly Action _playShiftAssistTestBeep;
         private readonly string _profilesFilePath;
         private readonly string _legacyProfilesFilePath;
         private bool _suppressTrackMarkersLockAction;
@@ -143,6 +153,10 @@ namespace LaunchPlugin
                     SelectedTrack = liveTrack ?? TracksForSelectedProfile.FirstOrDefault();
 
                     RefreshTrackMarkersSnapshotForSelectedTrack();
+                    SetSelectedShiftStackFromLiveOrDefault();
+                    OnPropertyChanged(nameof(ShiftStackIds));
+                    OnPropertyChanged(nameof(ShiftGearRows));
+                    OnPropertyChanged(nameof(ActiveShiftStackLabel));
                 }
             }
         }
@@ -192,6 +206,7 @@ namespace LaunchPlugin
                     car.TrafficApproachWarnSeconds = defaultProfile.TrafficApproachWarnSeconds;
                     car.PitEntryDecelMps2 = defaultProfile.PitEntryDecelMps2;
                     car.PitEntryBufferM = defaultProfile.PitEntryBufferM;
+                    CloneShiftStacks(defaultProfile, car);
                 }
 
                 // Ensure the newly created car profile has a default track record
@@ -519,6 +534,109 @@ namespace LaunchPlugin
             }
         }
 
+        public bool ShiftAssistEnabled
+        {
+            get => _getShiftAssistEnabled?.Invoke() == true;
+            set
+            {
+                _setShiftAssistEnabled?.Invoke(value);
+                OnPropertyChanged();
+            }
+        }
+
+        public bool ShiftAssistUseCustomWav
+        {
+            get => _getShiftAssistUseCustomWav?.Invoke() == true;
+            set
+            {
+                _setShiftAssistUseCustomWav?.Invoke(value);
+                OnPropertyChanged();
+            }
+        }
+
+        public string ShiftAssistCustomWavPath
+        {
+            get => _getShiftAssistCustomWavPath?.Invoke() ?? string.Empty;
+            set
+            {
+                _setShiftAssistCustomWavPath?.Invoke(value ?? string.Empty);
+                OnPropertyChanged();
+            }
+        }
+
+        private string _selectedShiftStackId = "Default";
+        public string SelectedShiftStackId
+        {
+            get => string.IsNullOrWhiteSpace(_selectedShiftStackId) ? "Default" : _selectedShiftStackId;
+            set
+            {
+                var normalized = string.IsNullOrWhiteSpace(value) ? "Default" : value.Trim();
+                if (string.Equals(_selectedShiftStackId, normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                _selectedShiftStackId = normalized;
+                EnsureShiftStackForSelectedProfile(normalized);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ActiveShiftStackLabel));
+                OnPropertyChanged(nameof(ShiftStackIds));
+                OnPropertyChanged(nameof(ShiftGearRows));
+            }
+        }
+
+        public string ActiveShiftStackLabel => $"Active stack: {SelectedShiftStackId}";
+
+        public IEnumerable<string> ShiftStackIds
+        {
+            get
+            {
+                var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                set.Add("Default");
+
+                string current = _getCurrentGearStackId?.Invoke();
+                if (!string.IsNullOrWhiteSpace(current)) set.Add(current.Trim());
+
+                if (SelectedProfile?.ShiftAssistStacks != null)
+                {
+                    foreach (var key in SelectedProfile.ShiftAssistStacks.Keys)
+                    {
+                        if (!string.IsNullOrWhiteSpace(key)) set.Add(key.Trim());
+                    }
+                }
+
+                return set.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
+            }
+        }
+
+        public IEnumerable<ShiftGearRow> ShiftGearRows
+        {
+            get
+            {
+                var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
+                for (int i = 0; i < 8; i++)
+                {
+                    yield return new ShiftGearRow
+                    {
+                        GearLabel = $"Gear {i + 1}",
+                        RpmText = stack.ShiftRPM[i] > 0 ? stack.ShiftRPM[i].ToString(CultureInfo.InvariantCulture) : string.Empty,
+                        SaveAction = txt =>
+                        {
+                            int value;
+                            if (!int.TryParse((txt ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value) || value < 0)
+                            {
+                                value = 0;
+                            }
+
+                            stack.ShiftRPM[i] = value;
+                            SaveProfiles();
+                            OnPropertyChanged(nameof(ShiftGearRows));
+                        }
+                    };
+                }
+            }
+        }
+
         // --- Commands for UI Buttons ---
         public RelayCommand NewProfileCommand { get; }
         public RelayCommand CopySettingsCommand { get; }
@@ -531,9 +649,25 @@ namespace LaunchPlugin
         public RelayCommand RelearnDryCommand { get; }
         public RelayCommand RelearnWetCommand { get; }
         public RelayCommand LearnBaseTankCommand { get; }
+        public RelayCommand ShiftAddCurrentStackCommand { get; }
+        public RelayCommand ShiftCopyFromStackCommand { get; }
+        public RelayCommand ShiftBrowseCustomWavCommand { get; }
+        public RelayCommand ShiftUseEmbeddedDefaultCommand { get; }
+        public RelayCommand ShiftTestBeepCommand { get; }
+
+        private string _shiftCopySourceStackId = "Default";
+        public string ShiftCopySourceStackId
+        {
+            get => _shiftCopySourceStackId;
+            set
+            {
+                _shiftCopySourceStackId = string.IsNullOrWhiteSpace(value) ? "Default" : value.Trim();
+                OnPropertyChanged();
+            }
+        }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey, Func<string> getCurrentGearStackId, Func<bool> getShiftAssistEnabled, Action<bool> setShiftAssistEnabled, Func<bool> getShiftAssistUseCustomWav, Action<bool> setShiftAssistUseCustomWav, Func<string> getShiftAssistCustomWavPath, Action<string> setShiftAssistCustomWavPath, Action playShiftAssistTestBeep)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
@@ -543,6 +677,14 @@ namespace LaunchPlugin
             _setTrackMarkersLockForKey = setTrackMarkersLockForKey;
             _reloadTrackMarkersFromDisk = reloadTrackMarkersFromDisk;
             _resetTrackMarkersForKey = resetTrackMarkersForKey;
+            _getCurrentGearStackId = getCurrentGearStackId;
+            _getShiftAssistEnabled = getShiftAssistEnabled;
+            _setShiftAssistEnabled = setShiftAssistEnabled;
+            _getShiftAssistUseCustomWav = getShiftAssistUseCustomWav;
+            _setShiftAssistUseCustomWav = setShiftAssistUseCustomWav;
+            _getShiftAssistCustomWavPath = getShiftAssistCustomWavPath;
+            _setShiftAssistCustomWavPath = setShiftAssistCustomWavPath;
+            _playShiftAssistTestBeep = playShiftAssistTestBeep;
             CarProfiles = new ObservableCollection<CarProfile>();
 
             // Define the path for the JSON file in SimHub's common storage folder
@@ -561,6 +703,11 @@ namespace LaunchPlugin
             RelearnDryCommand = new RelayCommand(p => RelearnDryConditions(), p => SelectedTrack != null);
             RelearnWetCommand = new RelayCommand(p => RelearnWetConditions(), p => SelectedTrack != null);
             LearnBaseTankCommand = new RelayCommand(p => LearnBaseTankFromLive(), p => IsProfileSelected);
+            ShiftAddCurrentStackCommand = new RelayCommand(p => AddCurrentShiftStack(), p => IsProfileSelected);
+            ShiftCopyFromStackCommand = new RelayCommand(p => CopyShiftStackFromSource(), p => IsProfileSelected);
+            ShiftBrowseCustomWavCommand = new RelayCommand(p => BrowseShiftCustomWav());
+            ShiftUseEmbeddedDefaultCommand = new RelayCommand(p => UseEmbeddedDefaultSound());
+            ShiftTestBeepCommand = new RelayCommand(p => _playShiftAssistTestBeep?.Invoke());
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
         }
@@ -603,6 +750,7 @@ namespace LaunchPlugin
                 newProfile.RacePaceDeltaSeconds = defaultProfile.RacePaceDeltaSeconds;
                 newProfile.PitEntryDecelMps2 = defaultProfile.PitEntryDecelMps2;
                 newProfile.PitEntryBufferM = defaultProfile.PitEntryBufferM;
+                CloneShiftStacks(defaultProfile, newProfile);
             }
 
             // Ensure the new profile has a unique name
@@ -653,6 +801,24 @@ namespace LaunchPlugin
         }
 
         // Helper method to avoid duplicating code
+        private static void CloneShiftStacks(CarProfile source, CarProfile destination)
+        {
+            destination.ShiftAssistStacks = new Dictionary<string, ShiftStackData>(StringComparer.OrdinalIgnoreCase);
+            if (source?.ShiftAssistStacks == null)
+            {
+                return;
+            }
+
+            foreach (var kvp in source.ShiftAssistStacks)
+            {
+                var copied = new ShiftStackData();
+                var src = kvp.Value ?? new ShiftStackData();
+                src.EnsureValidShape();
+                for (int i = 0; i < 8; i++) copied.ShiftRPM[i] = src.ShiftRPM[i];
+                destination.ShiftAssistStacks[kvp.Key] = copied;
+            }
+        }
+
         private void CopyProfileProperties(CarProfile source, CarProfile destination)
         {
             // This copies every setting except the name
@@ -676,6 +842,71 @@ namespace LaunchPlugin
             destination.BaseTankLitres = source.BaseTankLitres;
             destination.PitEntryDecelMps2 = source.PitEntryDecelMps2;
             destination.PitEntryBufferM = source.PitEntryBufferM;
+
+            CloneShiftStacks(source, destination);
+        }
+
+        private ShiftStackData EnsureShiftStackForSelectedProfile(string stackId)
+        {
+            if (SelectedProfile == null)
+            {
+                return new ShiftStackData();
+            }
+
+            return SelectedProfile.EnsureShiftStack(stackId);
+        }
+
+        private void SetSelectedShiftStackFromLiveOrDefault()
+        {
+            string live = _getCurrentGearStackId?.Invoke();
+            string preferred = !string.IsNullOrWhiteSpace(live) ? live.Trim() : "Default";
+            EnsureShiftStackForSelectedProfile(preferred);
+            _selectedShiftStackId = preferred;
+        }
+
+        private void AddCurrentShiftStack()
+        {
+            if (SelectedProfile == null) return;
+            string live = _getCurrentGearStackId?.Invoke();
+            string stack = string.IsNullOrWhiteSpace(live) ? "Default" : live.Trim();
+            EnsureShiftStackForSelectedProfile(stack);
+            SelectedShiftStackId = stack;
+            SaveProfiles();
+        }
+
+        private void CopyShiftStackFromSource()
+        {
+            if (SelectedProfile == null) return;
+            var source = EnsureShiftStackForSelectedProfile(ShiftCopySourceStackId);
+            var destination = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
+            for (int i = 0; i < 8; i++)
+            {
+                destination.ShiftRPM[i] = source.ShiftRPM[i];
+            }
+
+            SaveProfiles();
+            OnPropertyChanged(nameof(ShiftGearRows));
+        }
+
+        private void BrowseShiftCustomWav()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "WAV files (*.wav)|*.wav|All files (*.*)|*.*",
+                Multiselect = false,
+                CheckFileExists = true
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                ShiftAssistCustomWavPath = dialog.FileName;
+            }
+        }
+
+        private void UseEmbeddedDefaultSound()
+        {
+            ShiftAssistUseCustomWav = false;
+            ShiftAssistCustomWavPath = string.Empty;
         }
 
         private void LearnBaseTankFromLive()
@@ -807,6 +1038,15 @@ namespace LaunchPlugin
                     {
                         foreach (var profile in loadedProfiles)
                         {
+                            if (profile.ShiftAssistStacks == null)
+                            {
+                                profile.ShiftAssistStacks = new Dictionary<string, ShiftStackData>(StringComparer.OrdinalIgnoreCase);
+                            }
+                            foreach (var stack in profile.ShiftAssistStacks.Values)
+                            {
+                                stack?.EnsureValidShape();
+                            }
+
                             if (profile.BaseTankLitres.HasValue)
                             {
                                 var value = profile.BaseTankLitres.Value;
@@ -1125,5 +1365,12 @@ namespace LaunchPlugin
             track.WetConditionsLocked = false;
             SaveProfiles();
         }
+    }
+
+    public class ShiftGearRow
+    {
+        public string GearLabel { get; set; }
+        public string RpmText { get; set; }
+        public Action<string> SaveAction { get; set; }
     }
 }
