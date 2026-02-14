@@ -5840,6 +5840,7 @@ namespace LaunchPlugin
 
                 if (gear >= 1 && gear <= 8)
                 {
+                    ClearShiftAssistDelayPending();
                     _shiftAssistPendingDelayGear = gear;
                     _shiftAssistPendingDelayBeepUtc = nowUtc;
                     _shiftAssistPendingDelayActive = true;

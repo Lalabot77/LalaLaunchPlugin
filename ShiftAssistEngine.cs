@@ -48,11 +48,14 @@ namespace LaunchPlugin
                     {
                         double rpmRate = (engineRpm - _lastRpm) / dtSec;
                         int roundedRate = (int)Math.Round(rpmRate);
-                        if (roundedRate > 0 && roundedRate >= 500 && roundedRate <= 50000 && leadTimeMs > 0)
+                        if (roundedRate > 0 && roundedRate >= 500 && roundedRate <= 50000)
                         {
                             LastRpmRate = roundedRate;
-                            double rpmLead = rpmRate * (leadTimeMs / 1000.0);
-                            LastEffectiveTargetRpm = Math.Max(1, (int)Math.Round(targetRpm - rpmLead));
+                            if (leadTimeMs > 0)
+                            {
+                                double rpmLead = rpmRate * (leadTimeMs / 1000.0);
+                                LastEffectiveTargetRpm = Math.Max(1, (int)Math.Round(targetRpm - rpmLead));
+                            }
                         }
                     }
                 }
@@ -76,6 +79,7 @@ namespace LaunchPlugin
 
             if (currentGear < 1 || currentGear > 8 || targetRpm <= 0)
             {
+                _suppressUntilBelowReset = false;
                 LastState = ShiftAssistState.NoData;
                 return false;
             }
