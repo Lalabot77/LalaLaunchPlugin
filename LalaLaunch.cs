@@ -781,6 +781,109 @@ namespace LaunchPlugin
             return value / 100.0;
         }
 
+        private int GetShiftAssistBeepDurationMs()
+        {
+            int value = Settings?.ShiftAssistBeepDurationMs ?? ShiftAssistBeepDurationMsDefault;
+            if (value < ShiftAssistBeepDurationMsMin) value = ShiftAssistBeepDurationMsMin;
+            if (value > ShiftAssistBeepDurationMsMax) value = ShiftAssistBeepDurationMsMax;
+            return value;
+        }
+
+        private int GetShiftAssistLeadTimeMs()
+        {
+            int value = Settings?.ShiftAssistLeadTimeMs ?? ShiftAssistLeadTimeMsDefault;
+            if (value < ShiftAssistLeadTimeMsMin) value = ShiftAssistLeadTimeMsMin;
+            if (value > ShiftAssistLeadTimeMsMax) value = ShiftAssistLeadTimeMsMax;
+            return value;
+        }
+
+        private static int ClampShiftAssistDelayMs(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return 0;
+            }
+
+            if (value < 50.0 || value > 2000.0)
+            {
+                return 0;
+            }
+
+            return (int)Math.Round(value);
+        }
+
+        private static int NormalizeShiftAssistGear(int gear)
+        {
+            return gear >= 1 && gear <= 8 ? gear : 0;
+        }
+
+        private void ClearShiftAssistDelayPending()
+        {
+            _shiftAssistPendingDelayActive = false;
+            _shiftAssistPendingDelayGear = 0;
+            _shiftAssistPendingDelayBeepUtc = DateTime.MinValue;
+        }
+
+        private void ResetShiftAssistDelayStats()
+        {
+            Array.Clear(_shiftAssistDelaySamples, 0, _shiftAssistDelaySamples.Length);
+            Array.Clear(_shiftAssistDelaySampleCounts, 0, _shiftAssistDelaySampleCounts.Length);
+            Array.Clear(_shiftAssistDelaySampleNextIndex, 0, _shiftAssistDelaySampleNextIndex.Length);
+            Array.Clear(_shiftAssistDelaySampleSums, 0, _shiftAssistDelaySampleSums.Length);
+            ClearShiftAssistDelayPending();
+        }
+
+        private void AddShiftAssistDelaySample(int gear, int delayMs)
+        {
+            if (gear < 1 || gear > 8 || delayMs <= 0)
+            {
+                return;
+            }
+
+            int idx = gear - 1;
+            int count = _shiftAssistDelaySampleCounts[idx];
+            int writeIndex = _shiftAssistDelaySampleNextIndex[idx];
+            if (count >= ShiftAssistDelayHistorySize)
+            {
+                _shiftAssistDelaySampleSums[idx] -= _shiftAssistDelaySamples[idx, writeIndex];
+            }
+            else
+            {
+                _shiftAssistDelaySampleCounts[idx] = count + 1;
+            }
+
+            _shiftAssistDelaySamples[idx, writeIndex] = delayMs;
+            _shiftAssistDelaySampleSums[idx] += delayMs;
+            _shiftAssistDelaySampleNextIndex[idx] = (writeIndex + 1) % ShiftAssistDelayHistorySize;
+        }
+
+        private int GetShiftAssistDelayAverageMs(int gear)
+        {
+            if (gear < 1 || gear > 8)
+            {
+                return 0;
+            }
+
+            int idx = gear - 1;
+            int count = _shiftAssistDelaySampleCounts[idx];
+            if (count <= 0)
+            {
+                return 0;
+            }
+
+            return (int)Math.Round((double)_shiftAssistDelaySampleSums[idx] / count);
+        }
+
+        private int GetShiftAssistDelayCount(int gear)
+        {
+            if (gear < 1 || gear > 8)
+            {
+                return 0;
+            }
+
+            return _shiftAssistDelaySampleCounts[gear - 1];
+        }
+
         private static double ComputeStableMedian(List<double> samples)
         {
             if (samples == null || samples.Count == 0) return 0;
@@ -3256,6 +3359,13 @@ namespace LaunchPlugin
 
         private const int ShiftAssistCooldownMsDefault = 500;
         private const int ShiftAssistResetHysteresisRpmDefault = 200;
+        private const int ShiftAssistBeepDurationMsDefault = 250;
+        private const int ShiftAssistBeepDurationMsMin = 100;
+        private const int ShiftAssistBeepDurationMsMax = 1000;
+        private const int ShiftAssistLeadTimeMsDefault = 200;
+        private const int ShiftAssistLeadTimeMsMin = 0;
+        private const int ShiftAssistLeadTimeMsMax = 500;
+        private const int ShiftAssistDelayHistorySize = 5;
         private readonly ShiftAssistEngine _shiftAssistEngine = new ShiftAssistEngine();
         private ShiftAssistAudio _shiftAssistAudio;
         private string _shiftAssistActiveGearStackId = "Default";
@@ -3263,6 +3373,14 @@ namespace LaunchPlugin
         private bool _shiftAssistLastEnabled;
         private DateTime _shiftAssistBeepUntilUtc = DateTime.MinValue;
         private bool _shiftAssistBeepLatched;
+        private int _shiftAssistLastGear;
+        private int _shiftAssistPendingDelayGear;
+        private DateTime _shiftAssistPendingDelayBeepUtc = DateTime.MinValue;
+        private bool _shiftAssistPendingDelayActive;
+        private readonly int[,] _shiftAssistDelaySamples = new int[8, ShiftAssistDelayHistorySize];
+        private readonly int[] _shiftAssistDelaySampleCounts = new int[8];
+        private readonly int[] _shiftAssistDelaySampleNextIndex = new int[8];
+        private readonly int[] _shiftAssistDelaySampleSums = new int[8];
 
         private double _lastFuel = 0.0;
 
@@ -3336,6 +3454,28 @@ namespace LaunchPlugin
                     Settings.ShiftAssistEnabled = enabled;
                     SaveSettings();
                 },
+                () => GetShiftAssistBeepDurationMs(),
+                (durationMs) =>
+                {
+                    if (Settings == null)
+                    {
+                        return;
+                    }
+
+                    Settings.ShiftAssistBeepDurationMs = durationMs;
+                    SaveSettings();
+                },
+                () => GetShiftAssistLeadTimeMs(),
+                (leadTimeMs) =>
+                {
+                    if (Settings == null)
+                    {
+                        return;
+                    }
+
+                    Settings.ShiftAssistLeadTimeMs = leadTimeMs;
+                    SaveSettings();
+                },
                 () => Settings?.ShiftAssistUseCustomWav == true,
                 (enabled) =>
                 {
@@ -3350,7 +3490,7 @@ namespace LaunchPlugin
                     _shiftAssistAudio.ResetInvalidCustomWarning();
                     SaveSettings();
                 },
-                () => _shiftAssistAudio.PlayShiftBeep()
+                () => TriggerShiftAssistTestBeep()
             );
 
 
@@ -3391,7 +3531,25 @@ namespace LaunchPlugin
             this.AddAction("LaunchMode", (a, b) => LaunchMode());
             this.AddAction("TrackMarkersLock", (a, b) => SetTrackMarkersLocked(true));
             this.AddAction("TrackMarkersUnlock", (a, b) => SetTrackMarkersLocked(false));
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock");
+            this.AddAction("ShiftAssist_ResetDelayStats", (a, b) =>
+            {
+                ResetShiftAssistDelayStats();
+                ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Delay stats reset via action.");
+            });
+            this.AddAction("ShiftAssist_ToggleShiftAssist", (a, b) =>
+            {
+                if (Settings == null)
+                {
+                    return;
+                }
+
+                Settings.ShiftAssistEnabled = !Settings.ShiftAssistEnabled;
+                SaveSettings();
+                SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Toggle action -> Enabled={Settings.ShiftAssistEnabled}");
+            });
+            this.AddAction("ShiftAssist_TestBeep", (a, b) => TriggerShiftAssistTestBeep());
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_TestBeep");
 
             AttachCore("LalaLaunch.Friends.Count", () => _friendsCount);
 
@@ -3660,8 +3818,26 @@ namespace LaunchPlugin
 
             AttachCore("ShiftAssist.ActiveGearStackId", () => _shiftAssistActiveGearStackId ?? "Default");
             AttachCore("ShiftAssist.TargetRPM_CurrentGear", () => _shiftAssistTargetCurrentGear);
+            AttachCore("ShiftAssist.EffectiveTargetRPM_CurrentGear", () => _shiftAssistEngine.LastEffectiveTargetRpm);
+            AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
             AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
             AttachCore("ShiftAssist.State", () => _shiftAssistEngine.LastState.ToString());
+            AttachCore("ShiftAssist.DelayAvg_G1", () => GetShiftAssistDelayAverageMs(1));
+            AttachCore("ShiftAssist.DelayAvg_G2", () => GetShiftAssistDelayAverageMs(2));
+            AttachCore("ShiftAssist.DelayAvg_G3", () => GetShiftAssistDelayAverageMs(3));
+            AttachCore("ShiftAssist.DelayAvg_G4", () => GetShiftAssistDelayAverageMs(4));
+            AttachCore("ShiftAssist.DelayAvg_G5", () => GetShiftAssistDelayAverageMs(5));
+            AttachCore("ShiftAssist.DelayAvg_G6", () => GetShiftAssistDelayAverageMs(6));
+            AttachCore("ShiftAssist.DelayAvg_G7", () => GetShiftAssistDelayAverageMs(7));
+            AttachCore("ShiftAssist.DelayAvg_G8", () => GetShiftAssistDelayAverageMs(8));
+            AttachCore("ShiftAssist.DelayN_G1", () => GetShiftAssistDelayCount(1));
+            AttachCore("ShiftAssist.DelayN_G2", () => GetShiftAssistDelayCount(2));
+            AttachCore("ShiftAssist.DelayN_G3", () => GetShiftAssistDelayCount(3));
+            AttachCore("ShiftAssist.DelayN_G4", () => GetShiftAssistDelayCount(4));
+            AttachCore("ShiftAssist.DelayN_G5", () => GetShiftAssistDelayCount(5));
+            AttachCore("ShiftAssist.DelayN_G6", () => GetShiftAssistDelayCount(6));
+            AttachCore("ShiftAssist.DelayN_G7", () => GetShiftAssistDelayCount(7));
+            AttachCore("ShiftAssist.DelayN_G8", () => GetShiftAssistDelayCount(8));
 
             // --- TESTING / DEBUGGING (VERBOSE) ---
             // REMOVED: MSG.PitPhaseDebug (old vs new) — PitEngine is single source of truth now.
@@ -4264,6 +4440,7 @@ namespace LaunchPlugin
             var json = File.ReadAllText(path);
             var settings = JsonConvert.DeserializeObject<LaunchPluginSettings>(json) ?? new LaunchPluginSettings();
             NormalizeCarSaStyleSettings(settings);
+            NormalizeShiftAssistSettings(settings);
             return settings;
         }
 
@@ -4282,6 +4459,7 @@ namespace LaunchPlugin
             var effectiveSettings = settings ?? new LaunchPluginSettings();
             EnforceHardDebugSettings(effectiveSettings);
             NormalizeCarSaStyleSettings(effectiveSettings);
+            NormalizeShiftAssistSettings(effectiveSettings);
             var json = JsonConvert.SerializeObject(effectiveSettings, Formatting.Indented);
             File.WriteAllText(path, json);
         }
@@ -4296,6 +4474,32 @@ namespace LaunchPlugin
             if (!HardDebugEnabled)
             {
                 settings.EnableSoftDebug = false;
+            }
+        }
+
+        private static void NormalizeShiftAssistSettings(LaunchPluginSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            if (settings.ShiftAssistBeepDurationMs < ShiftAssistBeepDurationMsMin)
+            {
+                settings.ShiftAssistBeepDurationMs = ShiftAssistBeepDurationMsMin;
+            }
+            else if (settings.ShiftAssistBeepDurationMs > ShiftAssistBeepDurationMsMax)
+            {
+                settings.ShiftAssistBeepDurationMs = ShiftAssistBeepDurationMsMax;
+            }
+
+            if (settings.ShiftAssistLeadTimeMs < ShiftAssistLeadTimeMsMin)
+            {
+                settings.ShiftAssistLeadTimeMs = ShiftAssistLeadTimeMsMin;
+            }
+            else if (settings.ShiftAssistLeadTimeMs > ShiftAssistLeadTimeMsMax)
+            {
+                settings.ShiftAssistLeadTimeMs = ShiftAssistLeadTimeMsMax;
             }
         }
 
@@ -5503,6 +5707,20 @@ namespace LaunchPlugin
 
         }
 
+        private void TriggerShiftAssistTestBeep()
+        {
+            int durationMs = GetShiftAssistBeepDurationMs();
+            DateTime nowUtc = DateTime.UtcNow;
+            _shiftAssistBeepUntilUtc = nowUtc.AddMilliseconds(durationMs);
+            _shiftAssistBeepLatched = true;
+            _shiftAssistAudio?.PlayShiftBeep();
+
+            if (IsVerboseDebugLoggingOn)
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Test beep triggered (duration={durationMs}ms)");
+            }
+        }
+
         private void EvaluateShiftAssist(PluginManager pluginManager, GameData data)
         {
             var settings = Settings;
@@ -5513,7 +5731,9 @@ namespace LaunchPlugin
                 _shiftAssistActiveGearStackId = "Default";
                 _shiftAssistBeepUntilUtc = DateTime.MinValue;
                 _shiftAssistBeepLatched = false;
+                _shiftAssistLastGear = 0;
                 _shiftAssistEngine.Reset();
+                ClearShiftAssistDelayPending();
                 if (_shiftAssistLastEnabled)
                 {
                     SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Enabled=false");
@@ -5528,7 +5748,8 @@ namespace LaunchPlugin
                 _shiftAssistLastEnabled = true;
             }
 
-            _shiftAssistBeepLatched = DateTime.UtcNow <= _shiftAssistBeepUntilUtc;
+            DateTime nowUtc = DateTime.UtcNow;
+            _shiftAssistBeepLatched = nowUtc <= _shiftAssistBeepUntilUtc;
 
             int gear;
             if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Gear", out gear))
@@ -5552,10 +5773,36 @@ namespace LaunchPlugin
                 }
             }
 
-            if (gear <= 0)
+            gear = NormalizeShiftAssistGear(gear);
+            int previousGear = _shiftAssistLastGear;
+            bool gearChanged = previousGear != gear;
+
+            if (gearChanged && _shiftAssistPendingDelayActive)
             {
-                gear = 0;
+                if (gear == (_shiftAssistPendingDelayGear + 1))
+                {
+                    int delayMs = ClampShiftAssistDelayMs((nowUtc - _shiftAssistPendingDelayBeepUtc).TotalMilliseconds);
+                    if (delayMs > 0)
+                    {
+                        AddShiftAssistDelaySample(_shiftAssistPendingDelayGear, delayMs);
+                        ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                        if (IsVerboseDebugLoggingOn)
+                        {
+                            int avgDelay = GetShiftAssistDelayAverageMs(_shiftAssistPendingDelayGear);
+                            SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Delay sample captured gear={_shiftAssistPendingDelayGear} delayMs={delayMs} avgMs={avgDelay}");
+                        }
+                    }
+
+                    ClearShiftAssistDelayPending();
+                }
+                else if (gear <= _shiftAssistPendingDelayGear || gear == 0)
+                {
+                    ClearShiftAssistDelayPending();
+                }
             }
+
+            _shiftAssistLastGear = gear;
+
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
             double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
@@ -5574,18 +5821,35 @@ namespace LaunchPlugin
             int targetRpm = ActiveProfile?.GetShiftTargetForGear(gearStackId, gear) ?? 0;
             _shiftAssistTargetCurrentGear = targetRpm;
 
+            int leadTimeMs = GetShiftAssistLeadTimeMs();
             bool beep = _shiftAssistEngine.Evaluate(
                 gear,
                 rpm,
                 throttle01,
                 targetRpm,
                 ShiftAssistCooldownMsDefault,
-                ShiftAssistResetHysteresisRpmDefault);
+                ShiftAssistResetHysteresisRpmDefault,
+                leadTimeMs);
 
             if (beep)
             {
-                _shiftAssistBeepUntilUtc = DateTime.UtcNow.AddMilliseconds(500);
+                int durationMs = GetShiftAssistBeepDurationMs();
+                _shiftAssistBeepUntilUtc = nowUtc.AddMilliseconds(durationMs);
+                _shiftAssistBeepLatched = true;
                 _shiftAssistAudio?.PlayShiftBeep();
+
+                if (gear >= 1 && gear <= 8)
+                {
+                    _shiftAssistPendingDelayGear = gear;
+                    _shiftAssistPendingDelayBeepUtc = nowUtc;
+                    _shiftAssistPendingDelayActive = true;
+                }
+
+                if (IsVerboseDebugLoggingOn)
+                {
+                    SimHub.Logging.Current.Info(
+                        $"[LalaPlugin:ShiftAssist] Beep gear={gear} target={targetRpm} effectiveTarget={_shiftAssistEngine.LastEffectiveTargetRpm} rpm={rpm} throttle={throttle01:F2} leadMs={leadTimeMs}");
+                }
             }
         }
 
@@ -11311,6 +11575,8 @@ namespace LaunchPlugin
         public string TraceLogPath { get; set; } = "";
         public bool EnableTelemetryTracing { get; set; } = true;
         public bool ShiftAssistEnabled { get; set; } = false;
+        public int ShiftAssistBeepDurationMs { get; set; } = LalaLaunch.ShiftAssistBeepDurationMsDefault;
+        public int ShiftAssistLeadTimeMs { get; set; } = LalaLaunch.ShiftAssistLeadTimeMsDefault;
         public bool ShiftAssistUseCustomWav { get; set; } = false;
         public string ShiftAssistCustomWavPath { get; set; } = "";
         public double NotRelevantGapSec { get; set; } = LalaLaunch.CarSANotRelevantGapSecDefault;

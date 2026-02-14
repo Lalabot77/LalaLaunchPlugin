@@ -44,6 +44,10 @@ namespace LaunchPlugin
         private readonly Func<string> _getCurrentGearStackId;
         private readonly Func<bool> _getShiftAssistEnabled;
         private readonly Action<bool> _setShiftAssistEnabled;
+        private readonly Func<int> _getShiftAssistBeepDurationMs;
+        private readonly Action<int> _setShiftAssistBeepDurationMs;
+        private readonly Func<int> _getShiftAssistLeadTimeMs;
+        private readonly Action<int> _setShiftAssistLeadTimeMs;
         private readonly Func<bool> _getShiftAssistUseCustomWav;
         private readonly Action<bool> _setShiftAssistUseCustomWav;
         private readonly Func<string> _getShiftAssistCustomWavPath;
@@ -547,6 +551,32 @@ namespace LaunchPlugin
             }
         }
 
+        public int ShiftAssistBeepDurationMs
+        {
+            get => _getShiftAssistBeepDurationMs?.Invoke() ?? 250;
+            set
+            {
+                int clamped = value;
+                if (clamped < 100) clamped = 100;
+                if (clamped > 1000) clamped = 1000;
+                _setShiftAssistBeepDurationMs?.Invoke(clamped);
+                OnPropertyChanged();
+            }
+        }
+
+        public int ShiftAssistLeadTimeMs
+        {
+            get => _getShiftAssistLeadTimeMs?.Invoke() ?? 200;
+            set
+            {
+                int clamped = value;
+                if (clamped < 0) clamped = 0;
+                if (clamped > 500) clamped = 500;
+                _setShiftAssistLeadTimeMs?.Invoke(clamped);
+                OnPropertyChanged();
+            }
+        }
+
         public bool ShiftAssistUseCustomWav
         {
             get => _getShiftAssistUseCustomWav?.Invoke() == true;
@@ -662,10 +692,16 @@ namespace LaunchPlugin
                 for (int i = 0; i < targetRows; i++)
                 {
                     int gearIdx = i;
+                    int rowGear = gearIdx + 1;
+                    int avgDelayMs = TryReadPluginInt($"ShiftAssist.DelayAvg_G{rowGear}");
+                    int delaySamples = TryReadPluginInt($"ShiftAssist.DelayN_G{rowGear}");
                     yield return new ShiftGearRow
                     {
-                        GearLabel = $"Shift from Gear {gearIdx + 1}",
+                        GearLabel = $"Shift from Gear {rowGear}",
                         RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
+                        DelaySummary = delaySamples > 0 && avgDelayMs > 0
+                            ? string.Format(CultureInfo.InvariantCulture, "Avg delay: {0} ms (n={1})", avgDelayMs, delaySamples)
+                            : "—",
                         SaveAction = txt =>
                         {
                             int value;
@@ -682,6 +718,11 @@ namespace LaunchPlugin
                     };
                 }
             }
+        }
+
+        public void RefreshShiftAssistRuntimeStats()
+        {
+            OnPropertyChanged(nameof(ShiftGearRows));
         }
 
         private int TryReadPluginInt(string propertyName)
@@ -771,7 +812,7 @@ namespace LaunchPlugin
         }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey, Func<string> getCurrentGearStackId, Func<bool> getShiftAssistEnabled, Action<bool> setShiftAssistEnabled, Func<bool> getShiftAssistUseCustomWav, Action<bool> setShiftAssistUseCustomWav, Func<string> getShiftAssistCustomWavPath, Action<string> setShiftAssistCustomWavPath, Action playShiftAssistTestBeep)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey, Func<string> getCurrentGearStackId, Func<bool> getShiftAssistEnabled, Action<bool> setShiftAssistEnabled, Func<int> getShiftAssistBeepDurationMs, Action<int> setShiftAssistBeepDurationMs, Func<int> getShiftAssistLeadTimeMs, Action<int> setShiftAssistLeadTimeMs, Func<bool> getShiftAssistUseCustomWav, Action<bool> setShiftAssistUseCustomWav, Func<string> getShiftAssistCustomWavPath, Action<string> setShiftAssistCustomWavPath, Action playShiftAssistTestBeep)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
@@ -784,6 +825,10 @@ namespace LaunchPlugin
             _getCurrentGearStackId = getCurrentGearStackId;
             _getShiftAssistEnabled = getShiftAssistEnabled;
             _setShiftAssistEnabled = setShiftAssistEnabled;
+            _getShiftAssistBeepDurationMs = getShiftAssistBeepDurationMs;
+            _setShiftAssistBeepDurationMs = setShiftAssistBeepDurationMs;
+            _getShiftAssistLeadTimeMs = getShiftAssistLeadTimeMs;
+            _setShiftAssistLeadTimeMs = setShiftAssistLeadTimeMs;
             _getShiftAssistUseCustomWav = getShiftAssistUseCustomWav;
             _setShiftAssistUseCustomWav = setShiftAssistUseCustomWav;
             _getShiftAssistCustomWavPath = getShiftAssistCustomWavPath;
@@ -1476,5 +1521,6 @@ namespace LaunchPlugin
         public string GearLabel { get; set; }
         public string RpmText { get; set; }
         public Action<string> SaveAction { get; set; }
+        public string DelaySummary { get; set; }
     }
 }
