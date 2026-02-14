@@ -71,7 +71,7 @@ namespace LaunchPlugin
 
             if (currentGear != _lastGear)
             {
-                bool upshift = currentGear > _lastGear;
+                bool upshift = _lastGear >= 1 && currentGear > _lastGear;
                 if (currentGear < _lastGear)
                 {
                     _suppressUntilBelowReset = true;

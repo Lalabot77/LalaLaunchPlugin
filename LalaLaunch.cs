@@ -3387,6 +3387,7 @@ namespace LaunchPlugin
         private double _shiftAssistDebugCsvLastWriteSessionSec = double.NaN;
         private DateTime _shiftAssistDebugCsvLastWriteUtc = DateTime.MinValue;
         private string _shiftAssistDebugCsvPath;
+        private bool _shiftAssistDebugCsvFailed;
 
         private double _lastFuel = 0.0;
 
@@ -5901,7 +5902,11 @@ namespace LaunchPlugin
             {
                 if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward", out maxForwardGears) || maxForwardGears <= 0)
                 {
-                    return 0;
+                    maxForwardGears = ActiveProfile?.MaxForwardGearsHint ?? 0;
+                    if (maxForwardGears <= 0)
+                    {
+                        return 0;
+                    }
                 }
             }
 
@@ -5960,6 +5965,11 @@ namespace LaunchPlugin
                 return;
             }
 
+            if (_shiftAssistDebugCsvFailed)
+            {
+                return;
+            }
+
             int maxHz = GetShiftAssistDebugCsvMaxHz();
             double minIntervalSec = 1.0 / maxHz;
             if (!double.IsNaN(sessionTimeSec) && !double.IsInfinity(sessionTimeSec))
@@ -5978,38 +5988,46 @@ namespace LaunchPlugin
 
             _shiftAssistDebugCsvLastWriteUtc = nowUtc;
 
-            if (string.IsNullOrWhiteSpace(_shiftAssistDebugCsvPath))
+            try
             {
-                string folder = Path.Combine(PluginStorage.GetPluginFolder(), "ShiftAssist");
-                Directory.CreateDirectory(folder);
-                _shiftAssistDebugCsvPath = Path.Combine(folder, "ShiftAssist_Debug.csv");
-                if (!File.Exists(_shiftAssistDebugCsvPath))
+                if (string.IsNullOrWhiteSpace(_shiftAssistDebugCsvPath))
                 {
-                    File.WriteAllText(_shiftAssistDebugCsvPath,
-                        "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift" + Environment.NewLine);
+                    string folder = Path.Combine(PluginStorage.GetPluginFolder(), "ShiftAssist");
+                    Directory.CreateDirectory(folder);
+                    _shiftAssistDebugCsvPath = Path.Combine(folder, "ShiftAssist_Debug.csv");
+                    if (!File.Exists(_shiftAssistDebugCsvPath))
+                    {
+                        File.WriteAllText(_shiftAssistDebugCsvPath,
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift" + Environment.NewLine);
+                    }
                 }
+
+                var line = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14}",
+                    nowUtc,
+                    double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) ? string.Empty : sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
+                    gear,
+                    maxForwardGears,
+                    rpm,
+                    throttle01,
+                    targetRpm,
+                    _shiftAssistEngine.LastEffectiveTargetRpm,
+                    _shiftAssistEngine.LastRpmRate,
+                    leadTimeMs,
+                    beepTriggered ? "1" : "0",
+                    _shiftAssistBeepLatched ? "1" : "0",
+                    _shiftAssistEngine.LastState.ToString(),
+                    _shiftAssistEngine.IsSuppressingDownshift ? "1" : "0",
+                    _shiftAssistEngine.IsSuppressingUpshift ? "1" : "0");
+
+                File.AppendAllText(_shiftAssistDebugCsvPath, line + Environment.NewLine);
             }
-
-            var line = string.Format(
-                CultureInfo.InvariantCulture,
-                "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14}",
-                nowUtc,
-                double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) ? string.Empty : sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
-                gear,
-                maxForwardGears,
-                rpm,
-                throttle01,
-                targetRpm,
-                _shiftAssistEngine.LastEffectiveTargetRpm,
-                _shiftAssistEngine.LastRpmRate,
-                leadTimeMs,
-                beepTriggered ? "1" : "0",
-                _shiftAssistBeepLatched ? "1" : "0",
-                _shiftAssistEngine.LastState.ToString(),
-                _shiftAssistEngine.IsSuppressingDownshift ? "1" : "0",
-                _shiftAssistEngine.IsSuppressingUpshift ? "1" : "0");
-
-            File.AppendAllText(_shiftAssistDebugCsvPath, line + Environment.NewLine);
+            catch (Exception ex)
+            {
+                _shiftAssistDebugCsvFailed = true;
+                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Debug CSV disabled for session after write failure path='{_shiftAssistDebugCsvPath ?? "(unset)"}' error='{ex.Message}'");
+            }
         }
 
         #endregion
