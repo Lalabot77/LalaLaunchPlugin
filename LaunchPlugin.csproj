@@ -166,7 +166,7 @@
     <Compile Include="TrackMarkerMessagingModels.cs" />
   </ItemGroup>
   <ItemGroup>
-    <!-- TODO(maintainer): add Resources\ShiftAssist_DefaultBeep.wav as EmbeddedResource manually after merge. -->
+    <!-- Maintainer manual step: after merge, add Resources\ShiftAssist_DefaultBeep.wav locally and restore this line: <EmbeddedResource Include="Resources\ShiftAssist_DefaultBeep.wav" /> -->
     <Page Include="CopyProfileDialog.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
