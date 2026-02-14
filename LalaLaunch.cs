@@ -5530,22 +5530,31 @@ namespace LaunchPlugin
 
             _shiftAssistBeepLatched = DateTime.UtcNow <= _shiftAssistBeepUntilUtc;
 
-            int gear = 0;
-            string gearRaw = data.NewData?.Gear;
-            if (!string.IsNullOrWhiteSpace(gearRaw))
+            int gear;
+            if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Gear", out gear))
             {
-                gearRaw = gearRaw.Trim();
+                gear = 0;
+                string gearRaw = data.NewData?.Gear;
+                if (!string.IsNullOrWhiteSpace(gearRaw))
+                {
+                    gearRaw = gearRaw.Trim();
 
-                int parsedGear;
-                if (int.TryParse(gearRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedGear))
-                {
-                    gear = parsedGear;
+                    int parsedGear;
+                    if (int.TryParse(gearRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedGear))
+                    {
+                        gear = parsedGear;
+                    }
+                    else if (string.Equals(gearRaw, "N", StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(gearRaw, "R", StringComparison.OrdinalIgnoreCase))
+                    {
+                        gear = 0;
+                    }
                 }
-                else if (string.Equals(gearRaw, "N", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(gearRaw, "R", StringComparison.OrdinalIgnoreCase))
-                {
-                    gear = 0;
-                }
+            }
+
+            if (gear <= 0)
+            {
+                gear = 0;
             }
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
@@ -5575,7 +5584,7 @@ namespace LaunchPlugin
 
             if (beep)
             {
-                _shiftAssistBeepUntilUtc = DateTime.UtcNow.AddMilliseconds(200);
+                _shiftAssistBeepUntilUtc = DateTime.UtcNow.AddMilliseconds(500);
                 _shiftAssistAudio?.PlayShiftBeep();
             }
         }
@@ -8773,6 +8782,64 @@ namespace LaunchPlugin
             catch
             {
                 return fallback;
+            }
+        }
+
+        private static bool TryReadNullableInt(PluginManager pluginManager, string propertyName, out int value)
+        {
+            value = 0;
+            if (pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return false;
+            }
+
+            try
+            {
+                object raw = pluginManager.GetPropertyValue(propertyName);
+                if (raw == null)
+                {
+                    return false;
+                }
+
+                if (raw is int intValue)
+                {
+                    value = intValue;
+                    return true;
+                }
+
+                if (raw is short shortValue)
+                {
+                    value = shortValue;
+                    return true;
+                }
+
+                if (raw is long longValue)
+                {
+                    if (longValue < int.MinValue || longValue > int.MaxValue)
+                    {
+                        return false;
+                    }
+
+                    value = (int)longValue;
+                    return true;
+                }
+
+                if (raw is byte byteValue)
+                {
+                    value = byteValue;
+                    return true;
+                }
+
+                if (raw is string text)
+                {
+                    return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
             }
         }
 

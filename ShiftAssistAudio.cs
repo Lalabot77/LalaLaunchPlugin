@@ -17,6 +17,8 @@ namespace LaunchPlugin
         private bool _loggedSoundChoice;
         private string _lastLoggedPath;
         private bool _lastLoggedCustom;
+        private bool _embeddedMissingLogged;
+        private bool _embeddedUnavailable;
         private SoundPlayer _player;
         private string _playerPath;
 
@@ -27,6 +29,11 @@ namespace LaunchPlugin
 
         public bool EnsureDefaultBeepExtracted()
         {
+            if (_embeddedUnavailable)
+            {
+                return false;
+            }
+
             if (!string.IsNullOrWhiteSpace(_resolvedDefaultPath) && File.Exists(_resolvedDefaultPath))
             {
                 return true;
@@ -49,7 +56,13 @@ namespace LaunchPlugin
                     {
                         if (stream == null)
                         {
-                            SimHub.Logging.Current.Error("[LalaPlugin:ShiftAssist] Embedded default beep resource missing.");
+                            if (!_embeddedMissingLogged)
+                            {
+                                _embeddedMissingLogged = true;
+                                SimHub.Logging.Current.Error("[LalaPlugin:ShiftAssist] Embedded default beep resource missing.");
+                            }
+
+                            _embeddedUnavailable = true;
                             return false;
                         }
 

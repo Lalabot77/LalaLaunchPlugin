@@ -231,7 +231,9 @@
                                 <TextBlock Grid.Column="2" Text="{Binding ActiveShiftStackLabel}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                             </Grid>
 
-                            <TextBlock Text="Gear targets (RPM)" FontWeight="SemiBold" Margin="0,12,0,6"/>
+                            <TextBlock Text="Shift targets (RPM)" FontWeight="SemiBold" Margin="0,12,0,6"/>
+                            <TextBlock Text="{Binding ShiftAssistCurrentGearRedlineHint}" Margin="0,0,0,6" Opacity="0.85"/>
+
                             <ItemsControl ItemsSource="{Binding ShiftGearRows}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
