@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Windows;
 using System.Windows.Media;
 
 namespace LaunchPlugin
@@ -12,6 +13,7 @@ namespace LaunchPlugin
         private const string DefaultFileRelativePath = "ShiftAssist/DefaultBeep.wav";
 
         private readonly Func<LaunchPluginSettings> _settingsProvider;
+        private readonly object _playerSync = new object();
         private string _resolvedDefaultPath;
         private bool _warnedMissingCustom;
         private bool _loggedSoundChoice;
@@ -23,6 +25,8 @@ namespace LaunchPlugin
         private string _embeddedResourceName;
         private MediaPlayer _player;
         private string _playerPath;
+        private EventHandler _playerMediaEndedHandler;
+        private EventHandler<ExceptionEventArgs> _playerMediaFailedHandler;
 
         public ShiftAssistAudio(Func<LaunchPluginSettings> settingsProvider)
         {
@@ -138,6 +142,7 @@ namespace LaunchPlugin
             {
                 if (!settings.ShiftAssistBeepSoundEnabled || settings.ShiftAssistBeepVolumePct <= 0)
                 {
+                    HardStop();
                     return;
                 }
             }
@@ -156,34 +161,175 @@ namespace LaunchPlugin
 
             MaybeLogSoundChoice(absolutePath, usingCustom);
 
+            int volumePct = settings?.ShiftAssistBeepVolumePct ?? 100;
+            if (volumePct < 0) volumePct = 0;
+            if (volumePct > 100) volumePct = 100;
+            double volume = volumePct / 100.0;
+
+            PlayOnce(new Uri(absolutePath, UriKind.Absolute), volume);
+        }
+
+        private void PlayOnce(Uri uri, double volume)
+        {
+            lock (_playerSync)
+            {
+                bool warnedPlayFailure = false;
+
+                Action<string, Exception> warnOnce = (message, ex) =>
+                {
+                    if (warnedPlayFailure)
+                    {
+                        return;
+                    }
+
+                    warnedPlayFailure = true;
+                    string suffix = ex == null ? string.Empty : $": {ex.Message}";
+                    SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] {message}{suffix}");
+                };
+
+                Action cleanup = null;
+                bool cleanupDone = false;
+
+                cleanup = () =>
+                {
+                    if (cleanupDone)
+                    {
+                        return;
+                    }
+
+                    cleanupDone = true;
+
+                    try
+                    {
+                        DetachPlayerHandlersUnsafe();
+                    }
+                    catch
+                    {
+                    }
+
+                    try
+                    {
+                        if (_player != null)
+                        {
+                            _player.Stop();
+                        }
+                    }
+                    catch
+                    {
+                    }
+
+                    try
+                    {
+                        if (_player != null)
+                        {
+                            _player.Close();
+                        }
+                    }
+                    catch
+                    {
+                    }
+
+                    _player = null;
+                    _playerPath = null;
+                };
+
+                try
+                {
+                    HardStopUnsafe();
+
+                    _player = new MediaPlayer();
+                    _playerPath = uri.LocalPath;
+
+                    _playerMediaEndedHandler = (sender, args) =>
+                    {
+                        cleanup();
+                    };
+
+                    _playerMediaFailedHandler = (sender, args) =>
+                    {
+                        warnOnce($"Failed to play sound '{_playerPath}'", args != null ? args.ErrorException : null);
+                        cleanup();
+                    };
+
+                    _player.MediaEnded += _playerMediaEndedHandler;
+                    _player.MediaFailed += _playerMediaFailedHandler;
+
+                    _player.Volume = volume;
+                    _player.Open(uri);
+                    _player.Play();
+                }
+                catch (Exception ex)
+                {
+                    warnOnce($"Failed to play sound '{uri}'", ex);
+                    cleanup();
+                }
+            }
+        }
+
+        public void HardStop()
+        {
+            lock (_playerSync)
+            {
+                try
+                {
+                    HardStopUnsafe();
+                }
+                catch (Exception ex)
+                {
+                    SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] HardStop failed: {ex.Message}");
+                }
+            }
+        }
+
+        private void HardStopUnsafe()
+        {
+            DetachPlayerHandlersUnsafe();
+
             try
             {
-                if (_player == null)
+                if (_player != null)
                 {
-                    _player = new MediaPlayer();
-                    _player.MediaEnded += (sender, args) =>
-                    {
-                        _player.Position = TimeSpan.Zero;
-                    };
+                    _player.Stop();
                 }
-
-                if (!string.Equals(_playerPath, absolutePath, StringComparison.OrdinalIgnoreCase))
-                {
-                    var uri = new Uri(absolutePath, UriKind.Absolute);
-                    _player.Open(uri);
-                    _playerPath = absolutePath;
-                }
-
-                int volumePct = settings?.ShiftAssistBeepVolumePct ?? 100;
-                if (volumePct < 0) volumePct = 0;
-                if (volumePct > 100) volumePct = 100;
-                _player.Volume = volumePct / 100.0;
-                _player.Position = TimeSpan.Zero;
-                _player.Play();
             }
-            catch (Exception ex)
+            catch
             {
-                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{absolutePath}': {ex.Message}");
+            }
+
+            try
+            {
+                if (_player != null)
+                {
+                    _player.Close();
+                }
+            }
+            catch
+            {
+            }
+
+            _player = null;
+            _playerPath = null;
+        }
+
+        private void DetachPlayerHandlersUnsafe()
+        {
+            if (_player == null)
+            {
+                _playerMediaEndedHandler = null;
+                _playerMediaFailedHandler = null;
+                return;
+            }
+
+            if (_playerMediaEndedHandler != null)
+            {
+                _player.MediaEnded -= _playerMediaEndedHandler;
+                _playerMediaEndedHandler = null;
+            }
+
+            if (_playerMediaFailedHandler != null)
+            {
+                _player.MediaFailed -= _playerMediaFailedHandler;
+                _playerMediaFailedHandler = null;
             }
         }
 
@@ -256,13 +402,7 @@ namespace LaunchPlugin
 
         public void Dispose()
         {
-            if (_player != null)
-            {
-                _player.Close();
-                _player = null;
-            }
-
-            _playerPath = null;
+            HardStop();
         }
     }
 }
