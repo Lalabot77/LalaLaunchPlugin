@@ -52,6 +52,10 @@ namespace LaunchPlugin
         private readonly Action<bool> _setShiftAssistUseCustomWav;
         private readonly Func<string> _getShiftAssistCustomWavPath;
         private readonly Action<string> _setShiftAssistCustomWavPath;
+        private readonly Func<bool> _getShiftAssistBeepSoundEnabled;
+        private readonly Action<bool> _setShiftAssistBeepSoundEnabled;
+        private readonly Func<int> _getShiftAssistBeepVolumePct;
+        private readonly Action<int> _setShiftAssistBeepVolumePct;
         private readonly Action _playShiftAssistTestBeep;
         private const int ShiftAssistMaxStoredGears = 8;
         private readonly string _profilesFilePath;
@@ -597,6 +601,29 @@ namespace LaunchPlugin
             }
         }
 
+        public bool ShiftAssistBeepSoundEnabled
+        {
+            get => _getShiftAssistBeepSoundEnabled?.Invoke() != false;
+            set
+            {
+                _setShiftAssistBeepSoundEnabled?.Invoke(value);
+                OnPropertyChanged();
+            }
+        }
+
+        public int ShiftAssistBeepVolumePct
+        {
+            get => _getShiftAssistBeepVolumePct?.Invoke() ?? 100;
+            set
+            {
+                int clamped = value;
+                if (clamped < 0) clamped = 0;
+                if (clamped > 100) clamped = 100;
+                _setShiftAssistBeepVolumePct?.Invoke(clamped);
+                OnPropertyChanged();
+            }
+        }
+
         private string _selectedShiftStackId = "Default";
         public string SelectedShiftStackId
         {
@@ -822,7 +849,7 @@ namespace LaunchPlugin
         }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey, Func<string> getCurrentGearStackId, Func<bool> getShiftAssistEnabled, Action<bool> setShiftAssistEnabled, Func<int> getShiftAssistBeepDurationMs, Action<int> setShiftAssistBeepDurationMs, Func<int> getShiftAssistLeadTimeMs, Action<int> setShiftAssistLeadTimeMs, Func<bool> getShiftAssistUseCustomWav, Action<bool> setShiftAssistUseCustomWav, Func<string> getShiftAssistCustomWavPath, Action<string> setShiftAssistCustomWavPath, Action playShiftAssistTestBeep)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey, Func<string> getCurrentGearStackId, Func<bool> getShiftAssistEnabled, Action<bool> setShiftAssistEnabled, Func<int> getShiftAssistBeepDurationMs, Action<int> setShiftAssistBeepDurationMs, Func<int> getShiftAssistLeadTimeMs, Action<int> setShiftAssistLeadTimeMs, Func<bool> getShiftAssistUseCustomWav, Action<bool> setShiftAssistUseCustomWav, Func<string> getShiftAssistCustomWavPath, Action<string> setShiftAssistCustomWavPath, Func<bool> getShiftAssistBeepSoundEnabled, Action<bool> setShiftAssistBeepSoundEnabled, Func<int> getShiftAssistBeepVolumePct, Action<int> setShiftAssistBeepVolumePct, Action playShiftAssistTestBeep)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
@@ -843,6 +870,10 @@ namespace LaunchPlugin
             _setShiftAssistUseCustomWav = setShiftAssistUseCustomWav;
             _getShiftAssistCustomWavPath = getShiftAssistCustomWavPath;
             _setShiftAssistCustomWavPath = setShiftAssistCustomWavPath;
+            _getShiftAssistBeepSoundEnabled = getShiftAssistBeepSoundEnabled;
+            _setShiftAssistBeepSoundEnabled = setShiftAssistBeepSoundEnabled;
+            _getShiftAssistBeepVolumePct = getShiftAssistBeepVolumePct;
+            _setShiftAssistBeepVolumePct = setShiftAssistBeepVolumePct;
             _playShiftAssistTestBeep = playShiftAssistTestBeep;
             CarProfiles = new ObservableCollection<CarProfile>();
 
