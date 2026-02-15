@@ -143,12 +143,18 @@ namespace LaunchPlugin
             }
 
             string path = ResolvePlaybackPath(out bool usingCustom);
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            if (string.IsNullOrWhiteSpace(path))
             {
                 return;
             }
 
-            MaybeLogSoundChoice(path, usingCustom);
+            string absolutePath = ToAbsolutePath(path);
+            if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))
+            {
+                return;
+            }
+
+            MaybeLogSoundChoice(absolutePath, usingCustom);
 
             try
             {
@@ -161,10 +167,11 @@ namespace LaunchPlugin
                     };
                 }
 
-                if (!string.Equals(_playerPath, path, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(_playerPath, absolutePath, StringComparison.OrdinalIgnoreCase))
                 {
-                    _player.Open(new Uri(path, UriKind.Absolute));
-                    _playerPath = path;
+                    var uri = new Uri(absolutePath, UriKind.Absolute);
+                    _player.Open(uri);
+                    _playerPath = absolutePath;
                 }
 
                 int volumePct = settings?.ShiftAssistBeepVolumePct ?? 100;
@@ -176,8 +183,25 @@ namespace LaunchPlugin
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{path}': {ex.Message}");
+                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{absolutePath}': {ex.Message}");
             }
+        }
+
+        private string ToAbsolutePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return path;
+            }
+
+            string candidate = path;
+            if (!Path.IsPathRooted(candidate))
+            {
+                string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                candidate = Path.Combine(baseDirectory, candidate);
+            }
+
+            return Path.GetFullPath(candidate);
         }
 
         private string ResolvePlaybackPath(out bool usingCustom)
@@ -188,10 +212,11 @@ namespace LaunchPlugin
             if (settings != null && settings.ShiftAssistUseCustomWav)
             {
                 string customPath = settings.ShiftAssistCustomWavPath;
-                if (!string.IsNullOrWhiteSpace(customPath) && File.Exists(customPath))
+                string customAbsolutePath = ToAbsolutePath(customPath);
+                if (!string.IsNullOrWhiteSpace(customAbsolutePath) && File.Exists(customAbsolutePath))
                 {
                     usingCustom = true;
-                    return customPath;
+                    return customAbsolutePath;
                 }
 
                 if (!_warnedMissingCustom)
