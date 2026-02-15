@@ -192,11 +192,12 @@
                                                      Content="Shift Assist Debug CSV"
                                                      Margin="0,0,15,0"
                                                      IsChecked="{Binding Settings.EnableShiftAssistDebugCsv, Mode=TwoWay}"
-                                                     ToolTip="Writes a low-rate diagnostic CSV for Shift Assist triggering and suppression analysis."/>
+                                                     ToolTip="Writes a diagnostic CSV for Shift Assist triggering and suppression analysis."/>
                             <TextBlock Text="Shift Assist Debug Max Hz" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBox Width="80"
                                      Text="{Binding Settings.ShiftAssistDebugCsvMaxHz, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding ElementName=ShiftAssistDebugCsvToggle, Path=IsChecked}"/>
+                                     IsEnabled="{Binding ElementName=ShiftAssistDebugCsvToggle, Path=IsChecked}"
+                                     ToolTip="Allowed range: 1 to 60 Hz."/>
                         </StackPanel>
                     </StackPanel>
                 </Expander>

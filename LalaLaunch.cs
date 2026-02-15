@@ -3382,7 +3382,7 @@ namespace LaunchPlugin
         private const int ShiftAssistLeadTimeMsMax = 500;
         internal const int ShiftAssistDebugCsvMaxHzDefault = 10;
         private const int ShiftAssistDebugCsvMaxHzMin = 1;
-        private const int ShiftAssistDebugCsvMaxHzMax = 20;
+        private const int ShiftAssistDebugCsvMaxHzMax = 60;
         private const int ShiftAssistDelayHistorySize = 5;
         private readonly ShiftAssistEngine _shiftAssistEngine = new ShiftAssistEngine();
         private ShiftAssistAudio _shiftAssistAudio;
@@ -3402,6 +3402,7 @@ namespace LaunchPlugin
         private double _shiftAssistDebugCsvLastWriteSessionSec = double.NaN;
         private DateTime _shiftAssistDebugCsvLastWriteUtc = DateTime.MinValue;
         private string _shiftAssistDebugCsvPath;
+        private string _shiftAssistDebugCsvFileTimestamp;
         private bool _shiftAssistDebugCsvFailed;
 
         private double _lastFuel = 0.0;
@@ -4555,6 +4556,11 @@ namespace LaunchPlugin
             else if (settings.ShiftAssistBeepVolumePct > ShiftAssistBeepVolumePctMax)
             {
                 settings.ShiftAssistBeepVolumePct = ShiftAssistBeepVolumePctMax;
+            }
+
+            if (settings.ShiftAssistDebugCsvMaxHz <= 0)
+            {
+                settings.ShiftAssistDebugCsvMaxHz = ShiftAssistDebugCsvMaxHzDefault;
             }
 
             if (settings.ShiftAssistDebugCsvMaxHz < ShiftAssistDebugCsvMaxHzMin)
@@ -5957,7 +5963,8 @@ namespace LaunchPlugin
                 }
             }
 
-            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep);
+            bool exportedBeepLatched = _shiftAssistBeepLatched;
+            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched);
         }
 
         private int ResolveShiftAssistMaxForwardGears(PluginManager pluginManager)
@@ -6003,6 +6010,11 @@ namespace LaunchPlugin
         private int GetShiftAssistDebugCsvMaxHz()
         {
             int value = Settings?.ShiftAssistDebugCsvMaxHz ?? ShiftAssistDebugCsvMaxHzDefault;
+            if (value <= 0)
+            {
+                value = ShiftAssistDebugCsvMaxHzDefault;
+            }
+
             if (value < ShiftAssistDebugCsvMaxHzMin)
             {
                 value = ShiftAssistDebugCsvMaxHzMin;
@@ -6021,9 +6033,10 @@ namespace LaunchPlugin
             _shiftAssistDebugCsvLastWriteSessionSec = double.NaN;
             _shiftAssistDebugCsvLastWriteUtc = DateTime.MinValue;
             _shiftAssistDebugCsvPath = null;
+            _shiftAssistDebugCsvFileTimestamp = null;
         }
 
-        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered)
+        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched)
         {
             if (Settings?.EnableShiftAssistDebugCsv != true)
             {
@@ -6060,7 +6073,13 @@ namespace LaunchPlugin
                 {
                     string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalapluginData");
                     Directory.CreateDirectory(folder);
-                    _shiftAssistDebugCsvPath = Path.Combine(folder, "ShiftAssist_Debug.csv");
+
+                    if (string.IsNullOrWhiteSpace(_shiftAssistDebugCsvFileTimestamp))
+                    {
+                        _shiftAssistDebugCsvFileTimestamp = nowUtc.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+                    }
+
+                    _shiftAssistDebugCsvPath = Path.Combine(folder, "ShiftAssist_Debug_" + _shiftAssistDebugCsvFileTimestamp + ".csv");
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
@@ -6072,7 +6091,7 @@ namespace LaunchPlugin
                     CultureInfo.InvariantCulture,
                     "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14}",
                     nowUtc,
-                    double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) ? string.Empty : sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
+                    double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) ? "0.000" : sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
                     maxForwardGears,
                     rpm,
@@ -6082,7 +6101,7 @@ namespace LaunchPlugin
                     _shiftAssistEngine.LastRpmRate,
                     leadTimeMs,
                     beepTriggered ? "1" : "0",
-                    _shiftAssistBeepLatched ? "1" : "0",
+                    exportedBeepLatched ? "1" : "0",
                     _shiftAssistEngine.LastState.ToString(),
                     _shiftAssistEngine.IsSuppressingDownshift ? "1" : "0",
                     _shiftAssistEngine.IsSuppressingUpshift ? "1" : "0");
