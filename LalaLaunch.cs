@@ -5773,6 +5773,15 @@ namespace LaunchPlugin
 
         private void TriggerShiftAssistTestBeep()
         {
+            var settings = Settings;
+            bool soundEnabled = settings?.ShiftAssistBeepSoundEnabled != false;
+            bool volumeEnabled = (settings?.ShiftAssistBeepVolumePct ?? 100) > 0;
+            if (!soundEnabled || !volumeEnabled)
+            {
+                _shiftAssistAudio?.HardStop();
+                return;
+            }
+
             int durationMs = GetShiftAssistBeepDurationMs();
             DateTime nowUtc = DateTime.UtcNow;
             _shiftAssistBeepUntilUtc = nowUtc.AddMilliseconds(durationMs);
@@ -5788,9 +5797,17 @@ namespace LaunchPlugin
         private void EvaluateShiftAssist(PluginManager pluginManager, GameData data)
         {
             var settings = Settings;
+            bool beepSoundEnabled = settings?.ShiftAssistBeepSoundEnabled != false;
+            bool beepVolumeEnabled = (settings?.ShiftAssistBeepVolumePct ?? 100) > 0;
+            if (!beepSoundEnabled || !beepVolumeEnabled)
+            {
+                _shiftAssistAudio?.HardStop();
+            }
+
             bool enabled = settings?.ShiftAssistEnabled == true;
             if (!enabled)
             {
+                _shiftAssistAudio?.HardStop();
                 _shiftAssistTargetCurrentGear = 0;
                 _shiftAssistActiveGearStackId = "Default";
                 _shiftAssistBeepUntilUtc = DateTime.MinValue;
