@@ -12,6 +12,13 @@ namespace LaunchPlugin
 
     internal sealed class ShiftAssistEngine
     {
+        private const double MinRpmRateDtSec = 0.02;
+        private const double MaxRpmRateDtSec = 0.20;
+        private const int MaxRpmRatePerSec = 8000;
+        private const int MaxLeadDeltaRpm = 1500;
+        private const int MinEffectiveTargetRpmFloor = 1000;
+        private const int EffectiveTargetFloorOffset = 1500;
+
         private readonly Func<DateTime> _utcNow;
         private int _lastGear;
         private bool _wasAboveTarget;
@@ -40,24 +47,42 @@ namespace LaunchPlugin
             LastRpmRate = 0;
 
             var nowUtc = _utcNow();
+            bool sameGearAsLastSample = currentGear >= 1 && currentGear == _lastGear;
 
             if (_lastSampleAtUtc != DateTime.MinValue)
             {
-                double dtMs = (nowUtc - _lastSampleAtUtc).TotalMilliseconds;
-                if (dtMs >= 10.0 && dtMs <= 200.0)
+                double dtSec = (nowUtc - _lastSampleAtUtc).TotalSeconds;
+                int deltaRpm = engineRpm - _lastRpm;
+                if (sameGearAsLastSample && dtSec >= MinRpmRateDtSec && dtSec <= MaxRpmRateDtSec && deltaRpm > 0)
                 {
-                    double dtSec = dtMs / 1000.0;
-                    if (dtSec > 0.0)
+                    double rpmRate = deltaRpm / dtSec;
+                    int clampedRate = (int)Math.Round(rpmRate);
+                    if (clampedRate > MaxRpmRatePerSec)
                     {
-                        double rpmRate = (engineRpm - _lastRpm) / dtSec;
-                        int roundedRate = (int)Math.Round(rpmRate);
-                        if (roundedRate > 0 && roundedRate >= 500 && roundedRate <= 50000)
+                        clampedRate = MaxRpmRatePerSec;
+                    }
+
+                    if (clampedRate > 0)
+                    {
+                        LastRpmRate = clampedRate;
+                        if (leadTimeMs > 0)
                         {
-                            LastRpmRate = roundedRate;
-                            if (leadTimeMs > 0)
+                            double leadDeltaRpm = clampedRate * (leadTimeMs / 1000.0);
+                            if (leadDeltaRpm > MaxLeadDeltaRpm)
                             {
-                                double rpmLead = rpmRate * (leadTimeMs / 1000.0);
-                                LastEffectiveTargetRpm = Math.Max(1, (int)Math.Round(targetRpm - rpmLead));
+                                leadDeltaRpm = MaxLeadDeltaRpm;
+                            }
+
+                            int computedEffectiveTarget = targetRpm - (int)Math.Round(leadDeltaRpm);
+                            int effectiveFloor = Math.Max(MinEffectiveTargetRpmFloor, targetRpm - EffectiveTargetFloorOffset);
+                            if (computedEffectiveTarget < effectiveFloor)
+                            {
+                                LastRpmRate = 0;
+                                LastEffectiveTargetRpm = targetRpm;
+                            }
+                            else
+                            {
+                                LastEffectiveTargetRpm = computedEffectiveTarget;
                             }
                         }
                     }
