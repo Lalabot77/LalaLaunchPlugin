@@ -187,6 +187,17 @@
                             <TextBlock Margin="15,0,0,0" Foreground="LightGray" VerticalAlignment="Center"
                                        Text="Tip: find your PlayerCarIdx in SimHub property list"/>
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <styles:SHToggleCheckbox x:Name="ShiftAssistDebugCsvToggle"
+                                                     Content="Shift Assist Debug CSV"
+                                                     Margin="0,0,15,0"
+                                                     IsChecked="{Binding Settings.EnableShiftAssistDebugCsv, Mode=TwoWay}"
+                                                     ToolTip="Writes a low-rate diagnostic CSV for Shift Assist triggering and suppression analysis."/>
+                            <TextBlock Text="Shift Assist Debug Max Hz" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox Width="80"
+                                     Text="{Binding Settings.ShiftAssistDebugCsvMaxHz, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding ElementName=ShiftAssistDebugCsvToggle, Path=IsChecked}"/>
+                        </StackPanel>
                     </StackPanel>
                 </Expander>
             </StackPanel>

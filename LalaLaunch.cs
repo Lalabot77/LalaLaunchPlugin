@@ -797,6 +797,19 @@ namespace LaunchPlugin
             return value;
         }
 
+        private bool IsShiftAssistBeepSoundEnabled()
+        {
+            return Settings?.ShiftAssistBeepSoundEnabled != false;
+        }
+
+        private int GetShiftAssistBeepVolumePct()
+        {
+            int value = Settings?.ShiftAssistBeepVolumePct ?? 100;
+            if (value < 0) value = 0;
+            if (value > 100) value = 100;
+            return value;
+        }
+
         private static int ClampShiftAssistDelayMs(double value)
         {
             if (double.IsNaN(value) || double.IsInfinity(value))
@@ -3362,6 +3375,8 @@ namespace LaunchPlugin
         internal const int ShiftAssistBeepDurationMsDefault = 250;
         private const int ShiftAssistBeepDurationMsMin = 100;
         private const int ShiftAssistBeepDurationMsMax = 1000;
+        private const int ShiftAssistBeepVolumePctMin = 0;
+        private const int ShiftAssistBeepVolumePctMax = 100;
         internal const int ShiftAssistLeadTimeMsDefault = 200;
         private const int ShiftAssistLeadTimeMsMin = 0;
         private const int ShiftAssistLeadTimeMsMax = 500;
@@ -3495,6 +3510,30 @@ namespace LaunchPlugin
                 {
                     Settings.ShiftAssistCustomWavPath = path ?? string.Empty;
                     _shiftAssistAudio.ResetInvalidCustomWarning();
+                    SaveSettings();
+                },
+                () => IsShiftAssistBeepSoundEnabled(),
+                (enabled) =>
+                {
+                    if (Settings == null)
+                    {
+                        return;
+                    }
+
+                    Settings.ShiftAssistBeepSoundEnabled = enabled;
+                    SaveSettings();
+                },
+                () => GetShiftAssistBeepVolumePct(),
+                (volumePct) =>
+                {
+                    if (Settings == null)
+                    {
+                        return;
+                    }
+
+                    if (volumePct < ShiftAssistBeepVolumePctMin) volumePct = ShiftAssistBeepVolumePctMin;
+                    if (volumePct > ShiftAssistBeepVolumePctMax) volumePct = ShiftAssistBeepVolumePctMax;
+                    Settings.ShiftAssistBeepVolumePct = volumePct;
                     SaveSettings();
                 },
                 () => TriggerShiftAssistTestBeep()
@@ -4507,6 +4546,15 @@ namespace LaunchPlugin
             else if (settings.ShiftAssistLeadTimeMs > ShiftAssistLeadTimeMsMax)
             {
                 settings.ShiftAssistLeadTimeMs = ShiftAssistLeadTimeMsMax;
+            }
+
+            if (settings.ShiftAssistBeepVolumePct < ShiftAssistBeepVolumePctMin)
+            {
+                settings.ShiftAssistBeepVolumePct = ShiftAssistBeepVolumePctMin;
+            }
+            else if (settings.ShiftAssistBeepVolumePct > ShiftAssistBeepVolumePctMax)
+            {
+                settings.ShiftAssistBeepVolumePct = ShiftAssistBeepVolumePctMax;
             }
 
             if (settings.ShiftAssistDebugCsvMaxHz < ShiftAssistDebugCsvMaxHzMin)
@@ -5993,7 +6041,7 @@ namespace LaunchPlugin
             {
                 if (string.IsNullOrWhiteSpace(_shiftAssistDebugCsvPath))
                 {
-                    string folder = Path.Combine(PluginStorage.GetPluginFolder(), "ShiftAssist");
+                    string folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs", "LalapluginData");
                     Directory.CreateDirectory(folder);
                     _shiftAssistDebugCsvPath = Path.Combine(folder, "ShiftAssist_Debug.csv");
                     if (!File.Exists(_shiftAssistDebugCsvPath))
@@ -11755,6 +11803,8 @@ namespace LaunchPlugin
         public bool ShiftAssistEnabled { get; set; } = false;
         public int ShiftAssistBeepDurationMs { get; set; } = LalaLaunch.ShiftAssistBeepDurationMsDefault;
         public int ShiftAssistLeadTimeMs { get; set; } = LalaLaunch.ShiftAssistLeadTimeMsDefault;
+        public bool ShiftAssistBeepSoundEnabled { get; set; } = true;
+        public int ShiftAssistBeepVolumePct { get; set; } = 100;
         public bool ShiftAssistUseCustomWav { get; set; } = false;
         public string ShiftAssistCustomWavPath { get; set; } = "";
         public bool EnableShiftAssistDebugCsv { get; set; } = false;

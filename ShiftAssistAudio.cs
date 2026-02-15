@@ -1,9 +1,9 @@
 using SimHub.Plugins;
 using System;
 using System.IO;
-using System.Media;
-using System.Reflection;
 using System.Linq;
+using System.Reflection;
+using System.Windows.Media;
 
 namespace LaunchPlugin
 {
@@ -21,7 +21,7 @@ namespace LaunchPlugin
         private bool _embeddedUnavailable;
         private bool _embeddedResourceNameResolved;
         private string _embeddedResourceName;
-        private SoundPlayer _player;
+        private MediaPlayer _player;
         private string _playerPath;
 
         public ShiftAssistAudio(Func<LaunchPluginSettings> settingsProvider)
@@ -133,6 +133,15 @@ namespace LaunchPlugin
 
         public void PlayShiftBeep()
         {
+            var settings = _settingsProvider?.Invoke();
+            if (settings != null)
+            {
+                if (!settings.ShiftAssistBeepSoundEnabled || settings.ShiftAssistBeepVolumePct <= 0)
+                {
+                    return;
+                }
+            }
+
             string path = ResolvePlaybackPath(out bool usingCustom);
             if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
             {
@@ -143,14 +152,26 @@ namespace LaunchPlugin
 
             try
             {
-                if (!string.Equals(_playerPath, path, StringComparison.OrdinalIgnoreCase) || _player == null)
+                if (_player == null)
                 {
-                    _player?.Dispose();
-                    _player = new SoundPlayer(path);
-                    _player.Load();
+                    _player = new MediaPlayer();
+                    _player.MediaEnded += (sender, args) =>
+                    {
+                        _player.Position = TimeSpan.Zero;
+                    };
+                }
+
+                if (!string.Equals(_playerPath, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    _player.Open(new Uri(path, UriKind.Absolute));
                     _playerPath = path;
                 }
 
+                int volumePct = settings?.ShiftAssistBeepVolumePct ?? 100;
+                if (volumePct < 0) volumePct = 0;
+                if (volumePct > 100) volumePct = 100;
+                _player.Volume = volumePct / 100.0;
+                _player.Position = TimeSpan.Zero;
                 _player.Play();
             }
             catch (Exception ex)
@@ -210,8 +231,12 @@ namespace LaunchPlugin
 
         public void Dispose()
         {
-            _player?.Dispose();
-            _player = null;
+            if (_player != null)
+            {
+                _player.Close();
+                _player = null;
+            }
+
             _playerPath = null;
         }
     }
