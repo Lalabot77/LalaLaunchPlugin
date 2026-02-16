@@ -12,7 +12,7 @@ namespace LaunchPlugin
 
     internal sealed class ShiftAssistEngine
     {
-        private const double MinRpmRateDtSec = 0.02;
+        private const double MinRpmRateDtSec = 0.01;
         private const double MaxRpmRateDtSec = 0.20;
         private const int MaxRpmRatePerSec = 8000;
         private const int MaxPredictiveEarlyRpm = 800;
@@ -69,66 +69,69 @@ namespace LaunchPlugin
                 int deltaRpm = engineRpm - _lastRpm;
                 bool dtSecValid = dtSec >= MinRpmRateDtSec && dtSec <= MaxRpmRateDtSec;
 
-                if (sameGearAsLastSample && dtSecValid && deltaRpm > 0)
+                if (sameGearAsLastSample && deltaRpm > 0)
                 {
-                    double maxExpectedDelta = (MaxRpmRatePerSec * dtSec) + 200.0;
-                    if (deltaRpm > maxExpectedDelta)
+                    if (dtSec > 0)
                     {
-                        spikeDetected = true;
-                    }
-                    else
-                    {
-                        double rpmRate = deltaRpm / dtSec;
-                        int clampedRate = (int)Math.Round(rpmRate);
-                        if (clampedRate > MaxRpmRatePerSec)
+                        double maxExpectedDelta = (MaxRpmRatePerSec * dtSec) + 200.0;
+                        if (deltaRpm > maxExpectedDelta)
                         {
-                            clampedRate = MaxRpmRatePerSec;
+                            spikeDetected = true;
                         }
-
-                        if (clampedRate > 0)
+                        else if (dtSecValid)
                         {
-                            if (!_hasSmoothedRpmRate)
+                            double rpmRate = deltaRpm / dtSec;
+                            int clampedRate = (int)Math.Round(rpmRate);
+                            if (clampedRate > MaxRpmRatePerSec)
                             {
-                                _smoothedRpmRate = clampedRate;
-                                _hasSmoothedRpmRate = true;
-                            }
-                            else
-                            {
-                                _smoothedRpmRate = (_smoothedRpmRate * RpmRateSmoothingPrevWeight) + (clampedRate * RpmRateSmoothingCurrentWeight);
+                                clampedRate = MaxRpmRatePerSec;
                             }
 
-                            int smoothedRate = (int)Math.Round(_smoothedRpmRate);
-                            if (smoothedRate < 0)
+                            if (clampedRate > 0)
                             {
-                                smoothedRate = 0;
-                            }
-
-                            LastRpmRate = smoothedRate;
-                            if (effectiveLeadMs > 0)
-                            {
-                                double leadDeltaRpm = smoothedRate * (effectiveLeadMs / 1000.0);
-                                if (leadDeltaRpm > MaxPredictiveEarlyRpm)
+                                if (!_hasSmoothedRpmRate)
                                 {
-                                    leadDeltaRpm = MaxPredictiveEarlyRpm;
-                                }
-
-                                if (engineRpm < (targetRpm - MaxPredictiveEarlyRpm))
-                                {
-                                    LastRpmRate = 0;
-                                    LastEffectiveTargetRpm = targetRpm;
-                                    leadDeltaRpm = 0;
-                                }
-
-                                int computedEffectiveTarget = targetRpm - (int)Math.Round(leadDeltaRpm);
-                                int effectiveFloor = Math.Max(MinEffectiveTargetRpmFloor, targetRpm - EffectiveTargetFloorOffset);
-                                if (computedEffectiveTarget < effectiveFloor)
-                                {
-                                    LastRpmRate = 0;
-                                    LastEffectiveTargetRpm = targetRpm;
+                                    _smoothedRpmRate = clampedRate;
+                                    _hasSmoothedRpmRate = true;
                                 }
                                 else
                                 {
-                                    LastEffectiveTargetRpm = computedEffectiveTarget;
+                                    _smoothedRpmRate = (_smoothedRpmRate * RpmRateSmoothingPrevWeight) + (clampedRate * RpmRateSmoothingCurrentWeight);
+                                }
+
+                                int smoothedRate = (int)Math.Round(_smoothedRpmRate);
+                                if (smoothedRate < 0)
+                                {
+                                    smoothedRate = 0;
+                                }
+
+                                LastRpmRate = smoothedRate;
+                                if (effectiveLeadMs > 0)
+                                {
+                                    double leadDeltaRpm = smoothedRate * (effectiveLeadMs / 1000.0);
+                                    if (leadDeltaRpm > MaxPredictiveEarlyRpm)
+                                    {
+                                        leadDeltaRpm = MaxPredictiveEarlyRpm;
+                                    }
+
+                                    if (engineRpm < (targetRpm - MaxPredictiveEarlyRpm))
+                                    {
+                                        LastRpmRate = 0;
+                                        LastEffectiveTargetRpm = targetRpm;
+                                        leadDeltaRpm = 0;
+                                    }
+
+                                    int computedEffectiveTarget = targetRpm - (int)Math.Round(leadDeltaRpm);
+                                    int effectiveFloor = Math.Max(MinEffectiveTargetRpmFloor, targetRpm - EffectiveTargetFloorOffset);
+                                    if (computedEffectiveTarget < effectiveFloor)
+                                    {
+                                        LastRpmRate = 0;
+                                        LastEffectiveTargetRpm = targetRpm;
+                                    }
+                                    else
+                                    {
+                                        LastEffectiveTargetRpm = computedEffectiveTarget;
+                                    }
                                 }
                             }
                         }
