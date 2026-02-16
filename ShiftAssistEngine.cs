@@ -58,6 +58,10 @@ namespace LaunchPlugin
             LastRpmRate = 0;
             LastBeepWasUrgent = false;
             int effectiveLeadMs = Math.Max(0, leadTimeMs - AudioOutputCompMs);
+            if (effectiveLeadMs > 200)
+            {
+                effectiveLeadMs = 200;
+            }
 
             var nowUtc = _utcNow();
             bool sameGearAsLastSample = currentGear >= 1 && currentGear == _lastGear;

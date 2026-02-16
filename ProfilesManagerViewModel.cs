@@ -587,11 +587,12 @@ namespace LaunchPlugin
             {
                 int clamped = value;
                 if (clamped < 0) clamped = 0;
-                if (clamped > 500) clamped = 500;
+                if (clamped > 200) clamped = 200;
                 _setShiftAssistLeadTimeMs?.Invoke(clamped);
                 OnPropertyChanged();
             }
         }
+
 
         public bool ShiftAssistUseCustomWav
         {
