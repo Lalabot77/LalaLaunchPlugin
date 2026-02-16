@@ -209,6 +209,8 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="10">
                             <styles:SHToggleCheckbox Content="Enable Shift Assist" IsChecked="{Binding ShiftAssistEnabled, Mode=TwoWay}" />
+                            <styles:SHToggleCheckbox Content="Learning mode" Margin="0,8,0,0" IsChecked="{Binding ShiftAssistLearningModeEnabled, Mode=TwoWay}"
+                                                     ToolTip="Enables data mining for shift-point learning and allows the dash learning overlay to be shown." />
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
