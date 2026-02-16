@@ -2,9 +2,9 @@
 
 **CANONICAL CONTRACT**
 
-Validated against: 2a38742  
-Last reviewed: 2026-02-14  
-Last updated: 2026-02-14  
+Validated against: 1617166  
+Last reviewed: 2026-02-16  
+Last updated: 2026-02-16  
 Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
@@ -219,7 +219,12 @@ Branch: work
 | ShiftAssist.DelayAvg_G1..ShiftAssist.DelayAvg_G8 | int | Runtime rolling average beep→upshift delay (ms) per source gear, over last 5 valid samples. | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
 | ShiftAssist.DelayN_G1..ShiftAssist.DelayN_G8 | int | Runtime sample count currently included in each per-gear rolling average (0..5). | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
 | ShiftAssist.Beep | bool | True during configurable beep latch window (default 250 ms, clamp 100..1000 ms; dash flash fallback/testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.Learn.Enabled | int | Learning mode state exported as `1`/`0` for dash overlays and learning workflows. | Per tick. | `LalaLaunch.cs` settings bridge + `AttachCore`. |
 | ShiftAssist.State | string | Runtime evaluator state (`Off` / `On` / `NoData` / `Cooldown`). | Per tick. | `ShiftAssistEngine.cs` state machine + `LalaLaunch.cs` export. |
+| ShiftAssist.Debug.AudioDelayMs | int | Most recent measured delay between trigger and `SoundPlayer` issue time (ms), clamped and session-local. | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.Debug.AudioDelayAgeMs | int | Age (ms) of `AudioDelayMs`; returns `-1` when no measurement exists yet this session. | Per tick. | `LalaLaunch.cs` — `GetShiftAssistAudioDelayAgeMs` + `AttachCore`. |
+| ShiftAssist.Debug.AudioIssued | bool | Pulse true when an audio issue timestamp is captured this tick. | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.Debug.AudioBackend | string | Current playback backend identifier (`SoundPlayer`). | Per tick. | `LalaLaunch.cs` — `AttachCore`. |
 | ShiftAssist UI gear rows | n/a | Profile storage remains 8 slots, but UI only shows up-shiftable gears `1..(maxForwardGears-1)` where max forward gears comes from `DataCorePlugin.GameData.CarSettings_MaxGears`, then `DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward`, then defaults to `8`. | On profile/UI refresh. | `ProfilesManagerViewModel.cs` — `ShiftAssistMaxTargetGears` + `ShiftGearRows`. |
 
 ## Session / Identity

@@ -2,9 +2,9 @@
 
 **CANONICAL OBSERVABILITY MAP**
 
-Validated against: 2a38742  
-Last reviewed: 2026-02-14  
-Last updated: 2026-02-14  
+Validated against: 1617166  
+Last reviewed: 2026-02-16  
+Last updated: 2026-02-16  
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
@@ -171,15 +171,19 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Rejoin Assist] MsgCx override triggered.`** — Message context override fired inside rejoin assist engine.【F:RejoinAssistEngine.cs†L601-L622】
 
 ## Shift Assist
-- **`[LalaPlugin:ShiftAssist] Enabled=true/false`** — Shift assist runtime evaluation toggled on/off (startup + live toggle + action toggle).【F:LalaLaunch.cs†L3523-L3549】【F:LalaLaunch.cs†L5739-L5747】
-- **`[LalaPlugin:ShiftAssist] Toggle action -> Enabled=...`** — Action binding flipped shift assist on/off from the button map.【F:LalaLaunch.cs†L3544-L3550】
-- **`[LalaPlugin:ShiftAssist] Test beep triggered (duration=...ms)`** — UI test button fired a manual confirmation beep and latch window.【F:LalaLaunch.cs†L5710-L5721】
-- **`[LalaPlugin:ShiftAssist] Beep gear=... target=... effectiveTarget=... rpm=... throttle=... leadMs=...`** — Normal runtime shift cue fired and includes full trigger context for tuning lead-time/targets.【F:LalaLaunch.cs†L5821-L5853】
-- **`[LalaPlugin:ShiftAssist] Delay sample captured gear=... delayMs=... avgMs=...`** — Beep-to-upshift timing sample accepted into the rolling per-gear delay averages.【F:LalaLaunch.cs†L5776-L5795】
-- **`[LalaPlugin:ShiftAssist] Delay stats reset via action.`** — Manual reset of all runtime delay statistics from the action binding/UI control.【F:LalaLaunch.cs†L3534-L3539】
-- **`[LalaPlugin:ShiftAssist] Sound=Custom path='...'`** — Beep playback currently resolved to a valid custom WAV file path.【F:ShiftAssistAudio.cs†L153-L163】
-- **`[LalaPlugin:ShiftAssist] Sound=EmbeddedDefault path='...'`** — Beep playback resolved to the extracted embedded default WAV.【F:ShiftAssistAudio.cs†L164-L167】
-- **`[LalaPlugin:ShiftAssist] WARNING custom wav missing/invalid, falling back to embedded default`** — Custom WAV was enabled but missing/invalid; warning is emitted once per session and playback falls back to embedded default sound.【F:ShiftAssistAudio.cs†L126-L139】
-- **`[LalaPlugin:ShiftAssist] Embedded default beep resource missing.`** — Embedded WAV resource was unavailable in the assembly; default extraction cannot proceed.【F:ShiftAssistAudio.cs†L52-L64】
-- **`[LalaPlugin:ShiftAssist] Failed to extract embedded beep: ...`** — IO/extraction error while writing the default WAV to disk.【F:ShiftAssistAudio.cs†L72-L82】
-- **`[LalaPlugin:ShiftAssist] Failed to play sound '...': ...`** — Sound playback failed for selected path; shift cue remains logically triggered but audio output failed.【F:ShiftAssistAudio.cs†L111-L118】
+- **`[LalaPlugin:ShiftAssist] Enabled=true/false`** — Shift assist runtime evaluation toggled on/off (startup + live toggle + action toggle).【F:LalaLaunch.cs†L3616-L3616】【F:LalaLaunch.cs†L5905-L5913】
+- **`[LalaPlugin:ShiftAssist] Toggle action -> Enabled=...`** — Action binding flipped shift assist on/off from the button map.【F:LalaLaunch.cs†L3635-L3643】
+- **`[LalaPlugin:ShiftAssist] Debug CSV toggle action -> Enabled=...`** — Action binding toggled the Shift Assist debug CSV writer on/off for the current settings profile.【F:LalaLaunch.cs†L3651-L3659】
+- **`[LalaPlugin:ShiftAssist] Test beep triggered (duration=...ms)`** — UI test button fired a manual confirmation beep and latch window.【F:LalaLaunch.cs†L5844-L5871】
+- **`[LalaPlugin:ShiftAssist] Beep type=primary/urgent gear=... rawGear=... maxForwardGears=... target=... redline=... effectiveTarget=... rpm=... rpmRate=... leadMs=... throttle=... suppressDown=... suppressUp=...`** — Normal runtime shift cue fired and includes full trigger context for tuning lead-time, gear interpretation, and suppression behavior.【F:LalaLaunch.cs†L6072-L6110】
+- **`[LalaPlugin:ShiftAssist] Delay sample captured gear=... delayMs=... avgMs=...`** — Beep-to-upshift timing sample accepted into the rolling per-gear delay averages.【F:LalaLaunch.cs†L5957-L5975】
+- **`[LalaPlugin:ShiftAssist] AudioDelayMs=... backend=SoundPlayer`** — Optional telemetry log (when debug CSV mode is enabled) recording trigger-to-audio-issue latency.【F:LalaLaunch.cs†L6082-L6089】
+- **`[LalaPlugin:ShiftAssist] Debug CSV disabled for session after write failure path='...' error='...'`** — Debug CSV writer hit an IO/write error and self-disabled for the remainder of the session.【F:LalaLaunch.cs†L6306-L6310】
+- **`[LalaPlugin:ShiftAssist] Delay stats reset via action.`** — Manual reset of all runtime delay statistics from the action binding/UI control.【F:LalaLaunch.cs†L3624-L3632】
+- **`[LalaPlugin:ShiftAssist] Sound=Custom path='...'`** — Beep playback currently resolved to a valid custom WAV file path.【F:ShiftAssistAudio.cs†L261-L264】
+- **`[LalaPlugin:ShiftAssist] Sound=EmbeddedDefault path='...'`** — Beep playback resolved to the extracted embedded default WAV.【F:ShiftAssistAudio.cs†L265-L268】
+- **`[LalaPlugin:ShiftAssist] WARNING custom wav missing/invalid, falling back to embedded default`** — Custom WAV was enabled but missing/invalid; warning is emitted once per session and playback falls back to embedded default sound.【F:ShiftAssistAudio.cs†L233-L241】
+- **`[LalaPlugin:ShiftAssist] Embedded default beep resource missing.`** — Embedded WAV resource was unavailable in the assembly; default extraction cannot proceed.【F:ShiftAssistAudio.cs†L105-L110】
+- **`[LalaPlugin:ShiftAssist] Failed to extract embedded beep: ...`** — IO/extraction error while writing the default WAV to disk.【F:ShiftAssistAudio.cs†L72-L85】
+- **`[LalaPlugin:ShiftAssist] Failed to play sound '...': ...`** — Sound playback failed for selected path; shift cue remains logically triggered but audio output failed.【F:ShiftAssistAudio.cs†L175-L182】
+- **`[LalaPlugin:ShiftAssist] HardStop failed: ...`** — Audio stop attempt failed while disabling/muting beeps; logged as warning.【F:ShiftAssistAudio.cs†L192-L200】

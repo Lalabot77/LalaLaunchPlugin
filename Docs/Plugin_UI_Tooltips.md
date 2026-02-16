@@ -1,7 +1,7 @@
 # Plugin UI Tooltips
 
-Validated against commit: 2a38742  
-Last updated: 2026-02-14  
+Validated against commit: 1617166  
+Last updated: 2026-02-16  
 Branch: work
 
 ## CopyProfileDialog.xaml
@@ -267,9 +267,17 @@ Branch: work
 - L768: Clear wet data and relearn from new live laps (while unlocked).
 - L775: Computed deltas between wet and dry averages for this track.
 
-## Shift Assist controls (currently no tooltip text)
-- ProfilesManagerView.xaml L211: `Enable Shift Assist` toggle exists without a tooltip string.
-- ProfilesManagerView.xaml L222: `Beep Duration (ms)` textbox exists without a tooltip string.
-- ProfilesManagerView.xaml L224: `Lead Time (ms)` textbox exists without a tooltip string.
-- ProfilesManagerView.xaml L269: `Use custom sound` toggle exists without a tooltip string.
-- ProfilesManagerView.xaml L277: `Custom WAV path` textbox exists without a tooltip string.
+## Shift Assist controls
+- L211: `Enable Shift Assist` toggle exists without a tooltip string.
+- L212: `Learning mode` toggle tooltip: enables shift-point learning data mining and dash learning overlay.
+- L223: `Shift Light Duration (ms)` tooltip: controls how long `ShiftAssist.Beep` stays active; does not change WAV length.
+- L226/L227: `Lead time (ms)` label/textbox exist without tooltip text.
+- L230: `Beep sound` toggle exists without a tooltip string.
+- L237/L248: `Beep volume` label/slider tooltip: not implemented yet; uses SimHub master volume.
+- L257-L275: gear stack selection/copy controls exist without tooltip text.
+- L278/L279: shift targets header/redline hint are informational labels (no tooltip text).
+- L299: `Use custom sound` toggle exists without a tooltip string.
+- L307: `Custom WAV path` textbox exists without a tooltip string.
+- L308: `Browse` button exists without a tooltip string.
+- L309: `Use embedded default` button exists without a tooltip string.
+- L310: `Test Beep` button exists without a tooltip string.
