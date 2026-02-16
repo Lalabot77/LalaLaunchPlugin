@@ -3504,6 +3504,12 @@ namespace LaunchPlugin
                     Settings.ShiftAssistEnabled = enabled;
                     SaveSettings();
                 },
+                () => Settings?.ShiftAssistLearningModeEnabled == true,
+                (enabled) =>
+                {
+                    Settings.ShiftAssistLearningModeEnabled = enabled;
+                    SaveSettings();
+                },
                 () => GetShiftAssistBeepDurationMs(),
                 (durationMs) =>
                 {
@@ -3911,6 +3917,7 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.EffectiveTargetRPM_CurrentGear", () => _shiftAssistEngine.LastEffectiveTargetRpm);
             AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
             AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.Learn.Enabled", () => Settings?.ShiftAssistLearningModeEnabled == true ? 1 : 0);
             AttachCore("ShiftAssist.State", () => _shiftAssistEngine.LastState.ToString());
             AttachCore("ShiftAssist.Debug.AudioDelayMs", () => _shiftAssistAudioDelayMs);
             AttachCore("ShiftAssist.Debug.AudioIssued", () => _shiftAssistAudioIssuedPulse);
@@ -6086,7 +6093,7 @@ namespace LaunchPlugin
             }
 
             bool exportedBeepLatched = _shiftAssistBeepLatched;
-            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2);
+            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, effectiveGear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2);
         }
 
         private int ResolveShiftAssistMaxForwardGears(PluginManager pluginManager)
@@ -6205,7 +6212,7 @@ namespace LaunchPlugin
             _shiftAssistDebugCsvFileTimestamp = null;
         }
 
-        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2)
+        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2)
         {
             if (Settings?.EnableShiftAssistDebugCsv != true)
             {
@@ -6252,13 +6259,13 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear" + Environment.NewLine);
                     }
                 }
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -6276,7 +6283,8 @@ namespace LaunchPlugin
                     _shiftAssistEngine.IsSuppressingUpshift ? "1" : "0",
                     speedMps,
                     accelDerivedMps2,
-                    lonAccelTelemetryMps2);
+                    lonAccelTelemetryMps2,
+                    effectiveGear);
 
                 File.AppendAllText(_shiftAssistDebugCsvPath, line + Environment.NewLine);
             }
@@ -12009,6 +12017,7 @@ namespace LaunchPlugin
         public string TraceLogPath { get; set; } = "";
         public bool EnableTelemetryTracing { get; set; } = true;
         public bool ShiftAssistEnabled { get; set; } = false;
+        public bool ShiftAssistLearningModeEnabled { get; set; } = false;
         public int ShiftAssistBeepDurationMs { get; set; } = LalaLaunch.ShiftAssistBeepDurationMsDefault;
         public int ShiftAssistLeadTimeMs { get; set; } = LalaLaunch.ShiftAssistLeadTimeMsDefault;
         public bool ShiftAssistBeepSoundEnabled { get; set; } = true;
