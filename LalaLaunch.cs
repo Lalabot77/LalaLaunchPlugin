@@ -929,6 +929,81 @@ namespace LaunchPlugin
             return _shiftAssistDelaySampleCounts[gear - 1];
         }
 
+        private int GetShiftAssistLearnSamplesForGear(int gear)
+        {
+            return _shiftAssistLearningEngine.GetSampleCount(_shiftAssistActiveGearStackId, gear);
+        }
+
+        private int GetShiftAssistLearnedRpmForGear(int gear)
+        {
+            return _shiftAssistLearningEngine.GetLearnedRpm(_shiftAssistActiveGearStackId, gear);
+        }
+
+        private bool GetShiftAssistLockedForGear(int gear)
+        {
+            if (gear < 1 || gear > 8 || ActiveProfile == null)
+            {
+                return false;
+            }
+
+            var stack = ActiveProfile.EnsureShiftStack(_shiftAssistActiveGearStackId);
+            return stack.ShiftLocked[gear - 1];
+        }
+
+        private bool IsShiftAssistLearnSavedPulseActive()
+        {
+            return DateTime.UtcNow <= _shiftAssistLearnSavedPulseUntilUtc;
+        }
+
+        private static string ToLearningStateText(ShiftAssistLearningState state)
+        {
+            switch (state)
+            {
+                case ShiftAssistLearningState.Armed: return "Armed";
+                case ShiftAssistLearningState.Sampling: return "Sampling";
+                case ShiftAssistLearningState.Complete: return "Complete";
+                case ShiftAssistLearningState.Rejected: return "Rejected";
+                default: return "Off";
+            }
+        }
+
+        private static bool SetShiftAssistGearLock(ShiftStackData stack, int gear, bool locked)
+        {
+            if (stack == null || gear < 1 || gear > 8)
+            {
+                return false;
+            }
+
+            int idx = gear - 1;
+            if (stack.ShiftLocked[idx] == locked)
+            {
+                return false;
+            }
+
+            stack.ShiftLocked[idx] = locked;
+            return true;
+        }
+
+        private void ExecuteShiftAssistLockAction(int gear, Func<bool, bool> resolver, string actionName)
+        {
+            if (ActiveProfile == null || resolver == null || gear < 1 || gear > 8)
+            {
+                return;
+            }
+
+            var stack = ActiveProfile.EnsureShiftStack(_shiftAssistActiveGearStackId);
+            int idx = gear - 1;
+            bool desired = resolver(stack.ShiftLocked[idx]);
+            if (!SetShiftAssistGearLock(stack, gear, desired))
+            {
+                return;
+            }
+
+            ProfilesViewModel?.SaveProfiles();
+            ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+            SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] {actionName} stack='{_shiftAssistActiveGearStackId}' gear=G{gear} locked={desired}");
+        }
+
         private static double ComputeStableMedian(List<double> samples)
         {
             if (samples == null || samples.Count == 0) return 0;
@@ -3417,7 +3492,9 @@ namespace LaunchPlugin
         private const int ShiftAssistDebugCsvMaxHzMax = 60;
         private const int ShiftAssistDelayHistorySize = 5;
         private const int ShiftAssistGearZeroHoldMs = 250;
+        private const int ShiftAssistLearnSavePulseMs = 250;
         private readonly ShiftAssistEngine _shiftAssistEngine = new ShiftAssistEngine();
+        private readonly ShiftAssistLearningEngine _shiftAssistLearningEngine = new ShiftAssistLearningEngine();
         private ShiftAssistAudio _shiftAssistAudio;
         private string _shiftAssistActiveGearStackId = "Default";
         private int _shiftAssistTargetCurrentGear;
@@ -3444,6 +3521,8 @@ namespace LaunchPlugin
         private string _shiftAssistDebugCsvPath;
         private string _shiftAssistDebugCsvFileTimestamp;
         private bool _shiftAssistDebugCsvFailed;
+        private DateTime _shiftAssistLearnSavedPulseUntilUtc = DateTime.MinValue;
+        private ShiftAssistLearningTick _shiftAssistLastLearningTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
 
         private double _lastFuel = 0.0;
 
@@ -3658,7 +3737,48 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Debug CSV toggle action -> Enabled={Settings.EnableShiftAssistDebugCsv}");
             });
             this.AddAction("ShiftAssist_TestBeep", (a, b) => TriggerShiftAssistTestBeep());
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep");
+            this.AddAction("ShiftAssist_ToggleLearningMode", (a, b) =>
+            {
+                if (Settings == null)
+                {
+                    return;
+                }
+
+                Settings.ShiftAssistLearningModeEnabled = !Settings.ShiftAssistLearningModeEnabled;
+                SaveSettings();
+                SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Learning mode toggle action -> Enabled={Settings.ShiftAssistLearningModeEnabled}");
+            });
+            this.AddAction("ShiftAssist_Learn_ResetSamples", (a, b) =>
+            {
+                _shiftAssistLearningEngine.ResetSamplesForStack(_shiftAssistActiveGearStackId);
+                ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Learning samples reset for stack '{_shiftAssistActiveGearStackId}'.");
+            });
+            this.AddAction("ShiftAssist_Lock_G1", (a, b) => ExecuteShiftAssistLockAction(1, current => true, "ShiftAssist_Lock_G1"));
+            this.AddAction("ShiftAssist_Lock_G2", (a, b) => ExecuteShiftAssistLockAction(2, current => true, "ShiftAssist_Lock_G2"));
+            this.AddAction("ShiftAssist_Lock_G3", (a, b) => ExecuteShiftAssistLockAction(3, current => true, "ShiftAssist_Lock_G3"));
+            this.AddAction("ShiftAssist_Lock_G4", (a, b) => ExecuteShiftAssistLockAction(4, current => true, "ShiftAssist_Lock_G4"));
+            this.AddAction("ShiftAssist_Lock_G5", (a, b) => ExecuteShiftAssistLockAction(5, current => true, "ShiftAssist_Lock_G5"));
+            this.AddAction("ShiftAssist_Lock_G6", (a, b) => ExecuteShiftAssistLockAction(6, current => true, "ShiftAssist_Lock_G6"));
+            this.AddAction("ShiftAssist_Lock_G7", (a, b) => ExecuteShiftAssistLockAction(7, current => true, "ShiftAssist_Lock_G7"));
+            this.AddAction("ShiftAssist_Lock_G8", (a, b) => ExecuteShiftAssistLockAction(8, current => true, "ShiftAssist_Lock_G8"));
+            this.AddAction("ShiftAssist_Unlock_G1", (a, b) => ExecuteShiftAssistLockAction(1, current => false, "ShiftAssist_Unlock_G1"));
+            this.AddAction("ShiftAssist_Unlock_G2", (a, b) => ExecuteShiftAssistLockAction(2, current => false, "ShiftAssist_Unlock_G2"));
+            this.AddAction("ShiftAssist_Unlock_G3", (a, b) => ExecuteShiftAssistLockAction(3, current => false, "ShiftAssist_Unlock_G3"));
+            this.AddAction("ShiftAssist_Unlock_G4", (a, b) => ExecuteShiftAssistLockAction(4, current => false, "ShiftAssist_Unlock_G4"));
+            this.AddAction("ShiftAssist_Unlock_G5", (a, b) => ExecuteShiftAssistLockAction(5, current => false, "ShiftAssist_Unlock_G5"));
+            this.AddAction("ShiftAssist_Unlock_G6", (a, b) => ExecuteShiftAssistLockAction(6, current => false, "ShiftAssist_Unlock_G6"));
+            this.AddAction("ShiftAssist_Unlock_G7", (a, b) => ExecuteShiftAssistLockAction(7, current => false, "ShiftAssist_Unlock_G7"));
+            this.AddAction("ShiftAssist_Unlock_G8", (a, b) => ExecuteShiftAssistLockAction(8, current => false, "ShiftAssist_Unlock_G8"));
+            this.AddAction("ShiftAssist_ToggleLock_G1", (a, b) => ExecuteShiftAssistLockAction(1, current => !current, "ShiftAssist_ToggleLock_G1"));
+            this.AddAction("ShiftAssist_ToggleLock_G2", (a, b) => ExecuteShiftAssistLockAction(2, current => !current, "ShiftAssist_ToggleLock_G2"));
+            this.AddAction("ShiftAssist_ToggleLock_G3", (a, b) => ExecuteShiftAssistLockAction(3, current => !current, "ShiftAssist_ToggleLock_G3"));
+            this.AddAction("ShiftAssist_ToggleLock_G4", (a, b) => ExecuteShiftAssistLockAction(4, current => !current, "ShiftAssist_ToggleLock_G4"));
+            this.AddAction("ShiftAssist_ToggleLock_G5", (a, b) => ExecuteShiftAssistLockAction(5, current => !current, "ShiftAssist_ToggleLock_G5"));
+            this.AddAction("ShiftAssist_ToggleLock_G6", (a, b) => ExecuteShiftAssistLockAction(6, current => !current, "ShiftAssist_ToggleLock_G6"));
+            this.AddAction("ShiftAssist_ToggleLock_G7", (a, b) => ExecuteShiftAssistLockAction(7, current => !current, "ShiftAssist_ToggleLock_G7"));
+            this.AddAction("ShiftAssist_ToggleLock_G8", (a, b) => ExecuteShiftAssistLockAction(8, current => !current, "ShiftAssist_ToggleLock_G8"));
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep, ShiftAssist_ToggleLearningMode, ShiftAssist_Learn_ResetSamples, ShiftAssist_Lock_G1..G8, ShiftAssist_Unlock_G1..G8, ShiftAssist_ToggleLock_G1..G8");
 
             AttachCore("LalaLaunch.Friends.Count", () => _friendsCount);
 
@@ -3931,6 +4051,37 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
             AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
             AttachCore("ShiftAssist.Learn.Enabled", () => Settings?.ShiftAssistLearningModeEnabled == true ? 1 : 0);
+            AttachCore("ShiftAssist.Learn.State", () => ToLearningStateText(_shiftAssistLastLearningTick?.State ?? ShiftAssistLearningState.Off));
+            AttachCore("ShiftAssist.Learn.ActiveGear", () => _shiftAssistLastLearningTick?.ActiveGear ?? 0);
+            AttachCore("ShiftAssist.Learn.WindowMs", () => _shiftAssistLastLearningTick?.WindowMs ?? 0);
+            AttachCore("ShiftAssist.Learn.PeakAccelMps2", () => _shiftAssistLastLearningTick?.PeakAccelMps2 ?? 0.0);
+            AttachCore("ShiftAssist.Learn.PeakRpm", () => _shiftAssistLastLearningTick?.PeakRpm ?? 0);
+            AttachCore("ShiftAssist.Learn.LastSampleRpm", () => _shiftAssistLastLearningTick?.LastSampleRpm ?? 0);
+            AttachCore("ShiftAssist.Learn.SavedPulse", () => IsShiftAssistLearnSavedPulseActive());
+            AttachCore("ShiftAssist.Learn.Samples_G1", () => GetShiftAssistLearnSamplesForGear(1));
+            AttachCore("ShiftAssist.Learn.Samples_G2", () => GetShiftAssistLearnSamplesForGear(2));
+            AttachCore("ShiftAssist.Learn.Samples_G3", () => GetShiftAssistLearnSamplesForGear(3));
+            AttachCore("ShiftAssist.Learn.Samples_G4", () => GetShiftAssistLearnSamplesForGear(4));
+            AttachCore("ShiftAssist.Learn.Samples_G5", () => GetShiftAssistLearnSamplesForGear(5));
+            AttachCore("ShiftAssist.Learn.Samples_G6", () => GetShiftAssistLearnSamplesForGear(6));
+            AttachCore("ShiftAssist.Learn.Samples_G7", () => GetShiftAssistLearnSamplesForGear(7));
+            AttachCore("ShiftAssist.Learn.Samples_G8", () => GetShiftAssistLearnSamplesForGear(8));
+            AttachCore("ShiftAssist.Learn.LearnedRpm_G1", () => GetShiftAssistLearnedRpmForGear(1));
+            AttachCore("ShiftAssist.Learn.LearnedRpm_G2", () => GetShiftAssistLearnedRpmForGear(2));
+            AttachCore("ShiftAssist.Learn.LearnedRpm_G3", () => GetShiftAssistLearnedRpmForGear(3));
+            AttachCore("ShiftAssist.Learn.LearnedRpm_G4", () => GetShiftAssistLearnedRpmForGear(4));
+            AttachCore("ShiftAssist.Learn.LearnedRpm_G5", () => GetShiftAssistLearnedRpmForGear(5));
+            AttachCore("ShiftAssist.Learn.LearnedRpm_G6", () => GetShiftAssistLearnedRpmForGear(6));
+            AttachCore("ShiftAssist.Learn.LearnedRpm_G7", () => GetShiftAssistLearnedRpmForGear(7));
+            AttachCore("ShiftAssist.Learn.LearnedRpm_G8", () => GetShiftAssistLearnedRpmForGear(8));
+            AttachCore("ShiftAssist.Learn.Locked_G1", () => GetShiftAssistLockedForGear(1));
+            AttachCore("ShiftAssist.Learn.Locked_G2", () => GetShiftAssistLockedForGear(2));
+            AttachCore("ShiftAssist.Learn.Locked_G3", () => GetShiftAssistLockedForGear(3));
+            AttachCore("ShiftAssist.Learn.Locked_G4", () => GetShiftAssistLockedForGear(4));
+            AttachCore("ShiftAssist.Learn.Locked_G5", () => GetShiftAssistLockedForGear(5));
+            AttachCore("ShiftAssist.Learn.Locked_G6", () => GetShiftAssistLockedForGear(6));
+            AttachCore("ShiftAssist.Learn.Locked_G7", () => GetShiftAssistLockedForGear(7));
+            AttachCore("ShiftAssist.Learn.Locked_G8", () => GetShiftAssistLockedForGear(8));
             AttachCore("ShiftAssist.State", () => _shiftAssistEngine.LastState.ToString());
             AttachCore("ShiftAssist.Debug.AudioDelayMs", () => _shiftAssistAudioDelayMs);
             AttachCore("ShiftAssist.Debug.AudioDelayAgeMs", () => GetShiftAssistAudioDelayAgeMs());
@@ -5898,6 +6049,8 @@ namespace LaunchPlugin
                 _shiftAssistLastSpeedMps = double.NaN;
                 _shiftAssistLastSpeedSampleUtc = DateTime.MinValue;
                 _shiftAssistEngine.Reset();
+                _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(false, _shiftAssistActiveGearStackId, 0, 0, 0.0, 0.0, double.NaN, 0.0);
+                _shiftAssistLearnSavedPulseUntilUtc = DateTime.MinValue;
                 ClearShiftAssistDelayPending();
                 ResetShiftAssistDebugCsvState();
                 if (_shiftAssistLastEnabled)
@@ -5988,6 +6141,8 @@ namespace LaunchPlugin
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
             double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
+            double brakeRaw = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.Brake", 0.0);
+            double brake01 = brakeRaw > 1.5 ? (brakeRaw / 100.0) : brakeRaw;
             double sessionTimeSec = ResolveShiftAssistSessionTimeSec(pluginManager);
 
             double speedMps = ResolveShiftAssistSpeedMps(pluginManager, data);
@@ -6020,6 +6175,38 @@ namespace LaunchPlugin
             }
 
             _shiftAssistActiveGearStackId = gearStackId;
+            double learningLonAccelMps2 = (!double.IsNaN(lonAccelTelemetryMps2) && !double.IsInfinity(lonAccelTelemetryMps2) && Math.Abs(lonAccelTelemetryMps2) > 0.0001)
+                ? lonAccelTelemetryMps2
+                : accelDerivedMps2;
+
+            _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(
+                settings?.ShiftAssistLearningModeEnabled == true,
+                gearStackId,
+                effectiveGear,
+                rpm,
+                throttle01,
+                brake01,
+                sessionTimeSec,
+                learningLonAccelMps2);
+
+            if (_shiftAssistLastLearningTick != null && _shiftAssistLastLearningTick.ShouldApplyLearnedRpm && ActiveProfile != null)
+            {
+                int learnedGear = _shiftAssistLastLearningTick.ApplyGear;
+                int learnedRpm = _shiftAssistLastLearningTick.ApplyRpm;
+                if (learnedGear >= 1 && learnedGear <= 8 && learnedRpm > 0)
+                {
+                    var stack = ActiveProfile.EnsureShiftStack(gearStackId);
+                    int idx = learnedGear - 1;
+                    if (!stack.ShiftLocked[idx] && stack.ShiftRPM[idx] != learnedRpm)
+                    {
+                        stack.ShiftRPM[idx] = learnedRpm;
+                        _shiftAssistLearnSavedPulseUntilUtc = nowUtc.AddMilliseconds(ShiftAssistLearnSavePulseMs);
+                        ProfilesViewModel?.SaveProfiles();
+                        ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                    }
+                }
+            }
+
             int targetRpm = ActiveProfile?.GetShiftTargetForGear(gearStackId, effectiveGear) ?? 0;
 
             int redlineRpm = 0;
@@ -6108,7 +6295,7 @@ namespace LaunchPlugin
             }
 
             bool exportedBeepLatched = _shiftAssistBeepLatched;
-            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, effectiveGear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2);
+            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, effectiveGear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2, _shiftAssistLastLearningTick);
         }
 
         private int ResolveShiftAssistMaxForwardGears(PluginManager pluginManager)
@@ -6227,7 +6414,7 @@ namespace LaunchPlugin
             _shiftAssistDebugCsvFileTimestamp = null;
         }
 
-        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2)
+        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2, ShiftAssistLearningTick learningTick)
         {
             if (Settings?.EnableShiftAssistDebugCsv != true)
             {
@@ -6274,13 +6461,20 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear" + Environment.NewLine);
                     }
                 }
 
+                string learnState = ToLearningStateText(learningTick?.State ?? ShiftAssistLearningState.Off);
+                int learnPeakRpm = learningTick?.PeakRpm ?? 0;
+                double learnPeakAccelMps2 = learningTick?.PeakAccelMps2 ?? 0.0;
+                bool learnSampleAdded = learningTick?.SampleAdded == true;
+                int learnSamplesForGear = learningTick?.SamplesForGear ?? 0;
+                int learnLearnedRpmForGear = learningTick?.LearnedRpmForGear ?? 0;
+
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -6299,7 +6493,14 @@ namespace LaunchPlugin
                     speedMps,
                     accelDerivedMps2,
                     lonAccelTelemetryMps2,
-                    effectiveGear);
+                    effectiveGear,
+                    Settings?.ShiftAssistLearningModeEnabled == true ? "1" : "0",
+                    learnState,
+                    learnPeakRpm,
+                    learnPeakAccelMps2,
+                    learnSampleAdded ? "1" : "0",
+                    learnSamplesForGear,
+                    learnLearnedRpmForGear);
 
                 File.AppendAllText(_shiftAssistDebugCsvPath, line + Environment.NewLine);
             }

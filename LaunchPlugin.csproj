@@ -120,6 +120,7 @@
     <Compile Include="SessionTraceLapRow.cs" />
     <Compile Include="ShiftAssistAudio.cs" />
     <Compile Include="ShiftAssistEngine.cs" />
+    <Compile Include="ShiftAssistLearningEngine.cs" />
     <Compile Include="LaunchAnalysisControl.xaml.cs">
       <DependentUpon>LaunchAnalysisControl.xaml</DependentUpon>
     </Compile>

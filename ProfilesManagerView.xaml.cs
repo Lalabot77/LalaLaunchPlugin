@@ -28,5 +28,29 @@ namespace LaunchPlugin
 
             row.SaveAction?.Invoke(box.Text);
         }
+
+        private void ShiftLockCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            var box = sender as CheckBox;
+            var row = box?.DataContext as ShiftGearRow;
+            if (row == null)
+            {
+                return;
+            }
+
+            row.SetLockAction?.Invoke(true);
+        }
+
+        private void ShiftLockCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            var box = sender as CheckBox;
+            var row = box?.DataContext as ShiftGearRow;
+            if (row == null)
+            {
+                return;
+            }
+
+            row.SetLockAction?.Invoke(false);
+        }
     }
 }

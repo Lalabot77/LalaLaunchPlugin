@@ -299,6 +299,9 @@ namespace LaunchPlugin
         [JsonProperty]
         public int[] ShiftRPM { get; set; } = new int[8];
 
+        [JsonProperty]
+        public bool[] ShiftLocked { get; set; } = new bool[8];
+
         public void EnsureValidShape()
         {
             if (ShiftRPM == null || ShiftRPM.Length != 8)
@@ -324,6 +327,21 @@ namespace LaunchPlugin
                         ShiftRPM[i] = 0;
                     }
                 }
+            }
+
+            if (ShiftLocked == null || ShiftLocked.Length != 8)
+            {
+                var correctedLocks = new bool[8];
+                if (ShiftLocked != null)
+                {
+                    int count = Math.Min(8, ShiftLocked.Length);
+                    for (int i = 0; i < count; i++)
+                    {
+                        correctedLocks[i] = ShiftLocked[i];
+                    }
+                }
+
+                ShiftLocked = correctedLocks;
             }
         }
     }

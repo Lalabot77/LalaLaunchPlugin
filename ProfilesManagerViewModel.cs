@@ -749,6 +749,7 @@ namespace LaunchPlugin
                     {
                         GearLabel = $"Shift from Gear {rowGear}",
                         RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
+                        IsLocked = stack.ShiftLocked[gearIdx],
                         DelaySummary = delaySamples > 0 && avgDelayMs > 0
                             ? string.Format(CultureInfo.InvariantCulture, "Avg delay: {0} ms (n={1})", avgDelayMs, delaySamples)
                             : "—",
@@ -764,6 +765,17 @@ namespace LaunchPlugin
                             SaveProfiles();
                             OnPropertyChanged(nameof(ShiftGearRows));
                             OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
+                        },
+                        SetLockAction = locked =>
+                        {
+                            if (stack.ShiftLocked[gearIdx] == locked)
+                            {
+                                return;
+                            }
+
+                            stack.ShiftLocked[gearIdx] = locked;
+                            SaveProfiles();
+                            OnPropertyChanged(nameof(ShiftGearRows));
                         }
                     };
                 }
@@ -1020,6 +1032,7 @@ namespace LaunchPlugin
                 var src = kvp.Value ?? new ShiftStackData();
                 src.EnsureValidShape();
                 for (int i = 0; i < 8; i++) copied.ShiftRPM[i] = src.ShiftRPM[i];
+                for (int i = 0; i < 8; i++) copied.ShiftLocked[i] = src.ShiftLocked[i];
                 destination.ShiftAssistStacks[kvp.Key] = copied;
             }
         }
@@ -1088,6 +1101,7 @@ namespace LaunchPlugin
             for (int i = 0; i < 8; i++)
             {
                 destination.ShiftRPM[i] = source.ShiftRPM[i];
+                destination.ShiftLocked[i] = source.ShiftLocked[i];
             }
 
             SaveProfiles();
@@ -1579,5 +1593,7 @@ namespace LaunchPlugin
         public string RpmText { get; set; }
         public Action<string> SaveAction { get; set; }
         public string DelaySummary { get; set; }
+        public bool IsLocked { get; set; }
+        public Action<bool> SetLockAction { get; set; }
     }
 }
