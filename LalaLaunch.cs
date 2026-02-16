@@ -5980,13 +5980,22 @@ namespace LaunchPlugin
 
             _shiftAssistActiveGearStackId = gearStackId;
             int targetRpm = ActiveProfile?.GetShiftTargetForGear(gearStackId, gear) ?? 0;
+            int redlineRpm = 0;
             if (targetRpm <= 0)
             {
-                int redLineRpm;
-                if (TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redLineRpm) && redLineRpm > 0)
+                if (TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) && redlineRpm > 0)
                 {
-                    targetRpm = redLineRpm;
+                    targetRpm = redlineRpm;
                 }
+            }
+            else if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) || redlineRpm <= 0)
+            {
+                redlineRpm = targetRpm;
+            }
+
+            if (redlineRpm <= 0)
+            {
+                redlineRpm = targetRpm;
             }
 
             bool topGearKnown = maxForwardGears >= 1;
@@ -6008,7 +6017,8 @@ namespace LaunchPlugin
                 targetRpm,
                 ShiftAssistCooldownMsDefault,
                 ShiftAssistResetHysteresisRpmDefault,
-                leadTimeMs);
+                leadTimeMs,
+                redlineRpm);
 
             if (beep)
             {
@@ -6033,16 +6043,19 @@ namespace LaunchPlugin
 
                 if (gear >= 1 && gear <= 8)
                 {
-                    ClearShiftAssistDelayPending();
-                    _shiftAssistPendingDelayGear = gear;
-                    _shiftAssistPendingDelayBeepUtc = nowUtc;
-                    _shiftAssistPendingDelayActive = true;
+                    if (!_shiftAssistEngine.LastBeepWasUrgent)
+                    {
+                        ClearShiftAssistDelayPending();
+                        _shiftAssistPendingDelayGear = gear;
+                        _shiftAssistPendingDelayBeepUtc = nowUtc;
+                        _shiftAssistPendingDelayActive = true;
+                    }
                 }
 
                 if (IsVerboseDebugLoggingOn)
                 {
                     SimHub.Logging.Current.Info(
-                        $"[LalaPlugin:ShiftAssist] Beep gear={gear} maxForwardGears={maxForwardGears} target={targetRpm} effectiveTarget={_shiftAssistEngine.LastEffectiveTargetRpm} rpm={rpm} rpmRate={_shiftAssistEngine.LastRpmRate} throttle={throttle01:F2} leadMs={leadTimeMs} suppressDown={suppressDownBeforeTrigger} suppressUp={suppressUpBeforeTrigger}");
+                        $"[LalaPlugin:ShiftAssist] Beep type={(_shiftAssistEngine.LastBeepWasUrgent ? "urgent" : "primary")} gear={gear} maxForwardGears={maxForwardGears} target={targetRpm} redline={redlineRpm} effectiveTarget={_shiftAssistEngine.LastEffectiveTargetRpm} rpm={rpm} rpmRate={_shiftAssistEngine.LastRpmRate} leadMs={leadTimeMs} throttle={throttle01:F2} suppressDown={suppressDownBeforeTrigger} suppressUp={suppressUpBeforeTrigger}");
                 }
             }
 
