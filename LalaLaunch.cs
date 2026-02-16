@@ -825,6 +825,26 @@ namespace LaunchPlugin
             return (int)Math.Round(value);
         }
 
+        private static int ClampShiftAssistDelayMs(double value, int maxInclusive)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value))
+            {
+                return 0;
+            }
+
+            if (value < 0.0)
+            {
+                return 0;
+            }
+
+            if (value > maxInclusive)
+            {
+                value = maxInclusive;
+            }
+
+            return (int)Math.Round(value);
+        }
+
         private static int NormalizeShiftAssistGear(int gear)
         {
             return gear >= 1 && gear <= 8 ? gear : 0;
@@ -3391,7 +3411,11 @@ namespace LaunchPlugin
         private bool _shiftAssistLastEnabled;
         private DateTime _shiftAssistBeepUntilUtc = DateTime.MinValue;
         private bool _shiftAssistBeepLatched;
+        private int _shiftAssistAudioDelayMs;
+        private bool _shiftAssistAudioIssuedPulse;
         private int _shiftAssistLastGear;
+        private double _shiftAssistLastSpeedMps = double.NaN;
+        private DateTime _shiftAssistLastSpeedSampleUtc = DateTime.MinValue;
         private int _shiftAssistPendingDelayGear;
         private DateTime _shiftAssistPendingDelayBeepUtc = DateTime.MinValue;
         private bool _shiftAssistPendingDelayActive;
@@ -3869,6 +3893,9 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
             AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
             AttachCore("ShiftAssist.State", () => _shiftAssistEngine.LastState.ToString());
+            AttachCore("ShiftAssist.Debug.AudioDelayMs", () => _shiftAssistAudioDelayMs);
+            AttachCore("ShiftAssist.Debug.AudioIssued", () => _shiftAssistAudioIssuedPulse);
+            AttachCore("ShiftAssist.Debug.AudioBackend", () => "SoundPlayer");
             AttachCore("ShiftAssist.DelayAvg_G1", () => GetShiftAssistDelayAverageMs(1));
             AttachCore("ShiftAssist.DelayAvg_G2", () => GetShiftAssistDelayAverageMs(2));
             AttachCore("ShiftAssist.DelayAvg_G3", () => GetShiftAssistDelayAverageMs(3));
@@ -5792,7 +5819,11 @@ namespace LaunchPlugin
             DateTime nowUtc = DateTime.UtcNow;
             _shiftAssistBeepUntilUtc = nowUtc.AddMilliseconds(durationMs);
             _shiftAssistBeepLatched = true;
-            _shiftAssistAudio?.PlayShiftBeep();
+            DateTime issuedUtc = DateTime.MinValue;
+            if (_shiftAssistAudio != null)
+            {
+                _shiftAssistAudio.TryPlayBeep(out issuedUtc);
+            }
 
             if (IsVerboseDebugLoggingOn)
             {
@@ -5818,7 +5849,11 @@ namespace LaunchPlugin
                 _shiftAssistActiveGearStackId = "Default";
                 _shiftAssistBeepUntilUtc = DateTime.MinValue;
                 _shiftAssistBeepLatched = false;
+                _shiftAssistAudioDelayMs = 0;
+                _shiftAssistAudioIssuedPulse = false;
                 _shiftAssistLastGear = 0;
+                _shiftAssistLastSpeedMps = double.NaN;
+                _shiftAssistLastSpeedSampleUtc = DateTime.MinValue;
                 _shiftAssistEngine.Reset();
                 ClearShiftAssistDelayPending();
                 ResetShiftAssistDebugCsvState();
@@ -5838,6 +5873,8 @@ namespace LaunchPlugin
 
             DateTime nowUtc = DateTime.UtcNow;
             _shiftAssistBeepLatched = nowUtc <= _shiftAssistBeepUntilUtc;
+            _shiftAssistAudioIssuedPulse = false;
+            _shiftAssistAudioDelayMs = 0;
 
             int gear;
             if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Gear", out gear))
@@ -5894,7 +5931,27 @@ namespace LaunchPlugin
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
             double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
-            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.SessionTime", double.NaN);
+            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", double.NaN);
+            if (double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec))
+            {
+                sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.SessionTime", double.NaN);
+            }
+
+            double speedMps = ResolveShiftAssistSpeedMps(pluginManager, data);
+            double accelDerivedMps2 = 0.0;
+            if (_shiftAssistLastSpeedSampleUtc != DateTime.MinValue && !double.IsNaN(_shiftAssistLastSpeedMps))
+            {
+                double dtSec = (nowUtc - _shiftAssistLastSpeedSampleUtc).TotalSeconds;
+                if (dtSec >= 0.02 && dtSec <= 0.20)
+                {
+                    accelDerivedMps2 = (speedMps - _shiftAssistLastSpeedMps) / dtSec;
+                }
+            }
+
+            _shiftAssistLastSpeedSampleUtc = nowUtc;
+            _shiftAssistLastSpeedMps = speedMps;
+
+            double lonAccelTelemetryMps2 = ResolveShiftAssistLongitudinalAccelMps2(pluginManager);
 
             int maxForwardGears = ResolveShiftAssistMaxForwardGears(pluginManager);
             LearnShiftAssistMaxForwardGearsHint(maxForwardGears);
@@ -5946,7 +6003,21 @@ namespace LaunchPlugin
                 int durationMs = GetShiftAssistBeepDurationMs();
                 _shiftAssistBeepUntilUtc = nowUtc.AddMilliseconds(durationMs);
                 _shiftAssistBeepLatched = true;
-                _shiftAssistAudio?.PlayShiftBeep();
+
+                DateTime triggerUtc = nowUtc;
+                DateTime issuedUtc = DateTime.MinValue;
+                bool audioIssued = _shiftAssistAudio != null && _shiftAssistAudio.TryPlayBeep(out issuedUtc);
+                if (audioIssued)
+                {
+                    _shiftAssistAudioIssuedPulse = true;
+                    int delayMs = ClampShiftAssistDelayMs((issuedUtc - triggerUtc).TotalMilliseconds, 2000);
+                    _shiftAssistAudioDelayMs = delayMs;
+
+                    if (Settings?.EnableShiftAssistDebugCsv == true)
+                    {
+                        SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] AudioDelayMs={delayMs} backend=SoundPlayer");
+                    }
+                }
 
                 if (gear >= 1 && gear <= 8)
                 {
@@ -5964,7 +6035,7 @@ namespace LaunchPlugin
             }
 
             bool exportedBeepLatched = _shiftAssistBeepLatched;
-            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched);
+            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2);
         }
 
         private int ResolveShiftAssistMaxForwardGears(PluginManager pluginManager)
@@ -6027,6 +6098,56 @@ namespace LaunchPlugin
             return value;
         }
 
+        private static long ResolveShiftAssistSessionTimeMilliseconds(double sessionTimeSec)
+        {
+            if (double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) || sessionTimeSec < 0.0)
+            {
+                return 0L;
+            }
+
+            return (long)Math.Round(sessionTimeSec * 1000.0);
+        }
+
+        private double ResolveShiftAssistSpeedMps(PluginManager pluginManager, GameData data)
+        {
+            double speedMps = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Speed", double.NaN);
+            if (!double.IsNaN(speedMps) && !double.IsInfinity(speedMps) && speedMps >= 0.0)
+            {
+                return speedMps;
+            }
+
+            double speedKph = data.NewData?.SpeedKmh ?? double.NaN;
+            if (!double.IsNaN(speedKph) && !double.IsInfinity(speedKph) && speedKph >= 0.0)
+            {
+                return speedKph / 3.6;
+            }
+
+            double speedMph = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.SpeedMph", double.NaN);
+            if (!double.IsNaN(speedMph) && !double.IsInfinity(speedMph) && speedMph >= 0.0)
+            {
+                return speedMph * 0.44704;
+            }
+
+            return 0.0;
+        }
+
+        private double ResolveShiftAssistLongitudinalAccelMps2(PluginManager pluginManager)
+        {
+            double lonAccelMps2 = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.LongAccel", double.NaN);
+            if (!double.IsNaN(lonAccelMps2) && !double.IsInfinity(lonAccelMps2))
+            {
+                return lonAccelMps2;
+            }
+
+            lonAccelMps2 = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.LonAccel", double.NaN);
+            if (!double.IsNaN(lonAccelMps2) && !double.IsInfinity(lonAccelMps2))
+            {
+                return lonAccelMps2;
+            }
+
+            return 0.0;
+        }
+
         private void ResetShiftAssistDebugCsvState()
         {
             _shiftAssistDebugCsvFailed = false;
@@ -6036,7 +6157,7 @@ namespace LaunchPlugin
             _shiftAssistDebugCsvFileTimestamp = null;
         }
 
-        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched)
+        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2)
         {
             if (Settings?.EnableShiftAssistDebugCsv != true)
             {
@@ -6076,20 +6197,21 @@ namespace LaunchPlugin
 
                     if (string.IsNullOrWhiteSpace(_shiftAssistDebugCsvFileTimestamp))
                     {
-                        _shiftAssistDebugCsvFileTimestamp = nowUtc.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
+                        long sessionTimeMs = ResolveShiftAssistSessionTimeMilliseconds(sessionTimeSec);
+                        _shiftAssistDebugCsvFileTimestamp = "Sess_" + sessionTimeMs.ToString(CultureInfo.InvariantCulture);
                     }
 
                     _shiftAssistDebugCsvPath = Path.Combine(folder, "ShiftAssist_Debug_" + _shiftAssistDebugCsvFileTimestamp + ".csv");
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2" + Environment.NewLine);
                     }
                 }
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4}",
                     nowUtc,
                     double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) ? "0.000" : sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -6104,7 +6226,10 @@ namespace LaunchPlugin
                     exportedBeepLatched ? "1" : "0",
                     _shiftAssistEngine.LastState.ToString(),
                     _shiftAssistEngine.IsSuppressingDownshift ? "1" : "0",
-                    _shiftAssistEngine.IsSuppressingUpshift ? "1" : "0");
+                    _shiftAssistEngine.IsSuppressingUpshift ? "1" : "0",
+                    speedMps,
+                    accelDerivedMps2,
+                    lonAccelTelemetryMps2);
 
                 File.AppendAllText(_shiftAssistDebugCsvPath, line + Environment.NewLine);
             }
