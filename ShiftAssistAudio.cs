@@ -3,8 +3,10 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace LaunchPlugin
 {
@@ -13,7 +15,8 @@ namespace LaunchPlugin
         private const string DefaultFileRelativePath = "ShiftAssist/DefaultBeep.wav";
 
         private readonly Func<LaunchPluginSettings> _settingsProvider;
-        private readonly object _playerSync = new object();
+        private readonly object _audioThreadSync = new object();
+        private readonly AutoResetEvent _audioDispatcherReady = new AutoResetEvent(false);
         private string _resolvedDefaultPath;
         private bool _warnedMissingCustom;
         private bool _loggedSoundChoice;
@@ -27,6 +30,8 @@ namespace LaunchPlugin
         private string _playerPath;
         private EventHandler _playerMediaEndedHandler;
         private EventHandler<ExceptionEventArgs> _playerMediaFailedHandler;
+        private Thread _audioThread;
+        private Dispatcher _audioDispatcher;
 
         public ShiftAssistAudio(Func<LaunchPluginSettings> settingsProvider)
         {
@@ -171,7 +176,7 @@ namespace LaunchPlugin
 
         private void PlayOnce(Uri uri, double volume)
         {
-            lock (_playerSync)
+            RunOnAudioDispatcher(() =>
             {
                 bool warnedPlayFailure = false;
 
@@ -263,12 +268,12 @@ namespace LaunchPlugin
                     warnOnce($"Failed to play sound '{uri}'", ex);
                     cleanup();
                 }
-            }
+            });
         }
 
         public void HardStop()
         {
-            lock (_playerSync)
+            RunOnAudioDispatcher(() =>
             {
                 try
                 {
@@ -278,6 +283,94 @@ namespace LaunchPlugin
                 {
                     SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] HardStop failed: {ex.Message}");
                 }
+            }, true);
+        }
+
+        private void RunOnAudioDispatcher(Action action, bool waitForCompletion = false)
+        {
+            if (action == null)
+            {
+                return;
+            }
+
+            Dispatcher dispatcher = EnsureAudioDispatcher();
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            if (dispatcher.CheckAccess())
+            {
+                action();
+                return;
+            }
+
+            if (waitForCompletion)
+            {
+                var operation = dispatcher.BeginInvoke(action);
+                operation.Wait();
+                return;
+            }
+
+            dispatcher.BeginInvoke(action);
+        }
+
+        private Dispatcher EnsureAudioDispatcher()
+        {
+            lock (_audioThreadSync)
+            {
+                if (_audioDispatcher != null)
+                {
+                    return _audioDispatcher;
+                }
+
+                if (_audioThread == null)
+                {
+                    _audioThread = new Thread(() =>
+                    {
+                        _audioDispatcher = Dispatcher.CurrentDispatcher;
+                        _audioDispatcherReady.Set();
+                        Dispatcher.Run();
+                    });
+                    _audioThread.IsBackground = true;
+                    _audioThread.Name = "ShiftAssistAudioDispatcher";
+                    _audioThread.SetApartmentState(ApartmentState.STA);
+                    _audioThread.Start();
+                }
+            }
+
+            if (_audioDispatcher == null)
+            {
+                _audioDispatcherReady.WaitOne(2000);
+            }
+
+            if (_audioDispatcher == null)
+            {
+                SimHub.Logging.Current.Warn("[LalaPlugin:ShiftAssist] Failed to initialize audio dispatcher thread.");
+            }
+
+            return _audioDispatcher;
+        }
+
+        private void ShutdownAudioDispatcher()
+        {
+            Dispatcher dispatcher = _audioDispatcher;
+            if (dispatcher == null)
+            {
+                return;
+            }
+
+            try
+            {
+                dispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+            }
+            catch
+            {
+            }
+            finally
+            {
+                _audioDispatcher = null;
+                _audioThread = null;
             }
         }
 
@@ -403,6 +496,7 @@ namespace LaunchPlugin
         public void Dispose()
         {
             HardStop();
+            ShutdownAudioDispatcher();
         }
     }
 }
