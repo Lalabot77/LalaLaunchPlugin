@@ -39,6 +39,7 @@ namespace LaunchPlugin
         private const int OutlierRpmDelta = 800;
         private const int MinSaneRpm = 1000;
         private const int MaxSaneRpm = 20000;
+        private const double PeakFalloffRatio = 0.97;
 
         private readonly Dictionary<string, StackRuntime> _stacks = new Dictionary<string, StackRuntime>(StringComparer.OrdinalIgnoreCase);
         private readonly ShiftAssistLearningTick _lastTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
@@ -51,6 +52,8 @@ namespace LaunchPlugin
         private double _samplingStartSec;
         private double _samplingPeakAccel;
         private int _samplingPeakRpm;
+        private int _samplingCapturedRpm;
+        private int _samplingLastObservedRpm;
 
         public ShiftAssistLearningTick LastTick => _lastTick;
 
@@ -100,6 +103,8 @@ namespace LaunchPlugin
                     _samplingStartSec = sessionTimeSec;
                     _samplingPeakAccel = IsFinite(lonAccelMps2) ? lonAccelMps2 : double.MinValue;
                     _samplingPeakRpm = IsFinite(lonAccelMps2) ? rpm : 0;
+                    _samplingCapturedRpm = 0;
+                    _samplingLastObservedRpm = rpm;
                 }
             }
 
@@ -108,10 +113,20 @@ namespace LaunchPlugin
                 tick.State = ShiftAssistLearningState.Sampling;
                 tick.ActiveGear = _samplingGear;
 
+                _samplingLastObservedRpm = rpm;
                 if (IsFinite(lonAccelMps2) && lonAccelMps2 > _samplingPeakAccel)
                 {
                     _samplingPeakAccel = lonAccelMps2;
                     _samplingPeakRpm = rpm;
+                    _samplingCapturedRpm = 0;
+                }
+                else if (_samplingCapturedRpm == 0 && IsFinite(_samplingPeakAccel) && _samplingPeakAccel > 0.0 && IsFinite(lonAccelMps2))
+                {
+                    double falloffThreshold = _samplingPeakAccel * PeakFalloffRatio;
+                    if (lonAccelMps2 <= falloffThreshold)
+                    {
+                        _samplingCapturedRpm = rpm;
+                    }
                 }
 
                 tick.PeakAccelMps2 = _samplingPeakAccel;
@@ -190,21 +205,22 @@ namespace LaunchPlugin
         {
             bool validDuration = windowMs >= MinWindowMs;
             bool validPeak = IsFinite(_samplingPeakAccel) && _samplingPeakAccel > 0.0;
-            bool validRpm = _samplingPeakRpm >= MinSaneRpm && _samplingPeakRpm <= MaxSaneRpm;
+            int sampleRpm = _samplingCapturedRpm > 0 ? _samplingCapturedRpm : _samplingLastObservedRpm;
+            bool validRpm = sampleRpm >= MinSaneRpm && sampleRpm <= MaxSaneRpm;
 
             var gearData = _samplingGear >= 1 && _samplingGear <= GearCount ? stack.Gears[_samplingGear - 1] : null;
             bool outlierRejected = false;
             if (gearData != null && gearData.Count >= MinSamplesForApply && gearData.LearnedRpm > 0)
             {
-                outlierRejected = Math.Abs(_samplingPeakRpm - gearData.LearnedRpm) > OutlierRpmDelta;
+                outlierRejected = Math.Abs(sampleRpm - gearData.LearnedRpm) > OutlierRpmDelta;
             }
 
             bool accepted = validDuration && validPeak && validRpm && !outlierRejected && gearData != null;
             if (accepted)
             {
-                gearData.AddSample(_samplingPeakRpm);
+                gearData.AddSample(sampleRpm);
                 tick.SampleAdded = true;
-                tick.LastSampleRpm = _samplingPeakRpm;
+                tick.LastSampleRpm = sampleRpm;
                 tick.State = ShiftAssistLearningState.Complete;
                 tick.SamplesForGear = gearData.Count;
                 tick.LearnedRpmForGear = gearData.LearnedRpm;
@@ -247,6 +263,8 @@ namespace LaunchPlugin
             _samplingStartSec = double.NaN;
             _samplingPeakAccel = 0.0;
             _samplingPeakRpm = 0;
+            _samplingCapturedRpm = 0;
+            _samplingLastObservedRpm = 0;
         }
 
         private void CopyTick(ShiftAssistLearningTick tick)
@@ -318,9 +336,11 @@ namespace LaunchPlugin
                 }
 
                 var data = new int[Count];
+                int start = (Count == BufferSize) ? _next : 0;
                 for (int i = 0; i < Count; i++)
                 {
-                    data[i] = _samples[i];
+                    int idx = (start + i) % BufferSize;
+                    data[i] = _samples[idx];
                 }
 
                 Array.Sort(data);
