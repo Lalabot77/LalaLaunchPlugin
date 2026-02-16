@@ -22,6 +22,7 @@ namespace LaunchPlugin
         private const int UrgentMarginRpm = 200;
         private const double RpmRateSmoothingPrevWeight = 0.70;
         private const double RpmRateSmoothingCurrentWeight = 0.30;
+        private const int MinUrgentAboveTargetRpm = 400;
 
         private readonly Func<DateTime> _utcNow;
         private int _lastGear;
@@ -196,8 +197,9 @@ namespace LaunchPlugin
                 return true;
             }
 
+            bool hasUrgentHeadroom = redlineRpm >= (targetRpm + MinUrgentAboveTargetRpm);
             int urgentThresholdRpm = redlineRpm - UrgentMarginRpm;
-            if (_primaryBeepFired && !_urgentBeepFired && redlineRpm > 0 && engineRpm >= urgentThresholdRpm)
+            if (_primaryBeepFired && !_urgentBeepFired && cooldownPassed && hasUrgentHeadroom && engineRpm >= urgentThresholdRpm)
             {
                 _urgentBeepFired = true;
                 _lastBeepAtUtc = nowUtc;
