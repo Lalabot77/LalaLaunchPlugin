@@ -232,7 +232,8 @@
                                     <ColumnDefinition Width="220" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Beep volume" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="0" Text="Beep volume" VerticalAlignment="Center" Margin="0,0,8,0"
+                                           ToolTip="0 mutes. Above 0 uses SimHub master volume."/>
                                 <Slider Grid.Column="1"
                                         VerticalAlignment="Center"
                                         Minimum="0"

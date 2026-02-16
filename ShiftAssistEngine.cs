@@ -15,7 +15,7 @@ namespace LaunchPlugin
         private const double MinRpmRateDtSec = 0.02;
         private const double MaxRpmRateDtSec = 0.20;
         private const int MaxRpmRatePerSec = 8000;
-        private const int MaxLeadDeltaRpm = 1500;
+        private const int MaxPredictiveEarlyRpm = 800;
         private const int MinEffectiveTargetRpmFloor = 1000;
         private const int EffectiveTargetFloorOffset = 1500;
 
@@ -68,9 +68,16 @@ namespace LaunchPlugin
                         if (leadTimeMs > 0)
                         {
                             double leadDeltaRpm = clampedRate * (leadTimeMs / 1000.0);
-                            if (leadDeltaRpm > MaxLeadDeltaRpm)
+                            if (leadDeltaRpm > MaxPredictiveEarlyRpm)
                             {
-                                leadDeltaRpm = MaxLeadDeltaRpm;
+                                leadDeltaRpm = MaxPredictiveEarlyRpm;
+                            }
+
+                            if (engineRpm < (targetRpm - MaxPredictiveEarlyRpm))
+                            {
+                                LastRpmRate = 0;
+                                LastEffectiveTargetRpm = targetRpm;
+                                leadDeltaRpm = 0;
                             }
 
                             int computedEffectiveTarget = targetRpm - (int)Math.Round(leadDeltaRpm);
