@@ -18,6 +18,10 @@ namespace LaunchPlugin
         private const int MaxPredictiveEarlyRpm = 800;
         private const int MinEffectiveTargetRpmFloor = 1000;
         private const int EffectiveTargetFloorOffset = 1500;
+        private const int AudioOutputCompMs = 20;
+        private const int UrgentMarginRpm = 200;
+        private const double RpmRateSmoothingPrevWeight = 0.70;
+        private const double RpmRateSmoothingCurrentWeight = 0.30;
 
         private readonly Func<DateTime> _utcNow;
         private int _lastGear;
@@ -27,6 +31,10 @@ namespace LaunchPlugin
         private DateTime _lastSampleAtUtc = DateTime.MinValue;
         private bool _suppressUntilBelowReset;
         private bool _suppressAfterUpshiftUntilBelowReset;
+        private double _smoothedRpmRate;
+        private bool _hasSmoothedRpmRate;
+        private bool _primaryBeepFired;
+        private bool _urgentBeepFired;
 
         public ShiftAssistEngine(Func<DateTime> utcNow = null)
         {
@@ -37,14 +45,17 @@ namespace LaunchPlugin
         public int LastTargetRpm { get; private set; }
         public int LastEffectiveTargetRpm { get; private set; }
         public int LastRpmRate { get; private set; }
+        public bool LastBeepWasUrgent { get; private set; }
         public bool IsSuppressingDownshift { get { return _suppressUntilBelowReset; } }
         public bool IsSuppressingUpshift { get { return _suppressAfterUpshiftUntilBelowReset; } }
 
-        public bool Evaluate(int currentGear, int engineRpm, double throttle01, int targetRpm, int cooldownMs, int resetHysteresisRpm, int leadTimeMs)
+        public bool Evaluate(int currentGear, int engineRpm, double throttle01, int targetRpm, int cooldownMs, int resetHysteresisRpm, int leadTimeMs, int redlineRpm)
         {
             LastTargetRpm = targetRpm;
             LastEffectiveTargetRpm = targetRpm;
             LastRpmRate = 0;
+            LastBeepWasUrgent = false;
+            int effectiveLeadMs = Math.Max(0, leadTimeMs - AudioOutputCompMs);
 
             var nowUtc = _utcNow();
             bool sameGearAsLastSample = currentGear >= 1 && currentGear == _lastGear;
@@ -64,10 +75,26 @@ namespace LaunchPlugin
 
                     if (clampedRate > 0)
                     {
-                        LastRpmRate = clampedRate;
-                        if (leadTimeMs > 0)
+                        if (!_hasSmoothedRpmRate)
                         {
-                            double leadDeltaRpm = clampedRate * (leadTimeMs / 1000.0);
+                            _smoothedRpmRate = clampedRate;
+                            _hasSmoothedRpmRate = true;
+                        }
+                        else
+                        {
+                            _smoothedRpmRate = (_smoothedRpmRate * RpmRateSmoothingPrevWeight) + (clampedRate * RpmRateSmoothingCurrentWeight);
+                        }
+
+                        int smoothedRate = (int)Math.Round(_smoothedRpmRate);
+                        if (smoothedRate < 0)
+                        {
+                            smoothedRate = 0;
+                        }
+
+                        LastRpmRate = smoothedRate;
+                        if (effectiveLeadMs > 0)
+                        {
+                            double leadDeltaRpm = smoothedRate * (effectiveLeadMs / 1000.0);
                             if (leadDeltaRpm > MaxPredictiveEarlyRpm)
                             {
                                 leadDeltaRpm = MaxPredictiveEarlyRpm;
@@ -116,6 +143,10 @@ namespace LaunchPlugin
 
                 _lastGear = currentGear;
                 _wasAboveTarget = false;
+                _primaryBeepFired = false;
+                _urgentBeepFired = false;
+                _smoothedRpmRate = 0;
+                _hasSmoothedRpmRate = false;
             }
 
             if (currentGear < 1 || currentGear > 8 || targetRpm <= 0)
@@ -137,6 +168,8 @@ namespace LaunchPlugin
                 _wasAboveTarget = false;
                 _suppressUntilBelowReset = false;
                 _suppressAfterUpshiftUntilBelowReset = false;
+                _primaryBeepFired = false;
+                _urgentBeepFired = false;
             }
 
             if (_suppressUntilBelowReset || _suppressAfterUpshiftUntilBelowReset)
@@ -147,7 +180,7 @@ namespace LaunchPlugin
 
             bool cooldownPassed = _lastBeepAtUtc == DateTime.MinValue || (nowUtc - _lastBeepAtUtc).TotalMilliseconds >= cooldownMs;
 
-            if (!_wasAboveTarget && engineRpm >= effectiveTargetRpm)
+            if (!_primaryBeepFired && !_wasAboveTarget && engineRpm >= effectiveTargetRpm)
             {
                 if (!cooldownPassed)
                 {
@@ -157,7 +190,18 @@ namespace LaunchPlugin
                 }
 
                 _wasAboveTarget = true;
+                _primaryBeepFired = true;
                 _lastBeepAtUtc = nowUtc;
+                LastState = ShiftAssistState.On;
+                return true;
+            }
+
+            int urgentThresholdRpm = redlineRpm - UrgentMarginRpm;
+            if (_primaryBeepFired && !_urgentBeepFired && redlineRpm > 0 && engineRpm >= urgentThresholdRpm)
+            {
+                _urgentBeepFired = true;
+                _lastBeepAtUtc = nowUtc;
+                LastBeepWasUrgent = true;
                 LastState = ShiftAssistState.On;
                 return true;
             }
@@ -175,9 +219,14 @@ namespace LaunchPlugin
             _lastRpm = 0;
             _lastSampleAtUtc = DateTime.MinValue;
             _lastBeepAtUtc = DateTime.MinValue;
+            _smoothedRpmRate = 0;
+            _hasSmoothedRpmRate = false;
+            _primaryBeepFired = false;
+            _urgentBeepFired = false;
             LastTargetRpm = 0;
             LastEffectiveTargetRpm = 0;
             LastRpmRate = 0;
+            LastBeepWasUrgent = false;
             LastState = ShiftAssistState.Off;
         }
     }
