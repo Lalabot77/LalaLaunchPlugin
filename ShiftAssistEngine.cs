@@ -36,6 +36,7 @@ namespace LaunchPlugin
         private bool _hasSmoothedRpmRate;
         private bool _primaryBeepFired;
         private bool _urgentBeepFired;
+        private bool _lastTickWasSpike;
 
         public ShiftAssistEngine(Func<DateTime> utcNow = null)
         {
@@ -60,64 +61,75 @@ namespace LaunchPlugin
 
             var nowUtc = _utcNow();
             bool sameGearAsLastSample = currentGear >= 1 && currentGear == _lastGear;
+            bool spikeDetected = false;
 
             if (_lastSampleAtUtc != DateTime.MinValue)
             {
                 double dtSec = (nowUtc - _lastSampleAtUtc).TotalSeconds;
                 int deltaRpm = engineRpm - _lastRpm;
-                if (sameGearAsLastSample && dtSec >= MinRpmRateDtSec && dtSec <= MaxRpmRateDtSec && deltaRpm > 0)
+                bool dtSecValid = dtSec >= MinRpmRateDtSec && dtSec <= MaxRpmRateDtSec;
+
+                if (sameGearAsLastSample && dtSecValid && deltaRpm > 0)
                 {
-                    double rpmRate = deltaRpm / dtSec;
-                    int clampedRate = (int)Math.Round(rpmRate);
-                    if (clampedRate > MaxRpmRatePerSec)
+                    double maxExpectedDelta = (MaxRpmRatePerSec * dtSec) + 200.0;
+                    if (deltaRpm > maxExpectedDelta)
                     {
-                        clampedRate = MaxRpmRatePerSec;
+                        spikeDetected = true;
                     }
-
-                    if (clampedRate > 0)
+                    else
                     {
-                        if (!_hasSmoothedRpmRate)
+                        double rpmRate = deltaRpm / dtSec;
+                        int clampedRate = (int)Math.Round(rpmRate);
+                        if (clampedRate > MaxRpmRatePerSec)
                         {
-                            _smoothedRpmRate = clampedRate;
-                            _hasSmoothedRpmRate = true;
-                        }
-                        else
-                        {
-                            _smoothedRpmRate = (_smoothedRpmRate * RpmRateSmoothingPrevWeight) + (clampedRate * RpmRateSmoothingCurrentWeight);
+                            clampedRate = MaxRpmRatePerSec;
                         }
 
-                        int smoothedRate = (int)Math.Round(_smoothedRpmRate);
-                        if (smoothedRate < 0)
+                        if (clampedRate > 0)
                         {
-                            smoothedRate = 0;
-                        }
-
-                        LastRpmRate = smoothedRate;
-                        if (effectiveLeadMs > 0)
-                        {
-                            double leadDeltaRpm = smoothedRate * (effectiveLeadMs / 1000.0);
-                            if (leadDeltaRpm > MaxPredictiveEarlyRpm)
+                            if (!_hasSmoothedRpmRate)
                             {
-                                leadDeltaRpm = MaxPredictiveEarlyRpm;
-                            }
-
-                            if (engineRpm < (targetRpm - MaxPredictiveEarlyRpm))
-                            {
-                                LastRpmRate = 0;
-                                LastEffectiveTargetRpm = targetRpm;
-                                leadDeltaRpm = 0;
-                            }
-
-                            int computedEffectiveTarget = targetRpm - (int)Math.Round(leadDeltaRpm);
-                            int effectiveFloor = Math.Max(MinEffectiveTargetRpmFloor, targetRpm - EffectiveTargetFloorOffset);
-                            if (computedEffectiveTarget < effectiveFloor)
-                            {
-                                LastRpmRate = 0;
-                                LastEffectiveTargetRpm = targetRpm;
+                                _smoothedRpmRate = clampedRate;
+                                _hasSmoothedRpmRate = true;
                             }
                             else
                             {
-                                LastEffectiveTargetRpm = computedEffectiveTarget;
+                                _smoothedRpmRate = (_smoothedRpmRate * RpmRateSmoothingPrevWeight) + (clampedRate * RpmRateSmoothingCurrentWeight);
+                            }
+
+                            int smoothedRate = (int)Math.Round(_smoothedRpmRate);
+                            if (smoothedRate < 0)
+                            {
+                                smoothedRate = 0;
+                            }
+
+                            LastRpmRate = smoothedRate;
+                            if (effectiveLeadMs > 0)
+                            {
+                                double leadDeltaRpm = smoothedRate * (effectiveLeadMs / 1000.0);
+                                if (leadDeltaRpm > MaxPredictiveEarlyRpm)
+                                {
+                                    leadDeltaRpm = MaxPredictiveEarlyRpm;
+                                }
+
+                                if (engineRpm < (targetRpm - MaxPredictiveEarlyRpm))
+                                {
+                                    LastRpmRate = 0;
+                                    LastEffectiveTargetRpm = targetRpm;
+                                    leadDeltaRpm = 0;
+                                }
+
+                                int computedEffectiveTarget = targetRpm - (int)Math.Round(leadDeltaRpm);
+                                int effectiveFloor = Math.Max(MinEffectiveTargetRpmFloor, targetRpm - EffectiveTargetFloorOffset);
+                                if (computedEffectiveTarget < effectiveFloor)
+                                {
+                                    LastRpmRate = 0;
+                                    LastEffectiveTargetRpm = targetRpm;
+                                }
+                                else
+                                {
+                                    LastEffectiveTargetRpm = computedEffectiveTarget;
+                                }
                             }
                         }
                     }
@@ -131,6 +143,7 @@ namespace LaunchPlugin
 
             if (currentGear != _lastGear)
             {
+                _lastTickWasSpike = false;
                 bool upshift = _lastGear >= 1 && currentGear > _lastGear;
                 if (currentGear < _lastGear)
                 {
@@ -181,8 +194,17 @@ namespace LaunchPlugin
 
             bool cooldownPassed = _lastBeepAtUtc == DateTime.MinValue || (nowUtc - _lastBeepAtUtc).TotalMilliseconds >= cooldownMs;
 
+            bool blockTriggerForSpike = spikeDetected || (_lastTickWasSpike && engineRpm >= effectiveTargetRpm);
+
             if (!_primaryBeepFired && !_wasAboveTarget && engineRpm >= effectiveTargetRpm)
             {
+                if (blockTriggerForSpike)
+                {
+                    _lastTickWasSpike = spikeDetected;
+                    LastState = ShiftAssistState.On;
+                    return false;
+                }
+
                 if (!cooldownPassed)
                 {
                     LastState = ShiftAssistState.Cooldown;
@@ -193,21 +215,24 @@ namespace LaunchPlugin
                 _wasAboveTarget = true;
                 _primaryBeepFired = true;
                 _lastBeepAtUtc = nowUtc;
+                _lastTickWasSpike = false;
                 LastState = ShiftAssistState.On;
                 return true;
             }
 
             bool hasUrgentHeadroom = redlineRpm >= (targetRpm + MinUrgentAboveTargetRpm);
             int urgentThresholdRpm = redlineRpm - UrgentMarginRpm;
-            if (_primaryBeepFired && !_urgentBeepFired && cooldownPassed && hasUrgentHeadroom && engineRpm >= urgentThresholdRpm)
+            if (_primaryBeepFired && !_urgentBeepFired && cooldownPassed && !spikeDetected && hasUrgentHeadroom && engineRpm >= urgentThresholdRpm)
             {
                 _urgentBeepFired = true;
                 _lastBeepAtUtc = nowUtc;
                 LastBeepWasUrgent = true;
+                _lastTickWasSpike = false;
                 LastState = ShiftAssistState.On;
                 return true;
             }
 
+            _lastTickWasSpike = spikeDetected;
             LastState = cooldownPassed ? ShiftAssistState.On : ShiftAssistState.Cooldown;
             return false;
         }
@@ -225,6 +250,7 @@ namespace LaunchPlugin
             _hasSmoothedRpmRate = false;
             _primaryBeepFired = false;
             _urgentBeepFired = false;
+            _lastTickWasSpike = false;
             LastTargetRpm = 0;
             LastEffectiveTargetRpm = 0;
             LastRpmRate = 0;

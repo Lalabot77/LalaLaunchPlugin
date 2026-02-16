@@ -3404,6 +3404,7 @@ namespace LaunchPlugin
         private const int ShiftAssistDebugCsvMaxHzMin = 1;
         private const int ShiftAssistDebugCsvMaxHzMax = 60;
         private const int ShiftAssistDelayHistorySize = 5;
+        private const int ShiftAssistGearZeroHoldMs = 250;
         private readonly ShiftAssistEngine _shiftAssistEngine = new ShiftAssistEngine();
         private ShiftAssistAudio _shiftAssistAudio;
         private string _shiftAssistActiveGearStackId = "Default";
@@ -3414,6 +3415,8 @@ namespace LaunchPlugin
         private int _shiftAssistAudioDelayMs;
         private bool _shiftAssistAudioIssuedPulse;
         private int _shiftAssistLastGear;
+        private int _shiftAssistLastValidGear;
+        private DateTime _shiftAssistLastValidGearUtc = DateTime.MinValue;
         private double _shiftAssistLastSpeedMps = double.NaN;
         private DateTime _shiftAssistLastSpeedSampleUtc = DateTime.MinValue;
         private int _shiftAssistPendingDelayGear;
@@ -5868,6 +5871,8 @@ namespace LaunchPlugin
                 _shiftAssistAudioDelayMs = 0;
                 _shiftAssistAudioIssuedPulse = false;
                 _shiftAssistLastGear = 0;
+                _shiftAssistLastValidGear = 0;
+                _shiftAssistLastValidGearUtc = DateTime.MinValue;
                 _shiftAssistLastSpeedMps = double.NaN;
                 _shiftAssistLastSpeedSampleUtc = DateTime.MinValue;
                 _shiftAssistEngine.Reset();
@@ -5915,12 +5920,27 @@ namespace LaunchPlugin
             }
 
             gear = NormalizeShiftAssistGear(gear);
+            if (gear >= 1)
+            {
+                _shiftAssistLastValidGear = gear;
+                _shiftAssistLastValidGearUtc = nowUtc;
+            }
+
+            int effectiveGear = gear;
+            if (gear == 0 && _shiftAssistLastValidGear >= 1 && _shiftAssistLastValidGearUtc != DateTime.MinValue)
+            {
+                if ((nowUtc - _shiftAssistLastValidGearUtc).TotalMilliseconds <= ShiftAssistGearZeroHoldMs)
+                {
+                    effectiveGear = _shiftAssistLastValidGear;
+                }
+            }
+
             int previousGear = _shiftAssistLastGear;
-            bool gearChanged = previousGear != gear;
+            bool gearChanged = previousGear != effectiveGear;
 
             if (gearChanged && _shiftAssistPendingDelayActive)
             {
-                if (gear == (_shiftAssistPendingDelayGear + 1))
+                if (effectiveGear == (_shiftAssistPendingDelayGear + 1))
                 {
                     int delayMs = ClampShiftAssistDelayMs((nowUtc - _shiftAssistPendingDelayBeepUtc).TotalMilliseconds);
                     if (delayMs > 0)
@@ -5936,13 +5956,13 @@ namespace LaunchPlugin
 
                     ClearShiftAssistDelayPending();
                 }
-                else if (gear <= _shiftAssistPendingDelayGear || gear == 0)
+                else if (effectiveGear <= _shiftAssistPendingDelayGear || effectiveGear == 0)
                 {
                     ClearShiftAssistDelayPending();
                 }
             }
 
-            _shiftAssistLastGear = gear;
+            _shiftAssistLastGear = effectiveGear;
 
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
@@ -5979,16 +5999,22 @@ namespace LaunchPlugin
             }
 
             _shiftAssistActiveGearStackId = gearStackId;
-            int targetRpm = ActiveProfile?.GetShiftTargetForGear(gearStackId, gear) ?? 0;
+            int targetRpm = ActiveProfile?.GetShiftTargetForGear(gearStackId, effectiveGear) ?? 0;
+
             int redlineRpm = 0;
+            if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) || redlineRpm <= 0)
+            {
+                TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_RedLineRPM", out redlineRpm);
+            }
+
             if (targetRpm <= 0)
             {
-                if (TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) && redlineRpm > 0)
+                if (redlineRpm > 0)
                 {
                     targetRpm = redlineRpm;
                 }
             }
-            else if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) || redlineRpm <= 0)
+            else if (redlineRpm <= 0)
             {
                 redlineRpm = targetRpm;
             }
@@ -5999,7 +6025,7 @@ namespace LaunchPlugin
             }
 
             bool topGearKnown = maxForwardGears >= 1;
-            bool canShiftUp = !topGearKnown || (gear >= 1 && gear < maxForwardGears);
+            bool canShiftUp = !topGearKnown || (effectiveGear >= 1 && effectiveGear < maxForwardGears);
             if (!canShiftUp)
             {
                 targetRpm = 0;
@@ -6011,7 +6037,7 @@ namespace LaunchPlugin
             bool suppressDownBeforeTrigger = _shiftAssistEngine.IsSuppressingDownshift;
             bool suppressUpBeforeTrigger = _shiftAssistEngine.IsSuppressingUpshift;
             bool beep = _shiftAssistEngine.Evaluate(
-                gear,
+                effectiveGear,
                 rpm,
                 throttle01,
                 targetRpm,
@@ -6041,12 +6067,12 @@ namespace LaunchPlugin
                     }
                 }
 
-                if (gear >= 1 && gear <= 8)
+                if (effectiveGear >= 1 && effectiveGear <= 8)
                 {
                     if (!_shiftAssistEngine.LastBeepWasUrgent)
                     {
                         ClearShiftAssistDelayPending();
-                        _shiftAssistPendingDelayGear = gear;
+                        _shiftAssistPendingDelayGear = effectiveGear;
                         _shiftAssistPendingDelayBeepUtc = nowUtc;
                         _shiftAssistPendingDelayActive = true;
                     }
@@ -6055,7 +6081,7 @@ namespace LaunchPlugin
                 if (IsVerboseDebugLoggingOn)
                 {
                     SimHub.Logging.Current.Info(
-                        $"[LalaPlugin:ShiftAssist] Beep type={(_shiftAssistEngine.LastBeepWasUrgent ? "urgent" : "primary")} gear={gear} maxForwardGears={maxForwardGears} target={targetRpm} redline={redlineRpm} effectiveTarget={_shiftAssistEngine.LastEffectiveTargetRpm} rpm={rpm} rpmRate={_shiftAssistEngine.LastRpmRate} leadMs={leadTimeMs} throttle={throttle01:F2} suppressDown={suppressDownBeforeTrigger} suppressUp={suppressUpBeforeTrigger}");
+                        $"[LalaPlugin:ShiftAssist] Beep type={(_shiftAssistEngine.LastBeepWasUrgent ? "urgent" : "primary")} gear={effectiveGear} rawGear={gear} maxForwardGears={maxForwardGears} target={targetRpm} redline={redlineRpm} effectiveTarget={_shiftAssistEngine.LastEffectiveTargetRpm} rpm={rpm} rpmRate={_shiftAssistEngine.LastRpmRate} leadMs={leadTimeMs} throttle={throttle01:F2} suppressDown={suppressDownBeforeTrigger} suppressUp={suppressUpBeforeTrigger}");
                 }
             }
 
