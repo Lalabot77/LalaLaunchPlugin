@@ -54,6 +54,8 @@ namespace LaunchPlugin
         private int _samplingPeakRpm;
         private int _samplingCapturedRpm;
         private int _samplingLastObservedRpm;
+        private int _samplingTicksSincePeak;
+        private int _samplingFalloffConsecutive;
 
         public ShiftAssistLearningTick LastTick => _lastTick;
 
@@ -105,6 +107,8 @@ namespace LaunchPlugin
                     _samplingPeakRpm = IsFinite(lonAccelMps2) ? rpm : 0;
                     _samplingCapturedRpm = 0;
                     _samplingLastObservedRpm = rpm;
+                    _samplingTicksSincePeak = 0;
+                    _samplingFalloffConsecutive = 0;
                 }
             }
 
@@ -119,13 +123,31 @@ namespace LaunchPlugin
                     _samplingPeakAccel = lonAccelMps2;
                     _samplingPeakRpm = rpm;
                     _samplingCapturedRpm = 0;
+                    _samplingTicksSincePeak = 0;
+                    _samplingFalloffConsecutive = 0;
                 }
-                else if (_samplingCapturedRpm == 0 && IsFinite(_samplingPeakAccel) && _samplingPeakAccel > 0.0 && IsFinite(lonAccelMps2))
+                else
                 {
-                    double falloffThreshold = _samplingPeakAccel * PeakFalloffRatio;
-                    if (lonAccelMps2 <= falloffThreshold)
+                    _samplingTicksSincePeak++;
+
+                    if (_samplingCapturedRpm == 0 && IsFinite(_samplingPeakAccel) && _samplingPeakAccel > 0.0 && IsFinite(lonAccelMps2))
                     {
-                        _samplingCapturedRpm = rpm;
+                        double falloffThreshold = _samplingPeakAccel * PeakFalloffRatio;
+                        bool meetsFalloff = lonAccelMps2 <= falloffThreshold;
+                        if (meetsFalloff)
+                        {
+                            _samplingFalloffConsecutive++;
+                            bool twoConsecutiveFalloffTicks = _samplingFalloffConsecutive >= 2;
+                            bool delayedRiseGuard = _samplingTicksSincePeak >= 2 && rpm >= (_samplingPeakRpm + 100);
+                            if (twoConsecutiveFalloffTicks || delayedRiseGuard)
+                            {
+                                _samplingCapturedRpm = rpm;
+                            }
+                        }
+                        else
+                        {
+                            _samplingFalloffConsecutive = 0;
+                        }
                     }
                 }
 
@@ -265,6 +287,8 @@ namespace LaunchPlugin
             _samplingPeakRpm = 0;
             _samplingCapturedRpm = 0;
             _samplingLastObservedRpm = 0;
+            _samplingTicksSincePeak = 0;
+            _samplingFalloffConsecutive = 0;
         }
 
         private void CopyTick(ShiftAssistLearningTick tick)

@@ -6164,7 +6164,7 @@ namespace LaunchPlugin
             }
 
             _shiftAssistActiveGearStackId = gearStackId;
-            double learningLonAccelMps2 = (!double.IsNaN(lonAccelTelemetryMps2) && !double.IsInfinity(lonAccelTelemetryMps2) && Math.Abs(lonAccelTelemetryMps2) > 0.0001)
+            double learningLonAccelMps2 = (!double.IsNaN(lonAccelTelemetryMps2) && !double.IsInfinity(lonAccelTelemetryMps2) && Math.Abs(lonAccelTelemetryMps2) >= 0.05)
                 ? lonAccelTelemetryMps2
                 : accelDerivedMps2;
 
