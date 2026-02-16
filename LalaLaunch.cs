@@ -863,7 +863,19 @@ namespace LaunchPlugin
             Array.Clear(_shiftAssistDelaySampleCounts, 0, _shiftAssistDelaySampleCounts.Length);
             Array.Clear(_shiftAssistDelaySampleNextIndex, 0, _shiftAssistDelaySampleNextIndex.Length);
             Array.Clear(_shiftAssistDelaySampleSums, 0, _shiftAssistDelaySampleSums.Length);
+            _shiftAssistAudioDelayMs = 0;
+            _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
             ClearShiftAssistDelayPending();
+        }
+
+        private int GetShiftAssistAudioDelayAgeMs()
+        {
+            if (_shiftAssistAudioDelayLastIssuedUtc == DateTime.MinValue)
+            {
+                return 0;
+            }
+
+            return ClampShiftAssistDelayMs((DateTime.UtcNow - _shiftAssistAudioDelayLastIssuedUtc).TotalMilliseconds, int.MaxValue);
         }
 
         private void AddShiftAssistDelaySample(int gear, int delayMs)
@@ -3413,6 +3425,7 @@ namespace LaunchPlugin
         private DateTime _shiftAssistBeepUntilUtc = DateTime.MinValue;
         private bool _shiftAssistBeepLatched;
         private int _shiftAssistAudioDelayMs;
+        private DateTime _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
         private bool _shiftAssistAudioIssuedPulse;
         private int _shiftAssistLastGear;
         private int _shiftAssistLastValidGear;
@@ -3920,6 +3933,7 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.Learn.Enabled", () => Settings?.ShiftAssistLearningModeEnabled == true ? 1 : 0);
             AttachCore("ShiftAssist.State", () => _shiftAssistEngine.LastState.ToString());
             AttachCore("ShiftAssist.Debug.AudioDelayMs", () => _shiftAssistAudioDelayMs);
+            AttachCore("ShiftAssist.Debug.AudioDelayAgeMs", () => GetShiftAssistAudioDelayAgeMs());
             AttachCore("ShiftAssist.Debug.AudioIssued", () => _shiftAssistAudioIssuedPulse);
             AttachCore("ShiftAssist.Debug.AudioBackend", () => "SoundPlayer");
             AttachCore("ShiftAssist.DelayAvg_G1", () => GetShiftAssistDelayAverageMs(1));
@@ -5876,6 +5890,7 @@ namespace LaunchPlugin
                 _shiftAssistBeepUntilUtc = DateTime.MinValue;
                 _shiftAssistBeepLatched = false;
                 _shiftAssistAudioDelayMs = 0;
+                _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
                 _shiftAssistAudioIssuedPulse = false;
                 _shiftAssistLastGear = 0;
                 _shiftAssistLastValidGear = 0;
@@ -5902,7 +5917,6 @@ namespace LaunchPlugin
             DateTime nowUtc = DateTime.UtcNow;
             _shiftAssistBeepLatched = nowUtc <= _shiftAssistBeepUntilUtc;
             _shiftAssistAudioIssuedPulse = false;
-            _shiftAssistAudioDelayMs = 0;
 
             int gear;
             if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Gear", out gear))
@@ -6067,6 +6081,7 @@ namespace LaunchPlugin
                     _shiftAssistAudioIssuedPulse = true;
                     int delayMs = ClampShiftAssistDelayMs((issuedUtc - triggerUtc).TotalMilliseconds, 2000);
                     _shiftAssistAudioDelayMs = delayMs;
+                    _shiftAssistAudioDelayLastIssuedUtc = issuedUtc;
 
                     if (Settings?.EnableShiftAssistDebugCsv == true)
                     {
