@@ -3619,8 +3619,24 @@ namespace LaunchPlugin
                 SaveSettings();
                 SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Toggle action -> Enabled={Settings.ShiftAssistEnabled}");
             });
+            this.AddAction("ShiftAssist_ToggleDebugCsv", (a, b) =>
+            {
+                if (Settings == null)
+                {
+                    return;
+                }
+
+                Settings.EnableShiftAssistDebugCsv = !Settings.EnableShiftAssistDebugCsv;
+                if (!Settings.EnableShiftAssistDebugCsv)
+                {
+                    ResetShiftAssistDebugCsvState();
+                }
+
+                SaveSettings();
+                SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Debug CSV toggle action -> Enabled={Settings.EnableShiftAssistDebugCsv}");
+            });
             this.AddAction("ShiftAssist_TestBeep", (a, b) => TriggerShiftAssistTestBeep());
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_TestBeep");
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep");
 
             AttachCore("LalaLaunch.Friends.Count", () => _friendsCount);
 
@@ -5230,7 +5246,7 @@ namespace LaunchPlugin
             bool pitExitRecently = (DateTime.UtcNow - _lastPitLaneSeenUtc).TotalSeconds < 1.0;
             bool pitTripActive = _wasInPitThisLap || inLane || pitExitRecently;
             double trackPct = SafeReadDouble(pluginManager, "IRacingExtraProperties.iRacing_Player_LapDistPct", double.NaN);
-            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
+            double sessionTimeSec = ResolveShiftAssistSessionTimeSec(pluginManager);
             double sessionTimeRemainingSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
             int sessionState = SafeReadInt(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionState", 0);
             string sessionTypeName = !string.IsNullOrWhiteSpace(currentSessionTypeForConfidence)
@@ -5931,11 +5947,7 @@ namespace LaunchPlugin
             int rpm = (int)Math.Round(data.NewData?.Rpms ?? 0.0);
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
             double throttle01 = throttleRaw > 1.5 ? (throttleRaw / 100.0) : throttleRaw;
-            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", double.NaN);
-            if (double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec))
-            {
-                sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameData.SessionTime", double.NaN);
-            }
+            double sessionTimeSec = ResolveShiftAssistSessionTimeSec(pluginManager);
 
             double speedMps = ResolveShiftAssistSpeedMps(pluginManager, data);
             double accelDerivedMps2 = 0.0;
@@ -6098,14 +6110,11 @@ namespace LaunchPlugin
             return value;
         }
 
-        private static long ResolveShiftAssistSessionTimeMilliseconds(double sessionTimeSec)
+        private double ResolveShiftAssistSessionTimeSec(PluginManager pluginManager)
         {
-            if (double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) || sessionTimeSec < 0.0)
-            {
-                return 0L;
-            }
-
-            return (long)Math.Round(sessionTimeSec * 1000.0);
+            // Keep session-time resolution aligned with OffTrack debug CSV path:
+            // DataCorePlugin.GameRawData.Telemetry.SessionTime with 0.0 fallback.
+            return SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
         }
 
         private double ResolveShiftAssistSpeedMps(PluginManager pluginManager, GameData data)
@@ -6172,7 +6181,7 @@ namespace LaunchPlugin
 
             int maxHz = GetShiftAssistDebugCsvMaxHz();
             double minIntervalSec = 1.0 / maxHz;
-            if (!double.IsNaN(sessionTimeSec) && !double.IsInfinity(sessionTimeSec))
+            if (!double.IsNaN(sessionTimeSec) && !double.IsInfinity(sessionTimeSec) && sessionTimeSec > 0.0)
             {
                 if (!double.IsNaN(_shiftAssistDebugCsvLastWriteSessionSec) && sessionTimeSec < (_shiftAssistDebugCsvLastWriteSessionSec + minIntervalSec))
                 {
@@ -6197,8 +6206,7 @@ namespace LaunchPlugin
 
                     if (string.IsNullOrWhiteSpace(_shiftAssistDebugCsvFileTimestamp))
                     {
-                        long sessionTimeMs = ResolveShiftAssistSessionTimeMilliseconds(sessionTimeSec);
-                        _shiftAssistDebugCsvFileTimestamp = "Sess_" + sessionTimeMs.ToString(CultureInfo.InvariantCulture);
+                        _shiftAssistDebugCsvFileTimestamp = nowUtc.ToString("yyyy-MM-dd_HH-mm-ss-fff", CultureInfo.InvariantCulture);
                     }
 
                     _shiftAssistDebugCsvPath = Path.Combine(folder, "ShiftAssist_Debug_" + _shiftAssistDebugCsvFileTimestamp + ".csv");
@@ -6213,7 +6221,7 @@ namespace LaunchPlugin
                     CultureInfo.InvariantCulture,
                     "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4}",
                     nowUtc,
-                    double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec) ? "0.000" : sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
+                    sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
                     maxForwardGears,
                     rpm,
