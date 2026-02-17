@@ -3546,6 +3546,8 @@ namespace LaunchPlugin
         private ShiftAssistAudio _shiftAssistAudio;
         private string _shiftAssistActiveGearStackId = "Default";
         private int _shiftAssistTargetCurrentGear;
+        private double _shiftAssistLearnPeakAccelLatched;
+        private int _shiftAssistLearnPeakRpmLatched;
         private bool _shiftAssistLastEnabled;
         private DateTime _shiftAssistBeepUntilUtc = DateTime.MinValue;
         private bool _shiftAssistBeepLatched;
@@ -3789,6 +3791,8 @@ namespace LaunchPlugin
             this.AddAction("ShiftAssist_Learn_ResetSamples", (a, b) =>
             {
                 _shiftAssistLearningEngine.ResetSamplesForStack(_shiftAssistActiveGearStackId);
+                _shiftAssistLearnPeakAccelLatched = 0.0;
+                _shiftAssistLearnPeakRpmLatched = 0;
                 _shiftAssistLastLearningTick = new ShiftAssistLearningTick
                 {
                     State = Settings?.ShiftAssistLearningModeEnabled == true ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off
@@ -3801,6 +3805,8 @@ namespace LaunchPlugin
             {
                 ResetShiftAssistTargetsForActiveStack("ShiftAssist_ResetTargets_ActiveStack_AndSamples");
                 _shiftAssistLearningEngine.ResetSamplesForStack(_shiftAssistActiveGearStackId);
+                _shiftAssistLearnPeakAccelLatched = 0.0;
+                _shiftAssistLearnPeakRpmLatched = 0;
                 _shiftAssistLastLearningTick = new ShiftAssistLearningTick
                 {
                     State = Settings?.ShiftAssistLearningModeEnabled == true ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off
@@ -4107,8 +4113,8 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.Learn.State", () => ToLearningStateText(_shiftAssistLastLearningTick?.State ?? ShiftAssistLearningState.Off));
             AttachCore("ShiftAssist.Learn.ActiveGear", () => _shiftAssistLastLearningTick?.ActiveGear ?? 0);
             AttachCore("ShiftAssist.Learn.WindowMs", () => _shiftAssistLastLearningTick?.WindowMs ?? 0);
-            AttachCore("ShiftAssist.Learn.PeakAccelMps2", () => _shiftAssistLastLearningTick?.PeakAccelMps2 ?? 0.0);
-            AttachCore("ShiftAssist.Learn.PeakRpm", () => _shiftAssistLastLearningTick?.PeakRpm ?? 0);
+            AttachCore("ShiftAssist.Learn.PeakAccelMps2", () => _shiftAssistLearnPeakAccelLatched);
+            AttachCore("ShiftAssist.Learn.PeakRpm", () => _shiftAssistLearnPeakRpmLatched);
             AttachCore("ShiftAssist.Learn.LastSampleRpm", () => _shiftAssistLastLearningTick?.LastSampleRpm ?? 0);
             AttachCore("ShiftAssist.Learn.SavedPulse", () => IsShiftAssistLearnSavedPulseActive());
             AttachCore("ShiftAssist.Learn.Samples_G1", () => GetShiftAssistLearnSamplesForGear(1));
@@ -6242,6 +6248,18 @@ namespace LaunchPlugin
                 brake01,
                 sessionTimeSec,
                 learningLonAccelMps2);
+
+            if (_shiftAssistLastLearningTick != null &&
+                (_shiftAssistLastLearningTick.State == ShiftAssistLearningState.Sampling || _shiftAssistLastLearningTick.State == ShiftAssistLearningState.Complete))
+            {
+                double peakAccel = _shiftAssistLastLearningTick.PeakAccelMps2;
+                int peakRpm = _shiftAssistLastLearningTick.PeakRpm;
+                if (!double.IsNaN(peakAccel) && !double.IsInfinity(peakAccel) && peakAccel > 0.0 && peakRpm > 0)
+                {
+                    _shiftAssistLearnPeakAccelLatched = peakAccel;
+                    _shiftAssistLearnPeakRpmLatched = peakRpm;
+                }
+            }
 
             if (_shiftAssistLastLearningTick != null && _shiftAssistLastLearningTick.ShouldApplyLearnedRpm && ActiveProfile != null)
             {
