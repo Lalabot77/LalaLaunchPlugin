@@ -856,6 +856,7 @@ namespace LaunchPlugin
             _shiftAssistPendingDelayGear = 0;
             _shiftAssistPendingDelayStartTs = 0;
             _shiftAssistPendingDelayRpmAtCue = 0;
+            _shiftAssistPendingDelayDownshiftSinceTs = 0;
         }
 
         private static int GetElapsedMsFromTimestamp(long startTs, long endTs)
@@ -877,6 +878,16 @@ namespace LaunchPlugin
             }
 
             return GetElapsedMsFromTimestamp(_shiftAssistPendingDelayStartTs, nowTs);
+        }
+
+        private int GetShiftAssistPendingDownshiftAgeMs(long nowTs)
+        {
+            if (!_shiftAssistPendingDelayActive || _shiftAssistPendingDelayDownshiftSinceTs <= 0)
+            {
+                return 0;
+            }
+
+            return GetElapsedMsFromTimestamp(_shiftAssistPendingDelayDownshiftSinceTs, nowTs);
         }
 
         private void ResetShiftAssistDelayStats()
@@ -3572,6 +3583,7 @@ namespace LaunchPlugin
         private const int ShiftAssistDebugCsvMaxHzMax = 60;
         private const int ShiftAssistDelayHistorySize = 5;
         private const int ShiftAssistDelayPendingTimeoutMs = 2000;
+        private const int ShiftAssistDelayDownshiftGraceMs = 150;
         private const int ShiftAssistGearZeroHoldMs = 250;
         private const int ShiftAssistLearnSavePulseMs = 250;
         private readonly ShiftAssistEngine _shiftAssistEngine = new ShiftAssistEngine();
@@ -3596,6 +3608,7 @@ namespace LaunchPlugin
         private long _shiftAssistPendingDelayStartTs;
         private int _shiftAssistPendingDelayRpmAtCue;
         private bool _shiftAssistPendingDelayActive;
+        private long _shiftAssistPendingDelayDownshiftSinceTs;
         private int _shiftAssistLastCapturedDelayMs;
         private string _shiftAssistDelayCaptureEvent = "NONE";
         private string _shiftAssistDelayBeepType = "NONE";
@@ -6266,7 +6279,7 @@ namespace LaunchPlugin
                 long nowTs = Stopwatch.GetTimestamp();
                 if (effectiveGear == (_shiftAssistPendingDelayGear + 1))
                 {
-                    int delayMs = ClampShiftAssistDelayMs(GetElapsedMsFromTimestamp(_shiftAssistPendingDelayStartTs, nowTs));
+                    int delayMs = GetElapsedMsFromTimestamp(_shiftAssistPendingDelayStartTs, nowTs);
                     if (delayMs > 0)
                     {
                         _shiftAssistLastCapturedDelayMs = delayMs;
@@ -6282,15 +6295,30 @@ namespace LaunchPlugin
 
                     ClearShiftAssistDelayPending();
                 }
-                else if (effectiveGear != 0 && effectiveGear < _shiftAssistPendingDelayGear)
+                else
                 {
-                    _shiftAssistDelayCaptureEvent = "CANCEL_DOWN";
-                    ClearShiftAssistDelayPending();
-                }
-                else if (GetShiftAssistPendingAgeMs(nowTs) > ShiftAssistDelayPendingTimeoutMs)
-                {
-                    _shiftAssistDelayCaptureEvent = "CANCEL_TIMEOUT";
-                    ClearShiftAssistDelayPending();
+                    if (effectiveGear != 0 && effectiveGear < _shiftAssistPendingDelayGear)
+                    {
+                        if (_shiftAssistPendingDelayDownshiftSinceTs == 0)
+                        {
+                            _shiftAssistPendingDelayDownshiftSinceTs = nowTs;
+                        }
+                        else if (GetShiftAssistPendingDownshiftAgeMs(nowTs) >= ShiftAssistDelayDownshiftGraceMs)
+                        {
+                            _shiftAssistDelayCaptureEvent = "CANCEL_DOWN";
+                            ClearShiftAssistDelayPending();
+                        }
+                    }
+                    else
+                    {
+                        _shiftAssistPendingDelayDownshiftSinceTs = 0;
+                    }
+
+                    if (_shiftAssistPendingDelayActive && GetShiftAssistPendingAgeMs(nowTs) > ShiftAssistDelayPendingTimeoutMs)
+                    {
+                        _shiftAssistDelayCaptureEvent = "CANCEL_TIMEOUT";
+                        ClearShiftAssistDelayPending();
+                    }
                 }
             }
             double throttleRaw = data.NewData?.Throttle ?? 0.0;
@@ -6627,7 +6655,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayCapturedMs,DelayCaptureEvent,DelayBeepType" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType" + Environment.NewLine);
                     }
                 }
 
@@ -6642,13 +6670,15 @@ namespace LaunchPlugin
                 int delayPendingGear = _shiftAssistPendingDelayGear;
                 int delayPendingAgeMs = GetShiftAssistPendingAgeMs(delayNowTs);
                 int delayPendingRpmAtCue = _shiftAssistPendingDelayRpmAtCue;
+                int delayPendingTargetGear = _shiftAssistPendingDelayActive ? (_shiftAssistPendingDelayGear + 1) : 0;
+                int delayPendingDownshiftAgeMs = GetShiftAssistPendingDownshiftAgeMs(delayNowTs);
                 int delayCapturedMs = _shiftAssistLastCapturedDelayMs;
                 string delayCaptureEvent = _shiftAssistDelayCaptureEvent ?? "NONE";
                 string delayBeepType = _shiftAssistDelayBeepType ?? "NONE";
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -6679,6 +6709,8 @@ namespace LaunchPlugin
                     delayPendingGear,
                     delayPendingAgeMs,
                     delayPendingRpmAtCue,
+                    delayPendingTargetGear,
+                    delayPendingDownshiftAgeMs,
                     delayCapturedMs,
                     delayCaptureEvent,
                     delayBeepType);
