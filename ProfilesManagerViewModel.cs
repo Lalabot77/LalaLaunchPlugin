@@ -170,6 +170,8 @@ namespace LaunchPlugin
                     OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
                     OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
                     OnPropertyChanged(nameof(ActiveShiftStackLabel));
+                    OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
+                    OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
                 }
             }
         }
@@ -656,6 +658,8 @@ namespace LaunchPlugin
                 EnsureShiftStackForSelectedProfile(normalized);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ActiveShiftStackLabel));
+                OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
+                OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
                 OnPropertyChanged(nameof(ShiftStackIds));
                 OnPropertyChanged(nameof(ShiftGearRows));
                 OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
@@ -663,7 +667,31 @@ namespace LaunchPlugin
             }
         }
 
-        public string ActiveShiftStackLabel => $"Active stack: {SelectedShiftStackId}";
+        public string ActiveLiveShiftStackId
+        {
+            get
+            {
+                string current = _getCurrentGearStackId?.Invoke();
+                return string.IsNullOrWhiteSpace(current) ? "Default" : current.Trim();
+            }
+        }
+
+        public bool IsSelectedStackActiveLiveStack => string.Equals(SelectedShiftStackId, ActiveLiveShiftStackId, StringComparison.OrdinalIgnoreCase);
+
+        public string ShiftAssistStackLearningStatsNotice
+        {
+            get
+            {
+                if (IsSelectedStackActiveLiveStack)
+                {
+                    return string.Empty;
+                }
+
+                return string.Format(CultureInfo.InvariantCulture, "Learning stats shown only for active live stack: {0}", ActiveLiveShiftStackId);
+            }
+        }
+
+        public string ActiveShiftStackLabel => $"Active stack: {ActiveLiveShiftStackId}";
 
         public IEnumerable<string> ShiftStackIds
         {
@@ -810,15 +838,20 @@ namespace LaunchPlugin
                     int rowGear = gearIdx + 1;
                     int avgDelayMs = TryReadPluginInt($"ShiftAssist.DelayAvg_G{rowGear}");
                     int delaySamples = TryReadPluginInt($"ShiftAssist.DelayN_G{rowGear}");
-                    int learnedRpm = TryReadPluginInt($"ShiftAssist.Learn.LearnedRpm_G{rowGear}");
-                    int learnedSamples = TryReadPluginInt($"ShiftAssist.Learn.Samples_G{rowGear}");
+                    bool showLearnedForSelectedStack = IsSelectedStackActiveLiveStack;
+                    int learnedRpm = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.LearnedRpm_G{rowGear}") : 0;
+                    int learnedSamples = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.Samples_G{rowGear}") : 0;
                     yield return new ShiftGearRow
                     {
                         GearLabel = $"Shift from Gear {rowGear}",
                         RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
                         IsLocked = stack.ShiftLocked[gearIdx],
-                        LearnedRpmText = learnedRpm > 0 ? learnedRpm.ToString(CultureInfo.InvariantCulture) : "—",
-                        SampleCountText = learnedSamples > 0 ? learnedSamples.ToString(CultureInfo.InvariantCulture) : "0",
+                        LearnedRpmText = showLearnedForSelectedStack
+                            ? (learnedRpm > 0 ? learnedRpm.ToString(CultureInfo.InvariantCulture) : "—")
+                            : "—",
+                        SampleCountText = showLearnedForSelectedStack
+                            ? (learnedSamples > 0 ? learnedSamples.ToString(CultureInfo.InvariantCulture) : "0")
+                            : "—",
                         DelayAvgMsText = delaySamples > 0 && avgDelayMs > 0 ? avgDelayMs.ToString(CultureInfo.InvariantCulture) : "—",
                         DelayCountText = delaySamples > 0 ? delaySamples.ToString(CultureInfo.InvariantCulture) : "0",
                         SaveAction = txt =>
@@ -858,6 +891,10 @@ namespace LaunchPlugin
             OnPropertyChanged(nameof(ShiftAssistLearningPeakAccelText));
             OnPropertyChanged(nameof(ShiftAssistLearningPeakRpmText));
             OnPropertyChanged(nameof(ShiftAssistDelayPendingSummary));
+            OnPropertyChanged(nameof(ActiveLiveShiftStackId));
+            OnPropertyChanged(nameof(ActiveShiftStackLabel));
+            OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
+            OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
             OnPropertyChanged(nameof(ShiftGearRows));
         }
 
