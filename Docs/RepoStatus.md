@@ -1,13 +1,13 @@
 # Repository status
 
-Validated against commit: 1617166  
-Last updated: 2026-02-16  
+Validated against commit: 5f3630c  
+Last updated: 2026-02-17  
 Branch: work
 
 ## Current repo/link status
 - Local branch present: `work`.
 - No Git remote is configured in this checkout (`git remote -v` returns empty).
-- HEAD includes post-PR404 updates, including Shift Assist learning/debug telemetry and docs refresh.
+- HEAD includes post-PR418 updates, including Shift Assist learning controls, lock/reset actions, per-gear ShiftRPM exports, and debug visibility toggles.
 
 ## Documentation sync status (requested set)
 - `SimHubParameterInventory.md` — refreshed to current head/date and includes Shift Assist export inventory.
@@ -20,7 +20,7 @@ Branch: work
 ## Delivery status highlights
 - Shift Assist subsystem: **INTEGRATED** (settings, evaluation, audio, exports, logs, delay telemetry).
 - Declutter mode + event marker actions: **COMPLETE** (post-PR381 baseline retained).
-- Canonical docs listed above: **SYNCED** to `1617166`.
+- Canonical docs listed above: **SYNCED** to `5f3630c`.
 
 ## Notes
 - `Code_Snapshot.md` remains intentionally non-canonical; contract truth lives in parameter/log inventories and subsystem docs.
