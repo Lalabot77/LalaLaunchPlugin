@@ -40,6 +40,7 @@ namespace LaunchPlugin
         private const int MinSaneRpm = 1000;
         private const int MaxSaneRpm = 20000;
         private const double PeakFalloffRatio = 0.97;
+        private const int ReArmRpmDrop = 500;
 
         private readonly Dictionary<string, StackRuntime> _stacks = new Dictionary<string, StackRuntime>(StringComparer.OrdinalIgnoreCase);
         private readonly ShiftAssistLearningTick _lastTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
@@ -96,9 +97,17 @@ namespace LaunchPlugin
             bool stableReady = effectiveGear >= 1 && effectiveGear <= GearCount && hasValidSessionTime && IsFinite(_stableGearSinceSec)
                 && sessionTimeSec >= (_stableGearSinceSec + (StableGearArmMs / 1000.0));
 
+            bool canArmForGear = true;
+            if (effectiveGear >= 1 && effectiveGear <= GearCount)
+            {
+                var effectiveGearData = stack.Gears[effectiveGear - 1];
+                effectiveGearData.TryClearReArmReset(rpm, ReArmRpmDrop);
+                canArmForGear = !effectiveGearData.RequireRpmReset;
+            }
+
             if (!_samplingActive)
             {
-                if (gateStrong && stableReady)
+                if (gateStrong && stableReady && canArmForGear)
                 {
                     _samplingActive = true;
                     _samplingGear = effectiveGear;
@@ -241,6 +250,7 @@ namespace LaunchPlugin
             if (accepted)
             {
                 gearData.AddSample(sampleRpm);
+                gearData.SetReArmRequired(_samplingPeakRpm);
                 tick.SampleAdded = true;
                 tick.LastSampleRpm = sampleRpm;
                 tick.State = ShiftAssistLearningState.Complete;
@@ -331,6 +341,8 @@ namespace LaunchPlugin
 
             public int Count { get; private set; }
             public int LearnedRpm { get; private set; }
+            public int LastCapturedPeakRpm { get; private set; }
+            public bool RequireRpmReset { get; private set; }
 
             public void AddSample(int rpm)
             {
@@ -350,6 +362,28 @@ namespace LaunchPlugin
                 _next = 0;
                 Count = 0;
                 LearnedRpm = 0;
+                LastCapturedPeakRpm = 0;
+                RequireRpmReset = false;
+            }
+
+            public void SetReArmRequired(int peakRpm)
+            {
+                LastCapturedPeakRpm = peakRpm > 0 ? peakRpm : 0;
+                RequireRpmReset = LastCapturedPeakRpm > 0;
+            }
+
+            public void TryClearReArmReset(int rpm, int reArmRpmDrop)
+            {
+                if (!RequireRpmReset || LastCapturedPeakRpm <= 0)
+                {
+                    return;
+                }
+
+                int reArmThreshold = LastCapturedPeakRpm - reArmRpmDrop;
+                if (rpm <= reArmThreshold)
+                {
+                    RequireRpmReset = false;
+                }
             }
 
             private int ComputeMedian()
