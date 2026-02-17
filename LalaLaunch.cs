@@ -939,6 +939,16 @@ namespace LaunchPlugin
             return _shiftAssistLearningEngine.GetLearnedRpm(_shiftAssistActiveGearStackId, gear);
         }
 
+        private int GetShiftAssistTargetRpmForGear(int gear)
+        {
+            if (gear < 1 || gear > 8 || ActiveProfile == null)
+            {
+                return 0;
+            }
+
+            return ActiveProfile.GetShiftTargetForGear(_shiftAssistActiveGearStackId, gear);
+        }
+
         private bool GetShiftAssistLockedForGear(int gear)
         {
             if (gear < 1 || gear > 8 || ActiveProfile == null)
@@ -4142,6 +4152,14 @@ namespace LaunchPlugin
 
             AttachCore("ShiftAssist.ActiveGearStackId", () => _shiftAssistActiveGearStackId ?? "Default");
             AttachCore("ShiftAssist.TargetRPM_CurrentGear", () => _shiftAssistTargetCurrentGear);
+            AttachCore("ShiftAssist.ShiftRPM_G1", () => GetShiftAssistTargetRpmForGear(1));
+            AttachCore("ShiftAssist.ShiftRPM_G2", () => GetShiftAssistTargetRpmForGear(2));
+            AttachCore("ShiftAssist.ShiftRPM_G3", () => GetShiftAssistTargetRpmForGear(3));
+            AttachCore("ShiftAssist.ShiftRPM_G4", () => GetShiftAssistTargetRpmForGear(4));
+            AttachCore("ShiftAssist.ShiftRPM_G5", () => GetShiftAssistTargetRpmForGear(5));
+            AttachCore("ShiftAssist.ShiftRPM_G6", () => GetShiftAssistTargetRpmForGear(6));
+            AttachCore("ShiftAssist.ShiftRPM_G7", () => GetShiftAssistTargetRpmForGear(7));
+            AttachCore("ShiftAssist.ShiftRPM_G8", () => GetShiftAssistTargetRpmForGear(8));
             AttachCore("ShiftAssist.EffectiveTargetRPM_CurrentGear", () => _shiftAssistEngine.LastEffectiveTargetRpm);
             AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
             AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
