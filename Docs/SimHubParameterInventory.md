@@ -2,9 +2,9 @@
 
 **CANONICAL CONTRACT**
 
-Validated against: 1617166  
-Last reviewed: 2026-02-16  
-Last updated: 2026-02-16  
+Validated against: 5f3630c  
+Last reviewed: 2026-02-17  
+Last updated: 2026-02-17  
 Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
@@ -214,17 +214,28 @@ Branch: work
 | --- | --- | --- | --- | --- |
 | ShiftAssist.ActiveGearStackId | string | Active gear stack id read from `DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack` (falls back to `Default`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
 | ShiftAssist.TargetRPM_CurrentGear | int | Current gear target RPM resolved from active car profile + active gear stack; when profile target is `0`, falls back to `DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM` if available (else `0`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.ShiftRPM_G1..ShiftAssist.ShiftRPM_G8 | int | Active-stack target RPM values for each source gear, exported directly for dash display and tuning overlays. | Per tick. | `LalaLaunch.cs` — per-gear target resolver + `AttachCore`. |
 | ShiftAssist.EffectiveTargetRPM_CurrentGear | int | Effective target RPM after predictive lead-time adjustment, using the same chosen target source as `ShiftAssist.TargetRPM_CurrentGear` (profile target or redline fallback). | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
 | ShiftAssist.RpmRate | int | RPM/sec estimate used by predictive cueing; `0` when unavailable/guarded. | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
-| ShiftAssist.DelayAvg_G1..ShiftAssist.DelayAvg_G8 | int | Runtime rolling average beep→upshift delay (ms) per source gear, over last 5 valid samples. | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
-| ShiftAssist.DelayN_G1..ShiftAssist.DelayN_G8 | int | Runtime sample count currently included in each per-gear rolling average (0..5). | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
 | ShiftAssist.Beep | bool | True during configurable beep latch window (default 250 ms, clamp 100..1000 ms; dash flash fallback/testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
 | ShiftAssist.Learn.Enabled | int | Learning mode state exported as `1`/`0` for dash overlays and learning workflows. | Per tick. | `LalaLaunch.cs` settings bridge + `AttachCore`. |
+| ShiftAssist.Learn.State | string | Learning state machine state (`Off`, `Armed`, `Sampling`, `Complete`, `Rejected`). | Per tick. | `ShiftAssistLearningEngine.cs` tick state + `LalaLaunch.cs` export. |
+| ShiftAssist.Learn.ActiveGear | int | Source gear currently being sampled by learning mode (`0` when inactive). | Per tick. | `ShiftAssistLearningEngine.cs` tick output + `LalaLaunch.cs` export. |
+| ShiftAssist.Learn.WindowMs | int | Elapsed sampling window duration for the current learning pull. | Per tick while active learning window exists. | `ShiftAssistLearningEngine.cs` + `LalaLaunch.cs` export. |
+| ShiftAssist.Learn.PeakAccelMps2 / ShiftAssist.Learn.PeakRpm | double/int | Peak acceleration and RPM latched for the most recent accepted learning pull. | Per tick (latched between saves). | `LalaLaunch.cs` learning latch state + `AttachCore`. |
+| ShiftAssist.Learn.LastSampleRpm | int | Last RPM sample captured by learning state machine this tick. | Per tick. | `ShiftAssistLearningEngine.cs` + `LalaLaunch.cs` export. |
+| ShiftAssist.Learn.SavedPulse | bool | Short pulse when learning writes accepted targets back into the active stack profile row(s). | Per tick (pulse). | `LalaLaunch.cs` save pulse timer + `AttachCore`. |
+| ShiftAssist.Learn.Samples_G1..ShiftAssist.Learn.Samples_G8 | int | Count of accepted learning samples retained per source gear for active stack. | Per tick. | `ShiftAssistLearningEngine.cs` sample store + `LalaLaunch.cs` export. |
+| ShiftAssist.Learn.LearnedRpm_G1..ShiftAssist.Learn.LearnedRpm_G8 | int | Median/selected learned RPM currently retained by learning engine per source gear (`0` when none). | Per tick. | `ShiftAssistLearningEngine.cs` sample aggregation + `LalaLaunch.cs` export. |
+| ShiftAssist.Learn.Locked_G1..ShiftAssist.Learn.Locked_G8 | bool | Active-stack per-gear lock state; locked gears are preserved during learning auto-apply/reset workflows. | Per tick. | `LalaLaunch.cs` active profile stack lock state + `AttachCore`. |
 | ShiftAssist.State | string | Runtime evaluator state (`Off` / `On` / `NoData` / `Cooldown`). | Per tick. | `ShiftAssistEngine.cs` state machine + `LalaLaunch.cs` export. |
 | ShiftAssist.Debug.AudioDelayMs | int | Most recent measured delay between trigger and `SoundPlayer` issue time (ms), clamped and session-local. | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
 | ShiftAssist.Debug.AudioDelayAgeMs | int | Age (ms) of `AudioDelayMs`; returns `-1` when no measurement exists yet this session. | Per tick. | `LalaLaunch.cs` — `GetShiftAssistAudioDelayAgeMs` + `AttachCore`. |
 | ShiftAssist.Debug.AudioIssued | bool | Pulse true when an audio issue timestamp is captured this tick. | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |
 | ShiftAssist.Debug.AudioBackend | string | Current playback backend identifier (`SoundPlayer`). | Per tick. | `LalaLaunch.cs` — `AttachCore`. |
+| ShiftAssist.Debug.CsvEnabled | int | Reflects runtime debug CSV toggle state (`1`/`0`) for dashboard visibility and quick troubleshooting. | Per tick. | `LalaLaunch.cs` settings bridge + `AttachCore`. |
+| ShiftAssist.DelayAvg_G1..ShiftAssist.DelayAvg_G8 | int | Runtime rolling average beep→upshift delay (ms) per source gear, over last 5 valid samples. | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
+| ShiftAssist.DelayN_G1..ShiftAssist.DelayN_G8 | int | Runtime sample count currently included in each per-gear rolling average (0..5). | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
 | ShiftAssist UI gear rows | n/a | Profile storage remains 8 slots, but UI only shows up-shiftable gears `1..(maxForwardGears-1)` where max forward gears comes from `DataCorePlugin.GameData.CarSettings_MaxGears`, then `DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward`, then defaults to `8`. | On profile/UI refresh. | `ProfilesManagerViewModel.cs` — `ShiftAssistMaxTargetGears` + `ShiftGearRows`. |
 
 ## Session / Identity
