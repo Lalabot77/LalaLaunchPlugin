@@ -890,6 +890,22 @@ namespace LaunchPlugin
             return GetElapsedMsFromTimestamp(_shiftAssistPendingDelayDownshiftSinceTs, nowTs);
         }
 
+        private void LatchShiftAssistDelayDiagnostics(string captureEvent, string beepType, int capturedMs, DateTime nowUtc)
+        {
+            _shiftAssistDelayDiagLatchedCapturedMs = capturedMs;
+            _shiftAssistDelayDiagLatchedEvent = string.IsNullOrWhiteSpace(captureEvent) ? "NONE" : captureEvent;
+            _shiftAssistDelayDiagLatchedBeepType = string.IsNullOrWhiteSpace(beepType) ? "NONE" : beepType;
+            _shiftAssistDelayDiagLatchedUtc = nowUtc;
+        }
+
+        private void ClearShiftAssistDelayDiagnosticsLatch()
+        {
+            _shiftAssistDelayDiagLatchedCapturedMs = 0;
+            _shiftAssistDelayDiagLatchedEvent = "NONE";
+            _shiftAssistDelayDiagLatchedBeepType = "NONE";
+            _shiftAssistDelayDiagLatchedUtc = DateTime.MinValue;
+        }
+
         private void ResetShiftAssistDelayStats()
         {
             Array.Clear(_shiftAssistDelaySamples, 0, _shiftAssistDelaySamples.Length);
@@ -899,6 +915,7 @@ namespace LaunchPlugin
             _shiftAssistAudioDelayMs = 0;
             _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
             ClearShiftAssistDelayPending();
+            ClearShiftAssistDelayDiagnosticsLatch();
         }
 
         private int GetShiftAssistAudioDelayAgeMs()
@@ -3612,6 +3629,10 @@ namespace LaunchPlugin
         private int _shiftAssistLastCapturedDelayMs;
         private string _shiftAssistDelayCaptureEvent = "NONE";
         private string _shiftAssistDelayBeepType = "NONE";
+        private int _shiftAssistDelayDiagLatchedCapturedMs;
+        private string _shiftAssistDelayDiagLatchedEvent = "NONE";
+        private string _shiftAssistDelayDiagLatchedBeepType = "NONE";
+        private DateTime _shiftAssistDelayDiagLatchedUtc = DateTime.MinValue;
         private readonly int[,] _shiftAssistDelaySamples = new int[8, ShiftAssistDelayHistorySize];
         private readonly int[] _shiftAssistDelaySampleCounts = new int[8];
         private readonly int[] _shiftAssistDelaySampleNextIndex = new int[8];
@@ -6284,6 +6305,7 @@ namespace LaunchPlugin
                     {
                         _shiftAssistLastCapturedDelayMs = delayMs;
                         _shiftAssistDelayCaptureEvent = "CAPTURE";
+                        LatchShiftAssistDelayDiagnostics("CAPTURE", _shiftAssistDelayBeepType, delayMs, nowUtc);
                         AddShiftAssistDelaySample(_shiftAssistPendingDelayGear, delayMs);
                         ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
                         if (IsVerboseDebugLoggingOn)
@@ -6306,6 +6328,7 @@ namespace LaunchPlugin
                         else if (GetShiftAssistPendingDownshiftAgeMs(nowTs) >= ShiftAssistDelayDownshiftGraceMs)
                         {
                             _shiftAssistDelayCaptureEvent = "CANCEL_DOWN";
+                            LatchShiftAssistDelayDiagnostics("CANCEL_DOWN", _shiftAssistDelayBeepType, 0, nowUtc);
                             ClearShiftAssistDelayPending();
                         }
                     }
@@ -6317,6 +6340,7 @@ namespace LaunchPlugin
                     if (_shiftAssistPendingDelayActive && GetShiftAssistPendingAgeMs(nowTs) > ShiftAssistDelayPendingTimeoutMs)
                     {
                         _shiftAssistDelayCaptureEvent = "CANCEL_TIMEOUT";
+                        LatchShiftAssistDelayDiagnostics("CANCEL_TIMEOUT", _shiftAssistDelayBeepType, 0, nowUtc);
                         ClearShiftAssistDelayPending();
                     }
                 }
@@ -6479,6 +6503,7 @@ namespace LaunchPlugin
                     _shiftAssistPendingDelayActive = true;
                     _shiftAssistDelayCaptureEvent = "ARM";
                     _shiftAssistDelayBeepType = "PRIMARY";
+                    LatchShiftAssistDelayDiagnostics("ARM", "PRIMARY", 0, nowUtc);
                 }
 
                 if (IsVerboseDebugLoggingOn)
@@ -6606,6 +6631,7 @@ namespace LaunchPlugin
             _shiftAssistDebugCsvLastWriteUtc = DateTime.MinValue;
             _shiftAssistDebugCsvPath = null;
             _shiftAssistDebugCsvFileTimestamp = null;
+            ClearShiftAssistDelayDiagnosticsLatch();
         }
 
         private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2, ShiftAssistLearningTick learningTick)
@@ -6672,9 +6698,9 @@ namespace LaunchPlugin
                 int delayPendingRpmAtCue = _shiftAssistPendingDelayRpmAtCue;
                 int delayPendingTargetGear = _shiftAssistPendingDelayActive ? (_shiftAssistPendingDelayGear + 1) : 0;
                 int delayPendingDownshiftAgeMs = GetShiftAssistPendingDownshiftAgeMs(delayNowTs);
-                int delayCapturedMs = _shiftAssistLastCapturedDelayMs;
-                string delayCaptureEvent = _shiftAssistDelayCaptureEvent ?? "NONE";
-                string delayBeepType = _shiftAssistDelayBeepType ?? "NONE";
+                int delayCapturedMs = _shiftAssistDelayDiagLatchedCapturedMs;
+                string delayCaptureEvent = _shiftAssistDelayDiagLatchedEvent ?? "NONE";
+                string delayBeepType = _shiftAssistDelayDiagLatchedBeepType ?? "NONE";
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
@@ -6716,6 +6742,7 @@ namespace LaunchPlugin
                     delayBeepType);
 
                 File.AppendAllText(_shiftAssistDebugCsvPath, line + Environment.NewLine);
+                ClearShiftAssistDelayDiagnosticsLatch();
             }
             catch (Exception ex)
             {
