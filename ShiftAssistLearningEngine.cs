@@ -32,7 +32,7 @@ namespace LaunchPlugin
     {
         private const int GearCount = 8;
         private const int BufferSize = 20;
-        private const int MinSamplesForApply = 5;
+        private const int MinSamplesForApply = 3;
         private const int StableGearArmMs = 100;
         private const int MinWindowMs = 500;
         private const int MaxWindowMs = 3000;
