@@ -3753,6 +3753,39 @@ namespace LaunchPlugin
             this.AddAction("LaunchMode", (a, b) => LaunchMode());
             this.AddAction("TrackMarkersLock", (a, b) => SetTrackMarkersLocked(true));
             this.AddAction("TrackMarkersUnlock", (a, b) => SetTrackMarkersLocked(false));
+            this.AddAction("Debug_Hide_1_Toggle", (a, b) =>
+            {
+                if (Settings == null)
+                {
+                    return;
+                }
+
+                Settings.DebugHide1 = !Settings.DebugHide1;
+                SaveSettings();
+                SimHub.Logging.Current.Info($"[LalaPlugin:Debug] Debug_Hide_1_Toggle -> Hide={Settings.DebugHide1}");
+            });
+            this.AddAction("Debug_Hide_2_Toggle", (a, b) =>
+            {
+                if (Settings == null)
+                {
+                    return;
+                }
+
+                Settings.DebugHide2 = !Settings.DebugHide2;
+                SaveSettings();
+                SimHub.Logging.Current.Info($"[LalaPlugin:Debug] Debug_Hide_2_Toggle -> Hide={Settings.DebugHide2}");
+            });
+            this.AddAction("Debug_Hide_3_Toggle", (a, b) =>
+            {
+                if (Settings == null)
+                {
+                    return;
+                }
+
+                Settings.DebugHide3 = !Settings.DebugHide3;
+                SaveSettings();
+                SimHub.Logging.Current.Info($"[LalaPlugin:Debug] Debug_Hide_3_Toggle -> Hide={Settings.DebugHide3}");
+            });
             this.AddAction("ShiftAssist_ResetDelayStats", (a, b) =>
             {
                 ResetShiftAssistDelayStats();
@@ -3837,7 +3870,7 @@ namespace LaunchPlugin
             this.AddAction("ShiftAssist_ToggleLock_G6", (a, b) => ExecuteShiftAssistLockAction(6, current => !current, "ShiftAssist_ToggleLock_G6"));
             this.AddAction("ShiftAssist_ToggleLock_G7", (a, b) => ExecuteShiftAssistLockAction(7, current => !current, "ShiftAssist_ToggleLock_G7"));
             this.AddAction("ShiftAssist_ToggleLock_G8", (a, b) => ExecuteShiftAssistLockAction(8, current => !current, "ShiftAssist_ToggleLock_G8"));
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep, ShiftAssist_Learn_ResetSamples, ShiftAssist_ResetTargets_ActiveStack, ShiftAssist_ResetTargets_ActiveStack_AndSamples, ShiftAssist_Lock_G1..G8, ShiftAssist_Unlock_G1..G8, ShiftAssist_ToggleLock_G1..G8");
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, Debug_Hide_1_Toggle, Debug_Hide_2_Toggle, Debug_Hide_3_Toggle, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep, ShiftAssist_Learn_ResetSamples, ShiftAssist_ResetTargets_ActiveStack, ShiftAssist_ResetTargets_ActiveStack_AndSamples, ShiftAssist_Lock_G1..G8, ShiftAssist_Unlock_G1..G8, ShiftAssist_ToggleLock_G1..G8");
 
             AttachCore("LalaLaunch.Friends.Count", () => _friendsCount);
 
@@ -4010,6 +4043,9 @@ namespace LaunchPlugin
             AttachCore("Race.LeaderHasFinished", () => LeaderHasFinished);
             AttachCore("MsgCxPressed", () => _msgCxPressed);
             AttachCore("Debug.EventMarkerPressed", () => _eventMarkerPressed);
+            AttachCore("Debug.Hide_1", () => Settings?.DebugHide1 == true ? 1 : 0);
+            AttachCore("Debug.Hide_2", () => Settings?.DebugHide2 == true ? 1 : 0);
+            AttachCore("Debug.Hide_3", () => Settings?.DebugHide3 == true ? 1 : 0);
             AttachCore("PitScreenActive", () => _pitScreenActive);
             AttachCore("PitScreenMode", () => _pitScreenMode);
             AttachCore("Pit.EntryLineDebrief", () => _pit.PitEntryLineDebrief);
@@ -12286,6 +12322,9 @@ namespace LaunchPlugin
 
         // --- Global Settings with Corrected Defaults ---
         public bool EnableSoftDebug { get; set; } = false;
+        public bool DebugHide1 { get; set; } = false;
+        public bool DebugHide2 { get; set; } = false;
+        public bool DebugHide3 { get; set; } = false;
         public bool EnableDebugLogging { get; set; } = false;
         public bool EnableCarSADebugExport { get; set; } = false;
         public bool EnableOffTrackDebugCsv { get; set; } = false;
