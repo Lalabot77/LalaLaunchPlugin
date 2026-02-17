@@ -3734,12 +3734,17 @@ namespace LaunchPlugin
                 }
 
                 SaveSettings();
+                ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
                 SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Debug CSV toggle action -> Enabled={Settings.EnableShiftAssistDebugCsv}");
             });
             this.AddAction("ShiftAssist_TestBeep", (a, b) => TriggerShiftAssistTestBeep());
             this.AddAction("ShiftAssist_Learn_ResetSamples", (a, b) =>
             {
                 _shiftAssistLearningEngine.ResetSamplesForStack(_shiftAssistActiveGearStackId);
+                _shiftAssistLastLearningTick = new ShiftAssistLearningTick
+                {
+                    State = Settings?.ShiftAssistLearningModeEnabled == true ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off
+                };
                 ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
                 SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Learning samples reset for stack '{_shiftAssistActiveGearStackId}'.");
             });
@@ -4076,6 +4081,7 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.Debug.AudioDelayAgeMs", () => GetShiftAssistAudioDelayAgeMs());
             AttachCore("ShiftAssist.Debug.AudioIssued", () => _shiftAssistAudioIssuedPulse);
             AttachCore("ShiftAssist.Debug.AudioBackend", () => "SoundPlayer");
+            AttachCore("ShiftAssist.Debug.CsvEnabled", () => Settings?.EnableShiftAssistDebugCsv == true ? 1 : 0);
             AttachCore("ShiftAssist.DelayAvg_G1", () => GetShiftAssistDelayAverageMs(1));
             AttachCore("ShiftAssist.DelayAvg_G2", () => GetShiftAssistDelayAverageMs(2));
             AttachCore("ShiftAssist.DelayAvg_G3", () => GetShiftAssistDelayAverageMs(3));
