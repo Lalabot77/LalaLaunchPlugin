@@ -170,6 +170,8 @@ namespace LaunchPlugin
                     OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
                     OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
                     OnPropertyChanged(nameof(ActiveShiftStackLabel));
+                    OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
+                    OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
                 }
             }
         }
@@ -621,8 +623,11 @@ namespace LaunchPlugin
             {
                 _setShiftAssistBeepSoundEnabled?.Invoke(value);
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(ShiftAssistBeepMuteStateText));
             }
         }
+
+        public string ShiftAssistBeepMuteStateText => ShiftAssistBeepSoundEnabled ? "No" : "Yes";
 
         public int ShiftAssistBeepVolumePct
         {
@@ -653,6 +658,8 @@ namespace LaunchPlugin
                 EnsureShiftStackForSelectedProfile(normalized);
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ActiveShiftStackLabel));
+                OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
+                OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
                 OnPropertyChanged(nameof(ShiftStackIds));
                 OnPropertyChanged(nameof(ShiftGearRows));
                 OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
@@ -660,7 +667,31 @@ namespace LaunchPlugin
             }
         }
 
-        public string ActiveShiftStackLabel => $"Active stack: {SelectedShiftStackId}";
+        public string ActiveLiveShiftStackId
+        {
+            get
+            {
+                string current = _getCurrentGearStackId?.Invoke();
+                return string.IsNullOrWhiteSpace(current) ? "Default" : current.Trim();
+            }
+        }
+
+        public bool IsSelectedStackActiveLiveStack => string.Equals(SelectedShiftStackId, ActiveLiveShiftStackId, StringComparison.OrdinalIgnoreCase);
+
+        public string ShiftAssistStackLearningStatsNotice
+        {
+            get
+            {
+                if (IsSelectedStackActiveLiveStack)
+                {
+                    return string.Empty;
+                }
+
+                return string.Format(CultureInfo.InvariantCulture, "Learning stats shown only for active live stack: {0}", ActiveLiveShiftStackId);
+            }
+        }
+
+        public string ActiveShiftStackLabel => $"Active stack: {ActiveLiveShiftStackId}";
 
         public IEnumerable<string> ShiftStackIds
         {
@@ -719,6 +750,68 @@ namespace LaunchPlugin
             }
         }
 
+        public string ShiftAssistLearningState
+        {
+            get
+            {
+                string state = TryReadPluginString("ShiftAssist.Learn.State");
+                return string.IsNullOrWhiteSpace(state) ? "Off" : state;
+            }
+        }
+
+        public int ShiftAssistLearningActiveGear => TryReadPluginInt("ShiftAssist.Learn.ActiveGear");
+
+        public string ShiftAssistLearningActiveGearText
+        {
+            get
+            {
+                int gear = ShiftAssistLearningActiveGear;
+                return gear > 0 ? gear.ToString(CultureInfo.InvariantCulture) : "—";
+            }
+        }
+
+        public string ShiftAssistLearningPeakAccelText
+        {
+            get
+            {
+                double peakAccel = TryReadPluginDouble("ShiftAssist.Learn.PeakAccelMps2");
+                return peakAccel > 0.0
+                    ? peakAccel.ToString("0.00", CultureInfo.InvariantCulture)
+                    : "—";
+            }
+        }
+
+        public string ShiftAssistLearningPeakRpmText
+        {
+            get
+            {
+                int peakRpm = TryReadPluginInt("ShiftAssist.Learn.PeakRpm");
+                return peakRpm > 0 ? peakRpm.ToString(CultureInfo.InvariantCulture) : "—";
+            }
+        }
+
+        public string ShiftAssistDelayPendingSummary
+        {
+            get
+            {
+                bool pending = TryReadPluginInt("ShiftAssist.Delay.Pending") > 0;
+                if (!pending)
+                {
+                    return "None";
+                }
+
+                int pendingGear = TryReadPluginInt("ShiftAssist.Delay.PendingGear");
+                int pendingAgeMs = TryReadPluginInt("ShiftAssist.Delay.PendingAgeMs");
+                int targetGear = pendingGear > 0 ? pendingGear + 1 : 0;
+                if (targetGear > 0)
+                {
+                    return string.Format(CultureInfo.InvariantCulture, "Pending G{0}→G{1}, {2} ms", pendingGear, targetGear, Math.Max(0, pendingAgeMs));
+                }
+
+                return string.Format(CultureInfo.InvariantCulture, "Pending, {0} ms", Math.Max(0, pendingAgeMs));
+            }
+        }
+
         public string ShiftAssistCurrentGearRedlineHint
         {
             get
@@ -738,21 +831,29 @@ namespace LaunchPlugin
             get
             {
                 var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
-                int targetRows = ShiftAssistMaxTargetGears;
+                int targetRows = ShiftAssistMaxStoredGears;
                 for (int i = 0; i < targetRows; i++)
                 {
                     int gearIdx = i;
                     int rowGear = gearIdx + 1;
                     int avgDelayMs = TryReadPluginInt($"ShiftAssist.DelayAvg_G{rowGear}");
                     int delaySamples = TryReadPluginInt($"ShiftAssist.DelayN_G{rowGear}");
+                    bool showLearnedForSelectedStack = IsSelectedStackActiveLiveStack;
+                    int learnedRpm = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.LearnedRpm_G{rowGear}") : 0;
+                    int learnedSamples = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.Samples_G{rowGear}") : 0;
                     yield return new ShiftGearRow
                     {
                         GearLabel = $"Shift from Gear {rowGear}",
                         RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
                         IsLocked = stack.ShiftLocked[gearIdx],
-                        DelaySummary = delaySamples > 0 && avgDelayMs > 0
-                            ? string.Format(CultureInfo.InvariantCulture, "Avg delay: {0} ms (n={1})", avgDelayMs, delaySamples)
+                        LearnedRpmText = showLearnedForSelectedStack
+                            ? (learnedRpm > 0 ? learnedRpm.ToString(CultureInfo.InvariantCulture) : "—")
                             : "—",
+                        SampleCountText = showLearnedForSelectedStack
+                            ? (learnedSamples > 0 ? learnedSamples.ToString(CultureInfo.InvariantCulture) : "0")
+                            : "—",
+                        DelayAvgMsText = delaySamples > 0 && avgDelayMs > 0 ? avgDelayMs.ToString(CultureInfo.InvariantCulture) : "—",
+                        DelayCountText = delaySamples > 0 ? delaySamples.ToString(CultureInfo.InvariantCulture) : "0",
                         SaveAction = txt =>
                         {
                             int value;
@@ -784,6 +885,16 @@ namespace LaunchPlugin
 
         public void RefreshShiftAssistRuntimeStats()
         {
+            OnPropertyChanged(nameof(ShiftAssistLearningState));
+            OnPropertyChanged(nameof(ShiftAssistLearningActiveGear));
+            OnPropertyChanged(nameof(ShiftAssistLearningActiveGearText));
+            OnPropertyChanged(nameof(ShiftAssistLearningPeakAccelText));
+            OnPropertyChanged(nameof(ShiftAssistLearningPeakRpmText));
+            OnPropertyChanged(nameof(ShiftAssistDelayPendingSummary));
+            OnPropertyChanged(nameof(ActiveLiveShiftStackId));
+            OnPropertyChanged(nameof(ActiveShiftStackLabel));
+            OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
+            OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
             OnPropertyChanged(nameof(ShiftGearRows));
         }
 
@@ -841,6 +952,70 @@ namespace LaunchPlugin
             }
 
             return 0;
+        }
+
+        private double TryReadPluginDouble(string propertyName)
+        {
+            if (_pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return 0.0;
+            }
+
+            try
+            {
+                object raw = _pluginManager.GetPropertyValue(propertyName);
+                if (raw == null)
+                {
+                    return 0.0;
+                }
+
+                if (raw is double d)
+                {
+                    return d;
+                }
+
+                if (raw is float f)
+                {
+                    return f;
+                }
+
+                if (raw is decimal m)
+                {
+                    return (double)m;
+                }
+
+                if (raw is string text)
+                {
+                    double parsed;
+                    if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsed))
+                    {
+                        return parsed;
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return 0.0;
+        }
+
+        private string TryReadPluginString(string propertyName)
+        {
+            if (_pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                object raw = _pluginManager.GetPropertyValue(propertyName);
+                return raw?.ToString() ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
 
@@ -1592,7 +1767,10 @@ namespace LaunchPlugin
         public string GearLabel { get; set; }
         public string RpmText { get; set; }
         public Action<string> SaveAction { get; set; }
-        public string DelaySummary { get; set; }
+        public string LearnedRpmText { get; set; }
+        public string SampleCountText { get; set; }
+        public string DelayAvgMsText { get; set; }
+        public string DelayCountText { get; set; }
         public bool IsLocked { get; set; }
         public Action<bool> SetLockAction { get; set; }
     }

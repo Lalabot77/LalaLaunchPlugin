@@ -860,6 +860,27 @@ namespace LaunchPlugin
             _shiftAssistPendingDelayBeepType = "NONE";
         }
 
+        private void RequestShiftAssistRuntimeStatsRefresh(bool force = false)
+        {
+            var vm = ProfilesViewModel;
+            if (vm == null)
+            {
+                return;
+            }
+
+            DateTime nowUtc = DateTime.UtcNow;
+            if (!force && _shiftAssistRuntimeStatsLastRefreshUtc != DateTime.MinValue)
+            {
+                if ((nowUtc - _shiftAssistRuntimeStatsLastRefreshUtc).TotalMilliseconds < 100.0)
+                {
+                    return;
+                }
+            }
+
+            _shiftAssistRuntimeStatsLastRefreshUtc = nowUtc;
+            vm.RefreshShiftAssistRuntimeStats();
+        }
+
         private static int GetElapsedMsFromTimestamp(long startTs, long endTs)
         {
             if (startTs <= 0 || endTs <= startTs)
@@ -1082,7 +1103,7 @@ namespace LaunchPlugin
             }
 
             ProfilesViewModel?.SaveProfiles();
-            ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+            RequestShiftAssistRuntimeStatsRefresh();
             SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] {actionName} stack='{_shiftAssistActiveGearStackId}' gear=G{gear} locked={desired}");
         }
 
@@ -1130,7 +1151,7 @@ namespace LaunchPlugin
             }
 
             _shiftAssistTargetCurrentGear = 0;
-            ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+            RequestShiftAssistRuntimeStatsRefresh();
             SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] {actionName} stack='{activeStackId}' changed={changed}");
         }
 
@@ -3669,6 +3690,7 @@ namespace LaunchPlugin
         private bool _shiftAssistDebugCsvFailed;
         private DateTime _shiftAssistLearnSavedPulseUntilUtc = DateTime.MinValue;
         private ShiftAssistLearningTick _shiftAssistLastLearningTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
+        private DateTime _shiftAssistRuntimeStatsLastRefreshUtc = DateTime.MinValue;
 
         private double _lastFuel = 0.0;
 
@@ -3885,7 +3907,7 @@ namespace LaunchPlugin
             this.AddAction("ShiftAssist_ResetDelayStats", (a, b) =>
             {
                 ResetShiftAssistDelayStats();
-                ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                RequestShiftAssistRuntimeStatsRefresh();
                 SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Delay stats reset via action.");
             });
             this.AddAction("ShiftAssist_ToggleShiftAssist", (a, b) =>
@@ -3913,7 +3935,7 @@ namespace LaunchPlugin
                 }
 
                 SaveSettings();
-                ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                RequestShiftAssistRuntimeStatsRefresh();
                 SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Debug CSV toggle action -> Enabled={Settings.EnableShiftAssistDebugCsv}");
             });
             this.AddAction("ShiftAssist_TestBeep", (a, b) => TriggerShiftAssistTestBeep());
@@ -3926,7 +3948,7 @@ namespace LaunchPlugin
                 {
                     State = Settings?.ShiftAssistLearningModeEnabled == true ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off
                 };
-                ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                RequestShiftAssistRuntimeStatsRefresh();
                 SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Learning samples reset for stack '{_shiftAssistActiveGearStackId}'.");
             });
             this.AddAction("ShiftAssist_ResetTargets_ActiveStack", (a, b) => ResetShiftAssistTargetsForActiveStack("ShiftAssist_ResetTargets_ActiveStack"));
@@ -3940,7 +3962,7 @@ namespace LaunchPlugin
                 {
                     State = Settings?.ShiftAssistLearningModeEnabled == true ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off
                 };
-                ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                RequestShiftAssistRuntimeStatsRefresh();
             });
             this.AddAction("ShiftAssist_Lock_G1", (a, b) => ExecuteShiftAssistLockAction(1, current => true, "ShiftAssist_Lock_G1"));
             this.AddAction("ShiftAssist_Lock_G2", (a, b) => ExecuteShiftAssistLockAction(2, current => true, "ShiftAssist_Lock_G2"));
@@ -6349,7 +6371,7 @@ namespace LaunchPlugin
                         _shiftAssistDelayBeepType = _shiftAssistPendingDelayBeepType;
                         LatchShiftAssistDelayDiagnostics("CAPTURE", _shiftAssistPendingDelayBeepType, delayMs, nowUtc);
                         AddShiftAssistDelaySample(_shiftAssistPendingDelayGear, delayMs);
-                        ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                        RequestShiftAssistRuntimeStatsRefresh();
                         if (IsVerboseDebugLoggingOn)
                         {
                             int avgDelay = GetShiftAssistDelayAverageMs(_shiftAssistPendingDelayGear);
@@ -6358,6 +6380,7 @@ namespace LaunchPlugin
                     }
 
                     ClearShiftAssistDelayPending();
+                    RequestShiftAssistRuntimeStatsRefresh();
                 }
                 else
                 {
@@ -6374,6 +6397,7 @@ namespace LaunchPlugin
                             _shiftAssistDelayBeepType = _shiftAssistPendingDelayBeepType;
                             LatchShiftAssistDelayDiagnostics("CANCEL_DOWN", _shiftAssistPendingDelayBeepType, 0, nowUtc);
                             ClearShiftAssistDelayPending();
+                            RequestShiftAssistRuntimeStatsRefresh();
                         }
                     }
                     else
@@ -6388,6 +6412,7 @@ namespace LaunchPlugin
                         _shiftAssistDelayBeepType = _shiftAssistPendingDelayBeepType;
                         LatchShiftAssistDelayDiagnostics("CANCEL_TIMEOUT", _shiftAssistPendingDelayBeepType, 0, nowUtc);
                         ClearShiftAssistDelayPending();
+                        RequestShiftAssistRuntimeStatsRefresh();
                     }
                 }
             }
@@ -6462,7 +6487,7 @@ namespace LaunchPlugin
                         stack.ShiftRPM[idx] = learnedRpm;
                         _shiftAssistLearnSavedPulseUntilUtc = nowUtc.AddMilliseconds(ShiftAssistLearnSavePulseMs);
                         ProfilesViewModel?.SaveProfiles();
-                        ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+                        RequestShiftAssistRuntimeStatsRefresh();
                     }
                 }
             }
@@ -6546,9 +6571,9 @@ namespace LaunchPlugin
                     _shiftAssistLastBeepRpmLatched = rpm;
                     _shiftAssistPendingDelayActive = true;
                     _shiftAssistDelayCaptureEvent = "ARM";
-                    _shiftAssistDelayCaptureState = 1;
-                    _shiftAssistDelayBeepType = _shiftAssistPendingDelayBeepType;
-                    LatchShiftAssistDelayDiagnostics("ARM", _shiftAssistPendingDelayBeepType, 0, nowUtc);
+                    _shiftAssistDelayBeepType = "PRIMARY";
+                    LatchShiftAssistDelayDiagnostics("ARM", "PRIMARY", 0, nowUtc);
+                    RequestShiftAssistRuntimeStatsRefresh();
                 }
 
                 if (IsVerboseDebugLoggingOn)
@@ -6599,7 +6624,7 @@ namespace LaunchPlugin
 
             ActiveProfile.MaxForwardGearsHint = maxForwardGears;
             ProfilesViewModel?.SaveProfiles();
-            ProfilesViewModel?.RefreshShiftAssistRuntimeStats();
+            RequestShiftAssistRuntimeStatsRefresh();
         }
 
         private int GetShiftAssistDebugCsvMaxHz()
