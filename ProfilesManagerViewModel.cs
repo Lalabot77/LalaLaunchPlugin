@@ -63,9 +63,11 @@ namespace LaunchPlugin
         private readonly DispatcherTimer _shiftAssistRuntimeTimer;
         private List<ShiftGearRow> _shiftGearRows;
         private const int ShiftAssistMaxStoredGears = 8;
+        private const int ShiftAssistDefaultForwardGears = 6;
         private readonly string _profilesFilePath;
         private readonly string _legacyProfilesFilePath;
         private bool _suppressTrackMarkersLockAction;
+        private int _lastRenderedShiftTargetRows;
         // --- PB constants ---
         private const int PB_MIN_MS = 30000;     // >= 30s
         private const int PB_MAX_MS = 1200000;   // <= 20min
@@ -724,35 +726,40 @@ namespace LaunchPlugin
         {
             get
             {
-                int maxGears = TryReadPluginInt("DataCorePlugin.GameData.CarSettings_MaxGears");
-                if (maxGears <= 0)
-                {
-                    maxGears = TryReadPluginInt("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward");
-                }
-
-                if (maxGears <= 0)
-                {
-                    maxGears = SelectedProfile?.MaxForwardGearsHint ?? 0;
-                }
-
-                if (maxGears <= 0)
-                {
-                    maxGears = ShiftAssistMaxStoredGears + 1;
-                }
-
-                int targets = maxGears - 1;
-                if (targets < 1)
-                {
-                    return 1;
-                }
-
-                if (targets > ShiftAssistMaxStoredGears)
-                {
-                    return ShiftAssistMaxStoredGears;
-                }
-
-                return targets;
+                return ResolveShiftAssistTargetRowCount();
             }
+        }
+
+        private int ResolveShiftAssistTargetRowCount()
+        {
+            int maxGears = TryReadPluginInt("DataCorePlugin.GameData.CarSettings_MaxGears");
+            if (maxGears <= 0)
+            {
+                maxGears = TryReadPluginInt("DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward");
+            }
+
+            if (maxGears <= 0)
+            {
+                maxGears = SelectedProfile?.MaxForwardGearsHint ?? 0;
+            }
+
+            if (maxGears <= 0)
+            {
+                maxGears = ShiftAssistDefaultForwardGears;
+            }
+
+            int targets = maxGears - 1;
+            if (targets < 1)
+            {
+                return 1;
+            }
+
+            if (targets > ShiftAssistMaxStoredGears)
+            {
+                return ShiftAssistMaxStoredGears;
+            }
+
+            return targets;
         }
 
         public string ShiftAssistLearningState
@@ -847,8 +854,8 @@ namespace LaunchPlugin
         private void RebuildShiftGearRows()
         {
             var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
-            var rows = new List<ShiftGearRow>(ShiftAssistMaxStoredGears);
-            int targetRows = ShiftAssistMaxStoredGears;
+            int targetRows = ResolveShiftAssistTargetRowCount();
+            var rows = new List<ShiftGearRow>(targetRows);
             for (int i = 0; i < targetRows; i++)
             {
                 int gearIdx = i;
@@ -890,6 +897,7 @@ namespace LaunchPlugin
             }
 
             _shiftGearRows = rows;
+            _lastRenderedShiftTargetRows = targetRows;
             RefreshShiftAssistRuntimeLiveStatsOnly();
         }
 
@@ -901,6 +909,16 @@ namespace LaunchPlugin
 
         public void RefreshShiftAssistRuntimeLiveStatsOnly()
         {
+            int targetRows = ResolveShiftAssistTargetRowCount();
+            bool shouldRebuildRows = _shiftGearRows == null || _lastRenderedShiftTargetRows != targetRows;
+            if (shouldRebuildRows)
+            {
+                RebuildShiftGearRows();
+                OnPropertyChanged(nameof(ShiftGearRows));
+                OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
+                return;
+            }
+
             OnPropertyChanged(nameof(ShiftAssistLearningState));
             OnPropertyChanged(nameof(ShiftAssistLearningActiveGear));
             OnPropertyChanged(nameof(ShiftAssistLearningActiveGearText));
@@ -918,6 +936,7 @@ namespace LaunchPlugin
             }
 
             bool showLearnedForSelectedStack = IsSelectedStackActiveLiveStack;
+            var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
             for (int i = 0; i < _shiftGearRows.Count; i++)
             {
                 int rowGear = i + 1;
@@ -935,6 +954,12 @@ namespace LaunchPlugin
                         : "—",
                     delaySamples > 0 && avgDelayMs > 0 ? avgDelayMs.ToString(CultureInfo.InvariantCulture) : "—",
                     delaySamples > 0 ? $"x{delaySamples.ToString(CultureInfo.InvariantCulture)}" : "x0");
+
+                bool stackLock = stack.ShiftLocked[i];
+                if (_shiftGearRows[i].IsLocked != stackLock)
+                {
+                    _shiftGearRows[i].IsLocked = stackLock;
+                }
             }
         }
 
