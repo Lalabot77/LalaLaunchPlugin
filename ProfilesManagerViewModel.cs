@@ -694,18 +694,7 @@ namespace LaunchPlugin
 
         public bool IsSelectedStackActiveLiveStack => string.Equals(SelectedShiftStackId, ActiveLiveShiftStackId, StringComparison.OrdinalIgnoreCase);
 
-        public string ShiftAssistStackLearningStatsNotice
-        {
-            get
-            {
-                if (IsSelectedStackActiveLiveStack)
-                {
-                    return string.Empty;
-                }
-
-                return string.Format(CultureInfo.InvariantCulture, "Learning stats shown only for active live stack: {0}", ActiveLiveShiftStackId);
-            }
-        }
+        public string ShiftAssistStackLearningStatsNotice => string.Empty;
 
         public string ActiveShiftStackLabel => $"Active stack: {ActiveLiveShiftStackId}";
 
@@ -944,23 +933,18 @@ namespace LaunchPlugin
                 return;
             }
 
-            bool showLearnedForSelectedStack = IsSelectedStackActiveLiveStack;
             var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
             for (int i = 0; i < _shiftGearRows.Count; i++)
             {
                 int rowGear = i + 1;
                 int avgDelayMs = TryReadPluginInt($"ShiftAssist.DelayAvg_G{rowGear}");
                 int delaySamples = TryReadPluginInt($"ShiftAssist.DelayN_G{rowGear}");
-                int learnedRpm = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.LearnedRpm_G{rowGear}") : 0;
-                int learnedSamples = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.Samples_G{rowGear}") : 0;
+                int learnedRpm = TryReadPluginInt($"ShiftAssist.Learn.LearnedRpm_G{rowGear}");
+                int learnedSamples = TryReadPluginInt($"ShiftAssist.Learn.Samples_G{rowGear}");
 
                 _shiftGearRows[i].UpdateRuntimeStats(
-                    showLearnedForSelectedStack
-                        ? (learnedRpm > 0 ? learnedRpm.ToString(CultureInfo.InvariantCulture) : "—")
-                        : "—",
-                    showLearnedForSelectedStack
-                        ? (learnedSamples > 0 ? $"x{learnedSamples.ToString(CultureInfo.InvariantCulture)}" : "x0")
-                        : "—",
+                    learnedRpm > 0 ? learnedRpm.ToString(CultureInfo.InvariantCulture) : "—",
+                    learnedSamples > 0 ? $"x{learnedSamples.ToString(CultureInfo.InvariantCulture)}" : "x0",
                     delaySamples > 0 && avgDelayMs > 0 ? avgDelayMs.ToString(CultureInfo.InvariantCulture) : "—",
                     delaySamples > 0 ? $"x{delaySamples.ToString(CultureInfo.InvariantCulture)}" : "x0");
 
@@ -1196,11 +1180,11 @@ namespace LaunchPlugin
             ShiftBrowseCustomWavCommand = new RelayCommand(p => BrowseShiftCustomWav());
             ShiftUseEmbeddedDefaultCommand = new RelayCommand(p => UseEmbeddedDefaultSound());
             ShiftTestBeepCommand = new RelayCommand(p => _playShiftAssistTestBeep?.Invoke());
-            ShiftResetLearningCommand = new RelayCommand(p => _shiftAssistResetLearningAction?.Invoke(), p => IsProfileSelected);
-            ShiftResetTargetsCommand = new RelayCommand(p => _shiftAssistResetTargetsAction?.Invoke(), p => IsProfileSelected);
-            ShiftResetTargetsAndLearningCommand = new RelayCommand(p => _shiftAssistResetTargetsAndLearningAction?.Invoke(), p => IsProfileSelected);
-            ShiftResetDelaysCommand = new RelayCommand(p => _shiftAssistResetDelayStatsAction?.Invoke(), p => IsProfileSelected);
-            ShiftApplyLearnedOverrideCommand = new RelayCommand(p => _shiftAssistApplyLearnedOverrideAction?.Invoke(), p => IsProfileSelected);
+            ShiftResetLearningCommand = new RelayCommand(p => ExecuteShiftAssistActionOnSelectedStack(_shiftAssistResetLearningAction), p => IsProfileSelected);
+            ShiftResetTargetsCommand = new RelayCommand(p => ExecuteShiftAssistActionOnSelectedStack(_shiftAssistResetTargetsAction), p => IsProfileSelected);
+            ShiftResetTargetsAndLearningCommand = new RelayCommand(p => ExecuteShiftAssistActionOnSelectedStack(_shiftAssistResetTargetsAndLearningAction), p => IsProfileSelected);
+            ShiftResetDelaysCommand = new RelayCommand(p => ExecuteShiftAssistActionOnSelectedStack(_shiftAssistResetDelayStatsAction), p => IsProfileSelected);
+            ShiftApplyLearnedOverrideCommand = new RelayCommand(p => ExecuteShiftAssistActionOnSelectedStack(_shiftAssistApplyLearnedOverrideAction), p => IsProfileSelected);
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
 
@@ -1377,6 +1361,20 @@ namespace LaunchPlugin
             EnsureShiftStackForSelectedProfile(preferred);
             _selectedShiftStackId = preferred;
             _setCurrentGearStackId?.Invoke(preferred);
+        }
+
+        private void ExecuteShiftAssistActionOnSelectedStack(Action action)
+        {
+            if (!IsProfileSelected)
+            {
+                return;
+            }
+
+            string selectedStack = SelectedShiftStackId;
+            EnsureShiftStackForSelectedProfile(selectedStack);
+            _setCurrentGearStackId?.Invoke(selectedStack);
+            action?.Invoke();
+            RefreshShiftAssistRuntimeStats();
         }
 
         private void AddCurrentShiftStack()

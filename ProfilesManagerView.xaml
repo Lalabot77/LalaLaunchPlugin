@@ -282,7 +282,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Grid.Column="0" ItemsSource="{Binding ShiftStackIds}" SelectedItem="{Binding SelectedShiftStackId, Mode=TwoWay}" Margin="0,0,8,0" MinWidth="130"/>
-                                <styles:SHButtonPrimary Grid.Column="1" Content="Add current" Command="{Binding ShiftAddCurrentStackCommand}" Margin="0,0,8,0" ToolTip="Add/select the stack currently reported by live data."/>
+                                <styles:SHButtonPrimary Grid.Column="1" Content="Add current" Command="{Binding ShiftAddCurrentStackCommand}" Margin="0,0,8,0" ToolTip="Add/select the currently active stack name."/>
                                 <styles:SHButtonPrimary Grid.Column="2" Content="Save As..." Command="{Binding ShiftSaveStackAsCommand}" Margin="0,0,8,0" ToolTip="Duplicate selected stack into a new named stack."/>
                                 <styles:SHButtonSecondary Grid.Column="3" Content="Delete" Command="{Binding ShiftDeleteStackCommand}" Margin="0,0,8,0" ToolTip="Delete selected stack (Default cannot be deleted)."/>
                                 <TextBlock Grid.Column="4" Text="{Binding ActiveShiftStackLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
@@ -323,19 +323,6 @@
                                 <styles:SHButtonPrimary Content="Apply Learned (Override Locks)" Command="{Binding ShiftApplyLearnedOverrideCommand}" Margin="0,0,6,6"
                                                        ToolTip="Testing utility: overwrite active stack targets with learned RPM values. Ignores locks and does not change lock states."/>
                             </WrapPanel>
-                            <TextBlock Text="{Binding ShiftAssistStackLearningStatsNotice}" Margin="0,0,0,6" Foreground="#FFB36B" FontStyle="Italic">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ShiftAssistStackLearningStatsNotice}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-
                             <Grid Grid.IsSharedSizeScope="True">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
