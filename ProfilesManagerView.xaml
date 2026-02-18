@@ -208,6 +208,8 @@
                 <styles:SHTabItem Header="SHIFT">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="10" MaxWidth="860" HorizontalAlignment="Left">
+
+                            <!-- Enable + Learning -->
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -219,47 +221,61 @@
                                          ToolTip="Enables data mining for shift-point learning and allows the dash learning overlay to be shown." />
                             </Grid>
 
-                            <!-- Shift Light + Duration (Lead time moved down to Active stack line) -->
+                            <!-- Shift Light (compact) -->
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="120" />
-                                    <ColumnDefinition Width="24" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="120" />
-                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
-                                <styles:SHToggleCheckbox Grid.Column="0" Content="Shift Light" IsChecked="{Binding ShiftAssistLightEnabled, Mode=TwoWay}" VerticalAlignment="Center"
+                                <styles:SHToggleCheckbox Grid.Column="0"
+                                         Content="Shift Light"
+                                         IsChecked="{Binding ShiftAssistLightEnabled, Mode=TwoWay}"
+                                         VerticalAlignment="Center"
                                          ToolTip="Controls whether the ShiftAssist.Beep light/export should be considered enabled for dash visibility."/>
 
-                                <Grid Grid.Column="3" Grid.ColumnSpan="2">
-                                    <Grid.Style>
-                                        <Style TargetType="Grid">
+                                <TextBlock Grid.Column="2"
+                           Text="Shift Light Duration (ms)"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"
+                           ToolTip="Controls how long the ShiftAssist.Beep export remains active. Does not affect WAV playback length.">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Visible"/>
                                             <Style.Triggers>
-                                                <!-- Collapse when Shift Light is OFF -->
                                                 <DataTrigger Binding="{Binding ShiftAssistLightEnabled}" Value="False">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                 </DataTrigger>
-                                                <!-- Also collapse when Shift Assist is OFF -->
                                                 <DataTrigger Binding="{Binding ShiftAssistEnabled}" Value="False">
                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </Grid.Style>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="120"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Shift Light Duration (ms)" VerticalAlignment="Center" Margin="0,0,8,0"
-                               ToolTip="Controls how long the ShiftAssist.Beep export remains active. Does not affect WAV playback length."/>
-                                    <TextBox Grid.Column="1" Text="{Binding ShiftAssistBeepDurationMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                </Grid>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBox Grid.Column="3"
+                         Text="{Binding ShiftAssistBeepDurationMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftAssistLightEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ShiftAssistEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
                             </Grid>
 
-                            <!-- Shift Sound controls -->
+                            <!-- Shift Sound -->
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -288,26 +304,27 @@
                                     </Grid.ColumnDefinitions>
                                     <styles:SHButtonPrimary Grid.Column="0" Content="Test Sound" Command="{Binding ShiftTestBeepCommand}" MinWidth="90"/>
                                     <TextBlock Grid.Column="2" Text="Beep volume" VerticalAlignment="Center" Margin="0,0,8,0"
-                        ToolTip="Not implemented yet. Uses SimHub master volume."/>
+                               ToolTip="Not implemented yet. Uses SimHub master volume."/>
                                     <Slider Grid.Column="3"
-                        VerticalAlignment="Center"
-                        Minimum="0"
-                        Maximum="100"
-                        TickFrequency="1"
-                        IsSnapToTickEnabled="True"
-                        Value="{Binding ShiftAssistBeepVolumePct, Mode=TwoWay}"
-                        IsEnabled="False"
-                        Opacity="0.6"
-                        ToolTip="Not implemented yet. Uses SimHub master volume."/>
+                            VerticalAlignment="Center"
+                            Minimum="0"
+                            Maximum="100"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding ShiftAssistBeepVolumePct, Mode=TwoWay}"
+                            IsEnabled="False"
+                            Opacity="0.6"
+                            ToolTip="Not implemented yet. Uses SimHub master volume."/>
                                     <TextBlock Grid.Column="4"
-                       Text="{Binding ShiftAssistBeepVolumePct, StringFormat={}{0}%}"
-                       VerticalAlignment="Center"
-                       Margin="10,0,0,0"
-                       MinWidth="48"
-                       Opacity="0.6"/>
+                               Text="{Binding ShiftAssistBeepVolumePct, StringFormat={}{0}%}"
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"
+                               MinWidth="48"
+                               Opacity="0.6"/>
                                 </Grid>
                             </Grid>
 
+                            <!-- Gear stack selection -->
                             <TextBlock Text="Gear stack selection" FontWeight="SemiBold" Margin="0,10,0,4"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -323,6 +340,7 @@
                                 <styles:SHButtonSecondary Grid.Column="3" Content="Delete" Command="{Binding ShiftDeleteStackCommand}" Margin="0,0,8,0" Background="#C82333" Foreground="White" ToolTip="Delete selected stack (Default cannot be deleted)."/>
                             </Grid>
 
+                            <!-- Shift targets header + stats -->
                             <DockPanel Margin="0,12,0,6">
                                 <TextBlock DockPanel.Dock="Left" Text="Shift targets (RPM)" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <Border DockPanel.Dock="Right" BorderThickness="1" BorderBrush="#505050" CornerRadius="4" Padding="8,6" Background="#22000000" Margin="12,0,0,0" MaxWidth="730">
@@ -352,95 +370,84 @@
 
                             <TextBlock Text="{Binding ShiftAssistCurrentGearRedlineHint}" Margin="0,0,0,6" Opacity="0.85"/>
 
-                            <Grid Grid.IsSharedSizeScope="True">
+                            <!-- Active stack + Lead time (NEXT TO IT, not on far right) -->
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="24"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                           Text="{Binding ActiveShiftStackLabel}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Column="2"
+                           Text="Lead time (ms)"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"
+                           ToolTip="Lead time is used for BOTH shift light and beep cue timing."/>
+
+                                <TextBox Grid.Column="3"
+                         Width="80"
+                         Text="{Binding ShiftAssistLeadTimeMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                         IsEnabled="{Binding ShiftAssistEnabled}" />
+                            </Grid>
+
+                            <!-- Button bar (consistent widths, not stretched) -->
+                            <Grid Margin="0,6,0,10" MaxWidth="640" HorizontalAlignment="Left">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="16"/>
+                                    <ColumnDefinition Width="150"/>
+                                </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Active stack line + Lead time (moved here) -->
-                                <Grid Grid.Row="0" Margin="0,0,0,6">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="122" SharedSizeGroup="GearCol"/>
-                                        <ColumnDefinition Width="160" SharedSizeGroup="TargetCol"/>
-                                        <ColumnDefinition Width="58" SharedSizeGroup="LockCol"/>
-                                        <ColumnDefinition Width="220" SharedSizeGroup="LearnedCol"/>
-                                        <ColumnDefinition Width="55" SharedSizeGroup="SamplesCol"/>
-                                        <ColumnDefinition Width="160" SharedSizeGroup="DelayCol"/>
-                                        <ColumnDefinition Width="55" SharedSizeGroup="DelaySamplesCol"/>
-                                    </Grid.ColumnDefinitions>
+                                <styles:SHButtonSecondary Grid.Row="0" Grid.Column="0"
+                                          Content="Reset Targets"
+                                          Command="{Binding ShiftResetTargetsCommand}"
+                                          Background="#FD7E14" Foreground="White"
+                                          MinWidth="150"/>
 
-                                    <TextBlock Grid.Column="0" Grid.ColumnSpan="4"
-                               Text="{Binding ActiveShiftStackLabel}"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               VerticalAlignment="Center"/>
+                                <styles:SHButtonSecondary Grid.Row="0" Grid.Column="2"
+                                          Content="Reset Learning"
+                                          Command="{Binding ShiftResetLearningCommand}"
+                                          Background="#FD7E14" Foreground="White"
+                                          MinWidth="180"/>
 
-                                    <StackPanel Grid.Column="5" Grid.ColumnSpan="2"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center">
-                                        <TextBlock Text="Lead time (ms)" VerticalAlignment="Center" Margin="0,0,8,0"
-                                   ToolTip="Lead time is used for BOTH shift light and beep cue timing."/>
-                                        <TextBox Width="80"
-                                 Text="{Binding ShiftAssistLeadTimeMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                 IsEnabled="{Binding ShiftAssistEnabled}" />
-                                    </StackPanel>
-                                </Grid>
+                                <styles:SHButtonSecondary Grid.Row="0" Grid.Column="4"
+                                          Content="Reset Delays"
+                                          Command="{Binding ShiftResetDelaysCommand}"
+                                          Background="#FD7E14" Foreground="White"
+                                          MinWidth="150"/>
 
-                                <!-- Button bar (2-row) -->
-                                <Grid Grid.Row="1" Margin="0,0,0,6">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
+                                <styles:SHButtonPrimary Grid.Row="1" Grid.Column="2"
+                                        Content="Apply Learned"
+                                        Command="{Binding ShiftApplyLearnedOverrideCommand}"
+                                        MinWidth="180"
+                                        Margin="0,8,0,0"
+                                        ToolTip="Testing utility: overwrite active stack targets with learned RPM values. Ignores locks and does not change lock states."/>
+                            </Grid>
 
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="122" SharedSizeGroup="GearCol"/>
-                                        <ColumnDefinition Width="160" SharedSizeGroup="TargetCol"/>
-                                        <ColumnDefinition Width="58" SharedSizeGroup="LockCol"/>
-                                        <ColumnDefinition Width="220" SharedSizeGroup="LearnedCol"/>
-                                        <ColumnDefinition Width="55" SharedSizeGroup="SamplesCol"/>
-                                        <ColumnDefinition Width="160" SharedSizeGroup="DelayCol"/>
-                                        <ColumnDefinition Width="55" SharedSizeGroup="DelaySamplesCol"/>
-                                    </Grid.ColumnDefinitions>
+                            <!-- TABLE ONLY: shared sizing scope kept here so it doesn't stretch other UI -->
+                            <Grid Grid.IsSharedSizeScope="True">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
-                                    <styles:SHButtonSecondary Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
-                                              Content="Reset Targets"
-                                              Command="{Binding ShiftResetTargetsCommand}"
-                                              Background="#FD7E14" Foreground="White"
-                                              HorizontalAlignment="Stretch"
-                                              MinWidth="140"
-                                              Margin="0,0,8,0"/>
-
-                                    <styles:SHButtonSecondary Grid.Row="0" Grid.Column="3" Grid.ColumnSpan="2"
-                                              Content="Reset Learning"
-                                              Command="{Binding ShiftResetLearningCommand}"
-                                              Background="#FD7E14" Foreground="White"
-                                              HorizontalAlignment="Stretch"
-                                              MinWidth="140"
-                                              Margin="0,0,8,0"/>
-
-                                    <styles:SHButtonSecondary Grid.Row="0" Grid.Column="5" Grid.ColumnSpan="2"
-                                              Content="Reset Delays"
-                                              Command="{Binding ShiftResetDelaysCommand}"
-                                              Background="#FD7E14" Foreground="White"
-                                              HorizontalAlignment="Stretch"
-                                              MinWidth="140"/>
-
-                                    <styles:SHButtonPrimary Grid.Row="1" Grid.Column="3" Grid.ColumnSpan="4"
-                                            Content="Apply Learned"
-                                            Command="{Binding ShiftApplyLearnedOverrideCommand}"
-                                            HorizontalAlignment="Stretch"
-                                            MinWidth="200"
-                                            Margin="0,6,0,0"
-                                            ToolTip="Testing utility: overwrite active stack targets with learned RPM values. Ignores locks and does not change lock states."/>
-                                </Grid>
-
-                                <!-- Column headings (capitalised, with clean separator) -->
-                                <Grid Grid.Row="2" Margin="0,0,0,3">
+                                <!-- Column headings -->
+                                <Grid Grid.Row="0" Margin="0,0,0,3">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="122" SharedSizeGroup="GearCol"/>
                                         <ColumnDefinition Width="86" SharedSizeGroup="TargetCol"/>
@@ -457,15 +464,11 @@
                                     <TextBlock Grid.Column="4" Text="N" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
                                     <TextBlock Grid.Column="5" Text="Delay" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
                                     <TextBlock Grid.Column="6" Text="N" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
-
-                                    <Border Grid.Column="0" Grid.ColumnSpan="7"
-                            Height="1"
-                            Background="#444"
-                            VerticalAlignment="Bottom"
-                            Margin="0,6,0,0"/>
+                                    <Border Grid.Column="0" Grid.ColumnSpan="7" Height="1" Background="#444" VerticalAlignment="Bottom" Margin="0,6,0,0"/>
                                 </Grid>
 
-                                <ItemsControl Grid.Row="3" ItemsSource="{Binding ShiftGearRows}">
+                                <!-- Rows -->
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding ShiftGearRows}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Margin="0,1,0,1" MinHeight="24">
@@ -497,6 +500,7 @@
                                 </ItemsControl>
                             </Grid>
 
+                            <!-- Custom sound -->
                             <TextBlock Text="Sound" FontWeight="SemiBold" Margin="0,14,0,6"/>
                             <styles:SHToggleCheckbox Content="Use custom sound" IsChecked="{Binding ShiftAssistUseCustomWav, Mode=TwoWay}" />
                             <Grid Margin="0,6,0,0">
@@ -517,10 +521,10 @@
                                 <TextBox Grid.Column="0" Text="{Binding ShiftAssistCustomWavPath, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" VerticalAlignment="Center" />
                                 <styles:SHButtonPrimary Grid.Column="1" Content="Browse" Command="{Binding ShiftBrowseCustomWavCommand}" Margin="8,0,0,0" />
                             </Grid>
+
                         </StackPanel>
                     </ScrollViewer>
                 </styles:SHTabItem>
-
 
 
                 <styles:SHTabItem Header="FUEL">
