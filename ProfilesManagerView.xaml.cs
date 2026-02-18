@@ -9,7 +9,21 @@ namespace LaunchPlugin
         public ProfilesManagerView(ProfilesManagerViewModel viewModel)
         {
             InitializeComponent();
-            this.DataContext = viewModel;
+            DataContext = viewModel;
+            Loaded += ProfilesManagerView_Loaded;
+            Unloaded += ProfilesManagerView_Unloaded;
+        }
+
+        private void ProfilesManagerView_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ProfilesManagerViewModel vm)
+                vm.StartShiftAssistRuntimeTimer();
+        }
+
+        private void ProfilesManagerView_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ProfilesManagerViewModel vm)
+                vm.StopShiftAssistRuntimeTimer();
         }
 
         private void SHButtonPrimary_Click(object sender, System.Windows.RoutedEventArgs e)
