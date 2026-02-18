@@ -6497,24 +6497,25 @@ namespace LaunchPlugin
             int maxForwardGears = ResolveShiftAssistMaxForwardGears(pluginManager);
             LearnShiftAssistMaxForwardGearsHint(maxForwardGears);
 
-            string gearStackId = Convert.ToString(pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack") ?? "");
-            if (string.IsNullOrWhiteSpace(gearStackId))
+            if (string.IsNullOrWhiteSpace(_shiftAssistActiveGearStackId))
             {
-                gearStackId = "Default";
-            }
-            else
-            {
-                gearStackId = gearStackId.Trim();
+                _shiftAssistActiveGearStackId = "Default";
             }
 
-            _shiftAssistActiveGearStackId = gearStackId;
+            string activeStackId = _shiftAssistActiveGearStackId.Trim();
+            if (activeStackId.Length == 0)
+            {
+                activeStackId = "Default";
+                _shiftAssistActiveGearStackId = activeStackId;
+            }
+
             double learningLonAccelMps2 = (!double.IsNaN(lonAccelTelemetryMps2) && !double.IsInfinity(lonAccelTelemetryMps2) && Math.Abs(lonAccelTelemetryMps2) >= 0.05)
                 ? lonAccelTelemetryMps2
                 : accelDerivedMps2;
 
             _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(
                 settings?.ShiftAssistLearningModeEnabled == true,
-                gearStackId,
+                activeStackId,
                 effectiveGear,
                 rpm,
                 throttle01,
@@ -6540,7 +6541,7 @@ namespace LaunchPlugin
                 int learnedRpm = _shiftAssistLastLearningTick.ApplyRpm;
                 if (learnedGear >= 1 && learnedGear <= 8 && learnedRpm > 0)
                 {
-                    var stack = ActiveProfile.EnsureShiftStack(gearStackId);
+                    var stack = ActiveProfile.EnsureShiftStack(activeStackId);
                     int idx = learnedGear - 1;
                     if (!stack.ShiftLocked[idx] && stack.ShiftRPM[idx] != learnedRpm)
                     {
@@ -6552,7 +6553,7 @@ namespace LaunchPlugin
                 }
             }
 
-            int targetRpm = ActiveProfile?.GetShiftTargetForGear(gearStackId, effectiveGear) ?? 0;
+            int targetRpm = ActiveProfile?.GetShiftTargetForGear(activeStackId, effectiveGear) ?? 0;
 
             int redlineRpm = 0;
             if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) || redlineRpm <= 0)
