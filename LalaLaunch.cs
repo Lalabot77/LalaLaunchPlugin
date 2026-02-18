@@ -924,7 +924,10 @@ namespace LaunchPlugin
                 return;
             }
 
-            if (!TryReadNullableString(pluginManager, "DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack", out string telemetryStackId))
+            string telemetryStackId;
+            if (!TryReadNullableString(pluginManager, "DataCorePlugin.GameRawData.SessionData.CarSetup.BrakesDriveUnit.GearRatios.GearStack", out telemetryStackId) &&
+                !TryReadNullableString(pluginManager, "DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack", out telemetryStackId) &&
+                !TryReadNullableString(pluginManager, "DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.Rear.GearStack", out telemetryStackId))
             {
                 return;
             }
@@ -939,6 +942,7 @@ namespace LaunchPlugin
             ProfilesViewModel?.NotifyShiftStackOptionsChanged();
             ProfilesViewModel?.SaveProfiles();
         }
+
 
         private static int GetElapsedMsFromTimestamp(long startTs, long endTs)
         {
