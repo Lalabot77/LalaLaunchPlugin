@@ -61,6 +61,7 @@ namespace LaunchPlugin
         private readonly Action<int> _setShiftAssistBeepVolumePct;
         private readonly Action _playShiftAssistTestBeep;
         private readonly DispatcherTimer _shiftAssistRuntimeTimer;
+        private List<ShiftGearRow> _shiftGearRows;
         private const int ShiftAssistMaxStoredGears = 8;
         private readonly string _profilesFilePath;
         private readonly string _legacyProfilesFilePath;
@@ -167,6 +168,7 @@ namespace LaunchPlugin
 
                     RefreshTrackMarkersSnapshotForSelectedTrack();
                     SetSelectedShiftStackFromLiveOrDefault();
+                    RebuildShiftGearRows();
                     OnPropertyChanged(nameof(ShiftStackIds));
                     OnPropertyChanged(nameof(ShiftGearRows));
                     OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
@@ -663,6 +665,7 @@ namespace LaunchPlugin
                 OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
                 OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
                 OnPropertyChanged(nameof(ShiftStackIds));
+                RebuildShiftGearRows();
                 OnPropertyChanged(nameof(ShiftGearRows));
                 OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
                 OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
@@ -832,60 +835,69 @@ namespace LaunchPlugin
         {
             get
             {
-                var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
-                int targetRows = ShiftAssistMaxStoredGears;
-                for (int i = 0; i < targetRows; i++)
+                if (_shiftGearRows == null)
                 {
-                    int gearIdx = i;
-                    int rowGear = gearIdx + 1;
-                    int avgDelayMs = TryReadPluginInt($"ShiftAssist.DelayAvg_G{rowGear}");
-                    int delaySamples = TryReadPluginInt($"ShiftAssist.DelayN_G{rowGear}");
-                    bool showLearnedForSelectedStack = IsSelectedStackActiveLiveStack;
-                    int learnedRpm = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.LearnedRpm_G{rowGear}") : 0;
-                    int learnedSamples = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.Samples_G{rowGear}") : 0;
-                    yield return new ShiftGearRow
-                    {
-                        GearLabel = $"Shift from Gear {rowGear}",
-                        RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
-                        IsLocked = stack.ShiftLocked[gearIdx],
-                        LearnedRpmText = showLearnedForSelectedStack
-                            ? (learnedRpm > 0 ? learnedRpm.ToString(CultureInfo.InvariantCulture) : "—")
-                            : "—",
-                        SampleCountText = showLearnedForSelectedStack
-                            ? (learnedSamples > 0 ? $"x{learnedSamples.ToString(CultureInfo.InvariantCulture)}" : "x0")
-                            : "—",
-                        DelayAvgMsText = delaySamples > 0 && avgDelayMs > 0 ? avgDelayMs.ToString(CultureInfo.InvariantCulture) : "—",
-                        DelayCountText = delaySamples > 0 ? $"x{delaySamples.ToString(CultureInfo.InvariantCulture)}" : "x0",
-                        SaveAction = txt =>
-                        {
-                            int value;
-                            if (!int.TryParse((txt ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value) || value < 0)
-                            {
-                                value = 0;
-                            }
-
-                            stack.ShiftRPM[gearIdx] = value;
-                            SaveProfiles();
-                            OnPropertyChanged(nameof(ShiftGearRows));
-                            OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
-                        },
-                        SetLockAction = locked =>
-                        {
-                            if (stack.ShiftLocked[gearIdx] == locked)
-                            {
-                                return;
-                            }
-
-                            stack.ShiftLocked[gearIdx] = locked;
-                            SaveProfiles();
-                            OnPropertyChanged(nameof(ShiftGearRows));
-                        }
-                    };
+                    RebuildShiftGearRows();
                 }
+
+                return _shiftGearRows;
             }
         }
 
+        private void RebuildShiftGearRows()
+        {
+            var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
+            var rows = new List<ShiftGearRow>(ShiftAssistMaxStoredGears);
+            int targetRows = ShiftAssistMaxStoredGears;
+            for (int i = 0; i < targetRows; i++)
+            {
+                int gearIdx = i;
+                int rowGear = gearIdx + 1;
+                var row = new ShiftGearRow
+                {
+                    GearLabel = $"Shift from Gear {rowGear}",
+                    RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
+                    IsLocked = stack.ShiftLocked[gearIdx],
+                    SaveAction = txt =>
+                    {
+                        int value;
+                        if (!int.TryParse((txt ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value) || value < 0)
+                        {
+                            value = 0;
+                        }
+
+                        stack.ShiftRPM[gearIdx] = value;
+                        row.RpmText = value > 0 ? value.ToString(CultureInfo.InvariantCulture) : string.Empty;
+                        SaveProfiles();
+                        OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
+                    },
+                    SetLockAction = locked =>
+                    {
+                        if (stack.ShiftLocked[gearIdx] == locked)
+                        {
+                            return;
+                        }
+
+                        stack.ShiftLocked[gearIdx] = locked;
+                        row.IsLocked = locked;
+                        SaveProfiles();
+                    }
+                };
+
+                rows.Add(row);
+            }
+
+            _shiftGearRows = rows;
+            RefreshShiftAssistRuntimeLiveStatsOnly();
+        }
+
         public void RefreshShiftAssistRuntimeStats()
+        {
+            RefreshShiftAssistRuntimeLiveStatsOnly();
+            OnPropertyChanged(nameof(ShiftGearRows));
+        }
+
+        public void RefreshShiftAssistRuntimeLiveStatsOnly()
         {
             OnPropertyChanged(nameof(ShiftAssistLearningState));
             OnPropertyChanged(nameof(ShiftAssistLearningActiveGear));
@@ -897,7 +909,31 @@ namespace LaunchPlugin
             OnPropertyChanged(nameof(ActiveShiftStackLabel));
             OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
             OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
-            OnPropertyChanged(nameof(ShiftGearRows));
+
+            if (_shiftGearRows == null)
+            {
+                return;
+            }
+
+            bool showLearnedForSelectedStack = IsSelectedStackActiveLiveStack;
+            for (int i = 0; i < _shiftGearRows.Count; i++)
+            {
+                int rowGear = i + 1;
+                int avgDelayMs = TryReadPluginInt($"ShiftAssist.DelayAvg_G{rowGear}");
+                int delaySamples = TryReadPluginInt($"ShiftAssist.DelayN_G{rowGear}");
+                int learnedRpm = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.LearnedRpm_G{rowGear}") : 0;
+                int learnedSamples = showLearnedForSelectedStack ? TryReadPluginInt($"ShiftAssist.Learn.Samples_G{rowGear}") : 0;
+
+                _shiftGearRows[i].UpdateRuntimeStats(
+                    showLearnedForSelectedStack
+                        ? (learnedRpm > 0 ? learnedRpm.ToString(CultureInfo.InvariantCulture) : "—")
+                        : "—",
+                    showLearnedForSelectedStack
+                        ? (learnedSamples > 0 ? $"x{learnedSamples.ToString(CultureInfo.InvariantCulture)}" : "x0")
+                        : "—",
+                    delaySamples > 0 && avgDelayMs > 0 ? avgDelayMs.ToString(CultureInfo.InvariantCulture) : "—",
+                    delaySamples > 0 ? $"x{delaySamples.ToString(CultureInfo.InvariantCulture)}" : "x0");
+            }
         }
 
         private int TryReadPluginInt(string propertyName)
@@ -1134,7 +1170,7 @@ namespace LaunchPlugin
 
         private void ShiftAssistRuntimeTimer_Tick(object sender, EventArgs e)
         {
-            RefreshShiftAssistRuntimeStats();
+            RefreshShiftAssistRuntimeLiveStatsOnly();
         }
 
         public void StartShiftAssistRuntimeTimer()
@@ -1325,6 +1361,7 @@ namespace LaunchPlugin
             }
 
             SaveProfiles();
+            RebuildShiftGearRows();
             OnPropertyChanged(nameof(ShiftGearRows));
         }
 
@@ -1807,16 +1844,104 @@ namespace LaunchPlugin
         }
     }
 
-    public class ShiftGearRow
+    public class ShiftGearRow : INotifyPropertyChanged
     {
-        public string GearLabel { get; set; }
-        public string RpmText { get; set; }
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private string _gearLabel;
+        public string GearLabel
+        {
+            get => _gearLabel;
+            set
+            {
+                if (_gearLabel == value) return;
+                _gearLabel = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GearLabel)));
+            }
+        }
+
+        private string _rpmText;
+        public string RpmText
+        {
+            get => _rpmText;
+            set
+            {
+                if (_rpmText == value) return;
+                _rpmText = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RpmText)));
+            }
+        }
+
         public Action<string> SaveAction { get; set; }
-        public string LearnedRpmText { get; set; }
-        public string SampleCountText { get; set; }
-        public string DelayAvgMsText { get; set; }
-        public string DelayCountText { get; set; }
-        public bool IsLocked { get; set; }
+
+        private string _learnedRpmText;
+        public string LearnedRpmText
+        {
+            get => _learnedRpmText;
+            set
+            {
+                if (_learnedRpmText == value) return;
+                _learnedRpmText = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LearnedRpmText)));
+            }
+        }
+
+        private string _sampleCountText;
+        public string SampleCountText
+        {
+            get => _sampleCountText;
+            set
+            {
+                if (_sampleCountText == value) return;
+                _sampleCountText = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SampleCountText)));
+            }
+        }
+
+        private string _delayAvgMsText;
+        public string DelayAvgMsText
+        {
+            get => _delayAvgMsText;
+            set
+            {
+                if (_delayAvgMsText == value) return;
+                _delayAvgMsText = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DelayAvgMsText)));
+            }
+        }
+
+        private string _delayCountText;
+        public string DelayCountText
+        {
+            get => _delayCountText;
+            set
+            {
+                if (_delayCountText == value) return;
+                _delayCountText = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DelayCountText)));
+            }
+        }
+
+        private bool _isLocked;
+        public bool IsLocked
+        {
+            get => _isLocked;
+            set
+            {
+                if (_isLocked == value) return;
+                _isLocked = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsLocked)));
+            }
+        }
+
         public Action<bool> SetLockAction { get; set; }
+
+        public void UpdateRuntimeStats(string learnedRpmText, string sampleCountText, string delayAvgMsText, string delayCountText)
+        {
+            LearnedRpmText = learnedRpmText;
+            SampleCountText = sampleCountText;
+            DelayAvgMsText = delayAvgMsText;
+            DelayCountText = delayCountText;
+        }
     }
 }
