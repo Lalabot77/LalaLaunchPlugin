@@ -226,12 +226,33 @@
                                     <ColumnDefinition Width="24" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="120" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Shift Light Duration (ms)" VerticalAlignment="Center" Margin="0,0,8,0"
-                                           ToolTip="Controls how long the ShiftAssist.Beep export remains active. Does not affect WAV playback length."/>
-                                <TextBox Grid.Column="1" Text="{Binding ShiftAssistBeepDurationMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                <TextBlock Grid.Column="3" Text="Lead time (ms)" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                <TextBox Grid.Column="4" Text="{Binding ShiftAssistLeadTimeMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                <styles:SHToggleCheckbox Grid.Column="0" Content="Shift Light" IsChecked="{Binding ShiftAssistLightEnabled, Mode=TwoWay}" VerticalAlignment="Center"
+                                                         ToolTip="Controls whether the ShiftAssist.Beep light/export should be considered enabled for dash visibility."/>
+                                <Grid Grid.Column="3" Grid.ColumnSpan="2">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftAssistLightEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="120"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Shift Light Duration (ms)" VerticalAlignment="Center" Margin="0,0,8,0"
+                                               ToolTip="Controls how long the ShiftAssist.Beep export remains active. Does not affect WAV playback length."/>
+                                    <TextBox Grid.Column="1" Text="{Binding ShiftAssistBeepDurationMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                </Grid>
+                                <TextBlock Grid.Column="6" Text="Lead time (ms)" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox Grid.Column="7" Text="{Binding ShiftAssistLeadTimeMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                             </Grid>
 
                             <Grid Margin="0,8,0,0">
@@ -240,23 +261,30 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="16"/>
                                     <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="16"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <styles:SHToggleCheckbox Grid.Column="0" Content="Shift Sound" IsChecked="{Binding ShiftAssistBeepSoundEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
-                                <styles:SHButtonPrimary Grid.Column="1" Content="Test Sound" Command="{Binding ShiftTestBeepCommand}" Margin="8,0,0,0" MinWidth="90"/>
-                                <TextBlock Grid.Column="3" Text="Muted:" VerticalAlignment="Center" Opacity="0.75"/>
-                                <TextBlock Grid.Column="4" Text="{Binding ShiftAssistBeepMuteStateText}" VerticalAlignment="Center" Opacity="0.75"/>
-                                <Grid Grid.Column="6">
+                                <Grid Grid.Column="1" Grid.ColumnSpan="3">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftAssistBeepSoundEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="16" />
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="220" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Beep volume" VerticalAlignment="Center" Margin="0,0,8,0"
+                                    <styles:SHButtonPrimary Grid.Column="0" Content="Test Sound" Command="{Binding ShiftTestBeepCommand}" MinWidth="90"/>
+                                    <TextBlock Grid.Column="2" Text="Beep volume" VerticalAlignment="Center" Margin="0,0,8,0"
                                         ToolTip="Not implemented yet. Uses SimHub master volume."/>
-                                    <Slider Grid.Column="1"
+                                    <Slider Grid.Column="3"
                                         VerticalAlignment="Center"
                                         Minimum="0"
                                         Maximum="100"
@@ -266,7 +294,7 @@
                                         IsEnabled="False"
                                         Opacity="0.6"
                                         ToolTip="Not implemented yet. Uses SimHub master volume."/>
-                                    <TextBlock Grid.Column="2"
+                                    <TextBlock Grid.Column="4"
                                        Text="{Binding ShiftAssistBeepVolumePct, StringFormat={}{0}%}"
                                        VerticalAlignment="Center"
                                        Margin="10,0,0,0"
@@ -328,17 +356,19 @@
                                 <Grid Grid.Row="1" Margin="0,0,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="122" SharedSizeGroup="GearCol"/>
-                                        <ColumnDefinition Width="86" SharedSizeGroup="TargetCol"/>
+                                        <ColumnDefinition Width="160" SharedSizeGroup="TargetCol"/>
                                         <ColumnDefinition Width="58" SharedSizeGroup="LockCol"/>
-                                        <ColumnDefinition Width="82" SharedSizeGroup="LearnedCol"/>
+                                        <ColumnDefinition Width="220" SharedSizeGroup="LearnedCol"/>
                                         <ColumnDefinition Width="55" SharedSizeGroup="SamplesCol"/>
-                                        <ColumnDefinition Width="76" SharedSizeGroup="DelayCol"/>
+                                        <ColumnDefinition Width="160" SharedSizeGroup="DelayCol"/>
                                         <ColumnDefinition Width="55" SharedSizeGroup="DelaySamplesCol"/>
                                     </Grid.ColumnDefinitions>
                                     <styles:SHButtonSecondary Grid.Column="1" Content="Reset Targets" MinWidth="96" Command="{Binding ShiftResetTargetsCommand}" Margin="0,0,6,0" HorizontalAlignment="Left" Background="#FD7E14" Foreground="White"/>
-                                    <styles:SHButtonSecondary Grid.Column="3" Content="Reset Learning" MinWidth="102" Command="{Binding ShiftResetLearningCommand}" Margin="0,0,6,0" HorizontalAlignment="Left" Background="#FD7E14" Foreground="White"/>
-                                    <styles:SHButtonPrimary Grid.Column="3" Content="Apply Learned (Override Locks)" MinWidth="190" Command="{Binding ShiftApplyLearnedOverrideCommand}" Margin="112,0,6,0" HorizontalAlignment="Left"
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Left">
+                                        <styles:SHButtonSecondary Content="Reset Learning" MinWidth="102" Command="{Binding ShiftResetLearningCommand}" Margin="0,0,6,0" HorizontalAlignment="Left" Background="#FD7E14" Foreground="White"/>
+                                        <styles:SHButtonPrimary Content="Apply Learned (Override Locks)" MinWidth="190" Command="{Binding ShiftApplyLearnedOverrideCommand}" HorizontalAlignment="Left"
                                                            ToolTip="Testing utility: overwrite active stack targets with learned RPM values. Ignores locks and does not change lock states."/>
+                                    </StackPanel>
                                     <styles:SHButtonSecondary Grid.Column="5" Content="Reset Delays" MinWidth="92" Command="{Binding ShiftResetDelaysCommand}" Margin="0,0,6,0" HorizontalAlignment="Left" Background="#FD7E14" Foreground="White"/>
                                 </Grid>
                                 <Grid Grid.Row="2" Margin="0,0,0,3">
