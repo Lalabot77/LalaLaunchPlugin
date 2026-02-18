@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Threading;
 using Microsoft.Win32;
 
 namespace LaunchPlugin
@@ -23,7 +24,7 @@ namespace LaunchPlugin
         public bool HasData { get; set; }
     }
 
-    public class ProfilesManagerViewModel : INotifyPropertyChanged
+    public class ProfilesManagerViewModel : INotifyPropertyChanged, IDisposable
     {
         // Boilerplate for UI updates
         public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
@@ -59,6 +60,8 @@ namespace LaunchPlugin
         private readonly Func<int> _getShiftAssistBeepVolumePct;
         private readonly Action<int> _setShiftAssistBeepVolumePct;
         private readonly Action _playShiftAssistTestBeep;
+        private readonly DispatcherTimer _shiftAssistRuntimeTimer;
+        private bool _disposed;
         private const int ShiftAssistMaxStoredGears = 8;
         private readonly string _profilesFilePath;
         private readonly string _legacyProfilesFilePath;
@@ -755,7 +758,7 @@ namespace LaunchPlugin
             get
             {
                 string state = TryReadPluginString("ShiftAssist.Learn.State");
-                return string.IsNullOrWhiteSpace(state) ? "Off" : state;
+                return string.IsNullOrWhiteSpace(state) ? "Waiting for data" : state;
             }
         }
 
@@ -766,7 +769,7 @@ namespace LaunchPlugin
             get
             {
                 int gear = ShiftAssistLearningActiveGear;
-                return gear > 0 ? gear.ToString(CultureInfo.InvariantCulture) : "—";
+                return gear > 0 ? gear.ToString(CultureInfo.InvariantCulture) : "Waiting for data";
             }
         }
 
@@ -777,7 +780,7 @@ namespace LaunchPlugin
                 double peakAccel = TryReadPluginDouble("ShiftAssist.Learn.PeakAccelMps2");
                 return peakAccel > 0.0
                     ? peakAccel.ToString("0.00", CultureInfo.InvariantCulture)
-                    : "—";
+                    : "Waiting for data";
             }
         }
 
@@ -786,7 +789,7 @@ namespace LaunchPlugin
             get
             {
                 int peakRpm = TryReadPluginInt("ShiftAssist.Learn.PeakRpm");
-                return peakRpm > 0 ? peakRpm.ToString(CultureInfo.InvariantCulture) : "—";
+                return peakRpm > 0 ? peakRpm.ToString(CultureInfo.InvariantCulture) : "Waiting for data";
             }
         }
 
@@ -805,10 +808,10 @@ namespace LaunchPlugin
                 int targetGear = pendingGear > 0 ? pendingGear + 1 : 0;
                 if (targetGear > 0)
                 {
-                    return string.Format(CultureInfo.InvariantCulture, "Pending G{0}→G{1}, {2} ms", pendingGear, targetGear, Math.Max(0, pendingAgeMs));
+                    return string.Format(CultureInfo.InvariantCulture, "G{0} {1}ms", pendingGear, Math.Max(0, pendingAgeMs));
                 }
 
-                return string.Format(CultureInfo.InvariantCulture, "Pending, {0} ms", Math.Max(0, pendingAgeMs));
+                return string.Format(CultureInfo.InvariantCulture, "Pending {0}ms", Math.Max(0, pendingAgeMs));
             }
         }
 
@@ -850,10 +853,10 @@ namespace LaunchPlugin
                             ? (learnedRpm > 0 ? learnedRpm.ToString(CultureInfo.InvariantCulture) : "—")
                             : "—",
                         SampleCountText = showLearnedForSelectedStack
-                            ? (learnedSamples > 0 ? learnedSamples.ToString(CultureInfo.InvariantCulture) : "0")
+                            ? (learnedSamples > 0 ? $"x{learnedSamples.ToString(CultureInfo.InvariantCulture)}" : "x0")
                             : "—",
                         DelayAvgMsText = delaySamples > 0 && avgDelayMs > 0 ? avgDelayMs.ToString(CultureInfo.InvariantCulture) : "—",
-                        DelayCountText = delaySamples > 0 ? delaySamples.ToString(CultureInfo.InvariantCulture) : "0",
+                        DelayCountText = delaySamples > 0 ? $"x{delaySamples.ToString(CultureInfo.InvariantCulture)}" : "x0",
                         SaveAction = txt =>
                         {
                             int value;
@@ -907,7 +910,7 @@ namespace LaunchPlugin
 
             try
             {
-                object raw = _pluginManager.GetPropertyValue(propertyName);
+                object raw = TryGetPluginPropertyValue(propertyName);
                 if (raw == null)
                 {
                     return 0;
@@ -963,7 +966,7 @@ namespace LaunchPlugin
 
             try
             {
-                object raw = _pluginManager.GetPropertyValue(propertyName);
+                object raw = TryGetPluginPropertyValue(propertyName);
                 if (raw == null)
                 {
                     return 0.0;
@@ -1009,13 +1012,33 @@ namespace LaunchPlugin
 
             try
             {
-                object raw = _pluginManager.GetPropertyValue(propertyName);
+                object raw = TryGetPluginPropertyValue(propertyName);
                 return raw?.ToString() ?? string.Empty;
             }
             catch
             {
                 return string.Empty;
             }
+        }
+
+        private object TryGetPluginPropertyValue(string propertyName)
+        {
+            object raw = _pluginManager.GetPropertyValue(propertyName);
+            if (raw != null)
+            {
+                return raw;
+            }
+
+            if (string.IsNullOrWhiteSpace(propertyName)
+                || propertyName.StartsWith("LalaLaunch.", StringComparison.OrdinalIgnoreCase)
+                || propertyName.StartsWith("DataCorePlugin.", StringComparison.OrdinalIgnoreCase)
+                || propertyName.StartsWith("IRacingExtraProperties.", StringComparison.OrdinalIgnoreCase)
+                || propertyName.StartsWith("ShakeIT", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return _pluginManager.GetPropertyValue($"LalaLaunch.{propertyName}");
         }
 
 
@@ -1102,6 +1125,38 @@ namespace LaunchPlugin
             ShiftTestBeepCommand = new RelayCommand(p => _playShiftAssistTestBeep?.Invoke());
             SortedCarProfiles = CollectionViewSource.GetDefaultView(CarProfiles);
             SortedCarProfiles.SortDescriptions.Add(new SortDescription(nameof(CarProfile.ProfileName), ListSortDirection.Ascending));
+
+            _shiftAssistRuntimeTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(200)
+            };
+            _shiftAssistRuntimeTimer.Tick += ShiftAssistRuntimeTimer_Tick;
+            _shiftAssistRuntimeTimer.Start();
+        }
+
+        private void ShiftAssistRuntimeTimer_Tick(object sender, EventArgs e)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            RefreshShiftAssistRuntimeStats();
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            if (_shiftAssistRuntimeTimer != null)
+            {
+                _shiftAssistRuntimeTimer.Stop();
+                _shiftAssistRuntimeTimer.Tick -= ShiftAssistRuntimeTimer_Tick;
+            }
         }
 
         public CarProfile GetProfileForCar(string carName)

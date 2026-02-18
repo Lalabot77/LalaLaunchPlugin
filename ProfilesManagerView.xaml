@@ -236,16 +236,16 @@
 
                             <Grid Margin="0,8,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="130"/>
+                                    <ColumnDefinition Width="68"/>
+                                    <ColumnDefinition Width="50"/>
                                     <ColumnDefinition Width="16"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="220"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <styles:SHToggleCheckbox Grid.Column="0" Content="Beep sound" IsChecked="{Binding ShiftAssistBeepSoundEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="Muted:" VerticalAlignment="Center" Opacity="0.75"/>
-                                <TextBlock Grid.Column="3" Text="{Binding ShiftAssistBeepMuteStateText}" VerticalAlignment="Center" Margin="6,0,0,0" Opacity="0.75"/>
-                                <Grid Grid.Column="4" Margin="16,0,0,0">
+                                <TextBlock Grid.Column="1" Text="Muted:" VerticalAlignment="Center" Opacity="0.75"/>
+                                <TextBlock Grid.Column="2" Text="{Binding ShiftAssistBeepMuteStateText}" VerticalAlignment="Center" Opacity="0.75"/>
+                                <Grid Grid.Column="4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="220" />
@@ -277,47 +277,41 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="150" />
                                     <ColumnDefinition Width="150" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="240" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Grid.Column="0" ItemsSource="{Binding ShiftStackIds}" SelectedItem="{Binding SelectedShiftStackId, Mode=TwoWay}" Margin="0,0,8,0" MinWidth="130"/>
                                 <ComboBox Grid.Column="1" ItemsSource="{Binding ShiftStackIds}" SelectedItem="{Binding ShiftCopySourceStackId, Mode=TwoWay}" Margin="0,0,8,0" MinWidth="130"/>
                                 <styles:SHButtonPrimary Grid.Column="2" Content="Add stack from current" Command="{Binding ShiftAddCurrentStackCommand}" Margin="0,0,8,0" />
                                 <styles:SHButtonPrimary Grid.Column="3" Content="Copy from..." Command="{Binding ShiftCopyFromStackCommand}" Margin="0,0,8,0" />
-                                <TextBlock Grid.Column="4" Text="{Binding ActiveShiftStackLabel}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding ActiveShiftStackLabel}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                             </Grid>
 
                             <DockPanel Margin="0,12,0,6">
                                 <TextBlock DockPanel.Dock="Left" Text="Shift targets (RPM)" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                                <Border DockPanel.Dock="Right" BorderThickness="1" BorderBrush="#505050" CornerRadius="4" Padding="8,6" Background="#22000000" Margin="12,0,0,0">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,10,0">
+                                <Border DockPanel.Dock="Right" BorderThickness="1" BorderBrush="#505050" CornerRadius="4" Padding="8,6" Background="#22000000" Margin="12,0,0,0" MaxWidth="730">
+                                    <WrapPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
                                             <TextBlock Text="State:" FontWeight="SemiBold" Margin="0,0,4,0"/>
                                             <TextBlock Text="{Binding ShiftAssistLearningState}"/>
                                         </StackPanel>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,10,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
                                             <TextBlock Text="Active gear:" FontWeight="SemiBold" Margin="0,0,4,0"/>
                                             <TextBlock Text="{Binding ShiftAssistLearningActiveGearText}"/>
                                         </StackPanel>
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,10,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
                                             <TextBlock Text="Peak:" FontWeight="SemiBold" Margin="0,0,4,0"/>
                                             <TextBlock Text="{Binding ShiftAssistLearningPeakAccelText}"/>
-                                            <TextBlock Text=" m/s², " />
+                                            <TextBlock Text=" m/s² @ " />
                                             <TextBlock Text="{Binding ShiftAssistLearningPeakRpmText}"/>
-                                            <TextBlock Text=" RPM" />
+                                            <TextBlock Text=" rpm" />
                                         </StackPanel>
-                                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="Delay:" FontWeight="SemiBold" Margin="0,0,4,0"/>
                                             <TextBlock Text="{Binding ShiftAssistDelayPendingSummary}"/>
                                         </StackPanel>
-                                    </Grid>
+                                    </WrapPanel>
                                 </Border>
                             </DockPanel>
                             <TextBlock Text="{Binding ShiftAssistCurrentGearRedlineHint}" Margin="0,0,0,6" Opacity="0.85"/>
@@ -334,48 +328,61 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <ItemsControl ItemsSource="{Binding ShiftGearRows}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,2,0,2">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="112" />
-                                                <ColumnDefinition Width="90" />
-                                                <ColumnDefinition Width="58" />
-                                                <ColumnDefinition Width="100" />
-                                                <ColumnDefinition Width="72" />
-                                                <ColumnDefinition Width="92" />
-                                                <ColumnDefinition Width="72" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="{Binding GearLabel}" VerticalAlignment="Center" />
-                                            <TextBox Grid.Column="1" Text="{Binding RpmText, Mode=OneWay}" LostFocus="ShiftRpmTextBox_LostFocus" />
-                                            <CheckBox Grid.Column="2"
+                            <Grid Grid.IsSharedSizeScope="True">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid Grid.Row="0" Margin="0,0,0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="122" SharedSizeGroup="GearCol"/>
+                                        <ColumnDefinition Width="86" SharedSizeGroup="TargetCol"/>
+                                        <ColumnDefinition Width="58" SharedSizeGroup="LockCol"/>
+                                        <ColumnDefinition Width="82" SharedSizeGroup="LearnedCol"/>
+                                        <ColumnDefinition Width="55" SharedSizeGroup="SamplesCol"/>
+                                        <ColumnDefinition Width="76" SharedSizeGroup="DelayCol"/>
+                                        <ColumnDefinition Width="55" SharedSizeGroup="DelaySamplesCol"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Gear" FontWeight="SemiBold" Opacity="0.8"/>
+                                    <TextBlock Grid.Column="1" Text="Target" FontWeight="SemiBold" Opacity="0.8"/>
+                                    <TextBlock Grid.Column="2" Text="Lock" FontWeight="SemiBold" Opacity="0.8"/>
+                                    <TextBlock Grid.Column="3" Text="Learned" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="4" Text="N" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="5" Text="Delay" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="6" Text="N" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
+                                </Grid>
+
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding ShiftGearRows}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,1,0,1" MinHeight="24">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="122" SharedSizeGroup="GearCol"/>
+                                                    <ColumnDefinition Width="86" SharedSizeGroup="TargetCol"/>
+                                                    <ColumnDefinition Width="58" SharedSizeGroup="LockCol"/>
+                                                    <ColumnDefinition Width="82" SharedSizeGroup="LearnedCol"/>
+                                                    <ColumnDefinition Width="55" SharedSizeGroup="SamplesCol"/>
+                                                    <ColumnDefinition Width="76" SharedSizeGroup="DelayCol"/>
+                                                    <ColumnDefinition Width="55" SharedSizeGroup="DelaySamplesCol"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding GearLabel}" VerticalAlignment="Center" />
+                                                <TextBox Grid.Column="1" Text="{Binding RpmText, Mode=OneWay}" LostFocus="ShiftRpmTextBox_LostFocus" Height="22"/>
+                                                <CheckBox Grid.Column="2"
                                                       Content="Lock"
                                                       IsChecked="{Binding IsLocked, Mode=OneWay}"
                                                       VerticalAlignment="Center"
-                                                      Margin="8,0,0,0"
+                                                      Margin="6,0,0,0"
                                                       Checked="ShiftLockCheckBox_Checked"
                                                       Unchecked="ShiftLockCheckBox_Unchecked" />
-                                            <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="8,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding LearnedRpmText}"/>
-                                                <TextBlock Text=" rpm" Opacity="0.75"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="8,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding SampleCountText}"/>
-                                                <TextBlock Text="x" Opacity="0.75"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="8,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding DelayAvgMsText}"/>
-                                                <TextBlock Text=" ms" Opacity="0.75"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="6" Orientation="Horizontal" Margin="8,0,0,0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding DelayCountText}"/>
-                                                <TextBlock Text="x" Opacity="0.75"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                                <TextBlock Grid.Column="3" Text="{Binding LearnedRpmText}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                <TextBlock Grid.Column="4" Text="{Binding SampleCountText}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                <TextBlock Grid.Column="5" Text="{Binding DelayAvgMsText}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                <TextBlock Grid.Column="6" Text="{Binding DelayCountText}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
 
                             <TextBlock Text="Sound" FontWeight="SemiBold" Margin="0,14,0,6"/>
                             <styles:SHToggleCheckbox Content="Use custom sound" IsChecked="{Binding ShiftAssistUseCustomWav, Mode=TwoWay}" />

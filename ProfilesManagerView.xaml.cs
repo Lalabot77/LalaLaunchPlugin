@@ -10,6 +10,15 @@ namespace LaunchPlugin
         {
             InitializeComponent();
             this.DataContext = viewModel;
+            this.Unloaded += ProfilesManagerView_Unloaded;
+        }
+
+        private void ProfilesManagerView_Unloaded(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is ProfilesManagerViewModel vm)
+            {
+                vm.Dispose();
+            }
         }
 
         private void SHButtonPrimary_Click(object sender, System.Windows.RoutedEventArgs e)
