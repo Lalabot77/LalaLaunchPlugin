@@ -1502,7 +1502,7 @@ namespace LaunchPlugin
             }
 
             var stack = EnsureShiftStackForSelectedProfile(stackId);
-            int count = Math.Min(_shiftGearRows.Count, 8);
+            int count = Math.Min(_shiftGearRows.Count, Math.Min(stack.ShiftRPM.Length, stack.ShiftLocked.Length));
             for (int i = 0; i < count; i++)
             {
                 int target = stack.ShiftRPM[i];
@@ -1511,6 +1511,11 @@ namespace LaunchPlugin
             }
 
             OnPropertyChanged(nameof(ShiftGearRows));
+        }
+
+        public void NotifyShiftStackOptionsChanged()
+        {
+            OnPropertyChanged(nameof(ShiftStackIds));
         }
 
         private void BrowseShiftCustomWav()

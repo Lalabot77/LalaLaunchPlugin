@@ -881,6 +881,65 @@ namespace LaunchPlugin
             vm.RefreshShiftAssistRuntimeStats();
         }
 
+        private static bool TryReadNullableString(PluginManager pluginManager, string propertyName, out string value)
+        {
+            value = null;
+            if (pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return false;
+            }
+
+            try
+            {
+                object raw = pluginManager.GetPropertyValue(propertyName);
+                if (raw == null)
+                {
+                    return false;
+                }
+
+                string text = raw as string;
+                if (text == null)
+                {
+                    text = Convert.ToString(raw, CultureInfo.InvariantCulture);
+                }
+
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return false;
+                }
+
+                value = text.Trim();
+                return value.Length > 0;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void EnsureTelemetryShiftStackOptionSurfaced(PluginManager pluginManager)
+        {
+            if (ActiveProfile == null)
+            {
+                return;
+            }
+
+            if (!TryReadNullableString(pluginManager, "DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack", out string telemetryStackId))
+            {
+                return;
+            }
+
+            var stacks = ActiveProfile.ShiftAssistStacks;
+            if (stacks != null && stacks.ContainsKey(telemetryStackId))
+            {
+                return;
+            }
+
+            ActiveProfile.EnsureShiftStack(telemetryStackId);
+            ProfilesViewModel?.NotifyShiftStackOptionsChanged();
+            ProfilesViewModel?.SaveProfiles();
+        }
+
         private static int GetElapsedMsFromTimestamp(long startTs, long endTs)
         {
             if (startTs <= 0 || endTs <= startTs)
@@ -6496,6 +6555,7 @@ namespace LaunchPlugin
 
             int maxForwardGears = ResolveShiftAssistMaxForwardGears(pluginManager);
             LearnShiftAssistMaxForwardGearsHint(maxForwardGears);
+            EnsureTelemetryShiftStackOptionSurfaced(pluginManager);
 
             if (string.IsNullOrWhiteSpace(_shiftAssistActiveGearStackId))
             {
@@ -6548,6 +6608,7 @@ namespace LaunchPlugin
                         stack.ShiftRPM[idx] = learnedRpm;
                         _shiftAssistLearnSavedPulseUntilUtc = nowUtc.AddMilliseconds(ShiftAssistLearnSavePulseMs);
                         ProfilesViewModel?.SaveProfiles();
+                        ProfilesViewModel?.RefreshShiftAssistTargetTextsFromStack(activeStackId);
                         RequestShiftAssistRuntimeStatsRefresh();
                     }
                 }
