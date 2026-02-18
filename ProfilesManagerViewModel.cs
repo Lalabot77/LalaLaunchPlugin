@@ -24,7 +24,7 @@ namespace LaunchPlugin
         public bool HasData { get; set; }
     }
 
-    public class ProfilesManagerViewModel : INotifyPropertyChanged, IDisposable
+    public class ProfilesManagerViewModel : INotifyPropertyChanged
     {
         // Boilerplate for UI updates
         public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
@@ -61,7 +61,6 @@ namespace LaunchPlugin
         private readonly Action<int> _setShiftAssistBeepVolumePct;
         private readonly Action _playShiftAssistTestBeep;
         private readonly DispatcherTimer _shiftAssistRuntimeTimer;
-        private bool _disposed;
         private const int ShiftAssistMaxStoredGears = 8;
         private readonly string _profilesFilePath;
         private readonly string _legacyProfilesFilePath;
@@ -1131,32 +1130,23 @@ namespace LaunchPlugin
                 Interval = TimeSpan.FromMilliseconds(200)
             };
             _shiftAssistRuntimeTimer.Tick += ShiftAssistRuntimeTimer_Tick;
-            _shiftAssistRuntimeTimer.Start();
         }
 
         private void ShiftAssistRuntimeTimer_Tick(object sender, EventArgs e)
         {
-            if (_disposed)
-            {
-                return;
-            }
-
             RefreshShiftAssistRuntimeStats();
         }
 
-        public void Dispose()
+        public void StartShiftAssistRuntimeTimer()
         {
-            if (_disposed)
-            {
-                return;
-            }
+            if (_shiftAssistRuntimeTimer != null && !_shiftAssistRuntimeTimer.IsEnabled)
+                _shiftAssistRuntimeTimer.Start();
+        }
 
-            _disposed = true;
-            if (_shiftAssistRuntimeTimer != null)
-            {
+        public void StopShiftAssistRuntimeTimer()
+        {
+            if (_shiftAssistRuntimeTimer != null && _shiftAssistRuntimeTimer.IsEnabled)
                 _shiftAssistRuntimeTimer.Stop();
-                _shiftAssistRuntimeTimer.Tick -= ShiftAssistRuntimeTimer_Tick;
-            }
         }
 
         public CarProfile GetProfileForCar(string carName)
