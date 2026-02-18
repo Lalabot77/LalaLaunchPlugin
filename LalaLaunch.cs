@@ -789,6 +789,11 @@ namespace LaunchPlugin
             return value;
         }
 
+        private bool IsShiftAssistLightEnabled()
+        {
+            return Settings?.ShiftAssistLightEnabled != false;
+        }
+
         private int GetShiftAssistLeadTimeMs()
         {
             int value = Settings?.ShiftAssistLeadTimeMs ?? ShiftAssistLeadTimeMsDefault;
@@ -3925,6 +3930,17 @@ namespace LaunchPlugin
                     Settings.ShiftAssistBeepDurationMs = durationMs;
                     SaveSettings();
                 },
+                () => IsShiftAssistLightEnabled(),
+                (enabled) =>
+                {
+                    if (Settings == null)
+                    {
+                        return;
+                    }
+
+                    Settings.ShiftAssistLightEnabled = enabled;
+                    SaveSettings();
+                },
                 () => GetShiftAssistLeadTimeMs(),
                 (leadTimeMs) =>
                 {
@@ -4394,6 +4410,7 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.EffectiveTargetRPM_CurrentGear", () => _shiftAssistEngine.LastEffectiveTargetRpm);
             AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
             AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.ShiftLightEnabled", () => IsShiftAssistLightEnabled() ? 1 : 0);
             AttachCore("ShiftAssist.Learn.Enabled", () => Settings?.ShiftAssistLearningModeEnabled == true ? 1 : 0);
             AttachCore("ShiftAssist.Learn.State", () => ToLearningStateText(_shiftAssistLastLearningTick?.State ?? ShiftAssistLearningState.Off));
             AttachCore("ShiftAssist.Learn.ActiveGear", () => _shiftAssistLastLearningTick?.ActiveGear ?? 0);
@@ -12681,6 +12698,7 @@ namespace LaunchPlugin
         public bool ShiftAssistEnabled { get; set; } = false;
         public bool ShiftAssistLearningModeEnabled { get; set; } = false;
         public int ShiftAssistBeepDurationMs { get; set; } = LalaLaunch.ShiftAssistBeepDurationMsDefault;
+        public bool ShiftAssistLightEnabled { get; set; } = true;
         public int ShiftAssistLeadTimeMs { get; set; } = LalaLaunch.ShiftAssistLeadTimeMsDefault;
         public bool ShiftAssistBeepSoundEnabled { get; set; } = true;
         public int ShiftAssistBeepVolumePct { get; set; } = 100;
