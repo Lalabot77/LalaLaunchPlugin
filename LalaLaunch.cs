@@ -1119,6 +1119,44 @@ namespace LaunchPlugin
             return activeStackId.Length > 0;
         }
 
+        internal void SetShiftAssistActiveGearStackId(string stackId)
+        {
+            string normalized = string.IsNullOrWhiteSpace(stackId) ? "Default" : stackId.Trim();
+            _shiftAssistActiveGearStackId = normalized;
+            if (ActiveProfile != null)
+            {
+                ActiveProfile.EnsureShiftStack(normalized);
+            }
+
+            RequestShiftAssistRuntimeStatsRefresh(true);
+        }
+
+        private void ExecuteShiftAssistResetLearningSamples()
+        {
+            _shiftAssistLearningEngine.ResetSamplesForStack(_shiftAssistActiveGearStackId);
+            _shiftAssistLearnPeakAccelLatched = 0.0;
+            _shiftAssistLearnPeakRpmLatched = 0;
+            _shiftAssistLastLearningTick = new ShiftAssistLearningTick
+            {
+                State = Settings?.ShiftAssistLearningModeEnabled == true ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off
+            };
+            RequestShiftAssistRuntimeStatsRefresh();
+            SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Learning samples reset for stack '{_shiftAssistActiveGearStackId}'.");
+        }
+
+        private void ExecuteShiftAssistResetTargetsAndSamples()
+        {
+            ResetShiftAssistTargetsForActiveStack("ShiftAssist_ResetTargets_ActiveStack_AndSamples");
+            ExecuteShiftAssistResetLearningSamples();
+        }
+
+        private void ExecuteShiftAssistResetDelayStatsAction()
+        {
+            ResetShiftAssistDelayStats();
+            RequestShiftAssistRuntimeStatsRefresh();
+            SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Delay stats reset.");
+        }
+
         private void ResetShiftAssistTargetsForActiveStack(string actionName)
         {
             string activeStackId;
@@ -1151,6 +1189,48 @@ namespace LaunchPlugin
             }
 
             _shiftAssistTargetCurrentGear = 0;
+            ProfilesViewModel?.RefreshShiftAssistTargetTextsFromStack(activeStackId);
+            RequestShiftAssistRuntimeStatsRefresh();
+            SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] {actionName} stack='{activeStackId}' changed={changed}");
+        }
+
+        private void ApplyShiftAssistLearnedToTargetsForActiveStackOverrideLocks(string actionName)
+        {
+            string activeStackId;
+            if (ActiveProfile == null || !TryResolveShiftAssistActiveStackId(out activeStackId))
+            {
+                return;
+            }
+
+            var stack = ActiveProfile.EnsureShiftStack(activeStackId);
+            int maxForwardGears = ActiveProfile?.MaxForwardGearsHint ?? 0;
+            if (maxForwardGears <= 0)
+            {
+                maxForwardGears = 6;
+            }
+
+            int maxTargetGears = Math.Min(8, Math.Max(1, maxForwardGears - 1));
+            bool changed = false;
+            for (int gear = 1; gear <= maxTargetGears; gear++)
+            {
+                int learnedRpm = _shiftAssistLearningEngine.GetLearnedRpm(activeStackId, gear);
+                if (learnedRpm > 0)
+                {
+                    int idx = gear - 1;
+                    if (stack.ShiftRPM[idx] != learnedRpm)
+                    {
+                        stack.ShiftRPM[idx] = learnedRpm;
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed)
+            {
+                ProfilesViewModel?.SaveProfiles();
+            }
+
+            ProfilesViewModel?.RefreshShiftAssistTargetTextsFromStack(activeStackId);
             RequestShiftAssistRuntimeStatsRefresh();
             SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] {actionName} stack='{activeStackId}' changed={changed}");
         }
@@ -3758,6 +3838,7 @@ namespace LaunchPlugin
                 () => ReloadTrackMarkersFromDisk(),
                 (trackKey) => ResetTrackMarkersForKey(trackKey),
                 () => _shiftAssistActiveGearStackId,
+                (stackId) => SetShiftAssistActiveGearStackId(stackId),
                 () => Settings?.ShiftAssistEnabled == true,
                 (enabled) =>
                 {
@@ -3830,7 +3911,12 @@ namespace LaunchPlugin
                     Settings.ShiftAssistBeepVolumePct = volumePct;
                     SaveSettings();
                 },
-                () => TriggerShiftAssistTestBeep()
+                () => TriggerShiftAssistTestBeep(),
+                () => ExecuteShiftAssistResetLearningSamples(),
+                () => ResetShiftAssistTargetsForActiveStack("ShiftAssist_ResetTargets_ActiveStack"),
+                () => ExecuteShiftAssistResetTargetsAndSamples(),
+                () => ExecuteShiftAssistResetDelayStatsAction(),
+                () => ApplyShiftAssistLearnedToTargetsForActiveStackOverrideLocks("ShiftAssist_ApplyLearnedToTargets_ActiveStack_OverrideLocks")
             );
 
 
@@ -3904,12 +3990,7 @@ namespace LaunchPlugin
                 SaveSettings();
                 SimHub.Logging.Current.Info($"[LalaPlugin:Debug] Debug_Hide_3_Toggle -> Hide={Settings.DebugHide3}");
             });
-            this.AddAction("ShiftAssist_ResetDelayStats", (a, b) =>
-            {
-                ResetShiftAssistDelayStats();
-                RequestShiftAssistRuntimeStatsRefresh();
-                SimHub.Logging.Current.Info("[LalaPlugin:ShiftAssist] Delay stats reset via action.");
-            });
+            this.AddAction("ShiftAssist_ResetDelayStats", (a, b) => ExecuteShiftAssistResetDelayStatsAction());
             this.AddAction("ShiftAssist_ToggleShiftAssist", (a, b) =>
             {
                 if (Settings == null)
@@ -3939,31 +4020,10 @@ namespace LaunchPlugin
                 SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Debug CSV toggle action -> Enabled={Settings.EnableShiftAssistDebugCsv}");
             });
             this.AddAction("ShiftAssist_TestBeep", (a, b) => TriggerShiftAssistTestBeep());
-            this.AddAction("ShiftAssist_Learn_ResetSamples", (a, b) =>
-            {
-                _shiftAssistLearningEngine.ResetSamplesForStack(_shiftAssistActiveGearStackId);
-                _shiftAssistLearnPeakAccelLatched = 0.0;
-                _shiftAssistLearnPeakRpmLatched = 0;
-                _shiftAssistLastLearningTick = new ShiftAssistLearningTick
-                {
-                    State = Settings?.ShiftAssistLearningModeEnabled == true ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off
-                };
-                RequestShiftAssistRuntimeStatsRefresh();
-                SimHub.Logging.Current.Info($"[LalaPlugin:ShiftAssist] Learning samples reset for stack '{_shiftAssistActiveGearStackId}'.");
-            });
+            this.AddAction("ShiftAssist_Learn_ResetSamples", (a, b) => ExecuteShiftAssistResetLearningSamples());
             this.AddAction("ShiftAssist_ResetTargets_ActiveStack", (a, b) => ResetShiftAssistTargetsForActiveStack("ShiftAssist_ResetTargets_ActiveStack"));
-            this.AddAction("ShiftAssist_ResetTargets_ActiveStack_AndSamples", (a, b) =>
-            {
-                ResetShiftAssistTargetsForActiveStack("ShiftAssist_ResetTargets_ActiveStack_AndSamples");
-                _shiftAssistLearningEngine.ResetSamplesForStack(_shiftAssistActiveGearStackId);
-                _shiftAssistLearnPeakAccelLatched = 0.0;
-                _shiftAssistLearnPeakRpmLatched = 0;
-                _shiftAssistLastLearningTick = new ShiftAssistLearningTick
-                {
-                    State = Settings?.ShiftAssistLearningModeEnabled == true ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off
-                };
-                RequestShiftAssistRuntimeStatsRefresh();
-            });
+            this.AddAction("ShiftAssist_ResetTargets_ActiveStack_AndSamples", (a, b) => ExecuteShiftAssistResetTargetsAndSamples());
+            this.AddAction("ShiftAssist_ApplyLearnedToTargets_ActiveStack_OverrideLocks", (a, b) => ApplyShiftAssistLearnedToTargetsForActiveStackOverrideLocks("ShiftAssist_ApplyLearnedToTargets_ActiveStack_OverrideLocks"));
             this.AddAction("ShiftAssist_Lock_G1", (a, b) => ExecuteShiftAssistLockAction(1, current => true, "ShiftAssist_Lock_G1"));
             this.AddAction("ShiftAssist_Lock_G2", (a, b) => ExecuteShiftAssistLockAction(2, current => true, "ShiftAssist_Lock_G2"));
             this.AddAction("ShiftAssist_Lock_G3", (a, b) => ExecuteShiftAssistLockAction(3, current => true, "ShiftAssist_Lock_G3"));
@@ -3988,7 +4048,7 @@ namespace LaunchPlugin
             this.AddAction("ShiftAssist_ToggleLock_G6", (a, b) => ExecuteShiftAssistLockAction(6, current => !current, "ShiftAssist_ToggleLock_G6"));
             this.AddAction("ShiftAssist_ToggleLock_G7", (a, b) => ExecuteShiftAssistLockAction(7, current => !current, "ShiftAssist_ToggleLock_G7"));
             this.AddAction("ShiftAssist_ToggleLock_G8", (a, b) => ExecuteShiftAssistLockAction(8, current => !current, "ShiftAssist_ToggleLock_G8"));
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, Debug_Hide_1_Toggle, Debug_Hide_2_Toggle, Debug_Hide_3_Toggle, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep, ShiftAssist_Learn_ResetSamples, ShiftAssist_ResetTargets_ActiveStack, ShiftAssist_ResetTargets_ActiveStack_AndSamples, ShiftAssist_Lock_G1..G8, ShiftAssist_Unlock_G1..G8, ShiftAssist_ToggleLock_G1..G8");
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, Debug_Hide_1_Toggle, Debug_Hide_2_Toggle, Debug_Hide_3_Toggle, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep, ShiftAssist_Learn_ResetSamples, ShiftAssist_ResetTargets_ActiveStack, ShiftAssist_ResetTargets_ActiveStack_AndSamples, ShiftAssist_ApplyLearnedToTargets_ActiveStack_OverrideLocks, ShiftAssist_Lock_G1..G8, ShiftAssist_Unlock_G1..G8, ShiftAssist_ToggleLock_G1..G8");
 
             AttachCore("LalaLaunch.Friends.Count", () => _friendsCount);
 

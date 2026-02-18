@@ -344,6 +344,19 @@ namespace LaunchPlugin
                 ShiftLocked = correctedLocks;
             }
         }
+
+        public ShiftStackData Clone()
+        {
+            EnsureValidShape();
+            var cloned = new ShiftStackData();
+            for (int i = 0; i < 8; i++)
+            {
+                cloned.ShiftRPM[i] = ShiftRPM[i];
+                cloned.ShiftLocked[i] = ShiftLocked[i];
+            }
+
+            return cloned;
+        }
     }
 
     [JsonObject(MemberSerialization.OptIn)]
