@@ -858,31 +858,33 @@ namespace LaunchPlugin
                     GearLabel = $"Shift from Gear {rowGear}",
                     RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
                     IsLocked = stack.ShiftLocked[gearIdx],
-                    SaveAction = txt =>
-                    {
-                        int value;
-                        if (!int.TryParse((txt ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value) || value < 0)
-                        {
-                            value = 0;
-                        }
-
-                        stack.ShiftRPM[gearIdx] = value;
-                        row.RpmText = value > 0 ? value.ToString(CultureInfo.InvariantCulture) : string.Empty;
-                        SaveProfiles();
-                        OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
-                    },
-                    SetLockAction = locked =>
-                    {
-                        if (stack.ShiftLocked[gearIdx] == locked)
-                        {
-                            return;
-                        }
-
-                        stack.ShiftLocked[gearIdx] = locked;
-                        row.IsLocked = locked;
-                        SaveProfiles();
-                    }
                 };
+
+                row.SaveAction = txt =>
+                {
+                    int value;
+                    if (!int.TryParse((txt ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value) || value < 0)
+                        value = 0;
+
+                    stack.ShiftRPM[gearIdx] = value;
+                    row.RpmText = value > 0 ? value.ToString(CultureInfo.InvariantCulture) : string.Empty;
+
+                    SaveProfiles();
+                    OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
+                };
+
+                row.SetLockAction = locked =>
+                {
+                    if (stack.ShiftLocked[gearIdx] == locked)
+                        return;
+
+                    stack.ShiftLocked[gearIdx] = locked;
+                    row.IsLocked = locked;
+
+                    SaveProfiles();
+                };
+
+
 
                 rows.Add(row);
             }
