@@ -360,7 +360,7 @@ namespace LaunchPlugin
                 return 0.75;
             }
 
-            return 0.70;
+            return 0.65;
         }
 
         private int ComputeClampedMinRpm(int effectiveGear, int redlineRpmForGear, double ratio)
