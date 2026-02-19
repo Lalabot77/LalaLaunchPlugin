@@ -26,6 +26,11 @@ namespace LaunchPlugin
         public bool ShouldApplyLearnedRpm { get; set; }
         public int ApplyGear { get; set; }
         public int ApplyRpm { get; set; }
+        public int LearnMinRpm { get; set; }
+        public int LearnCaptureMinRpm { get; set; }
+        public int LearnCapturedRpm { get; set; }
+        public string LearnEndReason { get; set; }
+        public string LearnRejectedReason { get; set; }
     }
 
     public class ShiftAssistLearningEngine
@@ -41,6 +46,12 @@ namespace LaunchPlugin
         private const int MaxSaneRpm = 20000;
         private const double PeakFalloffRatio = 0.97;
         private const int ReArmRpmDrop = 500;
+        private const int AbsoluteMinLearnRpm = 2000;
+        private const double LearnTrackMinRedlineRatio = 0.70;
+        private const double LearnCaptureMinRedlineRatio = 0.80;
+        private const int RedlineHeadroomRpm = 300;
+        private const int MinTicksSincePeakForCapture = 4;
+        private const int DelayedRiseRpmAbovePeak = 250;
 
         private readonly Dictionary<string, StackRuntime> _stacks = new Dictionary<string, StackRuntime>(StringComparer.OrdinalIgnoreCase);
         private readonly ShiftAssistLearningTick _lastTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
@@ -57,18 +68,25 @@ namespace LaunchPlugin
         private int _samplingLastObservedRpm;
         private int _samplingTicksSincePeak;
         private int _samplingFalloffConsecutive;
+        private int _samplingLearnMinRpm;
+        private int _samplingCaptureMinRpm;
 
         public ShiftAssistLearningTick LastTick => _lastTick;
 
-        public ShiftAssistLearningTick Update(bool learningEnabled, string gearStackId, int effectiveGear, int rpm, double throttle01, double brake01, double sessionTimeSec, double lonAccelMps2)
+        public ShiftAssistLearningTick Update(bool learningEnabled, string gearStackId, int effectiveGear, int rpm, double throttle01, double brake01, double sessionTimeSec, double lonAccelMps2, int redlineRpmForGear)
         {
+            int learnMinRpm = ComputeLearnMinRpm(effectiveGear, redlineRpmForGear);
+            int captureMinRpm = ComputeCaptureMinRpm(effectiveGear, redlineRpmForGear);
             var tick = new ShiftAssistLearningTick
             {
                 State = learningEnabled ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off,
                 ActiveGear = effectiveGear,
                 PeakAccelMps2 = _samplingPeakAccel,
                 PeakRpm = _samplingPeakRpm,
-                LastSampleRpm = _lastTick.LastSampleRpm
+                LastSampleRpm = _lastTick.LastSampleRpm,
+                LearnMinRpm = learnMinRpm,
+                LearnCaptureMinRpm = captureMinRpm,
+                LearnCapturedRpm = _samplingCapturedRpm
             };
 
             string stackKey = string.IsNullOrWhiteSpace(gearStackId) ? "Default" : gearStackId.Trim();
@@ -105,9 +123,11 @@ namespace LaunchPlugin
                 canArmForGear = !effectiveGearData.RequireRpmReset;
             }
 
+            bool rpmMeetsLearnMin = rpm >= learnMinRpm;
+
             if (!_samplingActive)
             {
-                if (gateStrong && stableReady && canArmForGear)
+                if (gateStrong && stableReady && canArmForGear && rpmMeetsLearnMin)
                 {
                     _samplingActive = true;
                     _samplingGear = effectiveGear;
@@ -118,6 +138,8 @@ namespace LaunchPlugin
                     _samplingLastObservedRpm = rpm;
                     _samplingTicksSincePeak = 0;
                     _samplingFalloffConsecutive = 0;
+                    _samplingLearnMinRpm = learnMinRpm;
+                    _samplingCaptureMinRpm = captureMinRpm;
                 }
             }
 
@@ -126,42 +148,50 @@ namespace LaunchPlugin
                 tick.State = ShiftAssistLearningState.Sampling;
                 tick.ActiveGear = _samplingGear;
 
-                _samplingLastObservedRpm = rpm;
-                if (IsFinite(lonAccelMps2) && lonAccelMps2 > _samplingPeakAccel)
+                tick.LearnMinRpm = _samplingLearnMinRpm;
+                tick.LearnCaptureMinRpm = _samplingCaptureMinRpm;
+                bool samplingRpmReady = rpm >= _samplingLearnMinRpm;
+                if (samplingRpmReady)
                 {
-                    _samplingPeakAccel = lonAccelMps2;
-                    _samplingPeakRpm = rpm;
-                    _samplingCapturedRpm = 0;
-                    _samplingTicksSincePeak = 0;
-                    _samplingFalloffConsecutive = 0;
-                }
-                else
-                {
-                    _samplingTicksSincePeak++;
-
-                    if (_samplingCapturedRpm == 0 && IsFinite(_samplingPeakAccel) && _samplingPeakAccel > 0.0 && IsFinite(lonAccelMps2))
+                    _samplingLastObservedRpm = rpm;
+                    if (IsFinite(lonAccelMps2) && lonAccelMps2 > _samplingPeakAccel)
                     {
-                        double falloffThreshold = _samplingPeakAccel * PeakFalloffRatio;
-                        bool meetsFalloff = lonAccelMps2 <= falloffThreshold;
-                        if (meetsFalloff)
+                        _samplingPeakAccel = lonAccelMps2;
+                        _samplingPeakRpm = rpm;
+                        _samplingCapturedRpm = 0;
+                        _samplingTicksSincePeak = 0;
+                        _samplingFalloffConsecutive = 0;
+                    }
+                    else
+                    {
+                        _samplingTicksSincePeak++;
+
+                        if (rpm >= _samplingCaptureMinRpm && _samplingCapturedRpm == 0 && IsFinite(_samplingPeakAccel) && _samplingPeakAccel > 0.0 && IsFinite(lonAccelMps2))
                         {
-                            _samplingFalloffConsecutive++;
-                            bool twoConsecutiveFalloffTicks = _samplingFalloffConsecutive >= 2;
-                            bool delayedRiseGuard = _samplingTicksSincePeak >= 2 && rpm >= (_samplingPeakRpm + 100);
-                            if (twoConsecutiveFalloffTicks || delayedRiseGuard)
+                            double falloffThreshold = _samplingPeakAccel * PeakFalloffRatio;
+                            bool meetsFalloff = lonAccelMps2 <= falloffThreshold;
+                            if (meetsFalloff)
                             {
-                                _samplingCapturedRpm = rpm;
+                                _samplingFalloffConsecutive++;
+                                bool canCapture = _samplingTicksSincePeak >= MinTicksSincePeakForCapture;
+                                bool twoConsecutiveFalloffTicks = _samplingFalloffConsecutive >= 2;
+                                bool delayedRiseGuard = canCapture && rpm >= (_samplingPeakRpm + DelayedRiseRpmAbovePeak);
+                                if (canCapture && (twoConsecutiveFalloffTicks || delayedRiseGuard))
+                                {
+                                    _samplingCapturedRpm = rpm;
+                                }
                             }
-                        }
-                        else
-                        {
-                            _samplingFalloffConsecutive = 0;
+                            else
+                            {
+                                _samplingFalloffConsecutive = 0;
+                            }
                         }
                     }
                 }
 
                 tick.PeakAccelMps2 = _samplingPeakAccel;
                 tick.PeakRpm = _samplingPeakRpm;
+                tick.LearnCapturedRpm = _samplingCapturedRpm;
 
                 int windowMs = 0;
                 if (hasValidSessionTime && IsFinite(_samplingStartSec))
@@ -176,7 +206,9 @@ namespace LaunchPlugin
                 bool shouldEnd = !hasValidSessionTime || gateEnd || gearChanged || maxDurationReached;
                 if (shouldEnd)
                 {
-                    FinalizeSample(stack, tick, windowMs);
+                    string endReason = !hasValidSessionTime ? "InvalidSessionTime" :
+                        (gateEnd ? "GateEnd" : (gearChanged ? "GearChanged" : "MaxWindow"));
+                    FinalizeSample(stack, tick, windowMs, endReason);
                     ResetSampling();
                 }
             }
@@ -232,12 +264,14 @@ namespace LaunchPlugin
             }
         }
 
-        private void FinalizeSample(StackRuntime stack, ShiftAssistLearningTick tick, int windowMs)
+        private void FinalizeSample(StackRuntime stack, ShiftAssistLearningTick tick, int windowMs, string endReason)
         {
             bool validDuration = windowMs >= MinWindowMs;
             bool validPeak = IsFinite(_samplingPeakAccel) && _samplingPeakAccel > 0.0;
             int sampleRpm = _samplingCapturedRpm > 0 ? _samplingCapturedRpm : _samplingLastObservedRpm;
             bool validRpm = sampleRpm >= MinSaneRpm && sampleRpm <= MaxSaneRpm;
+            bool capturedInCaptureWindow = _samplingCapturedRpm >= _samplingCaptureMinRpm && _samplingCapturedRpm <= MaxSaneRpm;
+            bool gateEndWithoutValidCapture = string.Equals(endReason, "GateEnd", StringComparison.OrdinalIgnoreCase) && !capturedInCaptureWindow;
 
             var gearData = _samplingGear >= 1 && _samplingGear <= GearCount ? stack.Gears[_samplingGear - 1] : null;
             bool outlierRejected = false;
@@ -247,7 +281,9 @@ namespace LaunchPlugin
                 outlierRejected = Math.Abs(sampleRpm - gearData.LearnedRpm) > delta;
             }
 
-            bool accepted = validDuration && validPeak && validRpm && !outlierRejected && gearData != null;
+            bool accepted = validDuration && validPeak && validRpm && !outlierRejected && !gateEndWithoutValidCapture && gearData != null;
+            tick.LearnCapturedRpm = _samplingCapturedRpm;
+            tick.LearnEndReason = endReason;
             if (accepted)
             {
                 gearData.AddSample(sampleRpm);
@@ -268,7 +304,55 @@ namespace LaunchPlugin
             else
             {
                 tick.State = ShiftAssistLearningState.Rejected;
+                tick.LearnRejectedReason = !validDuration ? "WindowTooShort" :
+                    (!validPeak ? "InvalidPeak" :
+                    (!validRpm ? "InvalidRpm" :
+                    (outlierRejected ? "Outlier" :
+                    (gateEndWithoutValidCapture ? "GateEndWithoutValidCapture" :
+                    (gearData == null ? "InvalidGear" : "Unknown")))));
             }
+        }
+
+        private int ComputeLearnMinRpm(int effectiveGear, int redlineRpmForGear)
+        {
+            return ComputeClampedMinRpm(effectiveGear, redlineRpmForGear, LearnTrackMinRedlineRatio);
+        }
+
+        private int ComputeCaptureMinRpm(int effectiveGear, int redlineRpmForGear)
+        {
+            return ComputeClampedMinRpm(effectiveGear, redlineRpmForGear, LearnCaptureMinRedlineRatio);
+        }
+
+        private int ComputeClampedMinRpm(int effectiveGear, int redlineRpmForGear, double ratio)
+        {
+            if (effectiveGear < 1 || effectiveGear > GearCount)
+            {
+                return AbsoluteMinLearnRpm;
+            }
+
+            if (redlineRpmForGear <= 0)
+            {
+                return AbsoluteMinLearnRpm;
+            }
+
+            int scaled = (int)Math.Round(redlineRpmForGear * ratio);
+            int maxAllowed = redlineRpmForGear - RedlineHeadroomRpm;
+            if (maxAllowed < AbsoluteMinLearnRpm)
+            {
+                maxAllowed = AbsoluteMinLearnRpm;
+            }
+
+            if (scaled < AbsoluteMinLearnRpm)
+            {
+                return AbsoluteMinLearnRpm;
+            }
+
+            if (scaled > maxAllowed)
+            {
+                return maxAllowed;
+            }
+
+            return scaled;
         }
 
         private StackRuntime EnsureStack(string gearStackId)
@@ -300,6 +384,8 @@ namespace LaunchPlugin
             _samplingLastObservedRpm = 0;
             _samplingTicksSincePeak = 0;
             _samplingFalloffConsecutive = 0;
+            _samplingLearnMinRpm = 0;
+            _samplingCaptureMinRpm = 0;
         }
 
         private void CopyTick(ShiftAssistLearningTick tick)
@@ -316,6 +402,11 @@ namespace LaunchPlugin
             _lastTick.ShouldApplyLearnedRpm = tick.ShouldApplyLearnedRpm;
             _lastTick.ApplyGear = tick.ApplyGear;
             _lastTick.ApplyRpm = tick.ApplyRpm;
+            _lastTick.LearnMinRpm = tick.LearnMinRpm;
+            _lastTick.LearnCaptureMinRpm = tick.LearnCaptureMinRpm;
+            _lastTick.LearnCapturedRpm = tick.LearnCapturedRpm;
+            _lastTick.LearnEndReason = tick.LearnEndReason;
+            _lastTick.LearnRejectedReason = tick.LearnRejectedReason;
         }
 
         private class StackRuntime

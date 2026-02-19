@@ -6417,7 +6417,7 @@ namespace LaunchPlugin
                 _shiftAssistLastSpeedMps = double.NaN;
                 _shiftAssistLastSpeedSampleUtc = DateTime.MinValue;
                 _shiftAssistEngine.Reset();
-                _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(false, _shiftAssistActiveGearStackId, 0, 0, 0.0, 0.0, double.NaN, 0.0);
+                _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(false, _shiftAssistActiveGearStackId, 0, 0, 0.0, 0.0, double.NaN, 0.0, 0);
                 _shiftAssistLearnSavedPulseUntilUtc = DateTime.MinValue;
                 _shiftAssistDelayCaptureState = 0;
                 _shiftAssistDelayBeepType = "NONE";
@@ -6594,6 +6594,12 @@ namespace LaunchPlugin
                 ? lonAccelTelemetryMps2
                 : accelDerivedMps2;
 
+            int redlineRpm = 0;
+            if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) || redlineRpm <= 0)
+            {
+                TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_RedLineRPM", out redlineRpm);
+            }
+
             _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(
                 settings?.ShiftAssistLearningModeEnabled == true,
                 activeStackId,
@@ -6602,7 +6608,8 @@ namespace LaunchPlugin
                 throttle01,
                 brake01,
                 sessionTimeSec,
-                learningLonAccelMps2);
+                learningLonAccelMps2,
+                redlineRpm);
 
             if (_shiftAssistLastLearningTick != null &&
                 (_shiftAssistLastLearningTick.State == ShiftAssistLearningState.Sampling || _shiftAssistLastLearningTick.State == ShiftAssistLearningState.Complete))
@@ -6636,12 +6643,6 @@ namespace LaunchPlugin
             }
 
             int targetRpm = ActiveProfile?.GetShiftTargetForGear(activeStackId, effectiveGear) ?? 0;
-
-            int redlineRpm = 0;
-            if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) || redlineRpm <= 0)
-            {
-                TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_RedLineRPM", out redlineRpm);
-            }
 
             if (targetRpm <= 0)
             {
@@ -6893,7 +6894,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnCaptureMinRpm,LearnCapturedRpm,LearnEndReason,LearnRejectedReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState" + Environment.NewLine);
                     }
                 }
 
@@ -6903,6 +6904,11 @@ namespace LaunchPlugin
                 bool learnSampleAdded = learningTick?.SampleAdded == true;
                 int learnSamplesForGear = learningTick?.SamplesForGear ?? 0;
                 int learnLearnedRpmForGear = learningTick?.LearnedRpmForGear ?? 0;
+                int learnMinRpm = learningTick?.LearnMinRpm ?? 0;
+                int learnCaptureMinRpm = learningTick?.LearnCaptureMinRpm ?? 0;
+                int learnCapturedRpm = learningTick?.LearnCapturedRpm ?? 0;
+                string learnEndReason = !string.IsNullOrWhiteSpace(learningTick?.LearnEndReason) ? learningTick.LearnEndReason : "NONE";
+                string learnRejectedReason = !string.IsNullOrWhiteSpace(learningTick?.LearnRejectedReason) ? learningTick.LearnRejectedReason : "NONE";
                 long delayNowTs = Stopwatch.GetTimestamp();
                 int delayPending = _shiftAssistPendingDelayActive ? 1 : 0;
                 int delayPendingGear = _shiftAssistPendingDelayGear;
@@ -6922,7 +6928,7 @@ namespace LaunchPlugin
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -6949,6 +6955,11 @@ namespace LaunchPlugin
                     learnSampleAdded ? "1" : "0",
                     learnSamplesForGear,
                     learnLearnedRpmForGear,
+                    learnMinRpm,
+                    learnCaptureMinRpm,
+                    learnCapturedRpm,
+                    learnEndReason,
+                    learnRejectedReason,
                     delayPending,
                     delayPendingGear,
                     delayPendingAgeMs,
