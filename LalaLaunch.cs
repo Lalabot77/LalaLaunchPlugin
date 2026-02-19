@@ -6894,7 +6894,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnCaptureMinRpm,LearnCapturedRpm,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState" + Environment.NewLine);
                     }
                 }
 
@@ -6905,8 +6905,11 @@ namespace LaunchPlugin
                 int learnSamplesForGear = learningTick?.SamplesForGear ?? 0;
                 int learnLearnedRpmForGear = learningTick?.LearnedRpmForGear ?? 0;
                 int learnMinRpm = learningTick?.LearnMinRpm ?? 0;
+                int learnRedlineRpm = learningTick?.LearnRedlineRpm ?? 0;
                 int learnCaptureMinRpm = learningTick?.LearnCaptureMinRpm ?? 0;
                 int learnCapturedRpm = learningTick?.LearnCapturedRpm ?? 0;
+                int learnSampleRpmFinal = learningTick?.LearnSampleRpmFinal ?? 0;
+                int learnSampleRpmWasClamped = learningTick?.LearnSampleRpmWasClamped == true ? 1 : 0;
                 string learnEndReason = !string.IsNullOrWhiteSpace(learningTick?.LearnEndReason) ? learningTick.LearnEndReason : "NONE";
                 int learnEndWasUpshift = learningTick?.LearnEndWasUpshift == true ? 1 : 0;
                 string learnRejectedReason = !string.IsNullOrWhiteSpace(learningTick?.LearnRejectedReason) ? learningTick.LearnRejectedReason : "NONE";
@@ -6929,7 +6932,7 @@ namespace LaunchPlugin
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43},{44},{45}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -6957,8 +6960,11 @@ namespace LaunchPlugin
                     learnSamplesForGear,
                     learnLearnedRpmForGear,
                     learnMinRpm,
+                    learnRedlineRpm,
                     learnCaptureMinRpm,
                     learnCapturedRpm,
+                    learnSampleRpmFinal,
+                    learnSampleRpmWasClamped,
                     learnEndReason,
                     learnEndWasUpshift,
                     learnRejectedReason,
