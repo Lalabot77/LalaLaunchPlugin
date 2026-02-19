@@ -6594,11 +6594,10 @@ namespace LaunchPlugin
                 ? lonAccelTelemetryMps2
                 : accelDerivedMps2;
 
-            int redlineRpm = 0;
-            if (!TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) || redlineRpm <= 0)
-            {
-                TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_RedLineRPM", out redlineRpm);
-            }
+            int targetRpm = ActiveProfile?.GetShiftTargetForGear(activeStackId, effectiveGear) ?? 0;
+
+            string learnRedlineSource;
+            int redlineRpm = ResolveShiftAssistRedlineRpm(pluginManager, targetRpm, out learnRedlineSource);
 
             _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(
                 settings?.ShiftAssistLearningModeEnabled == true,
@@ -6641,8 +6640,6 @@ namespace LaunchPlugin
                     }
                 }
             }
-
-            int targetRpm = ActiveProfile?.GetShiftTargetForGear(activeStackId, effectiveGear) ?? 0;
 
             if (targetRpm <= 0)
             {
@@ -6728,7 +6725,7 @@ namespace LaunchPlugin
             }
 
             bool exportedBeepLatched = _shiftAssistBeepLatched;
-            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, effectiveGear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2, _shiftAssistLastLearningTick);
+            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, effectiveGear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2, _shiftAssistLastLearningTick, learnRedlineSource);
         }
 
         private int ResolveShiftAssistMaxForwardGears(PluginManager pluginManager)
@@ -6847,7 +6844,7 @@ namespace LaunchPlugin
             _shiftAssistDebugCsvFileTimestamp = null;
         }
 
-        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2, ShiftAssistLearningTick learningTick)
+        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2, ShiftAssistLearningTick learningTick, string learnRedlineSource)
         {
             if (Settings?.EnableShiftAssistDebugCsv != true)
             {
@@ -6894,7 +6891,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState" + Environment.NewLine);
                     }
                 }
 
@@ -6906,6 +6903,7 @@ namespace LaunchPlugin
                 int learnLearnedRpmForGear = learningTick?.LearnedRpmForGear ?? 0;
                 int learnMinRpm = learningTick?.LearnMinRpm ?? 0;
                 int learnRedlineRpm = learningTick?.LearnRedlineRpm ?? 0;
+                string learnRedlineSourceText = !string.IsNullOrWhiteSpace(learnRedlineSource) ? learnRedlineSource : "NONE";
                 int learnCaptureMinRpm = learningTick?.LearnCaptureMinRpm ?? 0;
                 int learnCapturedRpm = learningTick?.LearnCapturedRpm ?? 0;
                 int learnSampleRpmFinal = learningTick?.LearnSampleRpmFinal ?? 0;
@@ -6932,7 +6930,7 @@ namespace LaunchPlugin
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43},{44},{45}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43},{44},{45},{46}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -6961,6 +6959,7 @@ namespace LaunchPlugin
                     learnLearnedRpmForGear,
                     learnMinRpm,
                     learnRedlineRpm,
+                    learnRedlineSourceText,
                     learnCaptureMinRpm,
                     learnCapturedRpm,
                     learnSampleRpmFinal,
@@ -10186,6 +10185,44 @@ namespace LaunchPlugin
             }
         }
 
+        private static int ResolveShiftAssistRedlineRpm(PluginManager pluginManager, int targetRpm, out string source)
+        {
+            source = "NONE";
+            int redlineRpm;
+
+            if (TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_CurrentGearRedLineRPM", out redlineRpm) && redlineRpm > 0)
+            {
+                source = "CurrentGearRedLineRPM";
+                return redlineRpm;
+            }
+
+            if (TryReadNullableInt(pluginManager, "DataCorePlugin.GameData.CarSettings_RedLineRPM", out redlineRpm) && redlineRpm > 0)
+            {
+                source = "RedLineRPM";
+                return redlineRpm;
+            }
+
+            if (TryReadNullableInt(pluginManager, "DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarRedLine", out redlineRpm) && redlineRpm > 0)
+            {
+                source = "DriverCarRedLine";
+                return redlineRpm;
+            }
+
+            if (targetRpm > 0)
+            {
+                if (targetRpm >= 5000 && targetRpm <= 15000)
+                {
+                    source = "TargetRpmFallback";
+                    return targetRpm;
+                }
+
+                source = "TargetRpmFallbackRejected";
+                return 0;
+            }
+
+            return 0;
+        }
+
         private static bool TryReadNullableInt(PluginManager pluginManager, string propertyName, out int value)
         {
             value = 0;
@@ -10196,47 +10233,117 @@ namespace LaunchPlugin
 
             try
             {
-                object raw = pluginManager.GetPropertyValue(propertyName);
-                if (raw == null)
+                return TryReadNullableInt(pluginManager.GetPropertyValue(propertyName), out value);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool TryReadNullableInt(object raw, out int value)
+        {
+            value = 0;
+            if (raw == null)
+            {
+                return false;
+            }
+
+            if (raw is int intValue)
+            {
+                value = intValue;
+                return true;
+            }
+
+            if (raw is long longValue)
+            {
+                if (longValue < int.MinValue || longValue > int.MaxValue)
                 {
                     return false;
                 }
 
-                if (raw is int intValue)
+                value = (int)longValue;
+                return true;
+            }
+
+            if (raw is double doubleValue)
+            {
+                if (double.IsNaN(doubleValue) || double.IsInfinity(doubleValue))
                 {
-                    value = intValue;
+                    return false;
+                }
+
+                double rounded = Math.Round(doubleValue, MidpointRounding.AwayFromZero);
+                if (rounded < int.MinValue || rounded > int.MaxValue)
+                {
+                    return false;
+                }
+
+                value = (int)rounded;
+                return true;
+            }
+
+            if (raw is float floatValue)
+            {
+                if (float.IsNaN(floatValue) || float.IsInfinity(floatValue))
+                {
+                    return false;
+                }
+
+                double rounded = Math.Round(floatValue, MidpointRounding.AwayFromZero);
+                if (rounded < int.MinValue || rounded > int.MaxValue)
+                {
+                    return false;
+                }
+
+                value = (int)rounded;
+                return true;
+            }
+
+            if (raw is decimal decimalValue)
+            {
+                decimal rounded = Math.Round(decimalValue, 0, MidpointRounding.AwayFromZero);
+                if (rounded < int.MinValue || rounded > int.MaxValue)
+                {
+                    return false;
+                }
+
+                value = (int)rounded;
+                return true;
+            }
+
+            if (raw is string text)
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return false;
+                }
+
+                text = text.Trim();
+                if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
+                {
                     return true;
                 }
 
-                if (raw is short shortValue)
+                double parsedDouble;
+                if (double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsedDouble))
                 {
-                    value = shortValue;
-                    return true;
+                    return TryReadNullableInt(parsedDouble, out value);
                 }
 
-                if (raw is long longValue)
+                decimal parsedDecimal;
+                if (decimal.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out parsedDecimal))
                 {
-                    if (longValue < int.MinValue || longValue > int.MaxValue)
-                    {
-                        return false;
-                    }
-
-                    value = (int)longValue;
-                    return true;
-                }
-
-                if (raw is byte byteValue)
-                {
-                    value = byteValue;
-                    return true;
-                }
-
-                if (raw is string text)
-                {
-                    return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+                    return TryReadNullableInt(parsedDecimal, out value);
                 }
 
                 return false;
+            }
+
+            try
+            {
+                decimal converted = Convert.ToDecimal(raw, CultureInfo.InvariantCulture);
+                return TryReadNullableInt(converted, out value);
             }
             catch
             {
