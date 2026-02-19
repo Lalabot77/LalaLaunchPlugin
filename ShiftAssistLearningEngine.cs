@@ -27,8 +27,11 @@ namespace LaunchPlugin
         public int ApplyGear { get; set; }
         public int ApplyRpm { get; set; }
         public int LearnMinRpm { get; set; }
+        public int LearnRedlineRpm { get; set; }
         public int LearnCaptureMinRpm { get; set; }
         public int LearnCapturedRpm { get; set; }
+        public int LearnSampleRpmFinal { get; set; }
+        public bool LearnSampleRpmWasClamped { get; set; }
         public string LearnEndReason { get; set; }
         public string LearnRejectedReason { get; set; }
         public bool LearnEndWasUpshift { get; set; }
@@ -49,7 +52,6 @@ namespace LaunchPlugin
         private const int ReArmRpmDrop = 500;
         private const int AbsoluteMinLearnRpm = 2000;
         private const double LearnTrackMinRedlineRatio = 0.70;
-        private const double LearnCaptureMinRedlineRatio = 0.80;
         private const int RedlineHeadroomRpm = 300;
         private const int MinTicksSincePeakForCapture = 4;
         private const int DelayedRiseRpmAbovePeak = 250;
@@ -87,6 +89,7 @@ namespace LaunchPlugin
                 PeakRpm = _samplingPeakRpm,
                 LastSampleRpm = _lastTick.LastSampleRpm,
                 LearnMinRpm = learnMinRpm,
+                LearnRedlineRpm = redlineRpmForGear,
                 LearnCaptureMinRpm = captureMinRpm,
                 LearnCapturedRpm = _samplingCapturedRpm,
                 LearnEndWasUpshift = false
@@ -298,10 +301,20 @@ namespace LaunchPlugin
             tick.LearnEndWasUpshift = endWasUpshift;
             if (accepted)
             {
-                gearData.AddSample(sampleRpm);
+                int finalSampleRpm = sampleRpm;
+                bool sampleRpmWasClamped = false;
+                if (tick.LearnRedlineRpm > 0 && finalSampleRpm > tick.LearnRedlineRpm)
+                {
+                    finalSampleRpm = tick.LearnRedlineRpm;
+                    sampleRpmWasClamped = true;
+                }
+
+                gearData.AddSample(finalSampleRpm);
                 gearData.SetReArmRequired(_samplingPeakRpm);
                 tick.SampleAdded = true;
-                tick.LastSampleRpm = sampleRpm;
+                tick.LastSampleRpm = finalSampleRpm;
+                tick.LearnSampleRpmFinal = finalSampleRpm;
+                tick.LearnSampleRpmWasClamped = sampleRpmWasClamped;
                 tick.State = ShiftAssistLearningState.Complete;
                 tick.SamplesForGear = gearData.Count;
                 tick.LearnedRpmForGear = gearData.LearnedRpm;
@@ -332,7 +345,22 @@ namespace LaunchPlugin
 
         private int ComputeCaptureMinRpm(int effectiveGear, int redlineRpmForGear)
         {
-            return ComputeClampedMinRpm(effectiveGear, redlineRpmForGear, LearnCaptureMinRedlineRatio);
+            return ComputeClampedMinRpm(effectiveGear, redlineRpmForGear, GetCaptureMinRedlineRatio(effectiveGear));
+        }
+
+        private static double GetCaptureMinRedlineRatio(int effectiveGear)
+        {
+            if (effectiveGear <= 2)
+            {
+                return 0.80;
+            }
+
+            if (effectiveGear <= 4)
+            {
+                return 0.75;
+            }
+
+            return 0.70;
         }
 
         private int ComputeClampedMinRpm(int effectiveGear, int redlineRpmForGear, double ratio)
@@ -416,8 +444,11 @@ namespace LaunchPlugin
             _lastTick.ApplyGear = tick.ApplyGear;
             _lastTick.ApplyRpm = tick.ApplyRpm;
             _lastTick.LearnMinRpm = tick.LearnMinRpm;
+            _lastTick.LearnRedlineRpm = tick.LearnRedlineRpm;
             _lastTick.LearnCaptureMinRpm = tick.LearnCaptureMinRpm;
             _lastTick.LearnCapturedRpm = tick.LearnCapturedRpm;
+            _lastTick.LearnSampleRpmFinal = tick.LearnSampleRpmFinal;
+            _lastTick.LearnSampleRpmWasClamped = tick.LearnSampleRpmWasClamped;
             _lastTick.LearnEndReason = tick.LearnEndReason;
             _lastTick.LearnRejectedReason = tick.LearnRejectedReason;
             _lastTick.LearnEndWasUpshift = tick.LearnEndWasUpshift;
