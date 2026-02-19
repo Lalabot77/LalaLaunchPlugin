@@ -27,6 +27,7 @@ namespace LaunchPlugin
         public int ApplyGear { get; set; }
         public int ApplyRpm { get; set; }
         public int LearnMinRpm { get; set; }
+        public int LearnCaptureMinRpm { get; set; }
         public int LearnCapturedRpm { get; set; }
         public string LearnEndReason { get; set; }
         public string LearnRejectedReason { get; set; }
@@ -84,6 +85,7 @@ namespace LaunchPlugin
                 PeakRpm = _samplingPeakRpm,
                 LastSampleRpm = _lastTick.LastSampleRpm,
                 LearnMinRpm = learnMinRpm,
+                LearnCaptureMinRpm = captureMinRpm,
                 LearnCapturedRpm = _samplingCapturedRpm
             };
 
@@ -147,6 +149,7 @@ namespace LaunchPlugin
                 tick.ActiveGear = _samplingGear;
 
                 tick.LearnMinRpm = _samplingLearnMinRpm;
+                tick.LearnCaptureMinRpm = _samplingCaptureMinRpm;
                 bool samplingRpmReady = rpm >= _samplingLearnMinRpm;
                 if (samplingRpmReady)
                 {
@@ -267,8 +270,8 @@ namespace LaunchPlugin
             bool validPeak = IsFinite(_samplingPeakAccel) && _samplingPeakAccel > 0.0;
             int sampleRpm = _samplingCapturedRpm > 0 ? _samplingCapturedRpm : _samplingLastObservedRpm;
             bool validRpm = sampleRpm >= MinSaneRpm && sampleRpm <= MaxSaneRpm;
-            bool capturedInLearnWindow = _samplingCapturedRpm >= _samplingLearnMinRpm && _samplingCapturedRpm <= MaxSaneRpm;
-            bool gateEndWithoutValidCapture = string.Equals(endReason, "GateEnd", StringComparison.OrdinalIgnoreCase) && !capturedInLearnWindow;
+            bool capturedInCaptureWindow = _samplingCapturedRpm >= _samplingCaptureMinRpm && _samplingCapturedRpm <= MaxSaneRpm;
+            bool gateEndWithoutValidCapture = string.Equals(endReason, "GateEnd", StringComparison.OrdinalIgnoreCase) && !capturedInCaptureWindow;
 
             var gearData = _samplingGear >= 1 && _samplingGear <= GearCount ? stack.Gears[_samplingGear - 1] : null;
             bool outlierRejected = false;
@@ -400,6 +403,7 @@ namespace LaunchPlugin
             _lastTick.ApplyGear = tick.ApplyGear;
             _lastTick.ApplyRpm = tick.ApplyRpm;
             _lastTick.LearnMinRpm = tick.LearnMinRpm;
+            _lastTick.LearnCaptureMinRpm = tick.LearnCaptureMinRpm;
             _lastTick.LearnCapturedRpm = tick.LearnCapturedRpm;
             _lastTick.LearnEndReason = tick.LearnEndReason;
             _lastTick.LearnRejectedReason = tick.LearnRejectedReason;
