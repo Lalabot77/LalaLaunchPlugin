@@ -303,9 +303,11 @@ namespace LaunchPlugin
             {
                 int finalSampleRpm = sampleRpm;
                 bool sampleRpmWasClamped = false;
-                if (tick.LearnRedlineRpm > 0 && finalSampleRpm > tick.LearnRedlineRpm)
+                int clampRpm = tick.LearnRedlineRpm > 0 ? Math.Max(0, tick.LearnRedlineRpm - RedlineHeadroomRpm) : 0;
+
+                if (clampRpm > 0 && finalSampleRpm > clampRpm)
                 {
-                    finalSampleRpm = tick.LearnRedlineRpm;
+                    finalSampleRpm = clampRpm;
                     sampleRpmWasClamped = true;
                 }
 
