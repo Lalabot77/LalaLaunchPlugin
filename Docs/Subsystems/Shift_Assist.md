@@ -1,7 +1,7 @@
 # Shift Assist
 
-Validated against commit: 5f3630c  
-Last updated: 2026-02-17  
+Validated against commit: 7318ff6
+Last updated: 2026-02-19
 Branch: work
 
 ## Purpose
@@ -29,8 +29,8 @@ Branch: work
 6) On subsequent upshift, compute beep→shift delay sample and update rolling per-gear averages.
 
 ## Outputs (exports + logs)
-- Exports: `ShiftAssist.ActiveGearStackId`, `ShiftAssist.TargetRPM_CurrentGear`, `ShiftAssist.ShiftRPM_G1..G8`, `ShiftAssist.EffectiveTargetRPM_CurrentGear`, `ShiftAssist.RpmRate`, `ShiftAssist.Beep`, `ShiftAssist.Learn.Enabled`, `ShiftAssist.Learn.State`, `ShiftAssist.Learn.ActiveGear`, `ShiftAssist.Learn.WindowMs`, `ShiftAssist.Learn.PeakAccelMps2`, `ShiftAssist.Learn.PeakRpm`, `ShiftAssist.Learn.LastSampleRpm`, `ShiftAssist.Learn.SavedPulse`, `ShiftAssist.Learn.Samples_G1..G8`, `ShiftAssist.Learn.LearnedRpm_G1..G8`, `ShiftAssist.Learn.Locked_G1..G8`, `ShiftAssist.State`, `ShiftAssist.Debug.AudioDelayMs`, `ShiftAssist.Debug.AudioDelayAgeMs`, `ShiftAssist.Debug.AudioIssued`, `ShiftAssist.Debug.AudioBackend`, `ShiftAssist.Debug.CsvEnabled`, `ShiftAssist.DelayAvg_G1..G8`, `ShiftAssist.DelayN_G1..G8`.
-- Logs: enable/toggle/debug-csv transitions, learning reset, active-stack reset/lock action outcomes, beep trigger context (including urgent/primary type and suppression flags), test beep, delay sample capture/reset, optional audio-delay telemetry, custom/default sound choice, and audio warning/error paths.
+- Exports: `ShiftAssist.ActiveGearStackId`, `ShiftAssist.TargetRPM_CurrentGear`, `ShiftAssist.ShiftRPM_G1..G8`, `ShiftAssist.EffectiveTargetRPM_CurrentGear`, `ShiftAssist.RpmRate`, `ShiftAssist.Beep`, `ShiftAssist.ShiftLightEnabled`, `ShiftAssist.Learn.Enabled`, `ShiftAssist.Learn.State`, `ShiftAssist.Learn.ActiveGear`, `ShiftAssist.Learn.WindowMs`, `ShiftAssist.Learn.PeakAccelMps2`, `ShiftAssist.Learn.PeakRpm`, `ShiftAssist.Learn.LastSampleRpm`, `ShiftAssist.Learn.SavedPulse`, `ShiftAssist.Learn.Samples_G1..G8`, `ShiftAssist.Learn.LearnedRpm_G1..G8`, `ShiftAssist.Learn.Locked_G1..G8`, `ShiftAssist.State`, `ShiftAssist.Debug.AudioDelayMs`, `ShiftAssist.Debug.AudioDelayAgeMs`, `ShiftAssist.Debug.AudioIssued`, `ShiftAssist.Debug.AudioBackend`, `ShiftAssist.Debug.CsvEnabled`, `ShiftAssist.DelayAvg_G1..G8`, `ShiftAssist.DelayN_G1..G8`, `ShiftAssist.Delay.Pending`, `ShiftAssist.Delay.PendingGear`, `ShiftAssist.Delay.PendingAgeMs`, `ShiftAssist.Delay.PendingRpmAtCue`, `ShiftAssist.Delay.RpmAtBeep`, `ShiftAssist.Delay.CaptureState`.
+- Logs: enable/toggle/debug-csv transitions, learning reset, active-stack reset/lock/apply-learned action outcomes, beep trigger context (including urgent/primary type and suppression flags), test beep, delay sample capture/reset, optional audio-delay telemetry, custom/default sound choice, and audio warning/error paths.
 
 ## Dependencies / ordering assumptions
 - Runs from `LalaLaunch.DataUpdate` once per tick after settings/profile resolution.

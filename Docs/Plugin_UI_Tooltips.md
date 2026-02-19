@@ -1,7 +1,7 @@
 # Plugin UI Tooltips
 
-Validated against commit: 5f3630c  
-Last updated: 2026-02-17  
+Validated against commit: 7318ff6
+Last updated: 2026-02-19
 Branch: work
 
 ## CopyProfileDialog.xaml
@@ -268,12 +268,15 @@ Branch: work
 - L775: Computed deltas between wet and dry averages for this track.
 
 ## Shift Assist controls
-- `ProfilesManagerView.xaml` L211: `Enable Shift Assist` toggle exists without a tooltip string.
-- `ProfilesManagerView.xaml` L212-L213: `Learning mode` tooltip enables shift-point learning data mining and learning overlay exports.
-- `ProfilesManagerView.xaml` L223-L224: `Shift Light Duration (ms)` tooltip explains it controls `ShiftAssist.Beep` latch window only.
-- `ProfilesManagerView.xaml` L226-L227: `Lead time (ms)` label/textbox exist without tooltip text.
-- `ProfilesManagerView.xaml` L230: `Beep sound` toggle exists without a tooltip string.
-- `ProfilesManagerView.xaml` L237-L248: `Beep volume` label/slider tooltip notes volume control is not implemented yet (SimHub master volume used).
-- `ProfilesManagerView.xaml` L257-L319: gear stack selection/copy, target grid, and custom sound controls mostly have no tooltip strings.
+- `ProfilesManagerView.xaml` L219: `Enable Shift Assist` toggle exists without a tooltip string.
+- `ProfilesManagerView.xaml` L220-L221: `Learning mode` tooltip explains shift-point data mining and learning-overlay visibility.
+- `ProfilesManagerView.xaml` L234-L238: `Shift Light` toggle has tooltip clarifying it gates `ShiftAssist.Beep` dash visibility/export semantics.
+- `ProfilesManagerView.xaml` L240-L244: `Shift Light Duration (ms)` tooltip clarifies this controls the `ShiftAssist.Beep` latch only, not WAV playback length.
+- `ProfilesManagerView.xaml` L290: `Shift Sound` toggle exists without a tooltip string.
+- `ProfilesManagerView.xaml` L309: `Test Sound` button exists without a tooltip string.
+- `ProfilesManagerView.xaml` L310-L321: `Beep volume` label/slider tooltip notes volume control is not implemented yet (SimHub master volume used).
+- `ProfilesManagerView.xaml` L331-L345: gear stack selector + Add/Save/Delete buttons include tooltips on action buttons, but selector itself has no tooltip.
+- `ProfilesManagerView.xaml` L347-L423: shift target grid and learning/runtime stat panel are mostly label-only with no tooltip strings.
+- `ProfilesManagerView.xaml` L433-L492: custom WAV controls include tooltip on path textbox and browse button, while some adjacent labels/buttons remain tooltip-free.
 - `GlobalSettingsView.xaml` L191-L195: `Shift Assist Debug CSV` tooltip explains per-tick diagnostic CSV logging.
 - `GlobalSettingsView.xaml` L196-L200: `Shift Assist Debug Max Hz` textbox tooltip documents valid range (1..60 Hz).

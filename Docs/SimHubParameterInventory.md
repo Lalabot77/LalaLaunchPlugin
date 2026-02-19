@@ -2,9 +2,9 @@
 
 **CANONICAL CONTRACT**
 
-Validated against: 5f3630c  
-Last reviewed: 2026-02-17  
-Last updated: 2026-02-17  
+Validated against: 7318ff6
+Last reviewed: 2026-02-19
+Last updated: 2026-02-19
 Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
@@ -218,6 +218,7 @@ Branch: work
 | ShiftAssist.EffectiveTargetRPM_CurrentGear | int | Effective target RPM after predictive lead-time adjustment, using the same chosen target source as `ShiftAssist.TargetRPM_CurrentGear` (profile target or redline fallback). | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
 | ShiftAssist.RpmRate | int | RPM/sec estimate used by predictive cueing; `0` when unavailable/guarded. | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
 | ShiftAssist.Beep | bool | True during configurable beep latch window (default 250 ms, clamp 100..1000 ms; dash flash fallback/testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.ShiftLightEnabled | int | `1` when Shift Light visibility/export is enabled in profile settings, else `0`; used by dashboards to gate ShiftAssist flash cues independently of audio. | Per tick. | `LalaLaunch.cs` settings bridge + `AttachCore`. |
 | ShiftAssist.Learn.Enabled | int | Learning mode state exported as `1`/`0` for dash overlays and learning workflows. | Per tick. | `LalaLaunch.cs` settings bridge + `AttachCore`. |
 | ShiftAssist.Learn.State | string | Learning state machine state (`Off`, `Armed`, `Sampling`, `Complete`, `Rejected`). | Per tick. | `ShiftAssistLearningEngine.cs` tick state + `LalaLaunch.cs` export. |
 | ShiftAssist.Learn.ActiveGear | int | Source gear currently being sampled by learning mode (`0` when inactive). | Per tick. | `ShiftAssistLearningEngine.cs` tick output + `LalaLaunch.cs` export. |
@@ -236,6 +237,12 @@ Branch: work
 | ShiftAssist.Debug.CsvEnabled | int | Reflects runtime debug CSV toggle state (`1`/`0`) for dashboard visibility and quick troubleshooting. | Per tick. | `LalaLaunch.cs` settings bridge + `AttachCore`. |
 | ShiftAssist.DelayAvg_G1..ShiftAssist.DelayAvg_G8 | int | Runtime rolling average beep→upshift delay (ms) per source gear, over last 5 valid samples. | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
 | ShiftAssist.DelayN_G1..ShiftAssist.DelayN_G8 | int | Runtime sample count currently included in each per-gear rolling average (0..5). | Per tick. | `LalaLaunch.cs` runtime delay tracker + `AttachCore`. |
+| ShiftAssist.Delay.Pending | int | `1` while a primary-beep delay capture window is armed awaiting a qualifying upshift sample; otherwise `0`. | Per tick. | `LalaLaunch.cs` pending delay tracker + `AttachCore`. |
+| ShiftAssist.Delay.PendingGear | int | Source gear currently armed for pending delay capture (`0` when no capture is armed). | Per tick. | `LalaLaunch.cs` pending delay tracker + `AttachCore`. |
+| ShiftAssist.Delay.PendingAgeMs | int | Elapsed milliseconds since pending delay capture was armed (`-1` when inactive). | Per tick. | `LalaLaunch.cs` pending delay timer helper + `AttachCore`. |
+| ShiftAssist.Delay.PendingRpmAtCue | int | RPM captured at the moment the pending delay window was armed. | Per tick. | `LalaLaunch.cs` pending delay tracker + `AttachCore`. |
+| ShiftAssist.Delay.RpmAtBeep | int | Last latched RPM at beep trigger time (primary beep path). | Per tick. | `LalaLaunch.cs` beep/delay diagnostics latch + `AttachCore`. |
+| ShiftAssist.Delay.CaptureState | int | Encoded capture state for delay diagnostics (`0` none, `1` arm, `2` capture, `3` timeout, `4` cancelled/downshift). | Per tick. | `LalaLaunch.cs` delay diagnostics mapper + `AttachCore`. |
 | ShiftAssist UI gear rows | n/a | Profile storage remains 8 slots, but UI only shows up-shiftable gears `1..(maxForwardGears-1)` where max forward gears comes from `DataCorePlugin.GameData.CarSettings_MaxGears`, then `DataCorePlugin.GameRawData.SessionData.DriverInfo.DriverCarGearNumForward`, then defaults to `8`. | On profile/UI refresh. | `ProfilesManagerViewModel.cs` — `ShiftAssistMaxTargetGears` + `ShiftGearRows`. |
 
 ## Session / Identity
