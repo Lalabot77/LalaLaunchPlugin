@@ -10210,8 +10210,14 @@ namespace LaunchPlugin
 
             if (targetRpm > 0)
             {
-                source = "TargetRpmFallback";
-                return targetRpm;
+                if (targetRpm >= 5000 && targetRpm <= 15000)
+                {
+                    source = "TargetRpmFallback";
+                    return targetRpm;
+                }
+
+                source = "TargetRpmFallbackRejected";
+                return 0;
             }
 
             return 0;
