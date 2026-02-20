@@ -308,7 +308,7 @@
                                     </Grid.ColumnDefinitions>
                                     <styles:SHButtonPrimary Grid.Column="0" Content="Test Sound" Command="{Binding ShiftTestBeepCommand}" MinWidth="90"/>
                                     <TextBlock Grid.Column="2" Text="Beep volume" VerticalAlignment="Center" Margin="0,0,8,0"
-                               ToolTip="Not implemented yet. Uses SimHub master volume."/>
+                               ToolTip="Attenuates Shift Assist beep volume independently from SimHub master volume."/>
                                     <Slider Grid.Column="3"
                             VerticalAlignment="Center"
                             Minimum="0"
@@ -316,15 +316,12 @@
                             TickFrequency="1"
                             IsSnapToTickEnabled="True"
                             Value="{Binding ShiftAssistBeepVolumePct, Mode=TwoWay}"
-                            IsEnabled="False"
-                            Opacity="0.6"
-                            ToolTip="Not implemented yet. Uses SimHub master volume."/>
+                            ToolTip="Attenuates Shift Assist beep volume independently from SimHub master volume."/>
                                     <TextBlock Grid.Column="4"
                                Text="{Binding ShiftAssistBeepVolumePct, StringFormat={}{0}%}"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
-                               MinWidth="48"
-                               Opacity="0.6"/>
+                               MinWidth="48"/>
                                 </Grid>
                             </Grid>
 

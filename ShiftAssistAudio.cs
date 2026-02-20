@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Media;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace LaunchPlugin
 {
@@ -24,6 +26,12 @@ namespace LaunchPlugin
         private string _embeddedResourceName;
         private SoundPlayer _player;
         private string _playerPath;
+        private int _lastVolumePct;
+        private string _lastSourcePathUsedForScaling;
+        private DateTime _lastSourceWriteUtc;
+        private string _lastScaledPath;
+        private bool _warnedUnsupportedScaling;
+        private bool _warnedScaledFallback;
 
         public ShiftAssistAudio(Func<LaunchPluginSettings> settingsProvider)
         {
@@ -146,40 +154,67 @@ namespace LaunchPlugin
                 }
             }
 
-            string path = ResolvePlaybackPath(out bool usingCustom);
-            if (string.IsNullOrWhiteSpace(path))
+            string sourcePath = ResolvePlaybackPath(out bool usingCustom);
+            if (string.IsNullOrWhiteSpace(sourcePath))
             {
                 return false;
             }
 
-            string absolutePath = ToAbsolutePath(path);
-            if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))
+            string absoluteSourcePath = ToAbsolutePath(sourcePath);
+            if (string.IsNullOrWhiteSpace(absoluteSourcePath) || !File.Exists(absoluteSourcePath))
             {
                 return false;
             }
 
-            MaybeLogSoundChoice(absolutePath, usingCustom);
+            int volumePct = Math.Max(0, Math.Min(100, settings?.ShiftAssistBeepVolumePct ?? 100));
+            string playbackPath = volumePct >= 100
+                ? absoluteSourcePath
+                : EnsureScaledWav(absoluteSourcePath, volumePct);
+
+            MaybeLogSoundChoice(absoluteSourcePath, usingCustom);
 
             try
             {
-                lock (_playerSync)
+                if (!TryPlayPath(playbackPath, out issuedUtc) && !string.Equals(playbackPath, absoluteSourcePath, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (_player == null || !string.Equals(_playerPath, absolutePath, StringComparison.OrdinalIgnoreCase))
+                    if (!_warnedScaledFallback)
                     {
-                        _player = new SoundPlayer(absolutePath);
-                        _player.Load();
-                        _playerPath = absolutePath;
+                        _warnedScaledFallback = true;
+                        SimHub.Logging.Current.Warn("[LalaPlugin:ShiftAssist] WARNING scaled beep failed; falling back to original. error='playback failure'");
                     }
 
-                    issuedUtc = DateTime.UtcNow;
-                    _player.Play();
-                    return true;
+                    return TryPlayPath(absoluteSourcePath, out issuedUtc);
                 }
+
+                return issuedUtc != DateTime.MinValue;
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{absolutePath}': {ex.Message}");
+                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{playbackPath}': {ex.Message}");
                 return false;
+            }
+        }
+
+        private bool TryPlayPath(string path, out DateTime issuedUtc)
+        {
+            issuedUtc = DateTime.MinValue;
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                return false;
+            }
+
+            lock (_playerSync)
+            {
+                if (_player == null || !string.Equals(_playerPath, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    _player = new SoundPlayer(path);
+                    _player.Load();
+                    _playerPath = path;
+                }
+
+                issuedUtc = DateTime.UtcNow;
+                _player.Play();
+                return true;
             }
         }
 
@@ -271,6 +306,179 @@ namespace LaunchPlugin
         public void Dispose()
         {
             HardStop();
+        }
+
+        private string EnsureScaledWav(string sourcePath, int volumePct)
+        {
+            if (volumePct >= 100)
+            {
+                return sourcePath;
+            }
+
+            try
+            {
+                var sourceInfo = new FileInfo(sourcePath);
+                DateTime writeUtc = sourceInfo.LastWriteTimeUtc;
+                if (string.Equals(_lastSourcePathUsedForScaling, sourcePath, StringComparison.OrdinalIgnoreCase)
+                    && _lastVolumePct == volumePct
+                    && _lastSourceWriteUtc == writeUtc
+                    && !string.IsNullOrWhiteSpace(_lastScaledPath)
+                    && File.Exists(_lastScaledPath))
+                {
+                    return _lastScaledPath;
+                }
+
+                string scaledRoot = Path.Combine(PluginStorage.GetCommonFolder(), "LalaPlugin", "ShiftAssist", "Scaled");
+                Directory.CreateDirectory(scaledRoot);
+                string cacheKey = $"{sourcePath}|{sourceInfo.Length}|{writeUtc.Ticks}|{volumePct}";
+                string hash = ComputeSha256(cacheKey);
+                string finalPath = Path.Combine(scaledRoot, hash + ".wav");
+                if (File.Exists(finalPath))
+                {
+                    _lastVolumePct = volumePct;
+                    _lastSourcePathUsedForScaling = sourcePath;
+                    _lastSourceWriteUtc = writeUtc;
+                    _lastScaledPath = finalPath;
+                    return finalPath;
+                }
+
+                string tempPath = finalPath + ".tmp";
+                ScalePcm16Wav(sourcePath, tempPath, volumePct / 100f);
+                if (File.Exists(finalPath))
+                {
+                    File.Delete(finalPath);
+                }
+
+                File.Move(tempPath, finalPath);
+
+                _lastVolumePct = volumePct;
+                _lastSourcePathUsedForScaling = sourcePath;
+                _lastSourceWriteUtc = writeUtc;
+                _lastScaledPath = finalPath;
+                return finalPath;
+            }
+            catch (NotSupportedException)
+            {
+                if (!_warnedUnsupportedScaling)
+                {
+                    _warnedUnsupportedScaling = true;
+                    SimHub.Logging.Current.Warn("[LalaPlugin:ShiftAssist] WARNING beep volume scaling unsupported for this WAV format. Playing original at SimHub volume.");
+                }
+
+                return sourcePath;
+            }
+            catch (Exception ex)
+            {
+                if (!_warnedScaledFallback)
+                {
+                    _warnedScaledFallback = true;
+                    SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] WARNING scaled beep failed; falling back to original. error='{ex.Message}'");
+                }
+
+                return sourcePath;
+            }
+        }
+
+        private static string ComputeSha256(string input)
+        {
+            byte[] bytes = Encoding.UTF8.GetBytes(input);
+            using (var sha = SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(bytes);
+                var sb = new StringBuilder(hash.Length * 2);
+                foreach (byte b in hash)
+                {
+                    sb.Append(b.ToString("x2"));
+                }
+
+                return sb.ToString();
+            }
+        }
+
+        private static void ScalePcm16Wav(string sourcePath, string destinationPath, float gain)
+        {
+            using (var input = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var reader = new BinaryReader(input))
+            {
+                if (input.Length < 12)
+                {
+                    throw new NotSupportedException("Invalid WAV header");
+                }
+
+                string riff = Encoding.ASCII.GetString(reader.ReadBytes(4));
+                reader.ReadUInt32();
+                string wave = Encoding.ASCII.GetString(reader.ReadBytes(4));
+                if (!string.Equals(riff, "RIFF", StringComparison.Ordinal) || !string.Equals(wave, "WAVE", StringComparison.Ordinal))
+                {
+                    throw new NotSupportedException("Not a RIFF/WAVE file");
+                }
+
+                long dataOffset = -1;
+                int dataSize = 0;
+                short audioFormat = 0;
+                short bitsPerSample = 0;
+
+                while (input.Position + 8 <= input.Length)
+                {
+                    string chunkId = Encoding.ASCII.GetString(reader.ReadBytes(4));
+                    int chunkSize = reader.ReadInt32();
+                    long chunkDataStart = input.Position;
+                    if (chunkSize < 0 || chunkDataStart + chunkSize > input.Length)
+                    {
+                        throw new NotSupportedException("Invalid WAV chunk");
+                    }
+
+                    if (string.Equals(chunkId, "fmt ", StringComparison.Ordinal))
+                    {
+                        if (chunkSize < 16)
+                        {
+                            throw new NotSupportedException("Invalid fmt chunk");
+                        }
+
+                        audioFormat = reader.ReadInt16();
+                        reader.ReadInt16(); // channels
+                        reader.ReadInt32(); // sampleRate
+                        reader.ReadInt32(); // byteRate
+                        reader.ReadInt16(); // blockAlign
+                        bitsPerSample = reader.ReadInt16();
+                    }
+                    else if (string.Equals(chunkId, "data", StringComparison.Ordinal))
+                    {
+                        dataOffset = chunkDataStart;
+                        dataSize = chunkSize;
+                    }
+
+                    input.Position = chunkDataStart + chunkSize + (chunkSize % 2);
+                }
+
+                if (audioFormat != 1 || bitsPerSample != 16 || dataOffset < 0 || dataSize <= 0 || (dataSize % 2) != 0)
+                {
+                    throw new NotSupportedException("Unsupported WAV format");
+                }
+
+                byte[] fileBytes = File.ReadAllBytes(sourcePath);
+                int start = checked((int)dataOffset);
+                int end = start + dataSize;
+                for (int i = start; i < end; i += 2)
+                {
+                    short sample = (short)(fileBytes[i] | (fileBytes[i + 1] << 8));
+                    int scaled = (int)Math.Round(sample * gain);
+                    if (scaled > short.MaxValue)
+                    {
+                        scaled = short.MaxValue;
+                    }
+                    else if (scaled < short.MinValue)
+                    {
+                        scaled = short.MinValue;
+                    }
+
+                    short outputSample = (short)scaled;
+                    fileBytes[i] = (byte)(outputSample & 0xFF);
+                    fileBytes[i + 1] = (byte)((outputSample >> 8) & 0xFF);
+                }
+
+                File.WriteAllBytes(destinationPath, fileBytes);
+            }
         }
     }
 }
