@@ -193,6 +193,62 @@ namespace LaunchPlugin
             return issuedUtc != DateTime.MinValue;
         }
 
+        public bool TryPlayBeepWithVolumeOverride(int volumePctOverride, out DateTime issuedUtc)
+        {
+            issuedUtc = DateTime.MinValue;
+
+            var settings = _settingsProvider?.Invoke();
+            if (settings != null && !settings.ShiftAssistBeepSoundEnabled)
+            {
+                HardStop();
+                return false;
+            }
+
+            int volumePct = Math.Max(0, Math.Min(100, volumePctOverride));
+            if (volumePct <= 0)
+            {
+                HardStop();
+                return false;
+            }
+
+            string sourcePath = ResolvePlaybackPath(out bool usingCustom);
+            if (string.IsNullOrWhiteSpace(sourcePath))
+            {
+                return false;
+            }
+
+            string absoluteSourcePath = ToAbsolutePath(sourcePath);
+            if (string.IsNullOrWhiteSpace(absoluteSourcePath) || !File.Exists(absoluteSourcePath))
+            {
+                return false;
+            }
+
+            string playbackPath = volumePct >= 100
+                ? absoluteSourcePath
+                : EnsureScaledWav(absoluteSourcePath, volumePct);
+
+            MaybeLogSoundChoice(absoluteSourcePath, usingCustom);
+
+            if (!TryPlayPath(playbackPath, out issuedUtc, out string playbackError))
+            {
+                if (!string.Equals(playbackPath, absoluteSourcePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!_warnedScaledFallback)
+                    {
+                        _warnedScaledFallback = true;
+                        SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] WARNING scaled beep failed; falling back to original. error='{playbackError}'");
+                    }
+
+                    return TryPlayPath(absoluteSourcePath, out issuedUtc, out _);
+                }
+
+                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{playbackPath}': {playbackError}");
+                return false;
+            }
+
+            return issuedUtc != DateTime.MinValue;
+        }
+
         private bool TryPlayPath(string path, out DateTime issuedUtc, out string error)
         {
             issuedUtc = DateTime.MinValue;
