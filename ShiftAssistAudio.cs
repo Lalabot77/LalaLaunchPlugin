@@ -173,48 +173,63 @@ namespace LaunchPlugin
 
             MaybeLogSoundChoice(absoluteSourcePath, usingCustom);
 
-            try
+            if (!TryPlayPath(playbackPath, out issuedUtc, out string playbackError))
             {
-                if (!TryPlayPath(playbackPath, out issuedUtc) && !string.Equals(playbackPath, absoluteSourcePath, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(playbackPath, absoluteSourcePath, StringComparison.OrdinalIgnoreCase))
                 {
                     if (!_warnedScaledFallback)
                     {
                         _warnedScaledFallback = true;
-                        SimHub.Logging.Current.Warn("[LalaPlugin:ShiftAssist] WARNING scaled beep failed; falling back to original. error='playback failure'");
+                        SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] WARNING scaled beep failed; falling back to original. error='{playbackError}'");
                     }
 
-                    return TryPlayPath(absoluteSourcePath, out issuedUtc);
+                    return TryPlayPath(absoluteSourcePath, out issuedUtc, out _);
                 }
 
-                return issuedUtc != DateTime.MinValue;
+                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{playbackPath}': {playbackError}");
+                return false;
+            }
+
+            return issuedUtc != DateTime.MinValue;
+        }
+
+        private bool TryPlayPath(string path, out DateTime issuedUtc, out string error)
+        {
+            issuedUtc = DateTime.MinValue;
+            error = null;
+
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                error = "empty playback path";
+                return false;
+            }
+
+            if (!File.Exists(path))
+            {
+                error = "playback file missing";
+                return false;
+            }
+
+            try
+            {
+                lock (_playerSync)
+                {
+                    if (_player == null || !string.Equals(_playerPath, path, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _player = new SoundPlayer(path);
+                        _player.Load();
+                        _playerPath = path;
+                    }
+
+                    issuedUtc = DateTime.UtcNow;
+                    _player.Play();
+                    return true;
+                }
             }
             catch (Exception ex)
             {
-                SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{playbackPath}': {ex.Message}");
+                error = ex.Message;
                 return false;
-            }
-        }
-
-        private bool TryPlayPath(string path, out DateTime issuedUtc)
-        {
-            issuedUtc = DateTime.MinValue;
-            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            {
-                return false;
-            }
-
-            lock (_playerSync)
-            {
-                if (_player == null || !string.Equals(_playerPath, path, StringComparison.OrdinalIgnoreCase))
-                {
-                    _player = new SoundPlayer(path);
-                    _player.Load();
-                    _playerPath = path;
-                }
-
-                issuedUtc = DateTime.UtcNow;
-                _player.Play();
-                return true;
             }
         }
 
@@ -343,13 +358,20 @@ namespace LaunchPlugin
                 }
 
                 string tempPath = finalPath + ".tmp";
-                ScalePcm16Wav(sourcePath, tempPath, volumePct / 100f);
-                if (File.Exists(finalPath))
+                try
                 {
-                    File.Delete(finalPath);
-                }
+                    ScalePcm16Wav(sourcePath, tempPath, volumePct / 100f);
+                    if (File.Exists(finalPath))
+                    {
+                        File.Delete(finalPath);
+                    }
 
-                File.Move(tempPath, finalPath);
+                    File.Move(tempPath, finalPath);
+                }
+                finally
+                {
+                    TryDeleteFile(tempPath);
+                }
 
                 _lastVolumePct = volumePct;
                 _lastSourcePathUsedForScaling = sourcePath;
@@ -376,6 +398,21 @@ namespace LaunchPlugin
                 }
 
                 return sourcePath;
+            }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            catch
+            {
+                // best effort cleanup only
             }
         }
 
