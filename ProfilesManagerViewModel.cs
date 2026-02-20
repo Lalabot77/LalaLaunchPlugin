@@ -63,6 +63,8 @@ namespace LaunchPlugin
         private readonly Action<bool> _setShiftAssistBeepSoundEnabled;
         private readonly Func<int> _getShiftAssistBeepVolumePct;
         private readonly Action<int> _setShiftAssistBeepVolumePct;
+        private readonly Func<bool> _getShiftAssistUrgentEnabled;
+        private readonly Action<bool> _setShiftAssistUrgentEnabled;
         private readonly Action _playShiftAssistTestBeep;
         private readonly Action _shiftAssistResetLearningAction;
         private readonly Action _shiftAssistResetTargetsAction;
@@ -664,6 +666,16 @@ namespace LaunchPlugin
             }
         }
 
+        public bool ShiftAssistUrgentEnabled
+        {
+            get => _getShiftAssistUrgentEnabled?.Invoke() != false;
+            set
+            {
+                _setShiftAssistUrgentEnabled?.Invoke(value);
+                OnPropertyChanged();
+            }
+        }
+
         private string _selectedShiftStackId = "Default";
         public string SelectedShiftStackId
         {
@@ -1131,7 +1143,7 @@ namespace LaunchPlugin
         public RelayCommand ShiftApplyLearnedOverrideCommand { get; }
 
 
-        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey, Func<string> getCurrentGearStackId, Action<string> setCurrentGearStackId, Func<bool> getShiftAssistEnabled, Action<bool> setShiftAssistEnabled, Func<bool> getShiftAssistLearningModeEnabled, Action<bool> setShiftAssistLearningModeEnabled, Func<int> getShiftAssistBeepDurationMs, Action<int> setShiftAssistBeepDurationMs, Func<bool> getShiftAssistLightEnabled, Action<bool> setShiftAssistLightEnabled, Func<int> getShiftAssistLeadTimeMs, Action<int> setShiftAssistLeadTimeMs, Func<bool> getShiftAssistUseCustomWav, Action<bool> setShiftAssistUseCustomWav, Func<string> getShiftAssistCustomWavPath, Action<string> setShiftAssistCustomWavPath, Func<bool> getShiftAssistBeepSoundEnabled, Action<bool> setShiftAssistBeepSoundEnabled, Func<int> getShiftAssistBeepVolumePct, Action<int> setShiftAssistBeepVolumePct, Action playShiftAssistTestBeep, Action shiftAssistResetLearningAction, Action shiftAssistResetTargetsAction, Action shiftAssistResetTargetsAndLearningAction, Action shiftAssistResetDelayStatsAction, Action shiftAssistApplyLearnedOverrideAction)
+        public ProfilesManagerViewModel(PluginManager pluginManager, Action<CarProfile> applyProfileToLiveAction, Func<string> getCurrentCarModel, Func<string> getCurrentTrackName, Func<string, TrackMarkersSnapshot> getTrackMarkersSnapshotForKey, Action<string, bool> setTrackMarkersLockForKey, Action reloadTrackMarkersFromDisk, Action<string> resetTrackMarkersForKey, Func<string> getCurrentGearStackId, Action<string> setCurrentGearStackId, Func<bool> getShiftAssistEnabled, Action<bool> setShiftAssistEnabled, Func<bool> getShiftAssistLearningModeEnabled, Action<bool> setShiftAssistLearningModeEnabled, Func<int> getShiftAssistBeepDurationMs, Action<int> setShiftAssistBeepDurationMs, Func<bool> getShiftAssistLightEnabled, Action<bool> setShiftAssistLightEnabled, Func<int> getShiftAssistLeadTimeMs, Action<int> setShiftAssistLeadTimeMs, Func<bool> getShiftAssistUseCustomWav, Action<bool> setShiftAssistUseCustomWav, Func<string> getShiftAssistCustomWavPath, Action<string> setShiftAssistCustomWavPath, Func<bool> getShiftAssistBeepSoundEnabled, Action<bool> setShiftAssistBeepSoundEnabled, Func<int> getShiftAssistBeepVolumePct, Action<int> setShiftAssistBeepVolumePct, Func<bool> getShiftAssistUrgentEnabled, Action<bool> setShiftAssistUrgentEnabled, Action playShiftAssistTestBeep, Action shiftAssistResetLearningAction, Action shiftAssistResetTargetsAction, Action shiftAssistResetTargetsAndLearningAction, Action shiftAssistResetDelayStatsAction, Action shiftAssistApplyLearnedOverrideAction)
         {
             _pluginManager = pluginManager;
             _applyProfileToLiveAction = applyProfileToLiveAction;
@@ -1161,6 +1173,8 @@ namespace LaunchPlugin
             _setShiftAssistBeepSoundEnabled = setShiftAssistBeepSoundEnabled;
             _getShiftAssistBeepVolumePct = getShiftAssistBeepVolumePct;
             _setShiftAssistBeepVolumePct = setShiftAssistBeepVolumePct;
+            _getShiftAssistUrgentEnabled = getShiftAssistUrgentEnabled;
+            _setShiftAssistUrgentEnabled = setShiftAssistUrgentEnabled;
             _playShiftAssistTestBeep = playShiftAssistTestBeep;
             _shiftAssistResetLearningAction = shiftAssistResetLearningAction;
             _shiftAssistResetTargetsAction = shiftAssistResetTargetsAction;

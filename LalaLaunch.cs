@@ -815,6 +815,27 @@ namespace LaunchPlugin
             return value;
         }
 
+        private bool IsShiftAssistUrgentEnabled()
+        {
+            return Settings?.ShiftAssistUrgentEnabled != false;
+        }
+
+        private int GetShiftAssistUrgentMinGapMs()
+        {
+            int value = Settings?.ShiftAssistUrgentMinGapMs ?? ShiftAssistUrgentMinGapMsDefault;
+            if (value < ShiftAssistUrgentMinGapMsMin) value = ShiftAssistUrgentMinGapMsMin;
+            if (value > ShiftAssistUrgentMinGapMsMax) value = ShiftAssistUrgentMinGapMsMax;
+            return value;
+        }
+
+        private int GetShiftAssistUrgentVolumePct()
+        {
+            int value = Settings?.ShiftAssistUrgentVolumePct ?? ShiftAssistUrgentVolumePctDefault;
+            if (value < ShiftAssistUrgentVolumePctMin) value = ShiftAssistUrgentVolumePctMin;
+            if (value > ShiftAssistUrgentVolumePctMax) value = ShiftAssistUrgentVolumePctMax;
+            return value;
+        }
+
         private static int ClampShiftAssistDelayMs(double value)
         {
             if (double.IsNaN(value) || double.IsInfinity(value))
@@ -1023,6 +1044,7 @@ namespace LaunchPlugin
             Array.Clear(_shiftAssistDelaySampleSums, 0, _shiftAssistDelaySampleSums.Length);
             _shiftAssistAudioDelayMs = 0;
             _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
+            _shiftAssistLastPrimaryAudioIssuedUtc = DateTime.MinValue;
             _shiftAssistDelayCaptureState = 0;
             _shiftAssistDelayBeepType = "NONE";
             ClearShiftAssistDelayPending();
@@ -3783,6 +3805,12 @@ namespace LaunchPlugin
         private const int ShiftAssistBeepDurationMsMax = 1000;
         private const int ShiftAssistBeepVolumePctMin = 0;
         private const int ShiftAssistBeepVolumePctMax = 100;
+        private const int ShiftAssistUrgentVolumePctMin = 0;
+        private const int ShiftAssistUrgentVolumePctMax = 100;
+        private const int ShiftAssistUrgentVolumePctDefault = 50;
+        private const int ShiftAssistUrgentMinGapMsMin = 0;
+        private const int ShiftAssistUrgentMinGapMsMax = 5000;
+        private const int ShiftAssistUrgentMinGapMsDefault = 1000;
         internal const int ShiftAssistLeadTimeMsDefault = 200;
         private const int ShiftAssistLeadTimeMsMin = 0;
         private const int ShiftAssistLeadTimeMsMax = 500;
@@ -3807,6 +3835,7 @@ namespace LaunchPlugin
         private int _shiftAssistAudioDelayMs;
         private DateTime _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
         private bool _shiftAssistAudioIssuedPulse;
+        private DateTime _shiftAssistLastPrimaryAudioIssuedUtc = DateTime.MinValue;
         private int _shiftAssistLastGear;
         private int _shiftAssistLastValidGear;
         private DateTime _shiftAssistLastValidGearUtc = DateTime.MinValue;
@@ -3988,6 +4017,17 @@ namespace LaunchPlugin
                     if (volumePct < ShiftAssistBeepVolumePctMin) volumePct = ShiftAssistBeepVolumePctMin;
                     if (volumePct > ShiftAssistBeepVolumePctMax) volumePct = ShiftAssistBeepVolumePctMax;
                     Settings.ShiftAssistBeepVolumePct = volumePct;
+                    SaveSettings();
+                },
+                () => IsShiftAssistUrgentEnabled(),
+                (enabled) =>
+                {
+                    if (Settings == null)
+                    {
+                        return;
+                    }
+
+                    Settings.ShiftAssistUrgentEnabled = enabled;
                     SaveSettings();
                 },
                 () => TriggerShiftAssistTestBeep(),
@@ -5142,6 +5182,24 @@ namespace LaunchPlugin
             else if (settings.ShiftAssistBeepVolumePct > ShiftAssistBeepVolumePctMax)
             {
                 settings.ShiftAssistBeepVolumePct = ShiftAssistBeepVolumePctMax;
+            }
+
+            if (settings.ShiftAssistUrgentMinGapMs < ShiftAssistUrgentMinGapMsMin)
+            {
+                settings.ShiftAssistUrgentMinGapMs = ShiftAssistUrgentMinGapMsMin;
+            }
+            else if (settings.ShiftAssistUrgentMinGapMs > ShiftAssistUrgentMinGapMsMax)
+            {
+                settings.ShiftAssistUrgentMinGapMs = ShiftAssistUrgentMinGapMsMax;
+            }
+
+            if (settings.ShiftAssistUrgentVolumePct < ShiftAssistUrgentVolumePctMin)
+            {
+                settings.ShiftAssistUrgentVolumePct = ShiftAssistUrgentVolumePctMin;
+            }
+            else if (settings.ShiftAssistUrgentVolumePct > ShiftAssistUrgentVolumePctMax)
+            {
+                settings.ShiftAssistUrgentVolumePct = ShiftAssistUrgentVolumePctMax;
             }
 
             if (settings.ShiftAssistDebugCsvMaxHz <= 0)
@@ -6411,6 +6469,7 @@ namespace LaunchPlugin
                 _shiftAssistAudioDelayMs = 0;
                 _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
                 _shiftAssistAudioIssuedPulse = false;
+                _shiftAssistLastPrimaryAudioIssuedUtc = DateTime.MinValue;
                 _shiftAssistLastGear = 0;
                 _shiftAssistLastValidGear = 0;
                 _shiftAssistLastValidGearUtc = DateTime.MinValue;
@@ -6688,7 +6747,31 @@ namespace LaunchPlugin
 
                 DateTime triggerUtc = nowUtc;
                 DateTime issuedUtc = DateTime.MinValue;
-                bool audioIssued = _shiftAssistAudio != null && _shiftAssistAudio.TryPlayBeep(out issuedUtc);
+                bool isUrgentBeep = _shiftAssistEngine.LastBeepWasUrgent;
+                bool audioIssued = false;
+                if (_shiftAssistAudio != null)
+                {
+                    if (!isUrgentBeep)
+                    {
+                        audioIssued = _shiftAssistAudio.TryPlayBeep(out issuedUtc);
+                        if (audioIssued)
+                        {
+                            _shiftAssistLastPrimaryAudioIssuedUtc = issuedUtc;
+                        }
+                    }
+                    else if (IsShiftAssistUrgentEnabled())
+                    {
+                        DateTime lastPrimaryUtc = _shiftAssistLastPrimaryAudioIssuedUtc;
+                        int urgentMinGapMs = GetShiftAssistUrgentMinGapMs();
+                        bool cooldownPassed = lastPrimaryUtc == DateTime.MinValue
+                            || (triggerUtc - lastPrimaryUtc).TotalMilliseconds >= urgentMinGapMs;
+                        if (cooldownPassed)
+                        {
+                            audioIssued = _shiftAssistAudio.TryPlayBeepWithVolumeOverride(GetShiftAssistUrgentVolumePct(), out issuedUtc);
+                        }
+                    }
+                }
+
                 if (audioIssued)
                 {
                     _shiftAssistAudioIssuedPulse = true;
@@ -12828,6 +12911,9 @@ namespace LaunchPlugin
         public int ShiftAssistLeadTimeMs { get; set; } = LalaLaunch.ShiftAssistLeadTimeMsDefault;
         public bool ShiftAssistBeepSoundEnabled { get; set; } = true;
         public int ShiftAssistBeepVolumePct { get; set; } = 100;
+        public bool ShiftAssistUrgentEnabled { get; set; } = true;
+        public int ShiftAssistUrgentMinGapMs { get; set; } = 1000;
+        public int ShiftAssistUrgentVolumePct { get; set; } = 50;
         public bool ShiftAssistUseCustomWav { get; set; } = false;
         public string ShiftAssistCustomWavPath { get; set; } = "";
         public bool EnableShiftAssistDebugCsv { get; set; } = false;
