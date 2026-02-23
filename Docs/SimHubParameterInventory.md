@@ -2,9 +2,9 @@
 
 **CANONICAL CONTRACT**
 
-Validated against: 7318ff6
-Last reviewed: 2026-02-19
-Last updated: 2026-02-19
+Validated against: 498b4ca
+Last reviewed: 2026-02-23
+Last updated: 2026-02-23
 Branch: work
 
 - All exports are attached in `LalaLaunch.cs` during `Init()` via `AttachCore`/`AttachVerbose`. Core values are refreshed in `DataUpdate` (500 ms poll for fuel/pace/pit via `_poll500ms`; per-tick for launch/dash/messaging). Verbose rows require `SimhubPublish.VERBOSE`.【F:LalaLaunch.cs†L2644-L3120】【F:LalaLaunch.cs†L3411-L3775】
@@ -210,6 +210,12 @@ Branch: work
 | Debug.EventMarkerPressed | bool | Latched true for 500 ms after the Event Marker action. | Per tick. | `LalaLaunch.cs` — `RegisterEventMarkerPress` + `AttachCore`【F:LalaLaunch.cs†L2481-L2492】【F:LalaLaunch.cs†L2816-L2822】 |
 
 ## Shift Assist
+
+Shift Assist runtime/settings notes:
+- `ShiftAssistUrgentEnabled` (bool, per-profile): enables/disables urgent secondary beep playback.
+- No separate urgent volume parameter is used.
+- Urgent volume is derived at runtime as 50% of the main beep volume slider.
+
 | Exported name | Type | Units / meaning | Update cadence | Defined in |
 | --- | --- | --- | --- | --- |
 | ShiftAssist.ActiveGearStackId | string | Active gear stack id read from `DataCorePlugin.GameRawData.SessionData.CarSetup.Chassis.GearsDifferential.GearStack` (falls back to `Default`). | Per tick. | `LalaLaunch.cs` — `EvaluateShiftAssist` + `AttachCore`. |

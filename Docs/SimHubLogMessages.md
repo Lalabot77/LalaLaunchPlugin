@@ -2,9 +2,9 @@
 
 **CANONICAL OBSERVABILITY MAP**
 
-Validated against: 7318ff6
-Last reviewed: 2026-02-19
-Last updated: 2026-02-19
+Validated against: 498b4ca
+Last reviewed: 2026-02-23
+Last updated: 2026-02-23
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
@@ -192,3 +192,6 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:ShiftAssist] Failed to extract embedded beep: ...`** — IO/extraction error while writing the default WAV to disk.【F:ShiftAssistAudio.cs†L72-L85】
 - **`[LalaPlugin:ShiftAssist] Failed to play sound '...': ...`** — Sound playback failed for selected path; shift cue remains logically triggered but audio output failed.【F:ShiftAssistAudio.cs†L175-L182】
 - **`[LalaPlugin:ShiftAssist] HardStop failed: ...`** — Audio stop attempt failed while disabling/muting beeps; logged as warning.【F:ShiftAssistAudio.cs†L192-L200】
+
+
+- **Shift Assist urgent cue volume policy** — Urgent beep audio uses derived 50% of the main beep slider at runtime and has no separate urgent volume control.

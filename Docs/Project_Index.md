@@ -1,7 +1,7 @@
 # Project Index
 
-Validated against commit: 7318ff6
-Last updated: 2026-02-19
+Validated against commit: 498b4ca
+Last updated: 2026-02-23
 Branch: work
 
 ## What this repo is
@@ -26,7 +26,7 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch instrumenta
 | Fuel model | Live burn capture, confidence, race projection, pit-window logic | [Subsystems/Fuel_Model.md](Subsystems/Fuel_Model.md) |
 | Fuel planner tab | Strategy calculator and profile/live source selection | [Subsystems/Fuel_Planner_Tab.md](Subsystems/Fuel_Planner_Tab.md) |
 | Launch mode | Launch state machine, anti-stall/bog detection, launch metrics | [Subsystems/Launch_Mode.md](Subsystems/Launch_Mode.md) |
-| Shift Assist | RPM target cueing with predictive lead-time, beep playback routing, and per-gear delay telemetry | [Subsystems/Shift_Assist.md](Subsystems/Shift_Assist.md) |
+| Shift Assist | RPM target cueing with predictive lead-time, primary/urgent beep routing (urgent at derived 50% volume), and per-gear delay telemetry | [Subsystems/Shift_Assist.md](Subsystems/Shift_Assist.md) |
 | Pit timing & pit-loss | PitEngine DTL/direct timing, pit-cycle exports | [Subsystems/Pit_Timing_And_PitLoss.md](Subsystems/Pit_Timing_And_PitLoss.md) |
 | Pit Entry Assist | Braking cues, margin/cue maths, entry-line debrief outputs | [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md) |
 | Rejoin assist | Incident/threat detection, linger logic, and suppression guardrails | [Subsystems/Rejoin_Assist.md](Subsystems/Rejoin_Assist.md) |
@@ -36,6 +36,6 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch instrumenta
 | Dash integration | Main/message/overlay visibility and screen state exports | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Freshness
-- Validated against commit: 7318ff6
-- Date: 2026-02-19
+- Validated against commit: 498b4ca
+- Date: 2026-02-23
 - Branch: work

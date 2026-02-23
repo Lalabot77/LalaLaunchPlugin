@@ -305,10 +305,12 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="220" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <styles:SHButtonPrimary Grid.Column="0" Content="Test Sound" Command="{Binding ShiftTestBeepCommand}" MinWidth="90"/>
                                     <TextBlock Grid.Column="2" Text="Beep volume" VerticalAlignment="Center" Margin="0,0,8,0"
-                               ToolTip="Attenuates Shift Assist beep volume independently from SimHub master volume."/>
+                               ToolTip="Controls primary beep volume; urgent beep plays at 50% of this value."/>
                                     <Slider Grid.Column="3"
                             VerticalAlignment="Center"
                             Minimum="0"
@@ -316,12 +318,17 @@
                             TickFrequency="1"
                             IsSnapToTickEnabled="True"
                             Value="{Binding ShiftAssistBeepVolumePct, Mode=TwoWay}"
-                            ToolTip="Attenuates Shift Assist beep volume independently from SimHub master volume."/>
+                            ToolTip="Controls primary beep volume; urgent beep plays at 50% of this value."/>
                                     <TextBlock Grid.Column="4"
                                Text="{Binding ShiftAssistBeepVolumePct, StringFormat={}{0}%}"
                                VerticalAlignment="Center"
                                Margin="10,0,0,0"
                                MinWidth="48"/>
+                                    <styles:SHToggleCheckbox Grid.Column="6"
+                                             Content="Urgent sound"
+                                             IsChecked="{Binding ShiftAssistUrgentEnabled, Mode=TwoWay}"
+                                             VerticalAlignment="Center"
+                                             ToolTip="Plays a delayed secondary shift beep (1s after primary) at 50% of the main beep volume."/>
                                 </Grid>
                             </Grid>
 
