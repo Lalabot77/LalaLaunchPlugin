@@ -1,0 +1,108 @@
+# LALALAUNCH CODEX CONTRACT
+
+This contract applies to ALL Codex tasks unless explicitly overridden.
+
+Codex must treat this as mandatory engineering policy.
+
+---
+
+## 1. Scope Discipline (No Feature Creep)
+
+- Modify ONLY the files explicitly listed in the task.
+- Do NOT expand scope.
+- Do NOT introduce new subsystems.
+- Do NOT add new UI controls unless explicitly requested.
+- Do NOT change learning, shift logic, fuel math, CarSA logic, or telemetry gating unless explicitly requested.
+
+If something appears wrong but is outside scope:
+- Do not fix it.
+- Do not refactor it.
+- Leave it untouched.
+
+---
+
+## 2. Documentation Is Mandatory
+
+Every code change must update relevant documentation.
+
+Always evaluate and update as needed:
+
+- SimHubParameterInventory.md (exports / settings / properties)
+- SimHubLogMessages.md (new or modified log lines)
+- Subsystems/<affected_subsystem>.md
+- Plugin_UI_Tooltips.md (if UI text changes)
+- Project_Index.md (if subsystem description changes)
+- RepoStatus.md (update validation commit + summary)
+
+Documentation must:
+- Reflect final behavior.
+- Remove outdated statements.
+- Not mention deprecated settings unless marked “legacy (unused)”.
+
+No task is complete without documentation alignment.
+
+---
+
+## 3. Stability First
+
+This project is actively under test.
+
+Therefore:
+
+- Do NOT alter runtime behavior outside task scope.
+- Do NOT modify ShiftAssistEngine logic unless explicitly requested.
+- Do NOT change learning behavior unless explicitly requested.
+- Do NOT introduce timing side effects in telemetry loop.
+- Do NOT block main thread.
+- Do NOT introduce race conditions.
+
+---
+
+## 4. C# and Dependency Rules
+
+- Target C# 7.3 compatibility.
+- No new NuGet packages unless explicitly requested.
+- No new external DLLs.
+- No unsafe code.
+- No async/await changes unless explicitly requested.
+- No WASAPI exclusive mode unless explicitly requested.
+
+---
+
+## 5. Audio System Rules (Shift Assist)
+
+Unless explicitly overridden:
+
+- Primary beep behavior must remain unchanged.
+- Urgent beep must not modify learning, exports, or shift target logic.
+- Volume overrides must use existing scaling/cache logic.
+- No duplication of audio backend state.
+
+---
+
+## 6. Logging Discipline
+
+- No log spam.
+- Warnings must be one-time where possible.
+- Keep existing log format conventions.
+- Do not introduce new verbose logging without toggle.
+
+---
+
+## 7. JSON / Profile Compatibility
+
+If removing a setting:
+- Ensure existing JSON profiles do not break.
+- Prefer leaving legacy property unused rather than deleting unless explicitly approved.
+
+---
+
+## 8. Definition of Done
+
+A task is only complete when:
+
+- Code compiles.
+- Scope respected.
+- No unintended behavior changes.
+- Documentation updated.
+- RepoStatus.md updated with new validation commit.
