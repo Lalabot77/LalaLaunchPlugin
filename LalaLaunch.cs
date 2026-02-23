@@ -1029,6 +1029,7 @@ namespace LaunchPlugin
             _shiftAssistAudioDelayMs = 0;
             _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
             _shiftAssistLastPrimaryAudioIssuedUtc = DateTime.MinValue;
+            _shiftAssistLastPrimaryCueTriggerUtc = DateTime.MinValue;
             _shiftAssistDelayCaptureState = 0;
             _shiftAssistDelayBeepType = "NONE";
             ClearShiftAssistDelayPending();
@@ -3815,6 +3816,7 @@ namespace LaunchPlugin
         private DateTime _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
         private bool _shiftAssistAudioIssuedPulse;
         private DateTime _shiftAssistLastPrimaryAudioIssuedUtc = DateTime.MinValue;
+        private DateTime _shiftAssistLastPrimaryCueTriggerUtc = DateTime.MinValue;
         private int _shiftAssistLastGear;
         private int _shiftAssistLastValidGear;
         private DateTime _shiftAssistLastValidGearUtc = DateTime.MinValue;
@@ -6431,6 +6433,7 @@ namespace LaunchPlugin
                 _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
                 _shiftAssistAudioIssuedPulse = false;
                 _shiftAssistLastPrimaryAudioIssuedUtc = DateTime.MinValue;
+                _shiftAssistLastPrimaryCueTriggerUtc = DateTime.MinValue;
                 _shiftAssistLastGear = 0;
                 _shiftAssistLastValidGear = 0;
                 _shiftAssistLastValidGearUtc = DateTime.MinValue;
@@ -6710,19 +6713,23 @@ namespace LaunchPlugin
                 DateTime issuedUtc = DateTime.MinValue;
                 bool isUrgentBeep = _shiftAssistEngine.LastBeepWasUrgent;
                 bool audioIssued = false;
+                bool cueConditionActive = _shiftAssistEngine.LastState == ShiftAssistState.On;
                 if (_shiftAssistAudio != null)
                 {
                     if (!isUrgentBeep)
                     {
+                        _shiftAssistLastPrimaryCueTriggerUtc = triggerUtc;
                         audioIssued = _shiftAssistAudio.TryPlayBeep(out issuedUtc);
                         if (audioIssued)
                         {
                             _shiftAssistLastPrimaryAudioIssuedUtc = issuedUtc;
                         }
                     }
-                    else if (IsShiftAssistUrgentEnabled())
+                    else if (IsShiftAssistUrgentEnabled() && cueConditionActive)
                     {
-                        DateTime lastPrimaryUtc = _shiftAssistLastPrimaryAudioIssuedUtc;
+                        DateTime lastPrimaryUtc = _shiftAssistLastPrimaryAudioIssuedUtc != DateTime.MinValue
+                            ? _shiftAssistLastPrimaryAudioIssuedUtc
+                            : _shiftAssistLastPrimaryCueTriggerUtc;
                         bool cooldownPassed = lastPrimaryUtc == DateTime.MinValue
                             || (triggerUtc - lastPrimaryUtc).TotalMilliseconds >= ShiftAssistUrgentMinGapMsFixed;
                         int baseVol = GetShiftAssistBeepVolumePct();

@@ -1,6 +1,6 @@
 # Shift Assist
 
-Validated against commit: 498b4ca
+Validated against commit: 72a0618
 Last updated: 2026-02-23
 Branch: work
 
@@ -33,6 +33,8 @@ Branch: work
 - Optional secondary cue.
 - Plays once per primary shift event.
 - Delayed by 1000ms after primary audio issue.
+- Reminder-safe: if primary audio is missed, urgent can still fire after 1000ms using the primary cue timestamp fallback.
+- Cue-dependent gating: urgent is only evaluated while the shift cue condition remains active; if cue conditions are no longer active, urgent is suppressed.
 - Volume = 50% of main Beep volume slider.
 - Uses same WAV selection and scaling pipeline.
 - Does not affect learning, shift targets, delay capture, or Beep export latch.
