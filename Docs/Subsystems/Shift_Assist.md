@@ -1,7 +1,7 @@
 # Shift Assist
 
-Validated against commit: 7318ff6
-Last updated: 2026-02-19
+Validated against commit: 498b4ca
+Last updated: 2026-02-23
 Branch: work
 
 ## Purpose
@@ -12,7 +12,7 @@ Branch: work
 ## Inputs (source + cadence)
 - Per-tick telemetry: gear, RPM, throttle.
 - Active car profile shift targets, resolved by active gear stack id.
-- Global Shift Assist settings: enable toggle, learning mode toggle, beep duration, lead-time ms, beep sound toggle/volume, custom WAV enable/path, debug CSV toggle/max Hz.
+- Global Shift Assist settings: enable toggle, learning mode toggle, beep duration, lead-time ms, beep sound toggle/volume, urgent sound toggle, custom WAV enable/path, debug CSV toggle/max Hz.
 - Audio fallback assets: embedded default WAV extracted to plugin common storage.
 
 ## Internal state
@@ -27,6 +27,15 @@ Branch: work
 4) Apply reset hysteresis and downshift suppression so repeated triggers are avoided until RPM drops sufficiently.
 5) Enforce cooldown between beeps, then trigger cue and arm pending delay capture.
 6) On subsequent upshift, compute beep→shift delay sample and update rolling per-gear averages.
+
+
+## Urgent Beep
+- Optional secondary cue.
+- Plays once per primary shift event.
+- Delayed by 1000ms after primary audio issue.
+- Volume = 50% of main Beep volume slider.
+- Uses same WAV selection and scaling pipeline.
+- Does not affect learning, shift targets, delay capture, or Beep export latch.
 
 ## Outputs (exports + logs)
 - Exports: `ShiftAssist.ActiveGearStackId`, `ShiftAssist.TargetRPM_CurrentGear`, `ShiftAssist.ShiftRPM_G1..G8`, `ShiftAssist.EffectiveTargetRPM_CurrentGear`, `ShiftAssist.RpmRate`, `ShiftAssist.Beep`, `ShiftAssist.ShiftLightEnabled`, `ShiftAssist.Learn.Enabled`, `ShiftAssist.Learn.State`, `ShiftAssist.Learn.ActiveGear`, `ShiftAssist.Learn.WindowMs`, `ShiftAssist.Learn.PeakAccelMps2`, `ShiftAssist.Learn.PeakRpm`, `ShiftAssist.Learn.LastSampleRpm`, `ShiftAssist.Learn.SavedPulse`, `ShiftAssist.Learn.Samples_G1..G8`, `ShiftAssist.Learn.LearnedRpm_G1..G8`, `ShiftAssist.Learn.Locked_G1..G8`, `ShiftAssist.State`, `ShiftAssist.Debug.AudioDelayMs`, `ShiftAssist.Debug.AudioDelayAgeMs`, `ShiftAssist.Debug.AudioIssued`, `ShiftAssist.Debug.AudioBackend`, `ShiftAssist.Debug.CsvEnabled`, `ShiftAssist.DelayAvg_G1..G8`, `ShiftAssist.DelayN_G1..G8`, `ShiftAssist.Delay.Pending`, `ShiftAssist.Delay.PendingGear`, `ShiftAssist.Delay.PendingAgeMs`, `ShiftAssist.Delay.PendingRpmAtCue`, `ShiftAssist.Delay.RpmAtBeep`, `ShiftAssist.Delay.CaptureState`.

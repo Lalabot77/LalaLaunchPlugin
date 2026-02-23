@@ -1,7 +1,7 @@
 # Repository status
 
-Validated against commit: 7318ff6
-Last updated: 2026-02-19
+Validated against commit: 498b4ca
+Last updated: 2026-02-23
 Branch: work
 
 ## Current repo/link status
@@ -18,9 +18,10 @@ Branch: work
 - `Subsystems/Shift_Assist.md` — refreshed in the standard subsystem format with latest export/log coverage.
 
 ## Delivery status highlights
+- Shift Assist urgent cue integrated with fixed 1000ms delay and urgent volume derived from primary slider (50%).
 - Shift Assist subsystem: **INTEGRATED** (settings, evaluation, audio, exports, logs, delay telemetry).
 - Declutter mode + event marker actions: **COMPLETE** (post-PR381 baseline retained).
-- Canonical docs listed above: **SYNCED** to `7318ff6`.
+- Canonical docs listed above: **SYNCED** to `498b4ca`.
 
 ## Notes
 - `Code_Snapshot.md` remains intentionally non-canonical; contract truth lives in parameter/log inventories and subsystem docs.

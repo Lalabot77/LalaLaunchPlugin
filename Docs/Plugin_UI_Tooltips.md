@@ -1,7 +1,7 @@
 # Plugin UI Tooltips
 
-Validated against commit: 7318ff6
-Last updated: 2026-02-19
+Validated against commit: 498b4ca
+Last updated: 2026-02-23
 Branch: work
 
 ## CopyProfileDialog.xaml
@@ -274,7 +274,8 @@ Branch: work
 - `ProfilesManagerView.xaml` L240-L244: `Shift Light Duration (ms)` tooltip clarifies this controls the `ShiftAssist.Beep` latch only, not WAV playback length.
 - `ProfilesManagerView.xaml` L290: `Shift Sound` toggle exists without a tooltip string.
 - `ProfilesManagerView.xaml` L309: `Test Sound` button exists without a tooltip string.
-- `ProfilesManagerView.xaml` L310-L321: `Beep volume` label/slider tooltip notes volume control is not implemented yet (SimHub master volume used).
+- `ProfilesManagerView.xaml` L310-L321: `Beep volume` label/slider tooltip says it controls primary beep volume and urgent beep derives at 50% of this value.
+- `ProfilesManagerView.xaml` L327-L331: `Urgent sound` tooltip: "Plays a delayed secondary shift beep (1s after primary) at 50% of the main beep volume."
 - `ProfilesManagerView.xaml` L331-L345: gear stack selector + Add/Save/Delete buttons include tooltips on action buttons, but selector itself has no tooltip.
 - `ProfilesManagerView.xaml` L347-L423: shift target grid and learning/runtime stat panel are mostly label-only with no tooltip strings.
 - `ProfilesManagerView.xaml` L433-L492: custom WAV controls include tooltip on path textbox and browse button, while some adjacent labels/buttons remain tooltip-free.
