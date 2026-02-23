@@ -3817,6 +3817,7 @@ namespace LaunchPlugin
         private bool _shiftAssistAudioIssuedPulse;
         private DateTime _shiftAssistLastPrimaryAudioIssuedUtc = DateTime.MinValue;
         private DateTime _shiftAssistLastPrimaryCueTriggerUtc = DateTime.MinValue;
+        private DateTime _shiftAssistLastUrgentPlayedUtc = DateTime.MinValue;
         private int _shiftAssistLastGear;
         private int _shiftAssistLastValidGear;
         private DateTime _shiftAssistLastValidGearUtc = DateTime.MinValue;
@@ -6703,6 +6704,63 @@ namespace LaunchPlugin
                 leadTimeMs,
                 redlineRpm);
 
+            bool urgentAttempted = false;
+            bool urgentPlayed = false;
+            string urgentPlayError = string.Empty;
+            string beepTypeForCsv = "NONE";
+            bool isUrgentBeep = _shiftAssistEngine.LastBeepWasUrgent;
+            bool cueConditionActive = _shiftAssistEngine.LastState == ShiftAssistState.On;
+            bool urgentEnabled = IsShiftAssistUrgentEnabled();
+            bool beepSoundEnabled = IsShiftAssistBeepSoundEnabled();
+            int baseVolPct = GetShiftAssistBeepVolumePct();
+            int urgentVolPctDerived = Math.Max(0, Math.Min(100, baseVolPct / 2));
+            DateTime lastPrimaryUtcForGap = _shiftAssistLastPrimaryAudioIssuedUtc != DateTime.MinValue
+                ? _shiftAssistLastPrimaryAudioIssuedUtc
+                : _shiftAssistLastPrimaryCueTriggerUtc;
+            bool urgentGapSatisfied = lastPrimaryUtcForGap == DateTime.MinValue
+                || (nowUtc - lastPrimaryUtcForGap).TotalMilliseconds >= ShiftAssistUrgentMinGapMsFixed;
+            bool urgentEligible = beep
+                && isUrgentBeep
+                && urgentEnabled
+                && beepSoundEnabled
+                && baseVolPct > 0
+                && urgentVolPctDerived > 0
+                && cueConditionActive
+                && urgentGapSatisfied
+                && _shiftAssistAudio != null;
+            string urgentSuppressedReason = string.Empty;
+            if (beep && isUrgentBeep && !urgentEligible)
+            {
+                if (!urgentEnabled)
+                {
+                    urgentSuppressedReason = "OFF_URGENT_DISABLED";
+                }
+                else if (!beepSoundEnabled)
+                {
+                    urgentSuppressedReason = "OFF_SOUND_DISABLED";
+                }
+                else if (baseVolPct <= 0)
+                {
+                    urgentSuppressedReason = "OFF_BASEVOL_0";
+                }
+                else if (urgentVolPctDerived <= 0)
+                {
+                    urgentSuppressedReason = "OFF_URGENTVOL_0";
+                }
+                else if (!cueConditionActive)
+                {
+                    urgentSuppressedReason = "OFF_CUE_INACTIVE";
+                }
+                else if (!urgentGapSatisfied)
+                {
+                    urgentSuppressedReason = "OFF_WAITING_GAP";
+                }
+                else
+                {
+                    urgentSuppressedReason = "OFF_OTHER";
+                }
+            }
+
             if (beep)
             {
                 int durationMs = GetShiftAssistBeepDurationMs();
@@ -6711,9 +6769,7 @@ namespace LaunchPlugin
 
                 DateTime triggerUtc = nowUtc;
                 DateTime issuedUtc = DateTime.MinValue;
-                bool isUrgentBeep = _shiftAssistEngine.LastBeepWasUrgent;
                 bool audioIssued = false;
-                bool cueConditionActive = _shiftAssistEngine.LastState == ShiftAssistState.On;
                 if (_shiftAssistAudio != null)
                 {
                     if (!isUrgentBeep)
@@ -6725,24 +6781,22 @@ namespace LaunchPlugin
                             _shiftAssistLastPrimaryAudioIssuedUtc = issuedUtc;
                         }
                     }
-                    else if (IsShiftAssistUrgentEnabled() && cueConditionActive)
+                    else if (urgentEligible)
                     {
-                        DateTime lastPrimaryUtc = _shiftAssistLastPrimaryAudioIssuedUtc != DateTime.MinValue
-                            ? _shiftAssistLastPrimaryAudioIssuedUtc
-                            : _shiftAssistLastPrimaryCueTriggerUtc;
-                        bool cooldownPassed = lastPrimaryUtc == DateTime.MinValue
-                            || (triggerUtc - lastPrimaryUtc).TotalMilliseconds >= ShiftAssistUrgentMinGapMsFixed;
-                        int baseVol = GetShiftAssistBeepVolumePct();
-                        int urgentVol = Math.Max(0, Math.Min(100, baseVol / 2));
-                        if (cooldownPassed && urgentVol > 0)
-                        {
-                            audioIssued = _shiftAssistAudio.TryPlayBeepWithVolumeOverride(urgentVol, out issuedUtc);
-                        }
+                        urgentAttempted = true;
+                        audioIssued = _shiftAssistAudio.TryPlayBeepWithVolumeOverride(urgentVolPctDerived, out issuedUtc, out urgentPlayError);
+                        urgentPlayed = audioIssued;
                     }
                 }
 
                 if (audioIssued)
                 {
+                    beepTypeForCsv = isUrgentBeep ? "URGENT" : "PRIMARY";
+                    if (isUrgentBeep)
+                    {
+                        _shiftAssistLastUrgentPlayedUtc = issuedUtc;
+                    }
+
                     _shiftAssistAudioIssuedPulse = true;
                     int delayMs = ClampShiftAssistDelayMs((issuedUtc - triggerUtc).TotalMilliseconds, 2000);
                     _shiftAssistAudioDelayMs = delayMs;
@@ -6777,7 +6831,7 @@ namespace LaunchPlugin
             }
 
             bool exportedBeepLatched = _shiftAssistBeepLatched;
-            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, effectiveGear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2, _shiftAssistLastLearningTick, learnRedlineSource);
+            WriteShiftAssistDebugCsv(nowUtc, sessionTimeSec, gear, effectiveGear, maxForwardGears, rpm, throttle01, targetRpm, leadTimeMs, beep, exportedBeepLatched, speedMps, accelDerivedMps2, lonAccelTelemetryMps2, _shiftAssistLastLearningTick, learnRedlineSource, redlineRpm, urgentEligible, urgentSuppressedReason, urgentAttempted, urgentPlayed, urgentPlayError, beepTypeForCsv);
         }
 
         private int ResolveShiftAssistMaxForwardGears(PluginManager pluginManager)
@@ -6896,7 +6950,34 @@ namespace LaunchPlugin
             _shiftAssistDebugCsvFileTimestamp = null;
         }
 
-        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2, ShiftAssistLearningTick learningTick, string learnRedlineSource)
+        private static string SanitizeShiftAssistDebugCsvText(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            string sanitized = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            if (sanitized.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            bool hasQuote = sanitized.IndexOf('"') >= 0;
+            if (hasQuote)
+            {
+                sanitized = sanitized.Replace("\"", "\"\"");
+            }
+
+            if (hasQuote || sanitized.IndexOf(',') >= 0)
+            {
+                sanitized = "\"" + sanitized + "\"";
+            }
+
+            return sanitized;
+        }
+
+        private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2, ShiftAssistLearningTick learningTick, string learnRedlineSource, int redlineRpm, bool urgentEligible, string urgentSuppressedReason, bool urgentAttempted, bool urgentPlayed, string urgentPlayError, string beepType)
         {
             if (Settings?.EnableShiftAssistDebugCsv != true)
             {
@@ -6943,7 +7024,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
                     }
                 }
 
@@ -6979,10 +7060,29 @@ namespace LaunchPlugin
                     delayCaptureState = MapShiftAssistDelayCaptureState(delayCaptureEvent);
                 }
                 int delayRpmAtBeep = _shiftAssistLastBeepRpmLatched;
+                bool urgentEnabled = IsShiftAssistUrgentEnabled();
+                bool beepSoundEnabled = IsShiftAssistBeepSoundEnabled();
+                int baseVolPct = GetShiftAssistBeepVolumePct();
+                int urgentVolPctDerived = Math.Max(0, Math.Min(100, baseVolPct / 2));
+                bool cueActive = _shiftAssistEngine.LastState == ShiftAssistState.On;
+                int msSincePrimaryAudioIssued = _shiftAssistLastPrimaryAudioIssuedUtc == DateTime.MinValue
+                    ? -1
+                    : ClampShiftAssistDelayMs((nowUtc - _shiftAssistLastPrimaryAudioIssuedUtc).TotalMilliseconds, int.MaxValue);
+                int msSincePrimaryCueTrigger = _shiftAssistLastPrimaryCueTriggerUtc == DateTime.MinValue
+                    ? -1
+                    : ClampShiftAssistDelayMs((nowUtc - _shiftAssistLastPrimaryCueTriggerUtc).TotalMilliseconds, int.MaxValue);
+                int msSinceUrgentPlayed = _shiftAssistLastUrgentPlayedUtc == DateTime.MinValue
+                    ? -1
+                    : ClampShiftAssistDelayMs((nowUtc - _shiftAssistLastUrgentPlayedUtc).TotalMilliseconds, int.MaxValue);
+                int resolvedRedlineRpm = redlineRpm > 0 ? redlineRpm : 0;
+                int overRedline = (resolvedRedlineRpm > 0 && rpm >= resolvedRedlineRpm) ? 1 : 0;
+                string urgentSuppressedReasonText = string.IsNullOrWhiteSpace(urgentSuppressedReason) ? string.Empty : urgentSuppressedReason;
+                string urgentPlayErrorText = SanitizeShiftAssistDebugCsvText(urgentPlayError);
+                string beepTypeText = string.IsNullOrWhiteSpace(beepType) ? "NONE" : beepType;
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43},{44},{45},{46}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43},{44},{45},{46},{47},{48},{49},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -7029,7 +7129,24 @@ namespace LaunchPlugin
                     delayCaptureEvent,
                     delayBeepType,
                     delayRpmAtBeep,
-                    delayCaptureState);
+                    delayCaptureState,
+                    urgentEnabled ? "1" : "0",
+                    beepSoundEnabled ? "1" : "0",
+                    baseVolPct,
+                    urgentVolPctDerived,
+                    cueActive ? "1" : "0",
+                    msSincePrimaryAudioIssued,
+                    msSincePrimaryCueTrigger,
+                    msSinceUrgentPlayed,
+                    ShiftAssistUrgentMinGapMsFixed,
+                    urgentEligible ? "1" : "0",
+                    urgentSuppressedReasonText,
+                    urgentAttempted ? "1" : "0",
+                    urgentPlayed ? "1" : "0",
+                    urgentPlayErrorText,
+                    resolvedRedlineRpm,
+                    overRedline,
+                    beepTypeText);
 
                 File.AppendAllText(_shiftAssistDebugCsvPath, line + Environment.NewLine);
                 ClearShiftAssistDelayDiagnosticsLatch();
