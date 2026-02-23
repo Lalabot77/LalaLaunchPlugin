@@ -6950,6 +6950,33 @@ namespace LaunchPlugin
             _shiftAssistDebugCsvFileTimestamp = null;
         }
 
+        private static string SanitizeShiftAssistDebugCsvText(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            string sanitized = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            if (sanitized.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            bool hasQuote = sanitized.IndexOf('"') >= 0;
+            if (hasQuote)
+            {
+                sanitized = sanitized.Replace("\"", "\"\"");
+            }
+
+            if (hasQuote || sanitized.IndexOf(',') >= 0)
+            {
+                sanitized = "\"" + sanitized + "\"";
+            }
+
+            return sanitized;
+        }
+
         private void WriteShiftAssistDebugCsv(DateTime nowUtc, double sessionTimeSec, int gear, int effectiveGear, int maxForwardGears, int rpm, double throttle01, int targetRpm, int leadTimeMs, bool beepTriggered, bool exportedBeepLatched, double speedMps, double accelDerivedMps2, double lonAccelTelemetryMps2, ShiftAssistLearningTick learningTick, string learnRedlineSource, int redlineRpm, bool urgentEligible, string urgentSuppressedReason, bool urgentAttempted, bool urgentPlayed, string urgentPlayError, string beepType)
         {
             if (Settings?.EnableShiftAssistDebugCsv != true)
@@ -7050,7 +7077,7 @@ namespace LaunchPlugin
                 int resolvedRedlineRpm = redlineRpm > 0 ? redlineRpm : 0;
                 int overRedline = (resolvedRedlineRpm > 0 && rpm >= resolvedRedlineRpm) ? 1 : 0;
                 string urgentSuppressedReasonText = string.IsNullOrWhiteSpace(urgentSuppressedReason) ? string.Empty : urgentSuppressedReason;
-                string urgentPlayErrorText = string.IsNullOrWhiteSpace(urgentPlayError) ? string.Empty : urgentPlayError;
+                string urgentPlayErrorText = SanitizeShiftAssistDebugCsvText(urgentPlayError);
                 string beepTypeText = string.IsNullOrWhiteSpace(beepType) ? "NONE" : beepType;
 
                 var line = string.Format(
