@@ -6711,7 +6711,6 @@ namespace LaunchPlugin
             bool isUrgentBeep = _shiftAssistEngine.LastBeepWasUrgent;
             bool cueConditionActive = _shiftAssistEngine.LastState == ShiftAssistState.On;
             bool urgentEnabled = IsShiftAssistUrgentEnabled();
-            bool beepSoundEnabled = IsShiftAssistBeepSoundEnabled();
             int baseVolPct = GetShiftAssistBeepVolumePct();
             int urgentVolPctDerived = Math.Max(0, Math.Min(100, baseVolPct / 2));
             DateTime lastPrimaryUtcForGap = _shiftAssistLastPrimaryAudioIssuedUtc != DateTime.MinValue
