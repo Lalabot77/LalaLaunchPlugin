@@ -37,6 +37,7 @@ namespace LaunchPlugin
         private bool _primaryBeepFired;
         private bool _urgentBeepFired;
         private bool _lastTickWasSpike;
+        private DateTime _lastPrimaryBeepAtUtc = DateTime.MinValue;
 
         public ShiftAssistEngine(Func<DateTime> utcNow = null)
         {
@@ -166,6 +167,7 @@ namespace LaunchPlugin
                 _wasAboveTarget = false;
                 _primaryBeepFired = false;
                 _urgentBeepFired = false;
+                _lastPrimaryBeepAtUtc = DateTime.MinValue;
                 _smoothedRpmRate = 0;
                 _hasSmoothedRpmRate = false;
             }
@@ -191,6 +193,7 @@ namespace LaunchPlugin
                 _suppressAfterUpshiftUntilBelowReset = false;
                 _primaryBeepFired = false;
                 _urgentBeepFired = false;
+                _lastPrimaryBeepAtUtc = DateTime.MinValue;
             }
 
             if (_suppressUntilBelowReset || _suppressAfterUpshiftUntilBelowReset)
@@ -221,6 +224,7 @@ namespace LaunchPlugin
 
                 _wasAboveTarget = true;
                 _primaryBeepFired = true;
+                _lastPrimaryBeepAtUtc = nowUtc;
                 _lastBeepAtUtc = nowUtc;
                 _lastTickWasSpike = false;
                 LastState = ShiftAssistState.On;
@@ -229,7 +233,9 @@ namespace LaunchPlugin
 
             bool hasUrgentHeadroom = redlineRpm >= (targetRpm + MinUrgentAboveTargetRpm);
             int urgentThresholdRpm = redlineRpm - UrgentMarginRpm;
-            if (_primaryBeepFired && !_urgentBeepFired && cooldownPassed && !spikeDetected && hasUrgentHeadroom && engineRpm >= urgentThresholdRpm)
+            bool urgentDelaySatisfied = _lastPrimaryBeepAtUtc != DateTime.MinValue
+                && (nowUtc - _lastPrimaryBeepAtUtc).TotalMilliseconds >= 1000;
+            if (_primaryBeepFired && !_urgentBeepFired && cooldownPassed && !spikeDetected && hasUrgentHeadroom && engineRpm >= urgentThresholdRpm && urgentDelaySatisfied)
             {
                 _urgentBeepFired = true;
                 _lastBeepAtUtc = nowUtc;
@@ -258,6 +264,7 @@ namespace LaunchPlugin
             _primaryBeepFired = false;
             _urgentBeepFired = false;
             _lastTickWasSpike = false;
+            _lastPrimaryBeepAtUtc = DateTime.MinValue;
             LastTargetRpm = 0;
             LastEffectiveTargetRpm = 0;
             LastRpmRate = 0;

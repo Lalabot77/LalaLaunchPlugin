@@ -19,7 +19,7 @@ Branch: work
 
 ## Delivery status highlights
 - ShiftAssist debug CSV now logs urgent eligibility/attempt/outcome and timing anchors.
-- Shift Assist urgent cue integrated with fixed 1000ms delay, reminder-safe cue-dependent urgent gating, and urgent volume derived from primary slider (50%).
+- Shift Assist urgent cue now enforces the fixed 1000ms delay inside `ShiftAssistEngine` (preventing early consumption), keeps cue-dependent playback gating in `LalaLaunch`, and keeps urgent volume derived from the primary slider (50%).
 - Shift Assist subsystem: **INTEGRATED** (settings, evaluation, audio, exports, logs, delay telemetry).
 - Declutter mode + event marker actions: **COMPLETE** (post-PR381 baseline retained).
 - Canonical docs listed above: **SYNCED** to `c70b16d`.
