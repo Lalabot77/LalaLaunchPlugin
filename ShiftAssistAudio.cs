@@ -284,9 +284,25 @@ namespace LaunchPlugin
             }
             catch (Exception ex)
             {
-                error = ex.Message;
+                error = FormatPlaybackError(ex);
                 return false;
             }
+        }
+
+        private static string FormatPlaybackError(Exception ex)
+        {
+            if (ex == null)
+            {
+                return "unknown playback error";
+            }
+
+            string message = ex.Message;
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return ex.GetType().Name;
+            }
+
+            return $"{ex.GetType().Name}: {message}";
         }
 
         public void HardStop()
