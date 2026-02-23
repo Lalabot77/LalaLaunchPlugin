@@ -6713,11 +6713,6 @@ namespace LaunchPlugin
             bool urgentEnabled = IsShiftAssistUrgentEnabled();
             int baseVolPct = GetShiftAssistBeepVolumePct();
             int urgentVolPctDerived = Math.Max(0, Math.Min(100, baseVolPct / 2));
-            DateTime lastPrimaryUtcForGap = _shiftAssistLastPrimaryAudioIssuedUtc != DateTime.MinValue
-                ? _shiftAssistLastPrimaryAudioIssuedUtc
-                : _shiftAssistLastPrimaryCueTriggerUtc;
-            bool urgentGapSatisfied = lastPrimaryUtcForGap == DateTime.MinValue
-                || (nowUtc - lastPrimaryUtcForGap).TotalMilliseconds >= ShiftAssistUrgentMinGapMsFixed;
             bool urgentEligible = beep
                 && isUrgentBeep
                 && urgentEnabled
@@ -6725,7 +6720,6 @@ namespace LaunchPlugin
                 && baseVolPct > 0
                 && urgentVolPctDerived > 0
                 && cueConditionActive
-                && urgentGapSatisfied
                 && _shiftAssistAudio != null;
             string urgentSuppressedReason = string.Empty;
             if (beep && isUrgentBeep && !urgentEligible)
@@ -6749,10 +6743,6 @@ namespace LaunchPlugin
                 else if (!cueConditionActive)
                 {
                     urgentSuppressedReason = "OFF_CUE_INACTIVE";
-                }
-                else if (!urgentGapSatisfied)
-                {
-                    urgentSuppressedReason = "OFF_WAITING_GAP";
                 }
                 else
                 {

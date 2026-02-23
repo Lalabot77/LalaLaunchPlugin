@@ -32,16 +32,16 @@ Branch: work
 ## Urgent Beep
 - Optional secondary cue.
 - Plays once per primary shift event.
-- Delayed by 1000ms after primary audio issue.
-- Reminder-safe: if primary audio is missed, urgent can still fire after 1000ms using the primary cue timestamp fallback.
-- Cue-dependent gating: urgent is only evaluated while the shift cue condition remains active; if cue conditions are no longer active, urgent is suppressed.
+- Delayed by 1000ms after the primary cue trigger, enforced inside `ShiftAssistEngine` before an urgent trigger can fire.
+- Urgent trigger requests are not consumed early while waiting for the 1000ms delay; `_urgentBeepFired` is only set when urgent is actually emitted.
+- Cue-dependent gating remains in `LalaLaunch`: urgent playback is only allowed while the cue condition (`ShiftAssist.State == On`) is active.
 - Volume = 50% of main Beep volume slider.
 - Uses same WAV selection and scaling pipeline.
 - Does not affect learning, shift targets, delay capture, or Beep export latch.
 
 ## Debug CSV — Urgent Columns
 - `UrgentEnabled`, `BeepSoundEnabled`, `BeepVolumePct`, `UrgentVolumePctDerived`, `CueActive`, `BeepLatched` provide per-row urgent gating/settings context (with urgent volume derived as base slider / 2, clamped 0..100).
-- `MsSincePrimaryAudioIssued`, `MsSincePrimaryCueTrigger`, `MsSinceUrgentPlayed`, `UrgentMinGapMsFixed` provide timing anchors for urgent-gap validation (`-1` means anchor unavailable yet).
+- `MsSincePrimaryAudioIssued`, `MsSincePrimaryCueTrigger`, `MsSinceUrgentPlayed`, `UrgentMinGapMsFixed` remain available as timing anchors for urgent diagnostics (`-1` means anchor unavailable yet); the 1000ms urgent delay decision now occurs in `ShiftAssistEngine`.
 - `UrgentEligible`, `UrgentSuppressedReason`, `UrgentAttempted`, `UrgentPlayed`, `UrgentPlayError` provide per-tick urgent decision/outcome observability.
 - `UrgentPlayError` is CSV-sanitized (quotes/newlines/commas).
 - `RedlineRpm`, `OverRedline`, `Rpm`, `Gear`, `BeepType` provide lightweight runtime context for diagnosing missed urgent reminders around limiter/redline conditions.
