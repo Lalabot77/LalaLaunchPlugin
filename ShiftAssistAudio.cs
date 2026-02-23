@@ -195,12 +195,19 @@ namespace LaunchPlugin
 
         public bool TryPlayBeepWithVolumeOverride(int volumePctOverride, out DateTime issuedUtc)
         {
+            return TryPlayBeepWithVolumeOverride(volumePctOverride, out issuedUtc, out _);
+        }
+
+        public bool TryPlayBeepWithVolumeOverride(int volumePctOverride, out DateTime issuedUtc, out string error)
+        {
             issuedUtc = DateTime.MinValue;
+            error = string.Empty;
 
             var settings = _settingsProvider?.Invoke();
             if (settings != null && !settings.ShiftAssistBeepSoundEnabled)
             {
                 HardStop();
+                error = "sound disabled";
                 return false;
             }
 
@@ -208,18 +215,21 @@ namespace LaunchPlugin
             if (volumePct <= 0)
             {
                 HardStop();
+                error = "volume override <= 0";
                 return false;
             }
 
             string sourcePath = ResolvePlaybackPath(out bool usingCustom);
             if (string.IsNullOrWhiteSpace(sourcePath))
             {
+                error = "playback source unavailable";
                 return false;
             }
 
             string absoluteSourcePath = ToAbsolutePath(sourcePath);
             if (string.IsNullOrWhiteSpace(absoluteSourcePath) || !File.Exists(absoluteSourcePath))
             {
+                error = "playback file missing";
                 return false;
             }
 
@@ -239,10 +249,17 @@ namespace LaunchPlugin
                         SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] WARNING scaled beep failed; falling back to original. error='{playbackError}'");
                     }
 
-                    return TryPlayPath(absoluteSourcePath, out issuedUtc, out _);
+                    bool fallbackSuccess = TryPlayPath(absoluteSourcePath, out issuedUtc, out string fallbackError);
+                    if (!fallbackSuccess)
+                    {
+                        error = string.IsNullOrWhiteSpace(fallbackError) ? playbackError : fallbackError;
+                    }
+
+                    return fallbackSuccess;
                 }
 
                 SimHub.Logging.Current.Warn($"[LalaPlugin:ShiftAssist] Failed to play sound '{playbackPath}': {playbackError}");
+                error = playbackError ?? string.Empty;
                 return false;
             }
 

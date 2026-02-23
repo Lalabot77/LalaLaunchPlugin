@@ -39,6 +39,12 @@ Branch: work
 - Uses same WAV selection and scaling pipeline.
 - Does not affect learning, shift targets, delay capture, or Beep export latch.
 
+## Debug CSV — Urgent Columns
+- `UrgentEnabled`, `BeepSoundEnabled`, `BeepVolumePct`, `UrgentVolumePctDerived`, `CueActive`, `BeepLatched` provide per-row urgent gating/settings context (with urgent volume derived as base slider / 2, clamped 0..100).
+- `MsSincePrimaryAudioIssued`, `MsSincePrimaryCueTrigger`, `MsSinceUrgentPlayed`, `UrgentMinGapMsFixed` provide timing anchors for urgent-gap validation (`-1` means anchor unavailable yet).
+- `UrgentEligible`, `UrgentSuppressedReason`, `UrgentAttempted`, `UrgentPlayed`, `UrgentPlayError` provide per-tick urgent decision/outcome observability.
+- `RedlineRpm`, `OverRedline`, `Rpm`, `Gear`, `BeepType` provide lightweight runtime context for diagnosing missed urgent reminders around limiter/redline conditions.
+
 ## Outputs (exports + logs)
 - Exports: `ShiftAssist.ActiveGearStackId`, `ShiftAssist.TargetRPM_CurrentGear`, `ShiftAssist.ShiftRPM_G1..G8`, `ShiftAssist.EffectiveTargetRPM_CurrentGear`, `ShiftAssist.RpmRate`, `ShiftAssist.Beep`, `ShiftAssist.ShiftLightEnabled`, `ShiftAssist.Learn.Enabled`, `ShiftAssist.Learn.State`, `ShiftAssist.Learn.ActiveGear`, `ShiftAssist.Learn.WindowMs`, `ShiftAssist.Learn.PeakAccelMps2`, `ShiftAssist.Learn.PeakRpm`, `ShiftAssist.Learn.LastSampleRpm`, `ShiftAssist.Learn.SavedPulse`, `ShiftAssist.Learn.Samples_G1..G8`, `ShiftAssist.Learn.LearnedRpm_G1..G8`, `ShiftAssist.Learn.Locked_G1..G8`, `ShiftAssist.State`, `ShiftAssist.Debug.AudioDelayMs`, `ShiftAssist.Debug.AudioDelayAgeMs`, `ShiftAssist.Debug.AudioIssued`, `ShiftAssist.Debug.AudioBackend`, `ShiftAssist.Debug.CsvEnabled`, `ShiftAssist.DelayAvg_G1..G8`, `ShiftAssist.DelayN_G1..G8`, `ShiftAssist.Delay.Pending`, `ShiftAssist.Delay.PendingGear`, `ShiftAssist.Delay.PendingAgeMs`, `ShiftAssist.Delay.PendingRpmAtCue`, `ShiftAssist.Delay.RpmAtBeep`, `ShiftAssist.Delay.CaptureState`.
 - Logs: enable/toggle/debug-csv transitions, learning reset, active-stack reset/lock/apply-learned action outcomes, beep trigger context (including urgent/primary type and suppression flags), test beep, delay sample capture/reset, optional audio-delay telemetry, custom/default sound choice, and audio warning/error paths.
