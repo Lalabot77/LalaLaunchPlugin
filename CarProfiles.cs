@@ -152,6 +152,25 @@ namespace LaunchPlugin
         private double _pitEntryBufferM = 15.0;
         public double PitEntryBufferM { get => _pitEntryBufferM; set { if (_pitEntryBufferM != value) { _pitEntryBufferM = value; OnPropertyChanged(); } } }
 
+        private int _shiftAssistShiftLightMode = 2;
+        [JsonProperty]
+        public int ShiftAssistShiftLightMode
+        {
+            get => _shiftAssistShiftLightMode;
+            set
+            {
+                int normalized = value;
+                if (normalized < 0) normalized = 0;
+                if (normalized > 2) normalized = 2;
+
+                if (_shiftAssistShiftLightMode != normalized)
+                {
+                    _shiftAssistShiftLightMode = normalized;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         // --- Helper methods (unchanged and preserved) ---
         private static string CanonicalizeTrackKey(string trackKey)
         {

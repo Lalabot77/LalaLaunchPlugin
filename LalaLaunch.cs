@@ -840,6 +840,30 @@ namespace LaunchPlugin
             return Settings?.ShiftAssistLightEnabled != false;
         }
 
+        private int GetShiftAssistShiftLightMode()
+        {
+            int value = ActiveProfile?.ShiftAssistShiftLightMode ?? ShiftAssistShiftLightModeBoth;
+            if (value < ShiftAssistShiftLightModePrimaryOnly) value = ShiftAssistShiftLightModePrimaryOnly;
+            if (value > ShiftAssistShiftLightModeBoth) value = ShiftAssistShiftLightModeBoth;
+            return value;
+        }
+
+        private bool ResolveShiftAssistCombinedLightLatch()
+        {
+            int mode = GetShiftAssistShiftLightMode();
+            if (mode == ShiftAssistShiftLightModePrimaryOnly)
+            {
+                return _shiftAssistBeepPrimaryLatched;
+            }
+
+            if (mode == ShiftAssistShiftLightModeUrgentOnly)
+            {
+                return _shiftAssistBeepUrgentLatched;
+            }
+
+            return _shiftAssistBeepPrimaryLatched || _shiftAssistBeepUrgentLatched;
+        }
+
         private int GetShiftAssistLeadTimeMs()
         {
             int value = Settings?.ShiftAssistLeadTimeMs ?? ShiftAssistLeadTimeMsDefault;
@@ -3832,6 +3856,9 @@ namespace LaunchPlugin
         private const int ShiftAssistCooldownMsDefault = 500;
         private const int ShiftAssistResetHysteresisRpmDefault = 200;
         internal const int ShiftAssistBeepDurationMsDefault = 250;
+        private const int ShiftAssistShiftLightModePrimaryOnly = 0;
+        private const int ShiftAssistShiftLightModeUrgentOnly = 1;
+        private const int ShiftAssistShiftLightModeBoth = 2;
         private const int ShiftAssistBeepDurationMsMin = 100;
         private const int ShiftAssistBeepDurationMsMax = 1000;
         private const int ShiftAssistBeepVolumePctMin = 0;
@@ -3857,7 +3884,11 @@ namespace LaunchPlugin
         private int _shiftAssistLearnPeakRpmLatched;
         private bool _shiftAssistLastEnabled;
         private DateTime _shiftAssistBeepUntilUtc = DateTime.MinValue;
+        private DateTime _shiftAssistBeepPrimaryUntilUtc = DateTime.MinValue;
+        private DateTime _shiftAssistBeepUrgentUntilUtc = DateTime.MinValue;
         private bool _shiftAssistBeepLatched;
+        private bool _shiftAssistBeepPrimaryLatched;
+        private bool _shiftAssistBeepUrgentLatched;
         private int _shiftAssistAudioDelayMs;
         private DateTime _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
         private bool _shiftAssistAudioIssuedPulse;
@@ -4483,7 +4514,13 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.ShiftRPM_G8", () => GetShiftAssistTargetRpmForGear(8));
             AttachCore("ShiftAssist.EffectiveTargetRPM_CurrentGear", () => _shiftAssistEngine.LastEffectiveTargetRpm);
             AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
-            AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.Beep", () => _shiftAssistAudioIssuedPulse);
+            AttachCore("ShiftAssist.ShiftLight", () => _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.ShiftLightPrimary", () => _shiftAssistBeepPrimaryLatched);
+            AttachCore("ShiftAssist.ShiftLightUrgent", () => _shiftAssistBeepUrgentLatched);
+            AttachCore("ShiftAssist.BeepLight", () => _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.BeepPrimary", () => _shiftAssistBeepPrimaryLatched);
+            AttachCore("ShiftAssist.BeepUrgent", () => _shiftAssistBeepUrgentLatched);
             AttachCore("ShiftAssist.ShiftLightEnabled", () => IsShiftAssistLightEnabled() ? 1 : 0);
             AttachCore("ShiftAssist.Learn.Enabled", () => Settings?.ShiftAssistLearningModeEnabled == true ? 1 : 0);
             AttachCore("ShiftAssist.Learn.State", () => ToLearningStateText(_shiftAssistLastLearningTick?.State ?? ShiftAssistLearningState.Off));
@@ -6467,13 +6504,30 @@ namespace LaunchPlugin
 
             int durationMs = GetShiftAssistBeepDurationMs();
             DateTime nowUtc = DateTime.UtcNow;
-            _shiftAssistBeepUntilUtc = nowUtc.AddMilliseconds(durationMs);
-            _shiftAssistBeepLatched = true;
+            if (IsShiftAssistLightEnabled())
+            {
+                _shiftAssistBeepPrimaryUntilUtc = nowUtc.AddMilliseconds(durationMs);
+                _shiftAssistBeepPrimaryLatched = true;
+                _shiftAssistBeepLatched = ResolveShiftAssistCombinedLightLatch();
+                _shiftAssistBeepUntilUtc = _shiftAssistBeepLatched ? nowUtc.AddMilliseconds(durationMs) : DateTime.MinValue;
+            }
+            else
+            {
+                _shiftAssistBeepPrimaryUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepUrgentUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepLatched = false;
+                _shiftAssistBeepPrimaryLatched = false;
+                _shiftAssistBeepUrgentLatched = false;
+            }
             DateTime issuedUtc = DateTime.MinValue;
+            bool audioIssued = false;
             if (_shiftAssistAudio != null)
             {
-                _shiftAssistAudio.TryPlayBeep(out issuedUtc);
+                audioIssued = _shiftAssistAudio.TryPlayBeep(out issuedUtc);
             }
+
+            _shiftAssistAudioIssuedPulse = audioIssued;
 
             if (IsVerboseDebugLoggingOn)
             {
@@ -6498,7 +6552,11 @@ namespace LaunchPlugin
                 _shiftAssistTargetCurrentGear = 0;
                 _shiftAssistActiveGearStackId = "Default";
                 _shiftAssistBeepUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepPrimaryUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepUrgentUntilUtc = DateTime.MinValue;
                 _shiftAssistBeepLatched = false;
+                _shiftAssistBeepPrimaryLatched = false;
+                _shiftAssistBeepUrgentLatched = false;
                 _shiftAssistAudioDelayMs = 0;
                 _shiftAssistAudioDelayLastIssuedUtc = DateTime.MinValue;
                 _shiftAssistAudioIssuedPulse = false;
@@ -6531,7 +6589,23 @@ namespace LaunchPlugin
             }
 
             DateTime nowUtc = DateTime.UtcNow;
-            _shiftAssistBeepLatched = nowUtc <= _shiftAssistBeepUntilUtc;
+            bool shiftLightEnabled = IsShiftAssistLightEnabled();
+            if (shiftLightEnabled)
+            {
+                _shiftAssistBeepPrimaryLatched = nowUtc <= _shiftAssistBeepPrimaryUntilUtc;
+                _shiftAssistBeepUrgentLatched = nowUtc <= _shiftAssistBeepUrgentUntilUtc;
+                _shiftAssistBeepLatched = ResolveShiftAssistCombinedLightLatch();
+                _shiftAssistBeepUntilUtc = _shiftAssistBeepLatched ? ((_shiftAssistBeepPrimaryUntilUtc > _shiftAssistBeepUrgentUntilUtc) ? _shiftAssistBeepPrimaryUntilUtc : _shiftAssistBeepUrgentUntilUtc) : DateTime.MinValue;
+            }
+            else
+            {
+                _shiftAssistBeepPrimaryUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepUrgentUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepUntilUtc = DateTime.MinValue;
+                _shiftAssistBeepPrimaryLatched = false;
+                _shiftAssistBeepUrgentLatched = false;
+                _shiftAssistBeepLatched = false;
+            }
             _shiftAssistAudioIssuedPulse = false;
             _shiftAssistLastCapturedDelayMs = 0;
             _shiftAssistDelayCaptureEvent = "NONE";
@@ -6822,8 +6896,31 @@ namespace LaunchPlugin
             if (beep)
             {
                 int durationMs = GetShiftAssistBeepDurationMs();
-                _shiftAssistBeepUntilUtc = nowUtc.AddMilliseconds(durationMs);
-                _shiftAssistBeepLatched = true;
+                if (shiftLightEnabled)
+                {
+                    if (isUrgentBeep)
+                    {
+                        _shiftAssistBeepUrgentUntilUtc = nowUtc.AddMilliseconds(durationMs);
+                        _shiftAssistBeepUrgentLatched = true;
+                    }
+                    else
+                    {
+                        _shiftAssistBeepPrimaryUntilUtc = nowUtc.AddMilliseconds(durationMs);
+                        _shiftAssistBeepPrimaryLatched = true;
+                    }
+
+                    _shiftAssistBeepLatched = ResolveShiftAssistCombinedLightLatch();
+                    _shiftAssistBeepUntilUtc = _shiftAssistBeepLatched ? nowUtc.AddMilliseconds(durationMs) : DateTime.MinValue;
+                }
+                else
+                {
+                    _shiftAssistBeepPrimaryUntilUtc = DateTime.MinValue;
+                    _shiftAssistBeepUrgentUntilUtc = DateTime.MinValue;
+                    _shiftAssistBeepPrimaryLatched = false;
+                    _shiftAssistBeepUrgentLatched = false;
+                    _shiftAssistBeepUntilUtc = DateTime.MinValue;
+                    _shiftAssistBeepLatched = false;
+                }
 
                 DateTime triggerUtc = nowUtc;
                 DateTime issuedUtc = DateTime.MinValue;

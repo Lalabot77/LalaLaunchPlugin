@@ -189,6 +189,7 @@ namespace LaunchPlugin
                     OnPropertyChanged(nameof(ActiveShiftStackLabel));
                     OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
                     OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
+                    OnPropertyChanged(nameof(ShiftAssistShiftLightMode));
                 }
             }
         }
@@ -238,6 +239,7 @@ namespace LaunchPlugin
                     car.TrafficApproachWarnSeconds = defaultProfile.TrafficApproachWarnSeconds;
                     car.PitEntryDecelMps2 = defaultProfile.PitEntryDecelMps2;
                     car.PitEntryBufferM = defaultProfile.PitEntryBufferM;
+                    car.ShiftAssistShiftLightMode = defaultProfile.ShiftAssistShiftLightMode;
                     CloneShiftStacks(defaultProfile, car);
                 }
 
@@ -619,6 +621,30 @@ namespace LaunchPlugin
                 if (clamped > 200) clamped = 200;
                 _setShiftAssistLeadTimeMs?.Invoke(clamped);
                 OnPropertyChanged();
+            }
+        }
+
+
+        public int ShiftAssistShiftLightMode
+        {
+            get => SelectedProfile?.ShiftAssistShiftLightMode ?? 2;
+            set
+            {
+                if (SelectedProfile == null)
+                {
+                    return;
+                }
+
+                int normalized = value;
+                if (normalized < 0) normalized = 0;
+                if (normalized > 2) normalized = 2;
+
+                if (SelectedProfile.ShiftAssistShiftLightMode != normalized)
+                {
+                    SelectedProfile.ShiftAssistShiftLightMode = normalized;
+                    OnPropertyChanged();
+                    SaveProfiles();
+                }
             }
         }
 
@@ -1275,6 +1301,7 @@ namespace LaunchPlugin
                 newProfile.RacePaceDeltaSeconds = defaultProfile.RacePaceDeltaSeconds;
                 newProfile.PitEntryDecelMps2 = defaultProfile.PitEntryDecelMps2;
                 newProfile.PitEntryBufferM = defaultProfile.PitEntryBufferM;
+                newProfile.ShiftAssistShiftLightMode = defaultProfile.ShiftAssistShiftLightMode;
                 CloneShiftStacks(defaultProfile, newProfile);
             }
 
@@ -1364,6 +1391,7 @@ namespace LaunchPlugin
             destination.BaseTankLitres = source.BaseTankLitres;
             destination.PitEntryDecelMps2 = source.PitEntryDecelMps2;
             destination.PitEntryBufferM = source.PitEntryBufferM;
+            destination.ShiftAssistShiftLightMode = source.ShiftAssistShiftLightMode;
 
             CloneShiftStacks(source, destination);
             destination.MaxForwardGearsHint = source.MaxForwardGearsHint;
