@@ -1,7 +1,7 @@
 # Dash Integration
 
-Validated against commit: b45bc8f  
-Last updated: 2026-02-12  
+Validated against commit: b9250e1
+Last updated: 2026-02-24
 Branch: work
 
 ## Purpose
@@ -54,3 +54,17 @@ Use these toggles as hard gates for visibility. For pit-screen overlays, combine
 - Use `_Stable` pace/fuel properties for any text labels.
 - Gate launch UI on `LaunchModeActive`; gate rejoin displays on `RejoinIsExitingPits`.
 - Keep visibility toggles (`LalaDashShow...`) respected to avoid fighting user preferences.
+
+
+## Dark Mode integration (global dash control)
+- **Stable exports for dashboards:**
+  - `LalaLaunch.Dash.DarkMode.Mode` (internal key `Dash.DarkMode.Mode`)
+  - `LalaLaunch.Dash.DarkMode.Active` (internal key `Dash.DarkMode.Active`)
+  - `LalaLaunch.Dash.DarkMode.BrightnessPct` (internal key `Dash.DarkMode.BrightnessPct`)
+- **Consumption rule:** Dash JSON should consume only `LalaLaunch.Dash.DarkMode.*` and must not reference Lovely directly.
+- **Brightness contract:** `BrightnessPct` is `0..100` with `100` brightest; when inactive it reports user slider value (unscaled), when active it reports effective value after manual/auto scaling.
+- **Mode contract:**
+  - `0` Off: `Active` forced false.
+  - `1` Manual: active follows manual toggle unless Lovely override is enabled and available.
+  - `2` Auto: active follows solar hysteresis when manual toggle is off and Lovely override is not in control.
+- **Lovely UI behavior:** “Use Lovely True Dark” checkbox stays visible; enabled only when Lovely is detected.

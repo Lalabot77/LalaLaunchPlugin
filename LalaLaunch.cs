@@ -107,6 +107,7 @@ namespace LaunchPlugin
         public ImageSource PictureIcon => null;
         public string LeftMenuTitle => "Lala Plugin";
         public bool HardDebugEnabledForUi => HardDebugEnabled;
+        public bool IsLovelyAvailableForDarkMode { get; private set; }
 
         // --- Dashboard Manager ---
         public ScreenManager Screens = new ScreenManager();
@@ -138,6 +139,42 @@ namespace LaunchPlugin
         {
             DeclutterMode = (DeclutterMode + 1) % 3;
             SimHub.Logging.Current.Info($"[LalaPlugin:Dash] {actionLabel} -> DeclutterMode={DeclutterMode}.");
+        }
+
+        public void ToggleDarkMode()
+        {
+            if (Settings == null)
+            {
+                return;
+            }
+
+            Settings.DarkModeManualToggledOn = !Settings.DarkModeManualToggledOn;
+            SaveSettings();
+            SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] ToggleDarkMode action fired -> ManualToggledOn={Settings.DarkModeManualToggledOn}.");
+        }
+
+        public void SetDarkModeOn()
+        {
+            if (Settings == null)
+            {
+                return;
+            }
+
+            Settings.DarkModeManualToggledOn = true;
+            SaveSettings();
+            SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOn action fired -> ManualToggledOn=true.");
+        }
+
+        public void SetDarkModeOff()
+        {
+            if (Settings == null)
+            {
+                return;
+            }
+
+            Settings.DarkModeManualToggledOn = false;
+            SaveSettings();
+            SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOff action fired -> ManualToggledOn=false.");
         }
 
         // --- Launch button helper ---
@@ -708,6 +745,15 @@ namespace LaunchPlugin
         internal const double FuelReadyConfidenceDefault = 60.0;
         internal const int StintFuelMarginPctDefault = 10;
         internal const double CarSANotRelevantGapSecDefault = 10.0;
+        private const int DarkModeManual = 1;
+        private const int DarkModeAuto = 2;
+        private const double DarkModeAutoOnAltitudeDeg = 2.0;
+        private const double DarkModeAutoOffAltitudeDeg = 4.0;
+        private bool _darkModeAutoActiveLatched = false;
+        private bool _darkModeActive = false;
+        private int _darkModeBrightnessPct = 100;
+        private int _darkModeMode = DarkModeManual;
+        private bool? _darkModeLastLovelyAvailable = null;
 
         private static readonly Dictionary<int, string> DefaultCarSAStatusEBackgroundColors = new Dictionary<int, string>
         {
@@ -4054,6 +4100,9 @@ namespace LaunchPlugin
             this.AddAction("TogglePitScreen", (a, b) => TogglePitScreen());
             this.AddAction("PrimaryDashMode", (a, b) => PrimaryDashMode());
             this.AddAction("DeclutterMode", (a, b) => DeclutterMode0());
+            this.AddAction("ToggleDarkMode", (a, b) => ToggleDarkMode());
+            this.AddAction("SetDarkModeOn", (a, b) => SetDarkModeOn());
+            this.AddAction("SetDarkModeOff", (a, b) => SetDarkModeOff());
             this.AddAction("EventMarker", (a, b) => EventMarker());
             this.AddAction("LaunchMode", (a, b) => LaunchMode());
             this.AddAction("TrackMarkersLock", (a, b) => SetTrackMarkersLocked(true));
@@ -4149,7 +4198,7 @@ namespace LaunchPlugin
             this.AddAction("ShiftAssist_ToggleLock_G6", (a, b) => ExecuteShiftAssistLockAction(6, current => !current, "ShiftAssist_ToggleLock_G6"));
             this.AddAction("ShiftAssist_ToggleLock_G7", (a, b) => ExecuteShiftAssistLockAction(7, current => !current, "ShiftAssist_ToggleLock_G7"));
             this.AddAction("ShiftAssist_ToggleLock_G8", (a, b) => ExecuteShiftAssistLockAction(8, current => !current, "ShiftAssist_ToggleLock_G8"));
-            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, Debug_Hide_1_Toggle, Debug_Hide_2_Toggle, Debug_Hide_3_Toggle, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep, ShiftAssist_Learn_ResetSamples, ShiftAssist_ResetTargets_ActiveStack, ShiftAssist_ResetTargets_ActiveStack_AndSamples, ShiftAssist_ApplyLearnedToTargets_ActiveStack_OverrideLocks, ShiftAssist_Lock_G1..G8, ShiftAssist_Unlock_G1..G8, ShiftAssist_ToggleLock_G1..G8");
+            SimHub.Logging.Current.Info("[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, ToggleDarkMode, SetDarkModeOn, SetDarkModeOff, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock, Debug_Hide_1_Toggle, Debug_Hide_2_Toggle, Debug_Hide_3_Toggle, ShiftAssist_ResetDelayStats, ShiftAssist_ToggleShiftAssist, ShiftAssist_ToggleDebugCsv, ShiftAssist_TestBeep, ShiftAssist_Learn_ResetSamples, ShiftAssist_ResetTargets_ActiveStack, ShiftAssist_ResetTargets_ActiveStack_AndSamples, ShiftAssist_ApplyLearnedToTargets_ActiveStack_OverrideLocks, ShiftAssist_Lock_G1..G8, ShiftAssist_Unlock_G1..G8, ShiftAssist_ToggleLock_G1..G8");
 
             AttachCore("LalaLaunch.Friends.Count", () => _friendsCount);
 
@@ -4315,6 +4364,9 @@ namespace LaunchPlugin
             AttachCore("FalseStartDetected", () => _falseStartDetected);
             AttachCore("LastSessionType", () => _lastSessionType);
             AttachCore("DeclutterMode", () => DeclutterMode);
+            AttachCore("Dash.DarkMode.Mode", () => _darkModeMode);
+            AttachCore("Dash.DarkMode.Active", () => _darkModeActive);
+            AttachCore("Dash.DarkMode.BrightnessPct", () => _darkModeBrightnessPct);
             AttachCore("Race.OverallLeaderHasFinished", () => OverallLeaderHasFinished);
             AttachCore("Race.OverallLeaderHasFinishedValid", () => OverallLeaderHasFinishedValid);
             AttachCore("Race.ClassLeaderHasFinished", () => ClassLeaderHasFinished);
@@ -5096,6 +5148,7 @@ namespace LaunchPlugin
             var settings = JsonConvert.DeserializeObject<LaunchPluginSettings>(json) ?? new LaunchPluginSettings();
             NormalizeCarSaStyleSettings(settings);
             NormalizeShiftAssistSettings(settings);
+            NormalizeDarkModeSettings(settings);
             return settings;
         }
 
@@ -5115,6 +5168,7 @@ namespace LaunchPlugin
             EnforceHardDebugSettings(effectiveSettings);
             NormalizeCarSaStyleSettings(effectiveSettings);
             NormalizeShiftAssistSettings(effectiveSettings);
+            NormalizeDarkModeSettings(effectiveSettings);
             var json = JsonConvert.SerializeObject(effectiveSettings, Formatting.Indented);
             File.WriteAllText(path, json);
         }
@@ -5179,6 +5233,20 @@ namespace LaunchPlugin
             {
                 settings.ShiftAssistDebugCsvMaxHz = ShiftAssistDebugCsvMaxHzMax;
             }
+        }
+
+
+        private static void NormalizeDarkModeSettings(LaunchPluginSettings settings)
+        {
+            if (settings == null)
+            {
+                return;
+            }
+
+            if (settings.DarkModeMode < 0) settings.DarkModeMode = 0;
+            if (settings.DarkModeMode > 2) settings.DarkModeMode = 2;
+            if (settings.DarkModeBrightnessPct < 0) settings.DarkModeBrightnessPct = 0;
+            if (settings.DarkModeBrightnessPct > 100) settings.DarkModeBrightnessPct = 100;
         }
 
         private static void NormalizeCarSaStyleSettings(LaunchPluginSettings settings)
@@ -5579,6 +5647,7 @@ namespace LaunchPlugin
             if (Settings == null) return;
             if (!data.GameRunning || data.NewData == null) return;
             EnforceHardDebugSettings(Settings);
+            EvaluateDarkMode(pluginManager);
 
             _isRefuelSelected = IsRefuelSelected(pluginManager);
             _isTireChangeSelected = IsAnyTireChangeSelected(pluginManager);
@@ -12385,6 +12454,255 @@ namespace LaunchPlugin
             return "Unknown";
         }
 
+        private void EvaluateDarkMode(PluginManager pluginManager)
+        {
+            if (Settings == null || pluginManager == null)
+            {
+                return;
+            }
+
+            NormalizeDarkModeSettings(Settings);
+            int mode = Settings.DarkModeMode;
+            int userBrightnessPct = Settings.DarkModeBrightnessPct;
+
+            bool lovelyAvailable;
+            bool lovelyDarkState;
+            ProbeLovelyState(pluginManager, out lovelyAvailable, out lovelyDarkState);
+            if (_darkModeLastLovelyAvailable == null || _darkModeLastLovelyAvailable.Value != lovelyAvailable)
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] Lovely availability changed -> available={lovelyAvailable}.");
+                _darkModeLastLovelyAvailable = lovelyAvailable;
+            }
+
+            if (IsLovelyAvailableForDarkMode != lovelyAvailable)
+            {
+                IsLovelyAvailableForDarkMode = lovelyAvailable;
+                OnPropertyChanged(nameof(IsLovelyAvailableForDarkMode));
+            }
+
+            bool useLovely = Settings.UseLovelyTrueDark && lovelyAvailable;
+            if (!lovelyAvailable && Settings.UseLovelyTrueDark)
+            {
+                Settings.UseLovelyTrueDark = false;
+                SaveSettings();
+            }
+
+            double precip = Clamp01(SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Precipitation", 0.0));
+            bool solarValid = TryResolveSolarAltitude(pluginManager, out double solarAltitudeDeg);
+
+            double s = 1.0;
+            double w = precip * 0.20;
+            double f = 1.0;
+            if (mode == DarkModeAuto && solarValid)
+            {
+                s = ComputeSolarWeight(solarAltitudeDeg);
+                f = Clamp01(s - w);
+                if (f < 0.30) f = 0.30;
+            }
+
+            bool autoDark = false;
+            if (mode == DarkModeAuto && solarValid)
+            {
+                if (!_darkModeAutoActiveLatched && solarAltitudeDeg < DarkModeAutoOnAltitudeDeg)
+                {
+                    _darkModeAutoActiveLatched = true;
+                    autoDark = true;
+                }
+                else if (_darkModeAutoActiveLatched && solarAltitudeDeg > DarkModeAutoOffAltitudeDeg)
+                {
+                    _darkModeAutoActiveLatched = false;
+                    autoDark = false;
+                }
+                else
+                {
+                    autoDark = _darkModeAutoActiveLatched;
+                }
+            }
+            else
+            {
+                _darkModeAutoActiveLatched = false;
+            }
+
+            bool active;
+            if (mode == 0)
+            {
+                active = false;
+            }
+            else if (useLovely)
+            {
+                active = lovelyDarkState;
+            }
+            else if (Settings.DarkModeManualToggledOn)
+            {
+                active = true;
+            }
+            else if (mode == DarkModeAuto)
+            {
+                active = autoDark;
+            }
+            else
+            {
+                active = false;
+            }
+
+            if (mode == DarkModeAuto && !useLovely && !Settings.DarkModeManualToggledOn && solarValid && active != _darkModeActive)
+            {
+                SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] Auto Active transition -> active={active}, Alt={solarAltitudeDeg:F2}, Precip={precip:F2}, S={s:F2}, W={w:F2}, F={f:F2}, on<{DarkModeAutoOnAltitudeDeg:F1}, off>{DarkModeAutoOffAltitudeDeg:F1}.");
+            }
+
+            int effectiveBrightnessPct = userBrightnessPct;
+            if (active)
+            {
+                double factor = (mode == DarkModeAuto && solarValid) ? f : 1.0;
+                effectiveBrightnessPct = ClampInt((int)Math.Round(userBrightnessPct * factor), 0, 100);
+            }
+
+            _darkModeMode = mode;
+            _darkModeActive = active;
+            _darkModeBrightnessPct = active ? effectiveBrightnessPct : userBrightnessPct;
+        }
+
+        private static int ClampInt(int value, int min, int max)
+        {
+            if (value < min) return min;
+            if (value > max) return max;
+            return value;
+        }
+
+        private static double Clamp01(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return 0.0;
+            if (value < 0.0) return 0.0;
+            if (value > 1.0) return 1.0;
+            return value;
+        }
+
+        private static double ComputeSolarWeight(double altitudeDeg)
+        {
+            if (altitudeDeg > 5.0) return 1.0;
+            if (altitudeDeg < -8.0) return 0.3;
+            return 0.3 + ((altitudeDeg + 8.0) / 13.0) * 0.7;
+        }
+
+        private bool TryResolveSolarAltitude(PluginManager pluginManager, out double altitudeDeg)
+        {
+            altitudeDeg = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SolarAltitude", double.NaN);
+            if (!double.IsNaN(altitudeDeg) && !double.IsInfinity(altitudeDeg))
+            {
+                return true;
+            }
+
+            double latitudeDeg = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLatitude", double.NaN);
+            double longitudeDeg = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.SessionData.WeekendInfo.TrackLongitude", double.NaN);
+            double sessionTimeSec = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", double.NaN);
+            object rawSessionDate = pluginManager.GetPropertyValue("DataCorePlugin.GameRawData.SessionData.WeekendInfo.SessionDate");
+
+            if (double.IsNaN(latitudeDeg) || double.IsInfinity(latitudeDeg) ||
+                double.IsNaN(longitudeDeg) || double.IsInfinity(longitudeDeg) ||
+                double.IsNaN(sessionTimeSec) || double.IsInfinity(sessionTimeSec))
+            {
+                return false;
+            }
+
+            DateTime sessionDate;
+            if (rawSessionDate is DateTime dt)
+            {
+                sessionDate = dt;
+            }
+            else if (!DateTime.TryParse(Convert.ToString(rawSessionDate), out sessionDate))
+            {
+                return false;
+            }
+
+            int dayOfYear = sessionDate.DayOfYear;
+            double hour = ((sessionTimeSec % 86400.0) + 86400.0) % 86400.0 / 3600.0;
+            double gamma = 2.0 * Math.PI / 365.0 * (dayOfYear - 1 + ((hour - 12.0) / 24.0));
+            double declination = 0.006918
+                                 - 0.399912 * Math.Cos(gamma)
+                                 + 0.070257 * Math.Sin(gamma)
+                                 - 0.006758 * Math.Cos(2 * gamma)
+                                 + 0.000907 * Math.Sin(2 * gamma)
+                                 - 0.002697 * Math.Cos(3 * gamma)
+                                 + 0.00148 * Math.Sin(3 * gamma);
+
+            double localSolarTimeHours = hour + (longitudeDeg / 15.0);
+            double hourAngle = (localSolarTimeHours - 12.0) * 15.0 * Math.PI / 180.0;
+            double latitudeRad = latitudeDeg * Math.PI / 180.0;
+            double sinAlt = Math.Sin(latitudeRad) * Math.Sin(declination)
+                            + Math.Cos(latitudeRad) * Math.Cos(declination) * Math.Cos(hourAngle);
+            if (sinAlt > 1.0) sinAlt = 1.0;
+            if (sinAlt < -1.0) sinAlt = -1.0;
+            altitudeDeg = Math.Asin(sinAlt) * 180.0 / Math.PI;
+            return !double.IsNaN(altitudeDeg) && !double.IsInfinity(altitudeDeg);
+        }
+
+        private void ProbeLovelyState(PluginManager pluginManager, out bool lovelyAvailable, out bool lovelyDarkState)
+        {
+            lovelyAvailable = AppDomain.CurrentDomain.GetAssemblies().Any(a =>
+            {
+                string n = a.GetName().Name ?? string.Empty;
+                return n.IndexOf("lovely", StringComparison.OrdinalIgnoreCase) >= 0;
+            });
+
+            lovelyDarkState = false;
+            string[] keys =
+            {
+                "LovelyPlugin.DarkMode.Active",
+                "LovelyPlugin.TrueDark.Enabled",
+                "LovelyPlugin.Export.TrueDark",
+                "Lovely.DarkMode.Active",
+                "Lovely.TrueDark"
+            };
+
+            foreach (string key in keys)
+            {
+                object raw = pluginManager.GetPropertyValue(key);
+                if (raw == null) continue;
+                lovelyAvailable = true;
+                if (TryCoerceBool(raw, out bool parsed))
+                {
+                    lovelyDarkState = parsed;
+                    return;
+                }
+            }
+        }
+
+        private static bool TryCoerceBool(object raw, out bool value)
+        {
+            if (raw is bool b)
+            {
+                value = b;
+                return true;
+            }
+
+            if (raw is int i)
+            {
+                value = i != 0;
+                return true;
+            }
+
+            if (raw is double d && !double.IsNaN(d) && !double.IsInfinity(d))
+            {
+                value = Math.Abs(d) > double.Epsilon;
+                return true;
+            }
+
+            if (bool.TryParse(Convert.ToString(raw), out bool parsedBool))
+            {
+                value = parsedBool;
+                return true;
+            }
+
+            if (double.TryParse(Convert.ToString(raw), NumberStyles.Any, CultureInfo.InvariantCulture, out double parsedDouble))
+            {
+                value = Math.Abs(parsedDouble) > double.Epsilon;
+                return true;
+            }
+
+            value = false;
+            return false;
+        }
+
         /// Updates properties that need to be checked on every tick, like dash switching and anti-stall.
         private void UpdateLiveProperties(PluginManager pluginManager, ref GameData data)
         {
@@ -12975,6 +13293,10 @@ namespace LaunchPlugin
         public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
         public int StintFuelMarginPct { get; set; } = LalaLaunch.StintFuelMarginPctDefault;
         public bool EnableAutoDashSwitch { get; set; } = true;
+        public int DarkModeMode { get; set; } = 1;
+        public int DarkModeBrightnessPct { get; set; } = 100;
+        public bool UseLovelyTrueDark { get; set; } = false;
+        public bool DarkModeManualToggledOn { get; set; } = false;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
         public string TraceLogPath { get; set; } = "";

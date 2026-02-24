@@ -2,9 +2,9 @@
 
 **CANONICAL OBSERVABILITY MAP**
 
-Validated against: 498b4ca
-Last reviewed: 2026-02-23
-Last updated: 2026-02-23
+Validated against: b9250e1
+Last reviewed: 2026-02-24
+Last updated: 2026-02-24
 Branch: work
 
 Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the tag prefixes to filter in SimHub’s log view. Placeholder logs are noted; no deprecated messages are currently removed in code. Legacy/alternate copies of this list do not exist.
@@ -32,6 +32,11 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Launch Trace] <reason> – cancelling to Idle.`** — Launch trace aborted to idle with the provided reason (debounced).【F:LalaLaunch.cs†L3048-L3074】
 - **`[LalaPlugin:Launch] ManualPrimed timeout fired ...`** — Manual prime exceeded 30 s; launch cancelled and user-disabled latched.【F:LalaLaunch.cs†L4993-L5004】
 - **`[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock`** — Init-time action registration summary for SimHub bindings.【F:LalaLaunch.cs†L3276-L3290】
+- **`[LalaPlugin:DarkMode] ToggleDarkMode action fired -> ManualToggledOn=<true|false>.`** — Manual dark mode toggle action fired from Controls & Events.
+- **`[LalaPlugin:DarkMode] SetDarkModeOn action fired -> ManualToggledOn=true.`** — Manual dark mode forced on from Controls & Events.
+- **`[LalaPlugin:DarkMode] SetDarkModeOff action fired -> ManualToggledOn=false.`** — Manual dark mode forced off from Controls & Events.
+- **`[LalaPlugin:DarkMode] Lovely availability changed -> available=<true|false>.`** — Runtime Lovely detection status changed (logged once per transition).
+- **`[LalaPlugin:DarkMode] Auto Active transition -> active=..., Alt=..., Precip=..., S=..., W=..., F=..., on<2.0, off>4.0.`** — Auto hysteresis transition with brightness-factor inputs and thresholds.
 
 ## Fuel seeds, session change, and identity
 - **`[LalaPlugin:Fuel Burn] Captured seed from session ... dry=X (n=a), wet=Y (n=b).`** — Saves rolling dry/wet fuel figures before session change for seeding Race.【F:LalaLaunch.cs†L790-L830】
