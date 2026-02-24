@@ -270,8 +270,9 @@ Branch: work
 ## Shift Assist controls
 - `ProfilesManagerView.xaml` L219: `Enable Shift Assist` toggle exists without a tooltip string.
 - `ProfilesManagerView.xaml` L220-L221: `Learning mode` tooltip explains shift-point data mining and learning-overlay visibility.
-- `ProfilesManagerView.xaml` L234-L238: `Shift Light` toggle has tooltip clarifying it gates `ShiftAssist.Beep` dash visibility/export semantics.
-- `ProfilesManagerView.xaml` L240-L244: `Shift Light Duration (ms)` tooltip clarifies this controls the `ShiftAssist.Beep` latch only, not WAV playback length.
+- `ProfilesManagerView.xaml` L234-L238: `Shift Light` toggle tooltip clarifies it gates canonical `ShiftAssist.ShiftLight` visibility/export semantics (legacy alias `ShiftAssist.BeepLight`).
+- `ProfilesManagerView.xaml` L240-L244: `Shift Light Duration (ms)` tooltip clarifies this controls the Shift Light latch exports (`ShiftAssist.ShiftLight` / `ShiftLightPrimary` / `ShiftLightUrgent`) only, not WAV playback length.
+- `ProfilesManagerView.xaml` L282-L312: `Shift Light Mode` label/selector tooltip: "Choose which cue types drive the shift light latch/export. Audio is controlled separately by Shift Sound / Urgent sound."
 - `ProfilesManagerView.xaml` L290: `Shift Sound` toggle exists without a tooltip string.
 - `ProfilesManagerView.xaml` L309: `Test Sound` button exists without a tooltip string.
 - `ProfilesManagerView.xaml` L310-L321: `Beep volume` label/slider tooltip says it controls primary beep volume and urgent beep derives at 50% of this value.

@@ -228,6 +228,9 @@
                                     <ColumnDefinition Width="14"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="70"/>
+                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="120"/>
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
@@ -235,13 +238,13 @@
                              Content="Shift Light"
                              IsChecked="{Binding ShiftAssistLightEnabled, Mode=TwoWay}"
                              VerticalAlignment="Center"
-                             ToolTip="Controls whether the ShiftAssist.Beep light/export should be considered enabled for dash visibility."/>
+                             ToolTip="Controls whether the ShiftAssist.ShiftLight export should be considered enabled for dash visibility (legacy alias: ShiftAssist.BeepLight)."/>
 
                                 <TextBlock Grid.Column="2"
                                    Text="Shift Light Duration (ms)"
                                    VerticalAlignment="Center"
                                    Margin="0,0,8,0"
-                                   ToolTip="Controls how long the ShiftAssist.Beep export remains active. Does not affect WAV playback length.">
+                                   ToolTip="Controls how long ShiftAssist.ShiftLight / ShiftLightPrimary / ShiftLightUrgent exports remain active. Does not affect WAV playback length.">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -276,6 +279,48 @@
                                         </Style>
                                     </TextBox.Style>
                                 </TextBox>
+
+                                <TextBlock Grid.Column="5"
+                                   Text="Shift Light Mode"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   ToolTip="Choose which cue types drive the shift light latch/export. Audio is controlled separately by Shift Sound / Urgent sound.">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftAssistLightEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ShiftAssistEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <ComboBox Grid.Column="6"
+                                      SelectedIndex="{Binding ShiftAssistShiftLightMode, Mode=TwoWay}"
+                                      MinWidth="110"
+                                      ToolTip="Choose which cue types drive the shift light latch/export. Audio is controlled separately by Shift Sound / Urgent sound.">
+                                    <ComboBox.Style>
+                                        <Style TargetType="ComboBox">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftAssistLightEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ShiftAssistEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ComboBox.Style>
+                                    <ComboBoxItem Content="Primary"/>
+                                    <ComboBoxItem Content="Urgent"/>
+                                    <ComboBoxItem Content="Both"/>
+                                </ComboBox>
                             </Grid>
 
 

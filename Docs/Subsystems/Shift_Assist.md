@@ -1,7 +1,7 @@
 # Shift Assist
 
 Validated against commit: 72a0618
-Last updated: 2026-02-23
+Last updated: 2026-02-24
 Branch: work
 
 ## Purpose
@@ -17,7 +17,7 @@ Branch: work
 
 ## Internal state
 - `ShiftAssistEngine`: last gear, threshold-crossing latch, cooldown timer, suppress-after-downshift latch, RPM rate and effective target tracking.
-- `LalaLaunch`: beep latch timer, pending delay sample (gear + beep time), per-gear rolling delay stats (avg + sample count), enable-edge log latch, debug-audio-delay telemetry, optional debug CSV writer state.
+- `LalaLaunch`: primary/urgent/beep-export latch timers, pending delay sample (gear + beep time), per-gear rolling delay stats (avg + sample count), enable-edge log latch, debug-audio-delay telemetry, optional debug CSV writer state.
 - `ShiftAssistAudio`: resolved audio path, missing-custom warning latch, sound-choice log dedupe, `SoundPlayer` instance/cache.
 
 ## Calculation blocks (high level)
@@ -39,6 +39,21 @@ Branch: work
 - Uses same WAV selection and scaling pipeline.
 - Does not affect learning, shift targets, delay capture, or Beep export latch.
 
+
+## Shift Light Mode
+- Per-profile selector with 3 routing modes: `Primary`, `Urgent`, `Both` (`ShiftAssistShiftLightMode` = `0/1/2`, default `2`).
+- Controls only Shift Light latch/export routing (`ShiftAssist.ShiftLight`) and does **not** change primary/urgent audio behavior.
+- `ShiftAssist.ShiftLight` is the canonical selected shift-light output:
+  - `Primary` mode => primary cue latch only
+  - `Urgent` mode => urgent cue latch only
+  - `Both` mode => primary OR urgent latch
+- Additional canonical exports `ShiftAssist.ShiftLightPrimary` and `ShiftAssist.ShiftLightUrgent` expose per-cue latch windows for advanced dashboards (`ShiftAssist.BeepPrimary/BeepUrgent` remain legacy aliases).
+- If Shift Light is disabled, all three light exports are forced false.
+
+## Audio pulse output
+- `ShiftAssist.Beep` is reserved for audio observability and pulses only on ticks where audio issue succeeds (primary or urgent).
+- Use this pulse with `ShiftAssist.Debug.AudioDelayMs` to validate playback timing/latency in dashboards.
+
 ## Debug CSV — Urgent Columns
 - `UrgentEnabled`, `BeepSoundEnabled`, `BeepVolumePct`, `UrgentVolumePctDerived`, `CueActive`, `BeepLatched` provide per-row urgent gating/settings context (with urgent volume derived as base slider / 2, clamped 0..100).
 - `MsSincePrimaryAudioIssued`, `MsSincePrimaryCueTrigger`, `MsSinceUrgentPlayed`, `UrgentMinGapMsFixed` remain available as timing anchors for urgent diagnostics (`-1` means anchor unavailable yet); the 1000ms urgent delay decision now occurs in `ShiftAssistEngine`.
@@ -47,7 +62,7 @@ Branch: work
 - `RedlineRpm`, `OverRedline`, `Rpm`, `Gear`, `BeepType` provide lightweight runtime context for diagnosing missed urgent reminders around limiter/redline conditions.
 
 ## Outputs (exports + logs)
-- Exports: `ShiftAssist.ActiveGearStackId`, `ShiftAssist.TargetRPM_CurrentGear`, `ShiftAssist.ShiftRPM_G1..G8`, `ShiftAssist.EffectiveTargetRPM_CurrentGear`, `ShiftAssist.RpmRate`, `ShiftAssist.Beep`, `ShiftAssist.ShiftLightEnabled`, `ShiftAssist.Learn.Enabled`, `ShiftAssist.Learn.State`, `ShiftAssist.Learn.ActiveGear`, `ShiftAssist.Learn.WindowMs`, `ShiftAssist.Learn.PeakAccelMps2`, `ShiftAssist.Learn.PeakRpm`, `ShiftAssist.Learn.LastSampleRpm`, `ShiftAssist.Learn.SavedPulse`, `ShiftAssist.Learn.Samples_G1..G8`, `ShiftAssist.Learn.LearnedRpm_G1..G8`, `ShiftAssist.Learn.Locked_G1..G8`, `ShiftAssist.State`, `ShiftAssist.Debug.AudioDelayMs`, `ShiftAssist.Debug.AudioDelayAgeMs`, `ShiftAssist.Debug.AudioIssued`, `ShiftAssist.Debug.AudioBackend`, `ShiftAssist.Debug.CsvEnabled`, `ShiftAssist.DelayAvg_G1..G8`, `ShiftAssist.DelayN_G1..G8`, `ShiftAssist.Delay.Pending`, `ShiftAssist.Delay.PendingGear`, `ShiftAssist.Delay.PendingAgeMs`, `ShiftAssist.Delay.PendingRpmAtCue`, `ShiftAssist.Delay.RpmAtBeep`, `ShiftAssist.Delay.CaptureState`.
+- Exports: `ShiftAssist.ActiveGearStackId`, `ShiftAssist.TargetRPM_CurrentGear`, `ShiftAssist.ShiftRPM_G1..G8`, `ShiftAssist.EffectiveTargetRPM_CurrentGear`, `ShiftAssist.RpmRate`, `ShiftAssist.Beep`, `ShiftAssist.ShiftLight`, `ShiftAssist.ShiftLightPrimary`, `ShiftAssist.ShiftLightUrgent`, `ShiftAssist.BeepLight`, `ShiftAssist.BeepPrimary`, `ShiftAssist.BeepUrgent`, `ShiftAssist.ShiftLightEnabled`, `ShiftAssist.Learn.Enabled`, `ShiftAssist.Learn.State`, `ShiftAssist.Learn.ActiveGear`, `ShiftAssist.Learn.WindowMs`, `ShiftAssist.Learn.PeakAccelMps2`, `ShiftAssist.Learn.PeakRpm`, `ShiftAssist.Learn.LastSampleRpm`, `ShiftAssist.Learn.SavedPulse`, `ShiftAssist.Learn.Samples_G1..G8`, `ShiftAssist.Learn.LearnedRpm_G1..G8`, `ShiftAssist.Learn.Locked_G1..G8`, `ShiftAssist.State`, `ShiftAssist.Debug.AudioDelayMs`, `ShiftAssist.Debug.AudioDelayAgeMs`, `ShiftAssist.Debug.AudioIssued`, `ShiftAssist.Debug.AudioBackend`, `ShiftAssist.Debug.CsvEnabled`, `ShiftAssist.DelayAvg_G1..G8`, `ShiftAssist.DelayN_G1..G8`, `ShiftAssist.Delay.Pending`, `ShiftAssist.Delay.PendingGear`, `ShiftAssist.Delay.PendingAgeMs`, `ShiftAssist.Delay.PendingRpmAtCue`, `ShiftAssist.Delay.RpmAtBeep`, `ShiftAssist.Delay.CaptureState`.
 - Logs: enable/toggle/debug-csv transitions, learning reset, active-stack reset/lock/apply-learned action outcomes, beep trigger context (including urgent/primary type and suppression flags), test beep, delay sample capture/reset, optional audio-delay telemetry, custom/default sound choice, and audio warning/error paths.
 
 ## Dependencies / ordering assumptions
