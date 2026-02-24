@@ -213,6 +213,7 @@ Branch: work
 
 Shift Assist runtime/settings notes:
 - `ShiftAssistUrgentEnabled` (bool, per-profile): enables/disables urgent secondary beep playback.
+- `ShiftAssistShiftLightMode` (int, per-profile): Shift Light routing mode (`0=PrimaryOnly`, `1=UrgentOnly`, `2=Both`, default `2`).
 - No separate urgent volume parameter is used.
 - Urgent volume is derived at runtime as 50% of the main beep volume slider.
 
@@ -223,7 +224,9 @@ Shift Assist runtime/settings notes:
 | ShiftAssist.ShiftRPM_G1..ShiftAssist.ShiftRPM_G8 | int | Active-stack target RPM values for each source gear, exported directly for dash display and tuning overlays. | Per tick. | `LalaLaunch.cs` — per-gear target resolver + `AttachCore`. |
 | ShiftAssist.EffectiveTargetRPM_CurrentGear | int | Effective target RPM after predictive lead-time adjustment, using the same chosen target source as `ShiftAssist.TargetRPM_CurrentGear` (profile target or redline fallback). | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
 | ShiftAssist.RpmRate | int | RPM/sec estimate used by predictive cueing; `0` when unavailable/guarded. | Per tick. | `ShiftAssistEngine.cs` predictive evaluator + `LalaLaunch.cs` export. |
-| ShiftAssist.Beep | bool | True during configurable beep latch window (default 250 ms, clamp 100..1000 ms; dash flash fallback/testing). | Per tick. | `LalaLaunch.cs` — beep latch update in `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.Beep | bool | Backward-compatible Shift Light output. True during the latch window when the selected `ShiftAssistShiftLightMode` allows the cue type (`Primary`, `Urgent`, or `Both`). | Per tick. | `LalaLaunch.cs` — Shift Light routing/latch update in `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.BeepPrimary | bool | True during Shift Light duration window when a primary cue occurs and Shift Light is enabled. | Per tick. | `LalaLaunch.cs` — primary-cue latch in `EvaluateShiftAssist` + `AttachCore`. |
+| ShiftAssist.BeepUrgent | bool | True during Shift Light duration window when an urgent cue occurs and Shift Light is enabled. | Per tick. | `LalaLaunch.cs` — urgent-cue latch in `EvaluateShiftAssist` + `AttachCore`. |
 | ShiftAssist.ShiftLightEnabled | int | `1` when Shift Light visibility/export is enabled in profile settings, else `0`; used by dashboards to gate ShiftAssist flash cues independently of audio. | Per tick. | `LalaLaunch.cs` settings bridge + `AttachCore`. |
 | ShiftAssist.Learn.Enabled | int | Learning mode state exported as `1`/`0` for dash overlays and learning workflows. | Per tick. | `LalaLaunch.cs` settings bridge + `AttachCore`. |
 | ShiftAssist.Learn.State | string | Learning state machine state (`Off`, `Armed`, `Sampling`, `Complete`, `Rejected`). | Per tick. | `ShiftAssistLearningEngine.cs` tick state + `LalaLaunch.cs` export. |
