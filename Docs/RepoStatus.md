@@ -1,6 +1,6 @@
 # Repository status
 
-Validated against commit: d025944
+Validated against commit: e2b71f1
 Last updated: 2026-02-24
 Branch: work
 
@@ -18,6 +18,7 @@ Branch: work
 - `Subsystems/Shift_Assist.md` — refreshed in the standard subsystem format with latest export/log coverage.
 
 ## Delivery status highlights
+- ShiftAssist.Beep restored as audio-issued pulse; ShiftLight exports now canonical.
 - Shift Assist shift light routing now supports per-profile mode selection (Primary/Urgent/Both), with backward-compatible `ShiftAssist.Beep` plus dedicated `ShiftAssist.BeepPrimary` and `ShiftAssist.BeepUrgent` exports.
 - ShiftAssist debug CSV now logs urgent eligibility/attempt/outcome and timing anchors.
 - Shift Assist urgent cue now enforces the fixed 1000ms delay inside `ShiftAssistEngine` (preventing early consumption), keeps cue-dependent playback gating in `LalaLaunch`, and keeps urgent volume derived from the primary slider (50%).

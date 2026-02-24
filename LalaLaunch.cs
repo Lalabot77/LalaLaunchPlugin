@@ -4462,7 +4462,11 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.ShiftRPM_G8", () => GetShiftAssistTargetRpmForGear(8));
             AttachCore("ShiftAssist.EffectiveTargetRPM_CurrentGear", () => _shiftAssistEngine.LastEffectiveTargetRpm);
             AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
-            AttachCore("ShiftAssist.Beep", () => _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.Beep", () => _shiftAssistAudioIssuedPulse);
+            AttachCore("ShiftAssist.ShiftLight", () => _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.ShiftLightPrimary", () => _shiftAssistBeepPrimaryLatched);
+            AttachCore("ShiftAssist.ShiftLightUrgent", () => _shiftAssistBeepUrgentLatched);
+            AttachCore("ShiftAssist.BeepLight", () => _shiftAssistBeepLatched);
             AttachCore("ShiftAssist.BeepPrimary", () => _shiftAssistBeepPrimaryLatched);
             AttachCore("ShiftAssist.BeepUrgent", () => _shiftAssistBeepUrgentLatched);
             AttachCore("ShiftAssist.ShiftLightEnabled", () => IsShiftAssistLightEnabled() ? 1 : 0);
@@ -6448,10 +6452,13 @@ namespace LaunchPlugin
                 _shiftAssistBeepUrgentLatched = false;
             }
             DateTime issuedUtc = DateTime.MinValue;
+            bool audioIssued = false;
             if (_shiftAssistAudio != null)
             {
-                _shiftAssistAudio.TryPlayBeep(out issuedUtc);
+                audioIssued = _shiftAssistAudio.TryPlayBeep(out issuedUtc);
             }
+
+            _shiftAssistAudioIssuedPulse = audioIssued;
 
             if (IsVerboseDebugLoggingOn)
             {
