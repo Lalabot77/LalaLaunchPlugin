@@ -20,13 +20,13 @@ Branch: work
 - L29: Manual prime/abort launch mode (useful for testing and non-standing-start sessions).
 - L33: Assign a button to cycle primary dash modes (main screen views).
 - L34: Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings.
-- L36: Assign a button to flip the Dark Mode manual toggle state.
-- L37: Assign a button to force Dark Mode manual toggle on.
-- L38: Assign a button to force Dark Mode manual toggle off.
-- L57: Select Dark Mode behavior: Off, Manual, or Auto.
-- L58: 0=Off (forced off), 1=Manual, 2=Auto solar dimming.
-- L63: Base Dark Mode brightness percent (0-100). 100 is brightest.
-- L69: When Lovely is available, Dark Mode active state can follow Lovely True Dark.
+- L33: Assign a button to flip the Dark Mode manual toggle state.
+- L34: Assign a button to force Dark Mode manual toggle on.
+- L35: Assign a button to force Dark Mode manual toggle off.
+- L53: Select Dark Mode behavior: Off, Manual, or Auto.
+- L54: 0=Off (forced off), 1=Manual, 2=Auto solar dimming.
+- L60: Base Dark Mode brightness percent (0-100). 100 is brightest.
+- L65: When Lovely is available, Dark Mode active state can follow Lovely True Dark.
 - L48: Automatically switch dash screens when a session starts based on context.
 - L50: How long the post-launch results screen stays visible (sec).
 - L52: Minimum confidence (%) before pit strategy uses live fuel. Below this, profile estimates may be used.

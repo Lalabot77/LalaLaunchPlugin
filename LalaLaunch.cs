@@ -12484,6 +12484,7 @@ namespace LaunchPlugin
             if (!lovelyAvailable && Settings.UseLovelyTrueDark)
             {
                 Settings.UseLovelyTrueDark = false;
+                SaveSettings();
             }
 
             double precip = Clamp01(SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Precipitation", 0.0));

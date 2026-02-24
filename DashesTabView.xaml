@@ -8,9 +8,6 @@
              xmlns:ui="clr-namespace:SimHub.Plugins.UI;assembly=SimHub.Plugins"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="1200" x:Name="DashSettingsPage">
 
-    <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
-    </UserControl.Resources>
 
     <ScrollViewer
         VerticalScrollBarVisibility="Auto"
@@ -65,7 +62,6 @@
                         <styles:SHToggleCheckbox Content="Use Lovely True Dark"
                                                  IsChecked="{Binding Settings.UseLovelyTrueDark, Mode=TwoWay}"
                                                  IsEnabled="{Binding IsLovelyAvailableForDarkMode}"
-                                                 Visibility="{Binding IsLovelyAvailableForDarkMode, Converter={StaticResource BoolToVisibilityConverter}}"
                                                  ToolTip="When Lovely is available, Dark Mode active state can follow Lovely True Dark." />
                         <ui:TitledSlider Title="Post-Launch Results Display Time: " Minimum="0" Maximum="30" Value="{Binding Settings.ResultsDisplayTime, Mode=TwoWay}"
                                          ToolTip="How long the post-launch results screen stays visible (sec)." />
