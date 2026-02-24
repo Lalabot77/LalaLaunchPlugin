@@ -8,6 +8,10 @@
              xmlns:ui="clr-namespace:SimHub.Plugins.UI;assembly=SimHub.Plugins"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="1200" x:Name="DashSettingsPage">
 
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+    </UserControl.Resources>
+
     <ScrollViewer
         VerticalScrollBarVisibility="Auto"
         HorizontalScrollBarVisibility="Disabled">
@@ -29,6 +33,9 @@
                     <StackPanel Grid.Column="1" Margin="0,0,0,0">
                         <ui:ControlsEditor ActionName="LalaLaunch.PrimaryDashMode" FriendlyName="Change Primary Dash Mode" ToolTip="Assign a button to cycle primary dash modes (main screen views)." />
                         <ui:ControlsEditor ActionName="LalaLaunch.DeclutterMode" FriendlyName="Cycle Declutter Mode" ToolTip="Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings." />
+                        <ui:ControlsEditor ActionName="LalaLaunch.ToggleDarkMode" FriendlyName="Toggle Dark Mode" ToolTip="Assign a button to flip the Dark Mode manual toggle state." />
+                        <ui:ControlsEditor ActionName="LalaLaunch.SetDarkModeOn" FriendlyName="Set Dark Mode On" ToolTip="Assign a button to force Dark Mode manual toggle on." />
+                        <ui:ControlsEditor ActionName="LalaLaunch.SetDarkModeOff" FriendlyName="Set Dark Mode Off" ToolTip="Assign a button to force Dark Mode manual toggle off." />
                         <ui:ControlsEditor ActionName="LalaLaunch.EventMarker" FriendlyName="Event Marker" ToolTip="Assign a button to fire a short event marker pulse for dashboards and CSV exports." />
                     </StackPanel>
                 </Grid>
@@ -44,6 +51,22 @@
                         <TextBlock Text="GLOBAL DASH FUNCTIONS" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
                         <styles:SHToggleCheckbox Content="Auto screen selection at session start" IsChecked="{Binding Settings.EnableAutoDashSwitch, Mode=TwoWay}"
                                                  ToolTip="Automatically switch dash screens when a session starts based on context." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="Dark Mode:" Width="130" VerticalAlignment="Center" ToolTip="Select Dark Mode behavior: Off, Manual, or Auto."/>
+                            <ComboBox Width="160" SelectedValue="{Binding Settings.DarkModeMode, Mode=TwoWay}" SelectedValuePath="Tag" ToolTip="0=Off (forced off), 1=Manual, 2=Auto solar dimming.">
+                                <ComboBoxItem Content="Off" Tag="0" />
+                                <ComboBoxItem Content="Manual" Tag="1" />
+                                <ComboBoxItem Content="Auto" Tag="2" />
+                            </ComboBox>
+                        </StackPanel>
+                        <ui:TitledSlider Title="Dark Mode Brightness (%): " Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Settings.DarkModeBrightnessPct, Mode=TwoWay}"
+                                         ToolTip="Base Dark Mode brightness percent (0-100). 100 is brightest." />
+                        <styles:SHToggleCheckbox Content="Use Lovely True Dark"
+                                                 IsChecked="{Binding Settings.UseLovelyTrueDark, Mode=TwoWay}"
+                                                 IsEnabled="{Binding IsLovelyAvailableForDarkMode}"
+                                                 Visibility="{Binding IsLovelyAvailableForDarkMode, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                 ToolTip="When Lovely is available, Dark Mode active state can follow Lovely True Dark." />
                         <ui:TitledSlider Title="Post-Launch Results Display Time: " Minimum="0" Maximum="30" Value="{Binding Settings.ResultsDisplayTime, Mode=TwoWay}"
                                          ToolTip="How long the post-launch results screen stays visible (sec)." />
                         <ui:TitledSlider Title="Fuel Ready Confidence: " Minimum="0" Maximum="100" Value="{Binding Settings.FuelReadyConfidence, Mode=TwoWay}"
