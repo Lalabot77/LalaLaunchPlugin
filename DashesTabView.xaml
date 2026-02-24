@@ -31,8 +31,6 @@
                         <ui:ControlsEditor ActionName="LalaLaunch.PrimaryDashMode" FriendlyName="Change Primary Dash Mode" ToolTip="Assign a button to cycle primary dash modes (main screen views)." />
                         <ui:ControlsEditor ActionName="LalaLaunch.DeclutterMode" FriendlyName="Cycle Declutter Mode" ToolTip="Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings." />
                         <ui:ControlsEditor ActionName="LalaLaunch.ToggleDarkMode" FriendlyName="Toggle Dark Mode" ToolTip="Assign a button to flip the Dark Mode manual toggle state." />
-                        <ui:ControlsEditor ActionName="LalaLaunch.SetDarkModeOn" FriendlyName="Set Dark Mode On" ToolTip="Assign a button to force Dark Mode manual toggle on." />
-                        <ui:ControlsEditor ActionName="LalaLaunch.SetDarkModeOff" FriendlyName="Set Dark Mode Off" ToolTip="Assign a button to force Dark Mode manual toggle off." />
                         <ui:ControlsEditor ActionName="LalaLaunch.EventMarker" FriendlyName="Event Marker" ToolTip="Assign a button to fire a short event marker pulse for dashboards and CSV exports." />
                     </StackPanel>
                 </Grid>

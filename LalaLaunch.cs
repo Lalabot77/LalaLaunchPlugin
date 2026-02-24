@@ -5681,10 +5681,10 @@ namespace LaunchPlugin
             }
 
             // --- MASTER GUARD CLAUSES ---
-            if (Settings == null) return;
-            if (!data.GameRunning || data.NewData == null) return;
+            if (Settings == null || pluginManager == null) return;
             EnforceHardDebugSettings(Settings);
             EvaluateDarkMode(pluginManager);
+            if (!data.GameRunning || data.NewData == null) return;
 
             _isRefuelSelected = IsRefuelSelected(pluginManager);
             _isTireChangeSelected = IsAnyTireChangeSelected(pluginManager);
@@ -12742,8 +12742,10 @@ namespace LaunchPlugin
             });
 
             lovelyDarkState = false;
-            string[] keys =
+            string[] stateKeys =
             {
+                "LovelyPlugin.Id_TrueDarkModeState",
+                "LovelyPlugin.Id_PWTrueDarkMode",
                 "LovelyPlugin.DarkMode.Active",
                 "LovelyPlugin.TrueDark.Enabled",
                 "LovelyPlugin.Export.TrueDark",
@@ -12751,7 +12753,24 @@ namespace LaunchPlugin
                 "Lovely.TrueDark"
             };
 
-            foreach (string key in keys)
+            foreach (string key in stateKeys)
+            {
+                object raw = pluginManager.GetPropertyValue(key);
+                if (raw == null) continue;
+                lovelyAvailable = true;
+                if (TryCoerceBool(raw, out bool parsed))
+                {
+                    lovelyDarkState = parsed;
+                    return;
+                }
+            }
+
+            string[] capabilityKeys =
+            {
+                "LovelyPlugin.Id_TrueDarkModeEnabled"
+            };
+
+            foreach (string key in capabilityKeys)
             {
                 object raw = pluginManager.GetPropertyValue(key);
                 if (raw == null) continue;
