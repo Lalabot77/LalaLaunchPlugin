@@ -1,7 +1,7 @@
 # Project Index
 
-Validated against commit: 498b4ca
-Last updated: 2026-02-23
+Validated against commit: b9250e1
+Last updated: 2026-02-24
 Branch: work
 
 ## What this repo is
@@ -33,9 +33,9 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch instrumenta
 | Opponents | Nearby pace/fight and pit-exit class prediction (race-gated) | [Subsystems/Opponents.md](Subsystems/Opponents.md) |
 | CarSA | Car-centric gap/closing/status engine and debug exports | [Subsystems/CarSA.md](Subsystems/CarSA.md) |
 | Messaging | MSG lanes + definition-driven MessageEngine v1 outputs | [Subsystems/Message_System_V1.md](Subsystems/Message_System_V1.md) |
-| Dash integration | Main/message/overlay visibility and screen state exports | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
+| Dash integration | Main/message/overlay visibility, screen state exports, and global dark-mode controls (`LalaLaunch.Dash.DarkMode.*`) | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Freshness
-- Validated against commit: 498b4ca
-- Date: 2026-02-23
+- Validated against commit: b9250e1
+- Date: 2026-02-24
 - Branch: work
