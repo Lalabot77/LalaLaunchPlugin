@@ -13450,8 +13450,29 @@ namespace LaunchPlugin
         public double FuelReadyConfidence { get; set; } = LalaLaunch.FuelReadyConfidenceDefault;
         public int StintFuelMarginPct { get; set; } = LalaLaunch.StintFuelMarginPctDefault;
         public bool EnableAutoDashSwitch { get; set; } = true;
-        public int DarkModeMode { get; set; } = 1;
-        public int DarkModeBrightnessPct { get; set; } = 100;
+        private int _darkModeMode = 1;
+        public int DarkModeMode
+        {
+            get { return _darkModeMode; }
+            set
+            {
+                if (_darkModeMode == value) return;
+                _darkModeMode = value;
+                OnPropertyChanged(nameof(DarkModeMode));
+            }
+        }
+
+        private int _darkModeBrightnessPct = 100;
+        public int DarkModeBrightnessPct
+        {
+            get { return _darkModeBrightnessPct; }
+            set
+            {
+                if (_darkModeBrightnessPct == value) return;
+                _darkModeBrightnessPct = value;
+                OnPropertyChanged(nameof(DarkModeBrightnessPct));
+            }
+        }
         public bool UseLovelyTrueDark { get; set; } = false;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
