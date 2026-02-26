@@ -21,70 +21,47 @@ Branch: work
 - L31: Assign a button to cycle primary dash modes (main screen views).
 - L32: Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings.
 - L33: Assign a button to cycle LalaLaunch Dark Mode overrides (force on/off). Warning: don’t bind this to the same button as Lovely’s True Dark toggle. If ‘Use Lovely True Dark’ is enabled, LalaLaunch toggle is ignored.
-- L34: Assign a button to force Dark Mode manual toggle on.
-- L35: Assign a button to force Dark Mode manual toggle off.
-- L36: Assign a button to fire a short event marker pulse for dashboards and CSV exports.
-- L50: Automatically switch dash screens when a session starts based on context.
-- L26: Assign a button to cancel the current popup message.
-- L27: Assign a button to show or hide the pit screen popup.
-- L29: Manual prime/abort launch mode (useful for testing and non-standing-start sessions).
-- L33: Assign a button to cycle primary dash modes (main screen views).
-- L34: Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings.
-- L33: Assign a button to cycle LalaLaunch Dark Mode overrides (force on/off). Warning: don’t bind this to the same button as Lovely’s True Dark toggle. If ‘Use Lovely True Dark’ is enabled, LalaLaunch toggle is ignored.
-- L34: Assign a button to force Dark Mode manual toggle on.
-- L35: Assign a button to force Dark Mode manual toggle off.
-- L53: Select Dark Mode behavior: Off, Manual, or Auto.
-- L54: 0=Off (forced off), 1=Manual, 2=Auto solar dimming.
-- L60: Base Dark Mode brightness percent (0-100). 100 is brightest.
-- L63: When Lovely is available, Dark Mode active state can follow Lovely True Dark.
-- L64: If using Lovely True Dark, bind only one toggle (Lovely OR LalaLaunch).
-- L67: How long the post-launch results screen stays visible (sec).
-- L69: Minimum confidence (%) before pit strategy uses live fuel. Below this, profile estimates may be used.
-- L77: Reserve fuel as a percentage of one lap (based on stable fuel burn) when calculating stint burn targets.
+- L34: Assign a button to fire a short event marker pulse for dashboards and CSV exports.
 - L48: Automatically switch dash screens when a session starts based on context.
-- L50: How long the post-launch results screen stays visible (sec).
-- L52: Minimum confidence (%) before pit strategy uses live fuel. Below this, profile estimates may be used.
-- L60: Reserve fuel as a percentage of one lap (based on stable fuel burn) when calculating stint burn targets.
-- L88: Enable the Launch screen for this dash type.
-- L90: Show the Launch screen on the Main Dash.
-- L92: Show the Launch screen on the Message Dash.
-- L94: Show the Launch screen on the Overlay.
-- L96: Enable the Pit Limiter screen for this dash type.
-- L98: Show the Pit Limiter screen on the Main Dash.
-- L100: Show the Pit Limiter screen on the Message Dash.
-- L102: Show the Pit Limiter screen on the Overlay.
-- L105: Enable the automatic pit screen for this dash type.
-- L107: Show the automatic pit screen on the Main Dash.
-- L109: Show the automatic pit screen on the Message Dash.
-- L111: Show the automatic pit screen on the Overlay.
-- L114: Enable track rejoin assist for this dash type.
-- L116: Show track rejoin assist on the Main Dash.
-- L118: Show track rejoin assist on the Message Dash.
-- L120: Show track rejoin assist on the Overlay.
-- L123: Enable detailed race messages for this dash type.
-- L125: Show verbose race messages on the Main Dash.
-- L127: Show verbose race messages on the Message Dash.
-- L129: Show verbose race messages on the Overlay.
-- L132: Enable race flag notifications for this dash type.
-- L134: Show race flags on the Main Dash.
-- L136: Show race flags on the Message Dash.
-- L138: Show race flags on the Overlay.
-- L141: Enable radio message popups for this dash type.
-- L143: Show radio messages on the Main Dash.
-- L145: Show radio messages on the Message Dash.
-- L147: Show radio messages on the Overlay.
-- L150: Enable traffic alert warnings for this dash type.
-- L152: Show traffic alerts on the Main Dash.
-- L154: Show traffic alerts on the Message Dash.
-- L156: Show traffic alerts on the Overlay.
-- L170: Save the current dash user variables to this profile.
-- L175: Resets the view to the 'Default Settings' profile.
-- L185: How long the rejoin warning remains after you return to the track (sec).
-- L188: Speed (kph) above which the rejoin warning clears automatically.
-- L190: Yaw rate (deg/s) above which a spin is detected.
-- L192: Seconds to impact for an approaching car before an overtake alert triggers.
-- L194: Target braking deceleration for pit entry assist (m/s²).
-- L196: Distance before pit entry to start the braking assist (m).
+- L51: Select Dark Mode behavior: Off, Manual, or Auto.
+- L52: 0=Off (forced off), 1=Manual, 2=Auto solar dimming.
+- L59: Base Dark Mode brightness percent (0-100). 100 is brightest.
+- L63: When Lovely is available, Dark Mode active state can follow Lovely True Dark.
+- L69: How long the post-launch results screen stays visible (sec).
+- L71: Minimum confidence (%) before pit strategy uses live fuel. Below this, profile estimates may be used.
+- L79: Reserve fuel as a percentage of one lap (based on stable fuel burn) when calculating stint burn targets.
+- L107: Enable the Launch screen for this dash type.
+- L109: Show the Launch screen on the Main Dash.
+- L111: Show the Launch screen on the Message Dash.
+- L113: Show the Launch screen on the Overlay.
+- L116: Enable the Pit Limiter screen for this dash type.
+- L118: Show the Pit Limiter screen on the Main Dash.
+- L120: Show the Pit Limiter screen on the Message Dash.
+- L122: Show the Pit Limiter screen on the Overlay.
+- L125: Enable the automatic pit screen for this dash type.
+- L127: Show the automatic pit screen on the Main Dash.
+- L129: Show the automatic pit screen on the Message Dash.
+- L131: Show the automatic pit screen on the Overlay.
+- L134: Enable track rejoin assist for this dash type.
+- L136: Show track rejoin assist on the Main Dash.
+- L138: Show track rejoin assist on the Message Dash.
+- L140: Show track rejoin assist on the Overlay.
+- L143: Enable detailed race messages for this dash type.
+- L145: Show verbose race messages on the Main Dash.
+- L147: Show verbose race messages on the Message Dash.
+- L149: Show verbose race messages on the Overlay.
+- L152: Enable race flag notifications for this dash type.
+- L154: Show race flags on the Main Dash.
+- L156: Show race flags on the Message Dash.
+- L158: Show race flags on the Overlay.
+- L161: Enable radio message popups for this dash type.
+- L163: Show radio messages on the Main Dash.
+- L165: Show radio messages on the Message Dash.
+- L167: Show radio messages on the Overlay.
+- L170: Enable traffic alert warnings for this dash type.
+- L172: Show traffic alerts on the Main Dash.
+- L174: Show traffic alerts on the Message Dash.
+- L176: Show traffic alerts on the Overlay.
 
 ## FuelCalculatorView.xaml
 - L114: Inputs used to calculate the pre-race fuel plan.

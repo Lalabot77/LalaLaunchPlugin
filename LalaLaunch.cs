@@ -143,7 +143,7 @@ namespace LaunchPlugin
 
         private bool ShouldIgnoreDarkModeManualActions()
         {
-            return Settings != null && Settings.UseLovelyTrueDark && _darkModeLovelyAvailable;
+            return Settings != null && Settings.UseLovelyTrueDark && (_darkModeLovelyAvailable || IsLovelyAvailableForDarkMode);
         }
 
         public void ToggleDarkMode()
@@ -155,7 +155,7 @@ namespace LaunchPlugin
 
             if (ShouldIgnoreDarkModeManualActions())
             {
-                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] ToggleDarkMode ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable ‘Use Lovely True Dark’ to use LalaLaunch toggle.");
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] ToggleDarkMode ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable 'Use Lovely True Dark' to use LalaLaunch toggle.");
                 return;
             }
 
@@ -188,7 +188,7 @@ namespace LaunchPlugin
 
             if (ShouldIgnoreDarkModeManualActions())
             {
-                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOn ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable ‘Use Lovely True Dark’ to use LalaLaunch toggle.");
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOn ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable 'Use Lovely True Dark' to use LalaLaunch toggle.");
                 return;
             }
 
@@ -207,7 +207,7 @@ namespace LaunchPlugin
 
             if (ShouldIgnoreDarkModeManualActions())
             {
-                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOff ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable ‘Use Lovely True Dark’ to use LalaLaunch toggle.");
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOff ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable 'Use Lovely True Dark' to use LalaLaunch toggle.");
                 return;
             }
 
