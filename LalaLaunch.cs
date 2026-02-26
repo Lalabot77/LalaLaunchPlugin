@@ -12676,13 +12676,13 @@ namespace LaunchPlugin
             }
 
             bool active;
-            if (mode == 0)
-            {
-                active = false;
-            }
-            else if (useLovely)
+            if (useLovely)
             {
                 active = lovelyDarkState;
+            }
+            else if (mode == 0)
+            {
+                active = false;
             }
             else if (Settings.DarkModeManualForcedOff)
             {
@@ -12707,7 +12707,7 @@ namespace LaunchPlugin
             }
 
             int effectiveBrightnessPct = userBrightnessPct;
-            if (active)
+            if (active && !useLovely)
             {
                 double factor = (mode == DarkModeAuto && solarValid) ? f : 1.0;
                 effectiveBrightnessPct = ClampInt((int)Math.Round(userBrightnessPct * factor), 0, 100);
@@ -12717,7 +12717,9 @@ namespace LaunchPlugin
                 }
             }
 
-            int brightnessPct = active ? effectiveBrightnessPct : userBrightnessPct;
+            int brightnessPct = useLovely
+                ? userBrightnessPct
+                : (active ? effectiveBrightnessPct : userBrightnessPct);
             int opacityPct = active ? ClampInt(100 - brightnessPct, 0, 100) : 0;
             string overrideState = Settings.DarkModeManualToggledOn
                 ? "ManOn"
@@ -12806,15 +12808,15 @@ namespace LaunchPlugin
 
         private void ProbeLovelyState(PluginManager pluginManager, out bool lovelyAvailable, out bool lovelyDarkState)
         {
-            lovelyAvailable = AppDomain.CurrentDomain.GetAssemblies().Any(a =>
-            {
-                string n = a.GetName().Name ?? string.Empty;
-                return n.IndexOf("lovely", StringComparison.OrdinalIgnoreCase) >= 0;
-            });
-
+            lovelyAvailable = false;
             lovelyDarkState = false;
+
+            bool foundState = false;
+            bool foundEnabled = false;
+
             string[] stateKeys =
             {
+                "LovelyPlugin.ld_TrueDarkModeState",
                 "LovelyPlugin.Id_TrueDarkModeState",
                 "LovelyPlugin.Id_PWTrueDarkMode",
                 "LovelyPlugin.DarkMode.Active",
@@ -12826,32 +12828,59 @@ namespace LaunchPlugin
 
             foreach (string key in stateKeys)
             {
-                object raw = pluginManager.GetPropertyValue(key);
-                if (raw == null) continue;
-                lovelyAvailable = true;
-                if (TryCoerceBool(raw, out bool parsed))
+                if (TryReadBoolProperty(pluginManager, key, out bool parsed))
                 {
+                    foundState = true;
                     lovelyDarkState = parsed;
-                    return;
                 }
             }
 
             string[] capabilityKeys =
             {
+                "LovelyPlugin.ld_TrueDarkModeEnabled",
                 "LovelyPlugin.Id_TrueDarkModeEnabled"
             };
 
             foreach (string key in capabilityKeys)
             {
-                object raw = pluginManager.GetPropertyValue(key);
-                if (raw == null) continue;
-                lovelyAvailable = true;
-                if (TryCoerceBool(raw, out bool parsed))
+                if (TryReadBoolProperty(pluginManager, key, out _))
                 {
-                    lovelyDarkState = parsed;
-                    return;
+                    foundEnabled = true;
                 }
             }
+
+            if (!foundState)
+            {
+                lovelyDarkState = false;
+            }
+
+            lovelyAvailable = foundState || foundEnabled;
+        }
+
+        private static bool TryReadBoolProperty(PluginManager pluginManager, string propertyName, out bool value)
+        {
+            value = false;
+            if (pluginManager == null || string.IsNullOrWhiteSpace(propertyName))
+            {
+                return false;
+            }
+
+            object raw;
+            try
+            {
+                raw = pluginManager.GetPropertyValue(propertyName);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (raw == null)
+            {
+                return false;
+            }
+
+            return TryCoerceBool(raw, out value);
         }
 
         private static bool TryCoerceBool(object raw, out bool value)
