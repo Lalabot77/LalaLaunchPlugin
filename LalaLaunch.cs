@@ -159,10 +159,13 @@ namespace LaunchPlugin
                 return;
             }
 
-            if (Settings.DarkModeManualForcedOff)
+            bool previousForcedOn = Settings.DarkModeManualToggledOn;
+            bool previousForcedOff = Settings.DarkModeManualForcedOff;
+
+            if (!Settings.DarkModeManualToggledOn && !Settings.DarkModeManualForcedOff)
             {
-                Settings.DarkModeManualForcedOff = false;
                 Settings.DarkModeManualToggledOn = true;
+                Settings.DarkModeManualForcedOff = false;
             }
             else if (Settings.DarkModeManualToggledOn)
             {
@@ -171,12 +174,12 @@ namespace LaunchPlugin
             }
             else
             {
-                Settings.DarkModeManualToggledOn = true;
+                Settings.DarkModeManualToggledOn = false;
                 Settings.DarkModeManualForcedOff = false;
             }
 
             SaveSettings();
-            SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] ToggleDarkMode action fired -> ForcedOn={Settings.DarkModeManualToggledOn}, ForcedOff={Settings.DarkModeManualForcedOff}.");
+            SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] ToggleDarkMode action fired -> ForcedOn={previousForcedOn}->{Settings.DarkModeManualToggledOn}, ForcedOff={previousForcedOff}->{Settings.DarkModeManualForcedOff}.");
         }
 
         public void SetDarkModeOn()
@@ -794,6 +797,7 @@ namespace LaunchPlugin
         private int _darkModeBrightnessPct = 100;
         private bool _darkModeLovelyAvailable = false;
         private int _darkModeOpacityPct = 0;
+        private string _darkModeOverrideState = "Auto";
         private int _darkModeMode = DarkModeManual;
         private bool? _darkModeLastLovelyAvailable = null;
 
@@ -4442,6 +4446,7 @@ namespace LaunchPlugin
             AttachCore("Dash.DarkMode.BrightnessPct", () => _darkModeBrightnessPct);
             AttachCore("Dash.DarkMode.LovelyAvailable", () => _darkModeLovelyAvailable);
             AttachCore("Dash.DarkMode.OpacityPct", () => _darkModeOpacityPct);
+            AttachCore("Dash.DarkMode.OverrideState", () => _darkModeOverrideState);
             AttachCore("Race.OverallLeaderHasFinished", () => OverallLeaderHasFinished);
             AttachCore("Race.OverallLeaderHasFinishedValid", () => OverallLeaderHasFinishedValid);
             AttachCore("Race.ClassLeaderHasFinished", () => ClassLeaderHasFinished);
@@ -12709,11 +12714,15 @@ namespace LaunchPlugin
 
             int brightnessPct = active ? effectiveBrightnessPct : userBrightnessPct;
             int opacityPct = active ? ClampInt(100 - brightnessPct, 0, 100) : 0;
+            string overrideState = Settings.DarkModeManualToggledOn
+                ? "ManOn"
+                : (Settings.DarkModeManualForcedOff ? "ManOff" : "Auto");
 
             _darkModeMode = mode;
             _darkModeActive = active;
             _darkModeBrightnessPct = brightnessPct;
             _darkModeOpacityPct = opacityPct;
+            _darkModeOverrideState = overrideState;
         }
 
         private static int ClampInt(int value, int min, int max)
