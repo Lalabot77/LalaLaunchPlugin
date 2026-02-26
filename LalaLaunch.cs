@@ -746,7 +746,6 @@ namespace LaunchPlugin
         private string _darkModeModeText = "Manual";
         private int _darkModeMode = DarkModeManual;
         private bool? _darkModeLastLovelyAvailable = null;
-        private bool _darkModeLegacyMigrated = false;
 
         private static readonly Dictionary<int, string> DefaultCarSAStatusEBackgroundColors = new Dictionary<int, string>
         {
@@ -12546,36 +12545,6 @@ namespace LaunchPlugin
         }
 
 
-        private void MigrateDarkModeLegacySettingsOnce()
-        {
-            if (_darkModeLegacyMigrated || Settings == null)
-            {
-                return;
-            }
-
-            bool hadLegacyFlags = Settings.DarkModeManualForcedOff || Settings.DarkModeManualToggledOn;
-            if (Settings.DarkModeManualForcedOff)
-            {
-                Settings.DarkModeMode = 0;
-            }
-            else if (Settings.DarkModeManualToggledOn)
-            {
-                Settings.DarkModeMode = DarkModeManual;
-            }
-
-            Settings.DarkModeManualForcedOff = false;
-            Settings.DarkModeManualToggledOn = false;
-            NormalizeDarkModeSettings(Settings);
-
-            if (hadLegacyFlags)
-            {
-                SaveSettings();
-                SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] Migrated legacy manual dark mode flags to Mode={Settings.DarkModeMode}({GetDarkModeText(Settings.DarkModeMode)}).");
-            }
-
-            _darkModeLegacyMigrated = true;
-        }
-
         private void EvaluateDarkMode(PluginManager pluginManager)
         {
             if (Settings == null || pluginManager == null)
@@ -12584,7 +12553,6 @@ namespace LaunchPlugin
             }
 
             NormalizeDarkModeSettings(Settings);
-            MigrateDarkModeLegacySettingsOnce();
 
             int mode = Settings.DarkModeMode;
             int userBrightnessPct = Settings.DarkModeBrightnessPct;
@@ -12610,6 +12578,7 @@ namespace LaunchPlugin
             {
                 Settings.UseLovelyTrueDark = false;
                 SaveSettings();
+                OnPropertyChanged(nameof(Settings));
             }
 
             double precip = Clamp01(SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Precipitation", 0.0));
@@ -13483,19 +13452,7 @@ namespace LaunchPlugin
         public bool EnableAutoDashSwitch { get; set; } = true;
         public int DarkModeMode { get; set; } = 1;
         public int DarkModeBrightnessPct { get; set; } = 100;
-        public bool DarkModeManualToggledOn { get; set; } = false; // legacy migration only
-        public bool DarkModeManualForcedOff { get; set; } = false; // legacy migration only
-        private bool _useLovelyTrueDark = false;
-        public bool UseLovelyTrueDark
-        {
-            get { return _useLovelyTrueDark; }
-            set
-            {
-                if (_useLovelyTrueDark == value) return;
-                _useLovelyTrueDark = value;
-                OnPropertyChanged(nameof(UseLovelyTrueDark));
-            }
-        }
+        public bool UseLovelyTrueDark { get; set; } = false;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
         public string TraceLogPath { get; set; } = "";
