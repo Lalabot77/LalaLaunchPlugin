@@ -141,10 +141,21 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"[LalaPlugin:Dash] {actionLabel} -> DeclutterMode={DeclutterMode}.");
         }
 
+        private bool ShouldIgnoreDarkModeManualActions()
+        {
+            return Settings != null && Settings.UseLovelyTrueDark && _darkModeLovelyAvailable;
+        }
+
         public void ToggleDarkMode()
         {
             if (Settings == null)
             {
+                return;
+            }
+
+            if (ShouldIgnoreDarkModeManualActions())
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] ToggleDarkMode ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable ‘Use Lovely True Dark’ to use LalaLaunch toggle.");
                 return;
             }
 
@@ -175,6 +186,12 @@ namespace LaunchPlugin
                 return;
             }
 
+            if (ShouldIgnoreDarkModeManualActions())
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOn ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable ‘Use Lovely True Dark’ to use LalaLaunch toggle.");
+                return;
+            }
+
             Settings.DarkModeManualToggledOn = true;
             Settings.DarkModeManualForcedOff = false;
             SaveSettings();
@@ -185,6 +202,12 @@ namespace LaunchPlugin
         {
             if (Settings == null)
             {
+                return;
+            }
+
+            if (ShouldIgnoreDarkModeManualActions())
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOff ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable ‘Use Lovely True Dark’ to use LalaLaunch toggle.");
                 return;
             }
 

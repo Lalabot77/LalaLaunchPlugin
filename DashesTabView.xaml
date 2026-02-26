@@ -30,7 +30,7 @@
                     <StackPanel Grid.Column="1" Margin="0,0,0,0">
                         <ui:ControlsEditor ActionName="LalaLaunch.PrimaryDashMode" FriendlyName="Change Primary Dash Mode" ToolTip="Assign a button to cycle primary dash modes (main screen views)." />
                         <ui:ControlsEditor ActionName="LalaLaunch.DeclutterMode" FriendlyName="Cycle Declutter Mode" ToolTip="Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings." />
-                        <ui:ControlsEditor ActionName="LalaLaunch.ToggleDarkMode" FriendlyName="Toggle Dark Mode" ToolTip="Assign a button to flip the Dark Mode manual toggle state." />
+                        <ui:ControlsEditor ActionName="LalaLaunch.ToggleDarkMode" FriendlyName="Toggle Dark Mode" ToolTip="Assign a button to cycle LalaLaunch Dark Mode overrides (force on/off). Warning: don’t bind this to the same button as Lovely’s True Dark toggle. If ‘Use Lovely True Dark’ is enabled, LalaLaunch toggle is ignored." />
                         <ui:ControlsEditor ActionName="LalaLaunch.EventMarker" FriendlyName="Event Marker" ToolTip="Assign a button to fire a short event marker pulse for dashboards and CSV exports." />
                     </StackPanel>
                 </Grid>
@@ -61,6 +61,10 @@
                                                  IsChecked="{Binding Settings.UseLovelyTrueDark, Mode=TwoWay}"
                                                  IsEnabled="{Binding IsLovelyAvailableForDarkMode}"
                                                  ToolTip="When Lovely is available, Dark Mode active state can follow Lovely True Dark." />
+                        <TextBlock Text="If using Lovely True Dark, bind only one toggle (Lovely OR LalaLaunch)."
+                                   Margin="0,4,0,0"
+                                   Opacity="0.85"
+                                   TextWrapping="Wrap" />
                         <ui:TitledSlider Title="Post-Launch Results Display Time: " Minimum="0" Maximum="30" Value="{Binding Settings.ResultsDisplayTime, Mode=TwoWay}"
                                          ToolTip="How long the post-launch results screen stays visible (sec)." />
                         <ui:TitledSlider Title="Fuel Ready Confidence: " Minimum="0" Maximum="100" Value="{Binding Settings.FuelReadyConfidence, Mode=TwoWay}"

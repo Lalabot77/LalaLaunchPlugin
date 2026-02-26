@@ -20,7 +20,7 @@ Branch: work
 - L27: Manual prime/abort launch mode (useful for testing and non-standing-start sessions).
 - L31: Assign a button to cycle primary dash modes (main screen views).
 - L32: Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings.
-- L33: Assign a button to flip the Dark Mode manual toggle state.
+- L33: Assign a button to cycle LalaLaunch Dark Mode overrides (force on/off). Warning: don’t bind this to the same button as Lovely’s True Dark toggle. If ‘Use Lovely True Dark’ is enabled, LalaLaunch toggle is ignored.
 - L34: Assign a button to force Dark Mode manual toggle on.
 - L35: Assign a button to force Dark Mode manual toggle off.
 - L36: Assign a button to fire a short event marker pulse for dashboards and CSV exports.
@@ -30,13 +30,14 @@ Branch: work
 - L29: Manual prime/abort launch mode (useful for testing and non-standing-start sessions).
 - L33: Assign a button to cycle primary dash modes (main screen views).
 - L34: Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings.
-- L33: Assign a button to flip the Dark Mode manual toggle state.
+- L33: Assign a button to cycle LalaLaunch Dark Mode overrides (force on/off). Warning: don’t bind this to the same button as Lovely’s True Dark toggle. If ‘Use Lovely True Dark’ is enabled, LalaLaunch toggle is ignored.
 - L34: Assign a button to force Dark Mode manual toggle on.
 - L35: Assign a button to force Dark Mode manual toggle off.
 - L53: Select Dark Mode behavior: Off, Manual, or Auto.
 - L54: 0=Off (forced off), 1=Manual, 2=Auto solar dimming.
 - L60: Base Dark Mode brightness percent (0-100). 100 is brightest.
-- L65: When Lovely is available, Dark Mode active state can follow Lovely True Dark.
+- L63: When Lovely is available, Dark Mode active state can follow Lovely True Dark.
+- L64: If using Lovely True Dark, bind only one toggle (Lovely OR LalaLaunch).
 - L67: How long the post-launch results screen stays visible (sec).
 - L69: Minimum confidence (%) before pit strategy uses live fuel. Below this, profile estimates may be used.
 - L77: Reserve fuel as a percentage of one lap (based on stable fuel burn) when calculating stint burn targets.
