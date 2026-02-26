@@ -141,6 +141,11 @@ namespace LaunchPlugin
             SimHub.Logging.Current.Info($"[LalaPlugin:Dash] {actionLabel} -> DeclutterMode={DeclutterMode}.");
         }
 
+        private bool ShouldIgnoreDarkModeManualActions()
+        {
+            return Settings != null && Settings.UseLovelyTrueDark && (_darkModeLovelyAvailable || IsLovelyAvailableForDarkMode);
+        }
+
         public void ToggleDarkMode()
         {
             if (Settings == null)
@@ -148,9 +153,33 @@ namespace LaunchPlugin
                 return;
             }
 
-            Settings.DarkModeManualToggledOn = !Settings.DarkModeManualToggledOn;
+            if (ShouldIgnoreDarkModeManualActions())
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] ToggleDarkMode ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable 'Use Lovely True Dark' to use LalaLaunch toggle.");
+                return;
+            }
+
+            bool previousForcedOn = Settings.DarkModeManualToggledOn;
+            bool previousForcedOff = Settings.DarkModeManualForcedOff;
+
+            if (!Settings.DarkModeManualToggledOn && !Settings.DarkModeManualForcedOff)
+            {
+                Settings.DarkModeManualToggledOn = true;
+                Settings.DarkModeManualForcedOff = false;
+            }
+            else if (Settings.DarkModeManualToggledOn)
+            {
+                Settings.DarkModeManualToggledOn = false;
+                Settings.DarkModeManualForcedOff = true;
+            }
+            else
+            {
+                Settings.DarkModeManualToggledOn = false;
+                Settings.DarkModeManualForcedOff = false;
+            }
+
             SaveSettings();
-            SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] ToggleDarkMode action fired -> ManualToggledOn={Settings.DarkModeManualToggledOn}.");
+            SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] ToggleDarkMode action fired -> ForcedOn={previousForcedOn}->{Settings.DarkModeManualToggledOn}, ForcedOff={previousForcedOff}->{Settings.DarkModeManualForcedOff}.");
         }
 
         public void SetDarkModeOn()
@@ -160,9 +189,16 @@ namespace LaunchPlugin
                 return;
             }
 
+            if (ShouldIgnoreDarkModeManualActions())
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOn ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable 'Use Lovely True Dark' to use LalaLaunch toggle.");
+                return;
+            }
+
             Settings.DarkModeManualToggledOn = true;
+            Settings.DarkModeManualForcedOff = false;
             SaveSettings();
-            SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOn action fired -> ManualToggledOn=true.");
+            SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOn action fired -> ForcedOn=true, ForcedOff=false.");
         }
 
         public void SetDarkModeOff()
@@ -172,9 +208,16 @@ namespace LaunchPlugin
                 return;
             }
 
+            if (ShouldIgnoreDarkModeManualActions())
+            {
+                SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOff ignored because Lovely True Dark is controlling active state. Unbind Lovely toggle or disable 'Use Lovely True Dark' to use LalaLaunch toggle.");
+                return;
+            }
+
+            Settings.DarkModeManualForcedOff = true;
             Settings.DarkModeManualToggledOn = false;
             SaveSettings();
-            SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOff action fired -> ManualToggledOn=false.");
+            SimHub.Logging.Current.Info("[LalaPlugin:DarkMode] SetDarkModeOff action fired -> ForcedOn=false, ForcedOff=true.");
         }
 
         // --- Launch button helper ---
@@ -752,6 +795,9 @@ namespace LaunchPlugin
         private bool _darkModeAutoActiveLatched = false;
         private bool _darkModeActive = false;
         private int _darkModeBrightnessPct = 100;
+        private bool _darkModeLovelyAvailable = false;
+        private int _darkModeOpacityPct = 0;
+        private string _darkModeOverrideState = "Auto";
         private int _darkModeMode = DarkModeManual;
         private bool? _darkModeLastLovelyAvailable = null;
 
@@ -4398,6 +4444,9 @@ namespace LaunchPlugin
             AttachCore("Dash.DarkMode.Mode", () => _darkModeMode);
             AttachCore("Dash.DarkMode.Active", () => _darkModeActive);
             AttachCore("Dash.DarkMode.BrightnessPct", () => _darkModeBrightnessPct);
+            AttachCore("Dash.DarkMode.LovelyAvailable", () => _darkModeLovelyAvailable);
+            AttachCore("Dash.DarkMode.OpacityPct", () => _darkModeOpacityPct);
+            AttachCore("Dash.DarkMode.OverrideState", () => _darkModeOverrideState);
             AttachCore("Race.OverallLeaderHasFinished", () => OverallLeaderHasFinished);
             AttachCore("Race.OverallLeaderHasFinishedValid", () => OverallLeaderHasFinishedValid);
             AttachCore("Race.ClassLeaderHasFinished", () => ClassLeaderHasFinished);
@@ -5284,6 +5333,10 @@ namespace LaunchPlugin
             if (settings.DarkModeMode > 2) settings.DarkModeMode = 2;
             if (settings.DarkModeBrightnessPct < 0) settings.DarkModeBrightnessPct = 0;
             if (settings.DarkModeBrightnessPct > 100) settings.DarkModeBrightnessPct = 100;
+            if (settings.DarkModeManualForcedOff && settings.DarkModeManualToggledOn)
+            {
+                settings.DarkModeManualToggledOn = false;
+            }
         }
 
         private static void NormalizeCarSaStyleSettings(LaunchPluginSettings settings)
@@ -12565,6 +12618,7 @@ namespace LaunchPlugin
             bool lovelyAvailable;
             bool lovelyDarkState;
             ProbeLovelyState(pluginManager, out lovelyAvailable, out lovelyDarkState);
+            _darkModeLovelyAvailable = lovelyAvailable;
             if (_darkModeLastLovelyAvailable == null || _darkModeLastLovelyAvailable.Value != lovelyAvailable)
             {
                 SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] Lovely availability changed -> available={lovelyAvailable}.");
@@ -12629,6 +12683,10 @@ namespace LaunchPlugin
             {
                 active = lovelyDarkState;
             }
+            else if (Settings.DarkModeManualForcedOff)
+            {
+                active = false;
+            }
             else if (Settings.DarkModeManualToggledOn)
             {
                 active = true;
@@ -12642,7 +12700,7 @@ namespace LaunchPlugin
                 active = false;
             }
 
-            if (mode == DarkModeAuto && !useLovely && !Settings.DarkModeManualToggledOn && solarValid && active != _darkModeActive)
+            if (mode == DarkModeAuto && !useLovely && !Settings.DarkModeManualToggledOn && !Settings.DarkModeManualForcedOff && solarValid && active != _darkModeActive)
             {
                 SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] Auto Active transition -> active={active}, Alt={solarAltitudeDeg:F2}, Precip={precip:F2}, S={s:F2}, W={w:F2}, F={f:F2}, on<{DarkModeAutoOnAltitudeDeg:F1}, off>{DarkModeAutoOffAltitudeDeg:F1}.");
             }
@@ -12654,9 +12712,17 @@ namespace LaunchPlugin
                 effectiveBrightnessPct = ClampInt((int)Math.Round(userBrightnessPct * factor), 0, 100);
             }
 
+            int brightnessPct = active ? effectiveBrightnessPct : userBrightnessPct;
+            int opacityPct = active ? ClampInt(100 - brightnessPct, 0, 100) : 0;
+            string overrideState = Settings.DarkModeManualToggledOn
+                ? "ManOn"
+                : (Settings.DarkModeManualForcedOff ? "ManOff" : "Auto");
+
             _darkModeMode = mode;
             _darkModeActive = active;
-            _darkModeBrightnessPct = active ? effectiveBrightnessPct : userBrightnessPct;
+            _darkModeBrightnessPct = brightnessPct;
+            _darkModeOpacityPct = opacityPct;
+            _darkModeOverrideState = overrideState;
         }
 
         private static int ClampInt(int value, int min, int max)
@@ -13413,6 +13479,7 @@ namespace LaunchPlugin
         public int DarkModeBrightnessPct { get; set; } = 100;
         public bool UseLovelyTrueDark { get; set; } = false;
         public bool DarkModeManualToggledOn { get; set; } = false;
+        public bool DarkModeManualForcedOff { get; set; } = false;
         public bool EnableCsvLogging { get; set; } = true;
         public string CsvLogPath { get; set; } = "";
         public string TraceLogPath { get; set; } = "";
