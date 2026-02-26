@@ -31,10 +31,8 @@ Scope: Info-level logs emitted via `SimHub.Logging.Current.Info(...)`. Use the t
 - **`[LalaPlugin:Launch] State change: <old> -> <new>.`** — Launch state machine transition (e.g., primed → logging).【F:LalaLaunch.cs†L2470-L2494】
 - **`[LalaPlugin:Launch Trace] <reason> – cancelling to Idle.`** — Launch trace aborted to idle with the provided reason (debounced).【F:LalaLaunch.cs†L3048-L3074】
 - **`[LalaPlugin:Launch] ManualPrimed timeout fired ...`** — Manual prime exceeded 30 s; launch cancelled and user-disabled latched.【F:LalaLaunch.cs†L4993-L5004】
-- **`[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock`** — Init-time action registration summary for SimHub bindings.【F:LalaLaunch.cs†L3276-L3290】
-- **`[LalaPlugin:DarkMode] ToggleDarkMode action fired -> ManualToggledOn=<true|false>.`** — Manual dark mode toggle action fired from Controls & Events.
-- **`[LalaPlugin:DarkMode] SetDarkModeOn action fired -> ManualToggledOn=true.`** — Manual dark mode forced on from Controls & Events.
-- **`[LalaPlugin:DarkMode] SetDarkModeOff action fired -> ManualToggledOn=false.`** — Manual dark mode forced off from Controls & Events.
+- **`[LalaPlugin:Init] Actions registered: MsgCx, TogglePitScreen, PrimaryDashMode, DeclutterMode, ToggleDarkMode, SecondaryDashMode (legacy), EventMarker, LaunchMode, TrackMarkersLock, TrackMarkersUnlock`** — Init-time action registration summary for SimHub bindings.
+- **`[LalaPlugin:DarkMode] ToggleDarkMode action fired -> Mode=<old>(<label>)-><new>(<label>).`** — Dark mode cycle action fired from Controls & Events.
 - **`[LalaPlugin:DarkMode] Lovely availability changed -> available=<true|false>.`** — Runtime Lovely detection status changed (logged once per transition).
 - **`[LalaPlugin:DarkMode] Auto Active transition -> active=..., Alt=..., Precip=..., S=..., W=..., F=..., on<2.0, off>4.0.`** — Auto hysteresis transition with brightness-factor inputs and thresholds.
 
