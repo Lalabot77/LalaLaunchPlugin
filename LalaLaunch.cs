@@ -790,6 +790,7 @@ namespace LaunchPlugin
         internal const double CarSANotRelevantGapSecDefault = 10.0;
         private const int DarkModeManual = 1;
         private const int DarkModeAuto = 2;
+        private const int DarkModeAutoMinBrightnessPct = 30;
         private const double DarkModeAutoOnAltitudeDeg = 2.0;
         private const double DarkModeAutoOffAltitudeDeg = 4.0;
         private bool _darkModeAutoActiveLatched = false;
@@ -12710,6 +12711,10 @@ namespace LaunchPlugin
             {
                 double factor = (mode == DarkModeAuto && solarValid) ? f : 1.0;
                 effectiveBrightnessPct = ClampInt((int)Math.Round(userBrightnessPct * factor), 0, 100);
+                if (mode == DarkModeAuto)
+                {
+                    effectiveBrightnessPct = ClampInt(effectiveBrightnessPct, DarkModeAutoMinBrightnessPct, 100);
+                }
             }
 
             int brightnessPct = active ? effectiveBrightnessPct : userBrightnessPct;
