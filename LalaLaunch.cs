@@ -12808,12 +12808,7 @@ namespace LaunchPlugin
 
         private void ProbeLovelyState(PluginManager pluginManager, out bool lovelyAvailable, out bool lovelyDarkState)
         {
-            lovelyAvailable = AppDomain.CurrentDomain.GetAssemblies().Any(a =>
-            {
-                string n = a.GetName().Name ?? string.Empty;
-                return n.IndexOf("lovely", StringComparison.OrdinalIgnoreCase) >= 0;
-            });
-
+            lovelyAvailable = false;
             lovelyDarkState = false;
 
             bool foundState = false;
@@ -12836,7 +12831,6 @@ namespace LaunchPlugin
                 if (TryReadBoolProperty(pluginManager, key, out bool parsed))
                 {
                     foundState = true;
-                    lovelyAvailable = true;
                     lovelyDarkState = parsed;
                 }
             }
@@ -12852,7 +12846,6 @@ namespace LaunchPlugin
                 if (TryReadBoolProperty(pluginManager, key, out _))
                 {
                     foundEnabled = true;
-                    lovelyAvailable = true;
                 }
             }
 
@@ -12861,7 +12854,7 @@ namespace LaunchPlugin
                 lovelyDarkState = false;
             }
 
-            lovelyAvailable = lovelyAvailable || foundState || foundEnabled;
+            lovelyAvailable = foundState || foundEnabled;
         }
 
         private static bool TryReadBoolProperty(PluginManager pluginManager, string propertyName, out bool value)
