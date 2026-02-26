@@ -159,27 +159,13 @@ namespace LaunchPlugin
                 return;
             }
 
-            bool previousForcedOn = Settings.DarkModeManualToggledOn;
-            bool previousForcedOff = Settings.DarkModeManualForcedOff;
-
-            if (!Settings.DarkModeManualToggledOn && !Settings.DarkModeManualForcedOff)
-            {
-                Settings.DarkModeManualToggledOn = true;
-                Settings.DarkModeManualForcedOff = false;
-            }
-            else if (Settings.DarkModeManualToggledOn)
-            {
-                Settings.DarkModeManualToggledOn = false;
-                Settings.DarkModeManualForcedOff = true;
-            }
-            else
-            {
-                Settings.DarkModeManualToggledOn = false;
-                Settings.DarkModeManualForcedOff = false;
-            }
+            int previousMode = Settings.DarkModeMode;
+            Settings.DarkModeMode = (Settings.DarkModeMode + 1) % 3;
+            Settings.DarkModeManualToggledOn = false;
+            Settings.DarkModeManualForcedOff = false;
 
             SaveSettings();
-            SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] ToggleDarkMode action fired -> ForcedOn={previousForcedOn}->{Settings.DarkModeManualToggledOn}, ForcedOff={previousForcedOff}->{Settings.DarkModeManualForcedOff}.");
+            SimHub.Logging.Current.Info($"[LalaPlugin:DarkMode] ToggleDarkMode action fired -> Mode={previousMode}({GetDarkModeText(previousMode)})->{Settings.DarkModeMode}({GetDarkModeText(Settings.DarkModeMode)}), cleared legacy manual override flags.");
         }
 
         public void SetDarkModeOn()
@@ -798,7 +784,7 @@ namespace LaunchPlugin
         private int _darkModeBrightnessPct = 100;
         private bool _darkModeLovelyAvailable = false;
         private int _darkModeOpacityPct = 0;
-        private string _darkModeOverrideState = "Auto";
+        private string _darkModeModeText = "Manual";
         private int _darkModeMode = DarkModeManual;
         private bool? _darkModeLastLovelyAvailable = null;
 
@@ -4447,7 +4433,7 @@ namespace LaunchPlugin
             AttachCore("Dash.DarkMode.BrightnessPct", () => _darkModeBrightnessPct);
             AttachCore("Dash.DarkMode.LovelyAvailable", () => _darkModeLovelyAvailable);
             AttachCore("Dash.DarkMode.OpacityPct", () => _darkModeOpacityPct);
-            AttachCore("Dash.DarkMode.OverrideState", () => _darkModeOverrideState);
+            AttachCore("Dash.DarkMode.ModeText", () => _darkModeModeText);
             AttachCore("Race.OverallLeaderHasFinished", () => OverallLeaderHasFinished);
             AttachCore("Race.OverallLeaderHasFinishedValid", () => OverallLeaderHasFinishedValid);
             AttachCore("Race.ClassLeaderHasFinished", () => ClassLeaderHasFinished);
@@ -12637,6 +12623,7 @@ namespace LaunchPlugin
             {
                 Settings.UseLovelyTrueDark = false;
                 SaveSettings();
+                OnPropertyChanged(nameof(Settings));
             }
 
             double precip = Clamp01(SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.Precipitation", 0.0));
@@ -12721,15 +12708,18 @@ namespace LaunchPlugin
                 ? userBrightnessPct
                 : (active ? effectiveBrightnessPct : userBrightnessPct);
             int opacityPct = active ? ClampInt(100 - brightnessPct, 0, 100) : 0;
-            string overrideState = Settings.DarkModeManualToggledOn
-                ? "ManOn"
-                : (Settings.DarkModeManualForcedOff ? "ManOff" : "Auto");
-
             _darkModeMode = mode;
+            _darkModeModeText = GetDarkModeText(mode);
             _darkModeActive = active;
             _darkModeBrightnessPct = brightnessPct;
             _darkModeOpacityPct = opacityPct;
-            _darkModeOverrideState = overrideState;
+        }
+
+        private static string GetDarkModeText(int mode)
+        {
+            if (mode == 0) return "Off";
+            if (mode == DarkModeAuto) return "Auto";
+            return "Manual";
         }
 
         private static int ClampInt(int value, int min, int max)

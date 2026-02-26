@@ -20,7 +20,7 @@ Branch: work
 - L27: Manual prime/abort launch mode (useful for testing and non-standing-start sessions).
 - L31: Assign a button to cycle primary dash modes (main screen views).
 - L32: Assign a button to cycle declutter mode (0/1/2) for dash visibility bindings.
-- L33: Assign a button to cycle LalaLaunch Dark Mode override state (Auto → ManOn → ManOff). Warning: don’t bind this to the same button as Lovely’s True Dark toggle. If ‘Use Lovely True Dark’ is enabled, LalaLaunch toggle is ignored.
+- L33: Assign a button to cycle LalaLaunch Dark Mode mode (Off → Manual → Auto). Warning: don’t bind this to the same button as Lovely’s True Dark toggle. If ‘Use Lovely True Dark’ is enabled and Lovely is available, LalaLaunch toggle is ignored.
 - L34: Assign a button to fire a short event marker pulse for dashboards and CSV exports.
 - L48: Automatically switch dash screens when a session starts based on context.
 - L51: Select Dark Mode behavior: Off, Manual, or Auto.
