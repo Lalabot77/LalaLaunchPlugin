@@ -300,12 +300,9 @@
                                     </TextBlock.Style>
                                 </TextBlock>
 
-                                <ComboBox Grid.Column="6"
-                                      SelectedIndex="{Binding ShiftAssistShiftLightMode, Mode=TwoWay}"
-                                      MinWidth="110"
-                                      ToolTip="Choose which cue types drive the shift light latch/export. Audio is controlled separately by Shift Sound / Urgent sound.">
-                                    <ComboBox.Style>
-                                        <Style TargetType="ComboBox">
+                                <Grid Grid.Column="6">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
                                             <Setter Property="Visibility" Value="Visible"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding ShiftAssistLightEnabled}" Value="False">
@@ -316,11 +313,16 @@
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </ComboBox.Style>
-                                    <ComboBoxItem Content="Primary"/>
-                                    <ComboBoxItem Content="Urgent"/>
-                                    <ComboBoxItem Content="Both"/>
-                                </ComboBox>
+                                    </Grid.Style>
+
+                                    <ComboBox SelectedIndex="{Binding ShiftAssistShiftLightMode, Mode=TwoWay}"
+                                          MinWidth="110"
+                                          ToolTip="Choose which cue types drive the shift light latch/export. Audio is controlled separately by Shift Sound / Urgent sound.">
+                                        <ComboBoxItem Content="Primary"/>
+                                        <ComboBoxItem Content="Urgent"/>
+                                        <ComboBoxItem Content="Both"/>
+                                    </ComboBox>
+                                </Grid>
                             </Grid>
 
 
