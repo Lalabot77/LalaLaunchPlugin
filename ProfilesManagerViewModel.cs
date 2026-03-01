@@ -12,6 +12,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Windows.Input;
 using Microsoft.Win32;
 
 namespace LaunchPlugin
@@ -73,6 +74,10 @@ namespace LaunchPlugin
         private readonly Action _shiftAssistApplyLearnedOverrideAction;
         private readonly DispatcherTimer _shiftAssistRuntimeTimer;
         private List<ShiftGearRow> _shiftGearRows;
+        private readonly int[] _shiftStackEditRpm = new int[8];
+        private readonly bool[] _shiftStackEditLocked = new bool[8];
+        private string _previousShiftStackId;
+        private bool _isInternalShiftStackSelectionChange;
         private const int ShiftAssistMaxStoredGears = 8;
         private const int ShiftAssistDefaultForwardGears = 6;
         private readonly string _profilesFilePath;
@@ -703,6 +708,7 @@ namespace LaunchPlugin
         }
 
         private string _selectedShiftStackId = "Default";
+        public bool ShiftStackIsDirty { get; private set; }
         public string SelectedShiftStackId
         {
             get => string.IsNullOrWhiteSpace(_selectedShiftStackId) ? "Default" : _selectedShiftStackId;
@@ -714,20 +720,64 @@ namespace LaunchPlugin
                     return;
                 }
 
-                _selectedShiftStackId = normalized;
-                EnsureShiftStackForSelectedProfile(normalized);
-                _setCurrentGearStackId?.Invoke(normalized);
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(ActiveShiftStackLabel));
-                OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
-                OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
-                OnPropertyChanged(nameof(ShiftStackIds));
-                RebuildShiftGearRows();
-                OnPropertyChanged(nameof(ShiftGearRows));
-                OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
-                OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                if (_isInternalShiftStackSelectionChange)
+                {
+                    ApplySelectedShiftStackChange(normalized);
+                    return;
+                }
+
+                if (ShiftStackIsDirty)
+                {
+                    string previous = string.IsNullOrWhiteSpace(_previousShiftStackId) ? _selectedShiftStackId : _previousShiftStackId;
+                    var choice = MessageBox.Show(
+                        "Save changes to the current shift stack before switching?",
+                        "Unsaved Shift Stack Changes",
+                        MessageBoxButton.YesNoCancel,
+                        MessageBoxImage.Warning,
+                        MessageBoxResult.Yes);
+
+                    if (choice == MessageBoxResult.Cancel)
+                    {
+                        _isInternalShiftStackSelectionChange = true;
+                        try
+                        {
+                            SelectedShiftStackId = previous;
+                        }
+                        finally
+                        {
+                            _isInternalShiftStackSelectionChange = false;
+                        }
+
+                        return;
+                    }
+
+                    if (choice == MessageBoxResult.Yes)
+                    {
+                        CommitShiftStackBufferToStored(previous);
+                    }
+                }
+
+                ApplySelectedShiftStackChange(normalized);
             }
+        }
+
+        private void ApplySelectedShiftStackChange(string normalized)
+        {
+            _selectedShiftStackId = normalized;
+            EnsureShiftStackForSelectedProfile(normalized);
+            _setCurrentGearStackId?.Invoke(normalized);
+            _previousShiftStackId = normalized;
+            LoadShiftStackBuffer(normalized);
+
+            OnPropertyChanged(nameof(SelectedShiftStackId));
+            OnPropertyChanged(nameof(ActiveShiftStackLabel));
+            OnPropertyChanged(nameof(IsSelectedStackActiveLiveStack));
+            OnPropertyChanged(nameof(ShiftAssistStackLearningStatsNotice));
+            OnPropertyChanged(nameof(ShiftStackIds));
+            OnPropertyChanged(nameof(ShiftGearRows));
+            OnPropertyChanged(nameof(ShiftAssistMaxTargetGears));
+            OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
+            CommandManager.InvalidateRequerySuggested();
         }
 
         public string ActiveLiveShiftStackId
@@ -898,7 +948,6 @@ namespace LaunchPlugin
 
         private void RebuildShiftGearRows()
         {
-            var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
             int targetRows = ResolveShiftAssistTargetRowCount();
             var rows = new List<ShiftGearRow>(targetRows);
             for (int i = 0; i < targetRows; i++)
@@ -908,8 +957,8 @@ namespace LaunchPlugin
                 var row = new ShiftGearRow
                 {
                     GearLabel = $"Shift from Gear {rowGear}",
-                    RpmText = stack.ShiftRPM[gearIdx] > 0 ? stack.ShiftRPM[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
-                    IsLocked = stack.ShiftLocked[gearIdx],
+                    RpmText = _shiftStackEditRpm[gearIdx] > 0 ? _shiftStackEditRpm[gearIdx].ToString(CultureInfo.InvariantCulture) : string.Empty,
+                    IsLocked = _shiftStackEditLocked[gearIdx],
                 };
 
                 row.SaveAction = txt =>
@@ -918,25 +967,27 @@ namespace LaunchPlugin
                     if (!int.TryParse((txt ?? string.Empty).Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value) || value < 0)
                         value = 0;
 
-                    stack.ShiftRPM[gearIdx] = value;
+                    bool changed = _shiftStackEditRpm[gearIdx] != value;
+                    _shiftStackEditRpm[gearIdx] = value;
                     row.RpmText = value > 0 ? value.ToString(CultureInfo.InvariantCulture) : string.Empty;
 
-                    SaveProfiles();
+                    if (changed)
+                    {
+                        SetShiftStackDirty(true);
+                    }
+
                     OnPropertyChanged(nameof(ShiftAssistCurrentGearRedlineHint));
                 };
 
                 row.SetLockAction = locked =>
                 {
-                    if (stack.ShiftLocked[gearIdx] == locked)
+                    if (_shiftStackEditLocked[gearIdx] == locked)
                         return;
 
-                    stack.ShiftLocked[gearIdx] = locked;
+                    _shiftStackEditLocked[gearIdx] = locked;
                     row.IsLocked = locked;
-
-                    SaveProfiles();
+                    SetShiftStackDirty(true);
                 };
-
-
 
                 rows.Add(row);
             }
@@ -980,7 +1031,6 @@ namespace LaunchPlugin
                 return;
             }
 
-            var stack = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
             for (int i = 0; i < _shiftGearRows.Count; i++)
             {
                 int rowGear = i + 1;
@@ -995,7 +1045,7 @@ namespace LaunchPlugin
                     delaySamples > 0 && avgDelayMs > 0 ? avgDelayMs.ToString(CultureInfo.InvariantCulture) : "—",
                     delaySamples > 0 ? $"x{delaySamples.ToString(CultureInfo.InvariantCulture)}" : "x0");
 
-                bool stackLock = stack.ShiftLocked[i];
+                bool stackLock = i < _shiftStackEditLocked.Length && _shiftStackEditLocked[i];
                 if (_shiftGearRows[i].IsLocked != stackLock)
                 {
                     _shiftGearRows[i].IsLocked = stackLock;
@@ -1159,6 +1209,8 @@ namespace LaunchPlugin
         public RelayCommand ShiftAddCurrentStackCommand { get; }
         public RelayCommand ShiftSaveStackAsCommand { get; }
         public RelayCommand ShiftDeleteStackCommand { get; }
+        public ICommand SaveShiftStackCommand { get; }
+        public ICommand RevertShiftStackCommand { get; }
         public RelayCommand ShiftBrowseCustomWavCommand { get; }
         public RelayCommand ShiftUseEmbeddedDefaultCommand { get; }
         public RelayCommand ShiftTestBeepCommand { get; }
@@ -1228,6 +1280,8 @@ namespace LaunchPlugin
             ShiftAddCurrentStackCommand = new RelayCommand(p => AddCurrentShiftStack(), p => IsProfileSelected);
             ShiftSaveStackAsCommand = new RelayCommand(p => SaveShiftStackAs(), p => IsProfileSelected);
             ShiftDeleteStackCommand = new RelayCommand(p => DeleteSelectedShiftStack(), p => CanDeleteSelectedShiftStack());
+            SaveShiftStackCommand = new RelayCommand(p => SaveSelectedShiftStack(), p => IsProfileSelected);
+            RevertShiftStackCommand = new RelayCommand(p => RevertSelectedShiftStack(), p => IsProfileSelected);
             ShiftBrowseCustomWavCommand = new RelayCommand(p => BrowseShiftCustomWav());
             ShiftUseEmbeddedDefaultCommand = new RelayCommand(p => UseEmbeddedDefaultSound());
             ShiftTestBeepCommand = new RelayCommand(p => _playShiftAssistTestBeep?.Invoke());
@@ -1413,7 +1467,65 @@ namespace LaunchPlugin
             string preferred = !string.IsNullOrWhiteSpace(live) ? live.Trim() : "Default";
             EnsureShiftStackForSelectedProfile(preferred);
             _selectedShiftStackId = preferred;
+            _previousShiftStackId = preferred;
             _setCurrentGearStackId?.Invoke(preferred);
+            LoadShiftStackBuffer(preferred);
+        }
+
+        private void LoadShiftStackBuffer(string stackId)
+        {
+            for (int i = 0; i < ShiftAssistMaxStoredGears; i++)
+            {
+                _shiftStackEditRpm[i] = 0;
+                _shiftStackEditLocked[i] = false;
+            }
+
+            if (SelectedProfile != null)
+            {
+                var stack = SelectedProfile.EnsureShiftStack(stackId);
+                int count = Math.Min(ShiftAssistMaxStoredGears, Math.Min(stack.ShiftRPM.Length, stack.ShiftLocked.Length));
+                for (int i = 0; i < count; i++)
+                {
+                    _shiftStackEditRpm[i] = stack.ShiftRPM[i];
+                    _shiftStackEditLocked[i] = stack.ShiftLocked[i];
+                }
+            }
+
+            SetShiftStackDirty(false);
+            RebuildShiftGearRows();
+            OnPropertyChanged(nameof(ShiftGearRows));
+        }
+
+        private void CommitShiftStackBufferToStored(string stackId)
+        {
+            if (SelectedProfile == null)
+            {
+                SetShiftStackDirty(false);
+                return;
+            }
+
+            var stack = SelectedProfile.EnsureShiftStack(stackId);
+            int count = Math.Min(ShiftAssistMaxStoredGears, Math.Min(stack.ShiftRPM.Length, stack.ShiftLocked.Length));
+            for (int i = 0; i < count; i++)
+            {
+                stack.ShiftRPM[i] = _shiftStackEditRpm[i];
+                stack.ShiftLocked[i] = _shiftStackEditLocked[i];
+            }
+
+            SetShiftStackDirty(false);
+            SaveProfiles();
+        }
+
+        private void SetShiftStackDirty(bool value)
+        {
+            if (ShiftStackIsDirty == value)
+            {
+                return;
+            }
+
+            ShiftStackIsDirty = value;
+            OnPropertyChanged(nameof(ShiftStackIsDirty));
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private void ExecuteShiftAssistActionOnSelectedStack(Action action)
@@ -1456,15 +1568,29 @@ namespace LaunchPlugin
             }
 
             string uniqueName = BuildUniqueShiftStackName(requested.Trim());
-            var source = EnsureShiftStackForSelectedProfile(SelectedShiftStackId);
-            SelectedProfile.ShiftAssistStacks[uniqueName] = source.Clone();
+            var destination = SelectedProfile.EnsureShiftStack(uniqueName);
+            int count = Math.Min(ShiftAssistMaxStoredGears, Math.Min(destination.ShiftRPM.Length, destination.ShiftLocked.Length));
+            for (int i = 0; i < count; i++)
+            {
+                destination.ShiftRPM[i] = _shiftStackEditRpm[i];
+                destination.ShiftLocked[i] = _shiftStackEditLocked[i];
+            }
 
-            SelectedShiftStackId = uniqueName;
+            _isInternalShiftStackSelectionChange = true;
+            try
+            {
+                SelectedShiftStackId = uniqueName;
+            }
+            finally
+            {
+                _isInternalShiftStackSelectionChange = false;
+            }
+
+            SetShiftStackDirty(false);
+            _previousShiftStackId = uniqueName;
             SaveProfiles();
-            RebuildShiftGearRows();
-            OnPropertyChanged(nameof(ShiftGearRows));
             OnPropertyChanged(nameof(ShiftStackIds));
-            System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private void DeleteSelectedShiftStack()
@@ -1478,10 +1604,8 @@ namespace LaunchPlugin
             SelectedProfile.ShiftAssistStacks?.Remove(selected);
             SelectedShiftStackId = "Default";
             SaveProfiles();
-            RebuildShiftGearRows();
-            OnPropertyChanged(nameof(ShiftGearRows));
             OnPropertyChanged(nameof(ShiftStackIds));
-            System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private string BuildUniqueShiftStackName(string baseName)
@@ -1549,21 +1673,32 @@ namespace LaunchPlugin
 
         public void RefreshShiftAssistTargetTextsFromStack(string stackId)
         {
-            if (_shiftGearRows == null)
+            if (_shiftGearRows == null || !string.Equals(stackId, SelectedShiftStackId, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
-            var stack = EnsureShiftStackForSelectedProfile(stackId);
-            int count = Math.Min(_shiftGearRows.Count, Math.Min(stack.ShiftRPM.Length, stack.ShiftLocked.Length));
-            for (int i = 0; i < count; i++)
+            LoadShiftStackBuffer(stackId);
+        }
+
+        private void SaveSelectedShiftStack()
+        {
+            if (SelectedProfile == null || string.IsNullOrWhiteSpace(SelectedShiftStackId))
             {
-                int target = stack.ShiftRPM[i];
-                _shiftGearRows[i].RpmText = target > 0 ? target.ToString(CultureInfo.InvariantCulture) : string.Empty;
-                _shiftGearRows[i].IsLocked = stack.ShiftLocked[i];
+                return;
             }
 
-            OnPropertyChanged(nameof(ShiftGearRows));
+            CommitShiftStackBufferToStored(SelectedShiftStackId);
+        }
+
+        private void RevertSelectedShiftStack()
+        {
+            if (SelectedProfile == null)
+            {
+                return;
+            }
+
+            LoadShiftStackBuffer(SelectedShiftStackId);
         }
 
         public void NotifyShiftStackOptionsChanged()
