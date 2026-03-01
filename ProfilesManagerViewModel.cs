@@ -1552,11 +1552,23 @@ namespace LaunchPlugin
         private void AddCurrentShiftStack()
         {
             if (SelectedProfile == null) return;
+
             string live = _getCurrentGearStackId?.Invoke();
             string stack = string.IsNullOrWhiteSpace(live) ? "Default" : live.Trim();
-            EnsureShiftStackForSelectedProfile(stack);
-            TryChangeSelectedShiftStack(stack);
-            SaveProfiles();
+
+            bool existedBefore = SelectedProfile.ShiftAssistStacks != null
+                && SelectedProfile.ShiftAssistStacks.ContainsKey(stack);
+
+            bool changed = TryChangeSelectedShiftStack(stack);
+            if (!changed)
+            {
+                return;
+            }
+
+            if (!existedBefore)
+            {
+                SaveProfiles();
+            }
         }
 
         private bool TryChangeSelectedShiftStack(string targetId)
