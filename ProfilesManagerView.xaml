@@ -209,16 +209,9 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="10" MaxWidth="860" HorizontalAlignment="Left">
 
-                            <!-- Enable + Learning -->
+                            <!-- Enable -->
                             <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="24"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <styles:SHToggleCheckbox Grid.Column="0" Content="Enable Shift Assist" IsChecked="{Binding ShiftAssistEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
-                                <styles:SHToggleCheckbox Grid.Column="2" Content="Learning mode" IsChecked="{Binding ShiftAssistLearningModeEnabled, Mode=TwoWay}" VerticalAlignment="Center"
-                                         ToolTip="Enables data mining for shift-point learning and allows the dash learning overlay to be shown." />
+                                <styles:SHToggleCheckbox Content="Enable Shift Assist" IsChecked="{Binding ShiftAssistEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
                             </Grid>
 
                             <!-- Shift Light (compact, aligned, narrower textbox) -->
@@ -387,12 +380,39 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0" ItemsSource="{Binding ShiftStackIds}" SelectedItem="{Binding SelectedShiftStackId, Mode=TwoWay}" Margin="0,0,8,0" MinWidth="130"/>
+                                <ComboBox x:Name="ShiftStackSelector"
+                                          Grid.Column="0"
+                                          ItemsSource="{Binding ShiftStackIds}"
+                                          SelectedItem="{Binding SelectedShiftStackId, Mode=OneWay}"
+                                          SelectionChanged="ShiftStackSelector_SelectionChanged"
+                                          Margin="0,0,8,0"
+                                          MinWidth="130"/>
+                                <TextBlock Grid.Column="0"
+                                           Text="(Unsaved)"
+                                           Margin="138,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="#FFD166"
+                                           FontStyle="Italic">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftStackIsDirty}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <styles:SHButtonPrimary Grid.Column="1" Content="Add current" Command="{Binding ShiftAddCurrentStackCommand}" Margin="0,0,8,0" ToolTip="Add/select the currently active stack name."/>
                                 <styles:SHButtonPrimary Grid.Column="2" Content="Save As..." Command="{Binding ShiftSaveStackAsCommand}" Margin="0,0,8,0" ToolTip="Duplicate selected stack into a new named stack."/>
-                                <styles:SHButtonSecondary Grid.Column="3" Content="Delete" Command="{Binding ShiftDeleteStackCommand}" Margin="0,0,8,0" Background="#C82333" Foreground="White" ToolTip="Delete selected stack (Default cannot be deleted)."/>
+                                <styles:SHButtonPrimary Grid.Column="3" Content="Save Stack" Command="{Binding SaveShiftStackCommand}" Margin="0,0,8,0" ToolTip="Save buffered edits to the selected stack."/>
+                                <styles:SHButtonSecondary Grid.Column="4" Content="Revert" Command="{Binding RevertShiftStackCommand}" Margin="0,0,8,0" ToolTip="Discard unsaved edits and reload stack values from disk."/>
+                                <styles:SHButtonSecondary Grid.Column="5" Content="Delete" Command="{Binding ShiftDeleteStackCommand}" Margin="0,0,8,0" Background="#C82333" Foreground="White" ToolTip="Delete selected stack (Default cannot be deleted)."/>
                             </Grid>
 
                             <!-- Shift targets header + stats -->
@@ -433,6 +453,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="80"/>
+                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
@@ -452,6 +474,12 @@
                          Width="80"
                          Text="{Binding ShiftAssistLeadTimeMs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                          IsEnabled="{Binding ShiftAssistEnabled}" />
+
+                                <styles:SHToggleCheckbox Grid.Column="6"
+                                         Content="Learning mode"
+                                         IsChecked="{Binding ShiftAssistLearningModeEnabled, Mode=TwoWay}"
+                                         VerticalAlignment="Center"
+                                         ToolTip="Enables data mining for shift-point learning and allows the dash learning overlay to be shown." />
                             </Grid>
 
                             <!-- Button bar (single row, narrower, ordered by workflow) -->
@@ -477,19 +505,52 @@
                             Content="Apply Learned"
                             Command="{Binding ShiftApplyLearnedOverrideCommand}"
                             MinWidth="132"
-                            ToolTip="Testing utility: overwrite active stack targets with learned RPM values. Ignores locks and does not change lock states."/>
+                            ToolTip="Testing utility: overwrite active stack targets with learned RPM values. Ignores locks and does not change lock states.">
+                                    <styles:SHButtonPrimary.Style>
+                                        <Style TargetType="styles:SHButtonPrimary">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftAssistLearningModeEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </styles:SHButtonPrimary.Style>
+                                </styles:SHButtonPrimary>
 
                                 <styles:SHButtonSecondary Grid.Column="4"
                               Content="Reset Learning"
                               Command="{Binding ShiftResetLearningCommand}"
                               Background="#FD7E14" Foreground="White"
-                              MinWidth="148"/>
+                              MinWidth="148">
+                                    <styles:SHButtonSecondary.Style>
+                                        <Style TargetType="styles:SHButtonSecondary">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftAssistLearningModeEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </styles:SHButtonSecondary.Style>
+                                </styles:SHButtonSecondary>
 
                                 <styles:SHButtonSecondary Grid.Column="6"
                               Content="Reset Delays"
                               Command="{Binding ShiftResetDelaysCommand}"
                               Background="#FD7E14" Foreground="White"
-                              MinWidth="132"/>
+                              MinWidth="132">
+                                    <styles:SHButtonSecondary.Style>
+                                        <Style TargetType="styles:SHButtonSecondary">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftAssistLearningModeEnabled}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </styles:SHButtonSecondary.Style>
+                                </styles:SHButtonSecondary>
                             </Grid>
 
 
@@ -514,10 +575,54 @@
                                     <TextBlock Grid.Column="0" Text="Gear" FontWeight="SemiBold" Opacity="0.8"/>
                                     <TextBlock Grid.Column="1" Text="Target" FontWeight="SemiBold" Opacity="0.8"/>
                                     <TextBlock Grid.Column="2" Text="Lock" FontWeight="SemiBold" Opacity="0.8"/>
-                                    <TextBlock Grid.Column="3" Text="Learned" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
-                                    <TextBlock Grid.Column="4" Text="N" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
-                                    <TextBlock Grid.Column="5" Text="Delay" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
-                                    <TextBlock Grid.Column="6" Text="N" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right"/>
+                                    <TextBlock Grid.Column="3" Text="Learned" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShiftAssistLearningModeEnabled}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="4" Text="N" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShiftAssistLearningModeEnabled}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="5" Text="Delay" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShiftAssistLearningModeEnabled}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="6" Text="N" FontWeight="SemiBold" Opacity="0.8" TextAlignment="Right">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ShiftAssistLearningModeEnabled}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                     <Border Grid.Column="0" Grid.ColumnSpan="7" Height="1" Background="#444" VerticalAlignment="Bottom" Margin="0,6,0,0"/>
                                 </Grid>
 
@@ -544,10 +649,54 @@
                                           Margin="6,0,0,0"
                                           Checked="ShiftLockCheckBox_Checked"
                                           Unchecked="ShiftLockCheckBox_Unchecked" />
-                                                <TextBlock Grid.Column="3" Text="{Binding LearnedRpmText}" VerticalAlignment="Center" TextAlignment="Right"/>
-                                                <TextBlock Grid.Column="4" Text="{Binding SampleCountText}" VerticalAlignment="Center" TextAlignment="Right"/>
-                                                <TextBlock Grid.Column="5" Text="{Binding DelayAvgMsText}" VerticalAlignment="Center" TextAlignment="Right"/>
-                                                <TextBlock Grid.Column="6" Text="{Binding DelayCountText}" VerticalAlignment="Center" TextAlignment="Right"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding LearnedRpmText}" VerticalAlignment="Center" TextAlignment="Right">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.ShiftAssistLearningModeEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="4" Text="{Binding SampleCountText}" VerticalAlignment="Center" TextAlignment="Right">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.ShiftAssistLearningModeEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="5" Text="{Binding DelayAvgMsText}" VerticalAlignment="Center" TextAlignment="Right">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.ShiftAssistLearningModeEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Grid.Column="6" Text="{Binding DelayCountText}" VerticalAlignment="Center" TextAlignment="Right">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DataContext.ShiftAssistLearningModeEnabled, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
