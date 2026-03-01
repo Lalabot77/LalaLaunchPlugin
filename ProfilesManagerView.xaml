@@ -384,7 +384,13 @@
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0" ItemsSource="{Binding ShiftStackIds}" SelectedItem="{Binding SelectedShiftStackId, Mode=TwoWay}" Margin="0,0,8,0" MinWidth="130"/>
+                                <ComboBox x:Name="ShiftStackSelector"
+                                          Grid.Column="0"
+                                          ItemsSource="{Binding ShiftStackIds}"
+                                          SelectedItem="{Binding SelectedShiftStackId, Mode=OneWay}"
+                                          SelectionChanged="ShiftStackSelector_SelectionChanged"
+                                          Margin="0,0,8,0"
+                                          MinWidth="130"/>
                                 <TextBlock Grid.Column="0"
                                            Text="(Unsaved)"
                                            Margin="138,0,0,0"

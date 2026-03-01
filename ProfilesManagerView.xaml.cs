@@ -1,11 +1,14 @@
 ﻿// In file: ProfilesManagerView.xaml.cs
 using System.Windows.Controls;
 using System.Windows;
+using System;
 
 namespace LaunchPlugin
 {
     public partial class ProfilesManagerView : UserControl
     {
+        private bool _suppressShiftStackSelectionChanged;
+
         public ProfilesManagerView(ProfilesManagerViewModel viewModel)
         {
             InitializeComponent();
@@ -65,6 +68,52 @@ namespace LaunchPlugin
             }
 
             row.SetLockAction?.Invoke(false);
+        }
+
+        private void ShiftStackSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressShiftStackSelectionChanged)
+            {
+                return;
+            }
+
+            var combo = sender as ComboBox;
+            var vm = DataContext as ProfilesManagerViewModel;
+            if (combo == null || vm == null)
+            {
+                return;
+            }
+
+            string targetId = combo.SelectedItem as string;
+            string beforeId = vm.SelectedShiftStackId;
+            if (vm.ConfirmSwitchShiftStackCommand != null && vm.ConfirmSwitchShiftStackCommand.CanExecute(targetId))
+            {
+                vm.ConfirmSwitchShiftStackCommand.Execute(targetId);
+            }
+            else
+            {
+                vm.ConfirmSwitchShiftStack(targetId);
+            }
+            bool changed = string.Equals(vm.SelectedShiftStackId, targetId, StringComparison.OrdinalIgnoreCase)
+                           && !string.Equals(beforeId, vm.SelectedShiftStackId, StringComparison.OrdinalIgnoreCase);
+
+            _suppressShiftStackSelectionChanged = true;
+            try
+            {
+                if (!string.Equals(combo.SelectedItem as string, vm.SelectedShiftStackId, StringComparison.OrdinalIgnoreCase))
+                {
+                    combo.SelectedItem = vm.SelectedShiftStackId;
+                }
+            }
+            finally
+            {
+                _suppressShiftStackSelectionChanged = false;
+            }
+
+            if (!changed)
+            {
+                return;
+            }
         }
     }
 }

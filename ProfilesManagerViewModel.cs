@@ -76,8 +76,6 @@ namespace LaunchPlugin
         private List<ShiftGearRow> _shiftGearRows;
         private readonly int[] _shiftStackEditRpm = new int[8];
         private readonly bool[] _shiftStackEditLocked = new bool[8];
-        private string _previousShiftStackId;
-        private bool _isInternalShiftStackSelectionChange;
         private const int ShiftAssistMaxStoredGears = 8;
         private const int ShiftAssistDefaultForwardGears = 6;
         private readonly string _profilesFilePath;
@@ -716,56 +714,47 @@ namespace LaunchPlugin
             {
                 var normalized = string.IsNullOrWhiteSpace(value) ? "Default" : value.Trim();
 
-                if (_isInternalShiftStackSelectionChange)
-                {
-                    if (string.Equals(_selectedShiftStackId, normalized, StringComparison.OrdinalIgnoreCase))
-                    {
-                        OnPropertyChanged(nameof(SelectedShiftStackId));
-                        return;
-                    }
-
-                    ApplySelectedShiftStackChange(normalized);
-                    return;
-                }
-
                 if (string.Equals(_selectedShiftStackId, normalized, StringComparison.OrdinalIgnoreCase))
                 {
                     return;
                 }
 
-                if (ShiftStackIsDirty)
-                {
-                    string previous = string.IsNullOrWhiteSpace(_previousShiftStackId) ? _selectedShiftStackId : _previousShiftStackId;
-                    var choice = MessageBox.Show(
-                        "Save changes to the current shift stack before switching?",
-                        "Unsaved Shift Stack Changes",
-                        MessageBoxButton.YesNoCancel,
-                        MessageBoxImage.Warning,
-                        MessageBoxResult.Yes);
-
-                    if (choice == MessageBoxResult.Cancel)
-                    {
-                        _isInternalShiftStackSelectionChange = true;
-                        try
-                        {
-                            SelectedShiftStackId = previous;
-                        }
-                        finally
-                        {
-                            _isInternalShiftStackSelectionChange = false;
-                        }
-
-                        return;
-                    }
-
-                    if (choice == MessageBoxResult.Yes)
-                    {
-                        CommitShiftStackBufferToStored(previous);
-                    }
-                }
-
                 ApplySelectedShiftStackChange(normalized);
             }
+        }
+
+        public bool ConfirmSwitchShiftStack(string targetStackId)
+        {
+            string currentId = SelectedShiftStackId;
+            string targetId = string.IsNullOrWhiteSpace(targetStackId) ? "Default" : targetStackId.Trim();
+
+            if (string.Equals(currentId, targetId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (ShiftStackIsDirty)
+            {
+                var choice = MessageBox.Show(
+                    "Save changes to the current shift stack before switching?",
+                    "Unsaved Shift Stack Changes",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Warning,
+                    MessageBoxResult.Yes);
+
+                if (choice == MessageBoxResult.Cancel)
+                {
+                    return false;
+                }
+
+                if (choice == MessageBoxResult.Yes)
+                {
+                    CommitShiftStackBufferToStored(currentId);
+                }
+            }
+
+            SelectedShiftStackId = targetId;
+            return string.Equals(SelectedShiftStackId, targetId, StringComparison.OrdinalIgnoreCase);
         }
 
         private void ApplySelectedShiftStackChange(string normalized)
@@ -773,7 +762,6 @@ namespace LaunchPlugin
             _selectedShiftStackId = normalized;
             EnsureShiftStackForSelectedProfile(normalized);
             _setCurrentGearStackId?.Invoke(normalized);
-            _previousShiftStackId = normalized;
             LoadShiftStackBuffer(normalized);
 
             OnPropertyChanged(nameof(SelectedShiftStackId));
@@ -800,7 +788,7 @@ namespace LaunchPlugin
 
         public string ShiftAssistStackLearningStatsNotice => string.Empty;
 
-        public string ActiveShiftStackLabel => $"Active stack: {ActiveLiveShiftStackId}";
+        public string ActiveShiftStackLabel => $"Active stack: {SelectedShiftStackId}";
 
         public IEnumerable<string> ShiftStackIds
         {
@@ -1216,6 +1204,7 @@ namespace LaunchPlugin
         public RelayCommand ShiftAddCurrentStackCommand { get; }
         public RelayCommand ShiftSaveStackAsCommand { get; }
         public RelayCommand ShiftDeleteStackCommand { get; }
+        public ICommand ConfirmSwitchShiftStackCommand { get; }
         public ICommand SaveShiftStackCommand { get; }
         public ICommand RevertShiftStackCommand { get; }
         public RelayCommand ShiftBrowseCustomWavCommand { get; }
@@ -1287,6 +1276,7 @@ namespace LaunchPlugin
             ShiftAddCurrentStackCommand = new RelayCommand(p => AddCurrentShiftStack(), p => IsProfileSelected);
             ShiftSaveStackAsCommand = new RelayCommand(p => SaveShiftStackAs(), p => IsProfileSelected);
             ShiftDeleteStackCommand = new RelayCommand(p => DeleteSelectedShiftStack(), p => CanDeleteSelectedShiftStack());
+            ConfirmSwitchShiftStackCommand = new RelayCommand(p => ConfirmSwitchShiftStack(p as string), p => IsProfileSelected);
             SaveShiftStackCommand = new RelayCommand(p => SaveSelectedShiftStack(), p => IsProfileSelected);
             RevertShiftStackCommand = new RelayCommand(p => RevertSelectedShiftStack(), p => IsProfileSelected);
             ShiftBrowseCustomWavCommand = new RelayCommand(p => BrowseShiftCustomWav());
@@ -1474,7 +1464,6 @@ namespace LaunchPlugin
             string preferred = !string.IsNullOrWhiteSpace(live) ? live.Trim() : "Default";
             EnsureShiftStackForSelectedProfile(preferred);
             _selectedShiftStackId = preferred;
-            _previousShiftStackId = preferred;
             _setCurrentGearStackId?.Invoke(preferred);
             LoadShiftStackBuffer(preferred);
         }
@@ -1573,9 +1562,7 @@ namespace LaunchPlugin
 
         private bool TryChangeSelectedShiftStack(string targetId)
         {
-            string normalized = string.IsNullOrWhiteSpace(targetId) ? "Default" : targetId.Trim();
-            SelectedShiftStackId = normalized;
-            return string.Equals(SelectedShiftStackId, normalized, StringComparison.OrdinalIgnoreCase);
+            return ConfirmSwitchShiftStack(targetId);
         }
 
         private bool CanDeleteSelectedShiftStack()
@@ -1602,18 +1589,9 @@ namespace LaunchPlugin
                 destination.ShiftLocked[i] = _shiftStackEditLocked[i];
             }
 
-            _isInternalShiftStackSelectionChange = true;
-            try
-            {
-                SelectedShiftStackId = uniqueName;
-            }
-            finally
-            {
-                _isInternalShiftStackSelectionChange = false;
-            }
+            SelectedShiftStackId = uniqueName;
 
             SetShiftStackDirty(false);
-            _previousShiftStackId = uniqueName;
             SaveProfiles();
             OnPropertyChanged(nameof(ShiftStackIds));
             CommandManager.InvalidateRequerySuggested();
