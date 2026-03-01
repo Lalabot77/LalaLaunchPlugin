@@ -385,6 +385,23 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Grid.Column="0" ItemsSource="{Binding ShiftStackIds}" SelectedItem="{Binding SelectedShiftStackId, Mode=TwoWay}" Margin="0,0,8,0" MinWidth="130"/>
+                                <TextBlock Grid.Column="0"
+                                           Text="(Unsaved)"
+                                           Margin="138,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="#FFD166"
+                                           FontStyle="Italic">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShiftStackIsDirty}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <styles:SHButtonPrimary Grid.Column="1" Content="Add current" Command="{Binding ShiftAddCurrentStackCommand}" Margin="0,0,8,0" ToolTip="Add/select the currently active stack name."/>
                                 <styles:SHButtonPrimary Grid.Column="2" Content="Save As..." Command="{Binding ShiftSaveStackAsCommand}" Margin="0,0,8,0" ToolTip="Duplicate selected stack into a new named stack."/>
                                 <styles:SHButtonPrimary Grid.Column="3" Content="Save Stack" Command="{Binding SaveShiftStackCommand}" Margin="0,0,8,0" ToolTip="Save buffered edits to the selected stack."/>

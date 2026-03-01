@@ -715,14 +715,21 @@ namespace LaunchPlugin
             set
             {
                 var normalized = string.IsNullOrWhiteSpace(value) ? "Default" : value.Trim();
-                if (string.Equals(_selectedShiftStackId, normalized, StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
 
                 if (_isInternalShiftStackSelectionChange)
                 {
+                    if (string.Equals(_selectedShiftStackId, normalized, StringComparison.OrdinalIgnoreCase))
+                    {
+                        OnPropertyChanged(nameof(SelectedShiftStackId));
+                        return;
+                    }
+
                     ApplySelectedShiftStackChange(normalized);
+                    return;
+                }
+
+                if (string.Equals(_selectedShiftStackId, normalized, StringComparison.OrdinalIgnoreCase))
+                {
                     return;
                 }
 
@@ -1548,8 +1555,15 @@ namespace LaunchPlugin
             string live = _getCurrentGearStackId?.Invoke();
             string stack = string.IsNullOrWhiteSpace(live) ? "Default" : live.Trim();
             EnsureShiftStackForSelectedProfile(stack);
-            SelectedShiftStackId = stack;
+            TryChangeSelectedShiftStack(stack);
             SaveProfiles();
+        }
+
+        private bool TryChangeSelectedShiftStack(string targetId)
+        {
+            string normalized = string.IsNullOrWhiteSpace(targetId) ? "Default" : targetId.Trim();
+            SelectedShiftStackId = normalized;
+            return string.Equals(SelectedShiftStackId, normalized, StringComparison.OrdinalIgnoreCase);
         }
 
         private bool CanDeleteSelectedShiftStack()
@@ -1600,9 +1614,18 @@ namespace LaunchPlugin
                 return;
             }
 
-            string selected = SelectedShiftStackId;
-            SelectedProfile.ShiftAssistStacks?.Remove(selected);
-            SelectedShiftStackId = "Default";
+            string deleteId = SelectedShiftStackId;
+            if (!TryChangeSelectedShiftStack("Default"))
+            {
+                return;
+            }
+
+            if (string.Equals(SelectedShiftStackId, deleteId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            SelectedProfile.ShiftAssistStacks?.Remove(deleteId);
             SaveProfiles();
             OnPropertyChanged(nameof(ShiftStackIds));
             CommandManager.InvalidateRequerySuggested();
@@ -1675,6 +1698,12 @@ namespace LaunchPlugin
         {
             if (_shiftGearRows == null || !string.Equals(stackId, SelectedShiftStackId, StringComparison.OrdinalIgnoreCase))
             {
+                return;
+            }
+
+            if (ShiftStackIsDirty)
+            {
+                OnPropertyChanged(nameof(ShiftGearRows));
                 return;
             }
 
