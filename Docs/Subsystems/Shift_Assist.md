@@ -1,7 +1,7 @@
 # Shift Assist
 
-Validated against commit: 72a0618
-Last updated: 2026-02-24
+Validated against commit: b115732
+Last updated: 2026-03-01
 Branch: work
 
 ## Purpose
@@ -54,12 +54,27 @@ Branch: work
 - `ShiftAssist.Beep` is reserved for audio observability and pulses only on ticks where audio issue succeeds (primary or urgent).
 - Use this pulse with `ShiftAssist.Debug.AudioDelayMs` to validate playback timing/latency in dashboards.
 
+
+## Learning model (physics/telemetry)
+- Learning computes **optimal upshift RPM** from telemetry curves (not driver timing):
+  - WOT acceptance gate uses throttle `>=95%` with up to `150ms` dip grace, brake noise ignored up to `1.0%`, and brake only considered active when above `1.0%` for `>=100ms`.
+  - Samples are only recorded while speed is moving (`>=5 kph`).
+  - Near-redline sampling uses limiter-hold behavior (`>=99%` of redline + valid throttle) so pulls are not prematurely ended at limiter.
+  - If max window is hit, a `400ms` grace window allows a trailing upshift to still count as valid.
+  - Reset/teleport artifacts (session-time rewind, extreme speed jump, impossible RPM discontinuity) cancel current sampling with artifact reasoning instead of normal rejection.
+- Per-gear curves are built as RPM bins (50 RPM), with median accel per bin and light 3-bin smoothing for evaluation.
+- Gear ratio proxy per gear is learned from telemetry as median `k_g = rpm/speed` using moving samples.
+- Crossover rule for gear `g -> g+1`: choose the smallest RPM `r` where `a_next(r * k_{g+1}/k_g) >= a_curr(r) + margin`.
+- Learned RPM auto-apply still respects per-gear lock state and requires short-term stability (same result within tolerance across consecutive evaluations) before profile write-back.
+- Driver delay measurement remains independent: delay stays cue->upshift based on applied targets (manual or learned).
+
 ## Debug CSV — Urgent Columns
 - `UrgentEnabled`, `BeepSoundEnabled`, `BeepVolumePct`, `UrgentVolumePctDerived`, `CueActive`, `BeepLatched` provide per-row urgent gating/settings context (with urgent volume derived as base slider / 2, clamped 0..100).
 - `MsSincePrimaryAudioIssued`, `MsSincePrimaryCueTrigger`, `MsSinceUrgentPlayed`, `UrgentMinGapMsFixed` remain available as timing anchors for urgent diagnostics (`-1` means anchor unavailable yet); the 1000ms urgent delay decision now occurs in `ShiftAssistEngine`.
 - `UrgentEligible`, `UrgentSuppressedReason`, `UrgentAttempted`, `UrgentPlayed`, `UrgentPlayError` provide per-tick urgent decision/outcome observability.
 - `UrgentPlayError` is CSV-sanitized (quotes/newlines/commas).
 - `RedlineRpm`, `OverRedline`, `Rpm`, `Gear`, `BeepType` provide lightweight runtime context for diagnosing missed urgent reminders around limiter/redline conditions.
+- Learning debug columns now also include limiter-hold status/time, artifact reset flags/reason, current/next gear ratio estimates (`k` + validity), current bin diagnostics, and crossover candidate/final RPM with insufficient-data indicator.
 
 ## Outputs (exports + logs)
 - Exports: `ShiftAssist.ActiveGearStackId`, `ShiftAssist.TargetRPM_CurrentGear`, `ShiftAssist.ShiftRPM_G1..G8`, `ShiftAssist.EffectiveTargetRPM_CurrentGear`, `ShiftAssist.RpmRate`, `ShiftAssist.Beep`, `ShiftAssist.ShiftLight`, `ShiftAssist.ShiftLightPrimary`, `ShiftAssist.ShiftLightUrgent`, `ShiftAssist.BeepLight`, `ShiftAssist.BeepPrimary`, `ShiftAssist.BeepUrgent`, `ShiftAssist.ShiftLightEnabled`, `ShiftAssist.Learn.Enabled`, `ShiftAssist.Learn.State`, `ShiftAssist.Learn.ActiveGear`, `ShiftAssist.Learn.WindowMs`, `ShiftAssist.Learn.PeakAccelMps2`, `ShiftAssist.Learn.PeakRpm`, `ShiftAssist.Learn.LastSampleRpm`, `ShiftAssist.Learn.SavedPulse`, `ShiftAssist.Learn.Samples_G1..G8`, `ShiftAssist.Learn.LearnedRpm_G1..G8`, `ShiftAssist.Learn.Locked_G1..G8`, `ShiftAssist.State`, `ShiftAssist.Debug.AudioDelayMs`, `ShiftAssist.Debug.AudioDelayAgeMs`, `ShiftAssist.Debug.AudioIssued`, `ShiftAssist.Debug.AudioBackend`, `ShiftAssist.Debug.CsvEnabled`, `ShiftAssist.DelayAvg_G1..G8`, `ShiftAssist.DelayN_G1..G8`, `ShiftAssist.Delay.Pending`, `ShiftAssist.Delay.PendingGear`, `ShiftAssist.Delay.PendingAgeMs`, `ShiftAssist.Delay.PendingRpmAtCue`, `ShiftAssist.Delay.RpmAtBeep`, `ShiftAssist.Delay.CaptureState`.
