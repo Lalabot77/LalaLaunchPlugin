@@ -81,7 +81,8 @@ namespace LaunchPlugin
         private const double MaxPlausibleAccelMps2 = 30.0;
         private const double CrossoverMarginMps2 = 0.10;
         private const int StableCrossoverToleranceRpm = 50;
-        private const int StableCrossoverNeededTicks = 3;
+        private const int StableCrossoverBufferSize = 5;
+        private const int StableCrossoverMinSamples = 3;
         private const int MinCurvePointsPerPull = 25;
 
         private readonly Dictionary<string, StackRuntime> _stacks = new Dictionary<string, StackRuntime>(StringComparer.OrdinalIgnoreCase);
@@ -578,20 +579,14 @@ namespace LaunchPlugin
 
             curr.CrossoverInsufficientData = false;
             curr.CrossoverRpm = found;
+            curr.PushCrossoverCandidate(found, StableCrossoverBufferSize);
 
-            if (curr.StableCandidateRpm <= 0 || Math.Abs(curr.StableCandidateRpm - found) > StableCrossoverToleranceRpm)
+            int stableLearnedRpm;
+            if (curr.TryGetStableLearnedRpm(StableCrossoverToleranceRpm, StableCrossoverMinSamples, out stableLearnedRpm))
             {
-                curr.StableCandidateRpm = found;
-                curr.StableCandidateTicks = 1;
-                return;
-            }
-
-            curr.StableCandidateTicks++;
-            if (curr.StableCandidateTicks >= StableCrossoverNeededTicks)
-            {
-                curr.LearnedRpm = found;
+                curr.LearnedRpm = stableLearnedRpm;
                 tick.ApplyGear = sourceGear;
-                tick.ApplyRpm = found;
+                tick.ApplyRpm = stableLearnedRpm;
             }
         }
 
@@ -804,6 +799,7 @@ namespace LaunchPlugin
         {
             private readonly Dictionary<int, BinRuntime> _bins = new Dictionary<int, BinRuntime>();
             private readonly List<double> _ratioSamples = new List<double>();
+            private readonly List<int> _recentCrossoverCandidates = new List<int>();
 
             public int AcceptedPullCount { get; set; }
             public int LearnedRpm { get; set; }
@@ -814,8 +810,6 @@ namespace LaunchPlugin
             public bool HasCoverage { get; private set; }
             public int CrossoverRpm { get; set; }
             public bool CrossoverInsufficientData { get; set; }
-            public int StableCandidateRpm { get; set; }
-            public int StableCandidateTicks { get; set; }
 
             public void AddCurveSample(int rpm, double speedMps, double accelMps2)
             {
@@ -892,6 +886,58 @@ namespace LaunchPlugin
                 return sum / n;
             }
 
+            public void PushCrossoverCandidate(int rpm, int maxSamples)
+            {
+                if (rpm <= 0)
+                {
+                    return;
+                }
+
+                _recentCrossoverCandidates.Add(rpm);
+                while (_recentCrossoverCandidates.Count > maxSamples)
+                {
+                    _recentCrossoverCandidates.RemoveAt(0);
+                }
+            }
+
+            public bool TryGetStableLearnedRpm(int toleranceRpm, int minSamples, out int learnedRpm)
+            {
+                learnedRpm = 0;
+                if (_recentCrossoverCandidates.Count < minSamples)
+                {
+                    return false;
+                }
+
+                int min = int.MaxValue;
+                int max = int.MinValue;
+                for (int i = 0; i < _recentCrossoverCandidates.Count; i++)
+                {
+                    int sample = _recentCrossoverCandidates[i];
+                    if (sample < min)
+                    {
+                        min = sample;
+                    }
+
+                    if (sample > max)
+                    {
+                        max = sample;
+                    }
+                }
+
+                if ((max - min) > toleranceRpm)
+                {
+                    return false;
+                }
+
+                int[] sorted = _recentCrossoverCandidates.ToArray();
+                Array.Sort(sorted);
+                int mid = sorted.Length / 2;
+                learnedRpm = (sorted.Length % 2) == 1
+                    ? sorted[mid]
+                    : (int)Math.Round((sorted[mid - 1] + sorted[mid]) / 2.0);
+                return learnedRpm > 0;
+            }
+
             public void Reset()
             {
                 _bins.Clear();
@@ -905,8 +951,7 @@ namespace LaunchPlugin
                 HasCoverage = false;
                 CrossoverRpm = 0;
                 CrossoverInsufficientData = false;
-                StableCandidateRpm = 0;
-                StableCandidateTicks = 0;
+                _recentCrossoverCandidates.Clear();
             }
 
             public void SetReArmRequired(int peakRpm)
