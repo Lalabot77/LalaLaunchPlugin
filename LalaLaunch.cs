@@ -6561,7 +6561,7 @@ namespace LaunchPlugin
                 _shiftAssistLastSpeedMps = double.NaN;
                 _shiftAssistLastSpeedSampleUtc = DateTime.MinValue;
                 _shiftAssistEngine.Reset();
-                _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(false, _shiftAssistActiveGearStackId, 0, 0, 0.0, 0.0, double.NaN, 0.0, 0);
+                _shiftAssistLastLearningTick = _shiftAssistLearningEngine.Update(false, _shiftAssistActiveGearStackId, 0, 0, 0.0, 0.0, 0.0, double.NaN, 0.0, 0);
                 _shiftAssistLearnSavedPulseUntilUtc = DateTime.MinValue;
                 _shiftAssistDelayCaptureState = 0;
                 _shiftAssistDelayBeepType = "NONE";
@@ -6766,6 +6766,7 @@ namespace LaunchPlugin
                 rpm,
                 throttle01,
                 brake01,
+                speedMps,
                 sessionTimeSec,
                 learningLonAccelMps2,
                 redlineRpm);
@@ -7172,7 +7173,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnPullAccepted,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnSamplingRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,LearnLimiterHoldActive,LearnLimiterHoldMs,LearnValidCurvePointsThisPull,LearnArtifactReset,LearnArtifactReason,LearnCurrentK,LearnCurrentKValid,LearnNextK,LearnNextKValid,LearnCurrentBinIndex,LearnCurrentBinCount,LearnCurrentCurveAccelMps2,LearnCrossoverCandidateRpm,LearnCrossoverComputedRpm,LearnCrossoverInsufficientData,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
                     }
                 }
 
@@ -7180,10 +7181,12 @@ namespace LaunchPlugin
                 int learnPeakRpm = learningTick?.PeakRpm ?? 0;
                 double learnPeakAccelMps2 = learningTick?.PeakAccelMps2 ?? 0.0;
                 bool learnSampleAdded = learningTick?.SampleAdded == true;
+                bool learnPullAccepted = learningTick?.PullAccepted == true;
                 int learnSamplesForGear = learningTick?.SamplesForGear ?? 0;
                 int learnLearnedRpmForGear = learningTick?.LearnedRpmForGear ?? 0;
                 int learnMinRpm = learningTick?.LearnMinRpm ?? 0;
                 int learnRedlineRpm = learningTick?.LearnRedlineRpm ?? 0;
+                int learnSamplingRedlineRpm = learningTick?.SamplingRedlineRpm ?? 0;
                 string learnRedlineSourceText = !string.IsNullOrWhiteSpace(learnRedlineSource) ? learnRedlineSource : "NONE";
                 int learnCaptureMinRpm = learningTick?.LearnCaptureMinRpm ?? 0;
                 int learnCapturedRpm = learningTick?.LearnCapturedRpm ?? 0;
@@ -7192,6 +7195,21 @@ namespace LaunchPlugin
                 string learnEndReason = !string.IsNullOrWhiteSpace(learningTick?.LearnEndReason) ? learningTick.LearnEndReason : "NONE";
                 int learnEndWasUpshift = learningTick?.LearnEndWasUpshift == true ? 1 : 0;
                 string learnRejectedReason = !string.IsNullOrWhiteSpace(learningTick?.LearnRejectedReason) ? learningTick.LearnRejectedReason : "NONE";
+                int learnLimiterHoldActive = learningTick?.LimiterHoldActive == true ? 1 : 0;
+                int learnLimiterHoldMs = learningTick?.LimiterHoldMs ?? 0;
+                int learnValidCurvePointsThisPull = learningTick?.ValidCurvePointsThisPull ?? 0;
+                int learnArtifactReset = learningTick?.ArtifactResetDetected == true ? 1 : 0;
+                string learnArtifactReason = !string.IsNullOrWhiteSpace(learningTick?.ArtifactReason) ? learningTick.ArtifactReason : "NONE";
+                double learnCurrentK = learningTick?.CurrentGearRatioK ?? 0.0;
+                int learnCurrentKValid = learningTick?.CurrentGearRatioKValid ?? 0;
+                double learnNextK = learningTick?.NextGearRatioK ?? 0.0;
+                int learnNextKValid = learningTick?.NextGearRatioKValid ?? 0;
+                int learnCurrentBinIndex = learningTick?.CurrentBinIndex ?? 0;
+                int learnCurrentBinCount = learningTick?.CurrentBinCount ?? 0;
+                double learnCurrentCurveAccel = learningTick?.CurrentCurveAccelMps2 ?? 0.0;
+                int learnCrossoverCandidateRpm = learningTick?.CrossoverCandidateRpm ?? 0;
+                int learnCrossoverComputedRpm = learningTick?.CrossoverComputedRpmForGear ?? 0;
+                int learnCrossoverInsufficientData = learningTick?.CrossoverInsufficientData ?? 0;
                 long delayNowTs = Stopwatch.GetTimestamp();
                 int delayPending = _shiftAssistPendingDelayActive ? 1 : 0;
                 int delayPendingGear = _shiftAssistPendingDelayGear;
@@ -7230,7 +7248,7 @@ namespace LaunchPlugin
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43},{44},{45},{46},{47},{48},{49},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43:F6},{44},{45:F6},{46},{47},{48},{49:F4},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63},{64},{65},{66},{67},{68},{69},{70},{71},{72},{73},{74},{75},{76},{77},{78},{79},{80}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -7255,10 +7273,12 @@ namespace LaunchPlugin
                     learnPeakRpm,
                     learnPeakAccelMps2,
                     learnSampleAdded ? "1" : "0",
+                    learnPullAccepted ? "1" : "0",
                     learnSamplesForGear,
                     learnLearnedRpmForGear,
                     learnMinRpm,
                     learnRedlineRpm,
+                    learnSamplingRedlineRpm,
                     learnRedlineSourceText,
                     learnCaptureMinRpm,
                     learnCapturedRpm,
@@ -7267,6 +7287,21 @@ namespace LaunchPlugin
                     learnEndReason,
                     learnEndWasUpshift,
                     learnRejectedReason,
+                    learnLimiterHoldActive,
+                    learnLimiterHoldMs,
+                    learnValidCurvePointsThisPull,
+                    learnArtifactReset,
+                    learnArtifactReason,
+                    learnCurrentK,
+                    learnCurrentKValid,
+                    learnNextK,
+                    learnNextKValid,
+                    learnCurrentBinIndex,
+                    learnCurrentBinCount,
+                    learnCurrentCurveAccel,
+                    learnCrossoverCandidateRpm,
+                    learnCrossoverComputedRpm,
+                    learnCrossoverInsufficientData,
                     delayPending,
                     delayPendingGear,
                     delayPendingAgeMs,
