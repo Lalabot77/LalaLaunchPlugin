@@ -1,7 +1,7 @@
 # Repository status
 
-Validated against commit: b115732
-Last updated: 2026-03-01
+Validated against commit: 6a3ecea
+Last updated: 2026-03-02
 Branch: work
 
 ## Current repo/link status
@@ -22,10 +22,11 @@ Branch: work
 - Dark Mode global dash controls updated with Lovely checkbox always visible (availability-gated by enable state), forced-off persistence when Lovely disappears, and docs alignment across inventory/log/tooltip/subsystem/index docs.
 - ShiftAssist debug CSV now logs urgent eligibility/attempt/outcome and timing anchors.
 - Shift Assist learning acceptance widened (throttle/brake micro-noise tolerance, movement gate, limiter-hold + timeout grace, artifact-reset cancellation) and learned RPM now uses telemetry crossover (`gear g` vs `g+1`) with stability-gated auto-apply.
+- PR454 follow-up hardening: `MinWindowMs=250ms`, limiter-hold continuation capped (`2000ms`), crossover scan band now anchored to sampling-gear redline, and pull acceptance requires minimum valid curve points.
 - Shift Assist urgent cue now enforces the fixed 1000ms delay inside `ShiftAssistEngine` (preventing early consumption), keeps cue-dependent playback gating in `LalaLaunch`, and keeps urgent volume derived from the primary slider (50%).
 - Shift Assist subsystem: **INTEGRATED** (settings, evaluation, audio, exports, logs, delay telemetry).
 - Declutter mode + event marker actions: **COMPLETE** (post-PR381 baseline retained).
-- Canonical docs listed above: **SYNCED** to `b115732`.
+- Canonical docs listed above: **SYNCED** to `6a3ecea`.
 
 ## Notes
 - `Code_Snapshot.md` remains intentionally non-canonical; contract truth lives in parameter/log inventories and subsystem docs.

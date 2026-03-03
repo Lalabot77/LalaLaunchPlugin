@@ -7173,7 +7173,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,LearnLimiterHoldActive,LearnLimiterHoldMs,LearnArtifactReset,LearnArtifactReason,LearnCurrentK,LearnCurrentKValid,LearnNextK,LearnNextKValid,LearnCurrentBinIndex,LearnCurrentBinCount,LearnCurrentCurveAccelMps2,LearnCrossoverCandidateRpm,LearnCrossoverComputedRpm,LearnCrossoverInsufficientData,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnSamplingRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,LearnLimiterHoldActive,LearnLimiterHoldMs,LearnValidCurvePointsThisPull,LearnArtifactReset,LearnArtifactReason,LearnCurrentK,LearnCurrentKValid,LearnNextK,LearnNextKValid,LearnCurrentBinIndex,LearnCurrentBinCount,LearnCurrentCurveAccelMps2,LearnCrossoverCandidateRpm,LearnCrossoverComputedRpm,LearnCrossoverInsufficientData,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
                     }
                 }
 
@@ -7185,6 +7185,7 @@ namespace LaunchPlugin
                 int learnLearnedRpmForGear = learningTick?.LearnedRpmForGear ?? 0;
                 int learnMinRpm = learningTick?.LearnMinRpm ?? 0;
                 int learnRedlineRpm = learningTick?.LearnRedlineRpm ?? 0;
+                int learnSamplingRedlineRpm = learningTick?.SamplingRedlineRpm ?? 0;
                 string learnRedlineSourceText = !string.IsNullOrWhiteSpace(learnRedlineSource) ? learnRedlineSource : "NONE";
                 int learnCaptureMinRpm = learningTick?.LearnCaptureMinRpm ?? 0;
                 int learnCapturedRpm = learningTick?.LearnCapturedRpm ?? 0;
@@ -7195,6 +7196,7 @@ namespace LaunchPlugin
                 string learnRejectedReason = !string.IsNullOrWhiteSpace(learningTick?.LearnRejectedReason) ? learningTick.LearnRejectedReason : "NONE";
                 int learnLimiterHoldActive = learningTick?.LimiterHoldActive == true ? 1 : 0;
                 int learnLimiterHoldMs = learningTick?.LimiterHoldMs ?? 0;
+                int learnValidCurvePointsThisPull = learningTick?.ValidCurvePointsThisPull ?? 0;
                 int learnArtifactReset = learningTick?.ArtifactResetDetected == true ? 1 : 0;
                 string learnArtifactReason = !string.IsNullOrWhiteSpace(learningTick?.ArtifactReason) ? learningTick.ArtifactReason : "NONE";
                 double learnCurrentK = learningTick?.CurrentGearRatioK ?? 0.0;
@@ -7245,7 +7247,7 @@ namespace LaunchPlugin
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43},{44},{45},{46},{47},{48},{49},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63},{64},{65},{66},{67:F6},{68},{69:F6},{70},{71},{72},{73:F4},{74},{75},{76},{77},{78}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42:F6},{43},{44:F6},{45},{46},{47},{48:F4},{49},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63},{64},{65},{66},{67},{68},{69},{70},{71},{72},{73},{74},{75},{76},{77},{78},{79}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -7274,6 +7276,7 @@ namespace LaunchPlugin
                     learnLearnedRpmForGear,
                     learnMinRpm,
                     learnRedlineRpm,
+                    learnSamplingRedlineRpm,
                     learnRedlineSourceText,
                     learnCaptureMinRpm,
                     learnCapturedRpm,
@@ -7284,6 +7287,7 @@ namespace LaunchPlugin
                     learnRejectedReason,
                     learnLimiterHoldActive,
                     learnLimiterHoldMs,
+                    learnValidCurvePointsThisPull,
                     learnArtifactReset,
                     learnArtifactReason,
                     learnCurrentK,

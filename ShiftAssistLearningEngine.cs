@@ -28,6 +28,7 @@ namespace LaunchPlugin
         public int ApplyRpm { get; set; }
         public int LearnMinRpm { get; set; }
         public int LearnRedlineRpm { get; set; }
+        public int SamplingRedlineRpm { get; set; }
         public int LearnCaptureMinRpm { get; set; }
         public int LearnCapturedRpm { get; set; }
         public int LearnSampleRpmFinal { get; set; }
@@ -49,15 +50,17 @@ namespace LaunchPlugin
         public int CrossoverCandidateRpm { get; set; }
         public int CrossoverComputedRpmForGear { get; set; }
         public int CrossoverInsufficientData { get; set; }
+        public int ValidCurvePointsThisPull { get; set; }
     }
 
     public class ShiftAssistLearningEngine
     {
         private const int GearCount = 8;
         private const int StableGearArmMs = 200;
-        private const int MinWindowMs = 500;
+        private const int MinWindowMs = 250;
         private const int MaxWindowMs = 3000;
         private const int MaxWindowUpshiftGraceMs = 400;
+        private const int MaxLimiterHoldMs = 2000;
         private const int ReArmRpmDrop = 500;
         private const int AbsoluteMinLearnRpm = 2000;
         private const double LearnTrackMinRedlineRatio = 0.70;
@@ -77,6 +80,7 @@ namespace LaunchPlugin
         private const double CrossoverMarginMps2 = 0.10;
         private const int StableCrossoverToleranceRpm = 50;
         private const int StableCrossoverNeededTicks = 3;
+        private const int MinCurvePointsPerPull = 25;
 
         private readonly Dictionary<string, StackRuntime> _stacks = new Dictionary<string, StackRuntime>(StringComparer.OrdinalIgnoreCase);
         private readonly ShiftAssistLearningTick _lastTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
@@ -93,6 +97,8 @@ namespace LaunchPlugin
         private int _samplingPreShiftRpm;
         private double _samplingPeakAccel;
         private int _samplingPeakRpm;
+        private int _samplingRedlineRpm;
+        private int _samplingValidCurvePoints;
         private bool _samplingLimiterHoldActive;
         private double _samplingLimiterHoldStartedSec;
         private double _samplingThrottleDipStartedSec;
@@ -195,6 +201,8 @@ namespace LaunchPlugin
                     _samplingPreShiftRpm = rpm;
                     _samplingPeakAccel = IsPlausibleAccel(lonAccelMps2) ? lonAccelMps2 : 0.0;
                     _samplingPeakRpm = IsPlausibleAccel(lonAccelMps2) ? rpm : 0;
+                    _samplingRedlineRpm = redlineRpmForGear;
+                    _samplingValidCurvePoints = 0;
                     _samplingLimiterHoldActive = false;
                     _samplingLimiterHoldStartedSec = double.NaN;
                     _samplingThrottleDipStartedSec = double.NaN;
@@ -253,6 +261,8 @@ namespace LaunchPlugin
             tick.ActiveGear = _samplingGear;
             tick.LearnMinRpm = _samplingLearnMinRpm;
             tick.LearnCaptureMinRpm = _samplingCaptureMinRpm;
+            tick.SamplingRedlineRpm = _samplingRedlineRpm;
+            tick.ValidCurvePointsThisPull = _samplingValidCurvePoints;
 
             int windowMs = 0;
             if (hasValidSessionTime && IsFinite(_samplingStartSec))
@@ -335,6 +345,8 @@ namespace LaunchPlugin
 
                 var gearData = stack.Gears[_samplingGear - 1];
                 gearData.AddCurveSample(rpm, speedMps, lonAccelMps2);
+                _samplingValidCurvePoints++;
+                tick.ValidCurvePointsThisPull = _samplingValidCurvePoints;
             }
 
             tick.PeakAccelMps2 = _samplingPeakAccel;
@@ -383,6 +395,12 @@ namespace LaunchPlugin
             {
                 if (_samplingLimiterHoldActive && throttleStrongNow)
                 {
+                    if (tick.LimiterHoldMs >= MaxLimiterHoldMs)
+                    {
+                        _samplingPendingUpshiftGrace = true;
+                        _samplingUpshiftGraceUntilSec = sessionTimeSec + (MaxWindowUpshiftGraceMs / 1000.0);
+                    }
+
                     return;
                 }
 
@@ -448,7 +466,8 @@ namespace LaunchPlugin
             tick.LearnEndWasUpshift = endWasUpshift;
 
             var gearData = _samplingGear >= 1 && _samplingGear <= GearCount ? stack.Gears[_samplingGear - 1] : null;
-            bool accepted = gearData != null && windowMs >= MinWindowMs && endWasUpshift;
+            bool enoughCurvePoints = _samplingValidCurvePoints >= MinCurvePointsPerPull;
+            bool accepted = gearData != null && windowMs >= MinWindowMs && endWasUpshift && enoughCurvePoints;
 
             if (accepted)
             {
@@ -464,7 +483,7 @@ namespace LaunchPlugin
 
                 if (_samplingGear >= 1 && _samplingGear < GearCount)
                 {
-                    RecomputeCrossover(stack, _samplingGear, tick);
+                    RecomputeCrossover(stack, _samplingGear, _samplingRedlineRpm, tick);
                 }
 
                 tick.SamplesForGear = gearData.AcceptedPullCount;
@@ -480,11 +499,13 @@ namespace LaunchPlugin
                 tick.State = ShiftAssistLearningState.Rejected;
                 tick.LearnRejectedReason = fromGraceTimeout
                     ? "EndNotUpshift"
-                    : (!endWasUpshift ? "EndNotUpshift" : (windowMs < MinWindowMs ? "WindowTooShort" : "Unknown"));
+                    : (!endWasUpshift ? "EndNotUpshift" :
+                    (windowMs < MinWindowMs ? "WindowTooShort" :
+                    (!enoughCurvePoints ? "TooFewCurvePoints" : "Unknown")));
             }
         }
 
-        private void RecomputeCrossover(StackRuntime stack, int sourceGear, ShiftAssistLearningTick tick)
+        private void RecomputeCrossover(StackRuntime stack, int sourceGear, int samplingRedlineRpm, ShiftAssistLearningTick tick)
         {
             if (sourceGear < 1 || sourceGear >= GearCount)
             {
@@ -500,8 +521,8 @@ namespace LaunchPlugin
                 return;
             }
 
-            int minRpm = Math.Max(ComputeLearnMinRpm(sourceGear, tick.LearnRedlineRpm), AbsoluteMinLearnRpm);
-            int maxRpm = tick.LearnRedlineRpm > 0 ? (tick.LearnRedlineRpm - RedlineHeadroomRpm) : (minRpm + 3000);
+            int minRpm = Math.Max(ComputeLearnMinRpm(sourceGear, samplingRedlineRpm), AbsoluteMinLearnRpm);
+            int maxRpm = samplingRedlineRpm > 0 ? (samplingRedlineRpm - RedlineHeadroomRpm) : (minRpm + 3000);
             if (maxRpm <= minRpm)
             {
                 return;
@@ -690,6 +711,8 @@ namespace LaunchPlugin
             _samplingPreShiftRpm = 0;
             _samplingPeakAccel = 0.0;
             _samplingPeakRpm = 0;
+            _samplingRedlineRpm = 0;
+            _samplingValidCurvePoints = 0;
             _samplingLimiterHoldActive = false;
             _samplingLimiterHoldStartedSec = double.NaN;
             _samplingThrottleDipStartedSec = double.NaN;
@@ -714,6 +737,7 @@ namespace LaunchPlugin
             _lastTick.ApplyRpm = tick.ApplyRpm;
             _lastTick.LearnMinRpm = tick.LearnMinRpm;
             _lastTick.LearnRedlineRpm = tick.LearnRedlineRpm;
+            _lastTick.SamplingRedlineRpm = tick.SamplingRedlineRpm;
             _lastTick.LearnCaptureMinRpm = tick.LearnCaptureMinRpm;
             _lastTick.LearnCapturedRpm = tick.LearnCapturedRpm;
             _lastTick.LearnSampleRpmFinal = tick.LearnSampleRpmFinal;
@@ -735,6 +759,7 @@ namespace LaunchPlugin
             _lastTick.CrossoverCandidateRpm = tick.CrossoverCandidateRpm;
             _lastTick.CrossoverComputedRpmForGear = tick.CrossoverComputedRpmForGear;
             _lastTick.CrossoverInsufficientData = tick.CrossoverInsufficientData;
+            _lastTick.ValidCurvePointsThisPull = tick.ValidCurvePointsThisPull;
         }
 
         private class StackRuntime
