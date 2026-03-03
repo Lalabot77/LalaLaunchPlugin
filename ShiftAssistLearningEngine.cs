@@ -108,6 +108,7 @@ namespace LaunchPlugin
         private bool _samplingBrakeActiveTiming;
         private bool _samplingPendingUpshiftGrace;
         private double _samplingUpshiftGraceUntilSec;
+        private string _samplingGraceSource;
         private double _lastSessionTimeSec = double.NaN;
         private double _lastSpeedMps = double.NaN;
         private int _lastRpm = 0;
@@ -159,9 +160,11 @@ namespace LaunchPlugin
             {
                 if (_samplingActive)
                 {
-                    tick.State = ShiftAssistLearningState.Rejected;
+                    tick.State = ShiftAssistLearningState.Armed;
                     tick.LearnEndReason = "ArtifactReset";
-                    tick.LearnRejectedReason = "ArtifactReset";
+                    tick.LearnRejectedReason = string.Empty;
+                    tick.PullAccepted = false;
+                    tick.SampleAdded = false;
                 }
 
                 ResetSampling();
@@ -215,6 +218,7 @@ namespace LaunchPlugin
                     _samplingBrakeActiveTiming = false;
                     _samplingPendingUpshiftGrace = false;
                     _samplingUpshiftGraceUntilSec = double.NaN;
+                    _samplingGraceSource = string.Empty;
                 }
             }
 
@@ -369,7 +373,8 @@ namespace LaunchPlugin
             {
                 if (endWasUpshift)
                 {
-                    FinalizeSample(stack, tick, windowMs, "UpshiftAfterTimeoutGrace", true, false);
+                    string upshiftInGraceReason = _samplingGraceSource == "LimiterHold" ? "UpshiftInGrace(LimiterHold)" : "UpshiftInGrace(MaxWindow)";
+                    FinalizeSample(stack, tick, windowMs, upshiftInGraceReason, true, false);
                     ResetSampling();
                     return;
                 }
@@ -377,7 +382,8 @@ namespace LaunchPlugin
                 bool graceExpired = !hasValidSessionTime || !IsFinite(_samplingUpshiftGraceUntilSec) || sessionTimeSec > _samplingUpshiftGraceUntilSec;
                 if (graceExpired)
                 {
-                    FinalizeSample(stack, tick, windowMs, "LimiterHoldTimeout", false, true);
+                    string graceExpiredReason = _samplingGraceSource == "LimiterHold" ? "LimiterHoldGraceExpired" : "MaxWindowGraceExpired";
+                    FinalizeSample(stack, tick, windowMs, graceExpiredReason, false, true);
                     ResetSampling();
                 }
 
@@ -388,6 +394,7 @@ namespace LaunchPlugin
             {
                 _samplingPendingUpshiftGrace = true;
                 _samplingUpshiftGraceUntilSec = sessionTimeSec + (MaxWindowUpshiftGraceMs / 1000.0);
+                _samplingGraceSource = "LimiterHold";
                 return;
             }
 
@@ -417,6 +424,7 @@ namespace LaunchPlugin
 
                 _samplingPendingUpshiftGrace = true;
                 _samplingUpshiftGraceUntilSec = sessionTimeSec + (MaxWindowUpshiftGraceMs / 1000.0);
+                _samplingGraceSource = "MaxWindow";
                 return;
             }
 
@@ -508,7 +516,7 @@ namespace LaunchPlugin
             {
                 tick.State = ShiftAssistLearningState.Rejected;
                 tick.LearnRejectedReason = fromGraceTimeout
-                    ? "EndNotUpshift"
+                    ? (!string.IsNullOrWhiteSpace(tick.LearnEndReason) ? tick.LearnEndReason : "GraceExpired")
                     : (!endWasUpshift ? "EndNotUpshift" :
                     (windowMs < MinWindowMs ? "WindowTooShort" :
                     (!enoughCurvePoints ? "TooFewCurvePoints" : "Unknown")));
@@ -730,6 +738,7 @@ namespace LaunchPlugin
             _samplingBrakeActiveTiming = false;
             _samplingPendingUpshiftGrace = false;
             _samplingUpshiftGraceUntilSec = double.NaN;
+            _samplingGraceSource = string.Empty;
         }
 
         private void CopyTick(ShiftAssistLearningTick tick)
