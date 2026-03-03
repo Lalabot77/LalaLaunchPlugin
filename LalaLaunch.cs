@@ -4508,12 +4508,12 @@ namespace LaunchPlugin
             AttachCore("ShiftAssist.EffectiveTargetRPM_CurrentGear", () => _shiftAssistEngine.LastEffectiveTargetRpm);
             AttachCore("ShiftAssist.RpmRate", () => _shiftAssistEngine.LastRpmRate);
             AttachCore("ShiftAssist.Beep", () => _shiftAssistAudioIssuedPulse);
-            AttachCore("ShiftAssist.ShiftLight", () => _shiftAssistBeepLatched);
-            AttachCore("ShiftAssist.ShiftLightPrimary", () => _shiftAssistBeepPrimaryLatched);
-            AttachCore("ShiftAssist.ShiftLightUrgent", () => _shiftAssistBeepUrgentLatched);
-            AttachCore("ShiftAssist.BeepLight", () => _shiftAssistBeepLatched);
-            AttachCore("ShiftAssist.BeepPrimary", () => _shiftAssistBeepPrimaryLatched);
-            AttachCore("ShiftAssist.BeepUrgent", () => _shiftAssistBeepUrgentLatched);
+            AttachCore("ShiftAssist.ShiftLight", () => IsShiftAssistLightEnabled() && _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.ShiftLightPrimary", () => IsShiftAssistLightEnabled() && _shiftAssistBeepPrimaryLatched);
+            AttachCore("ShiftAssist.ShiftLightUrgent", () => IsShiftAssistLightEnabled() && _shiftAssistBeepUrgentLatched);
+            AttachCore("ShiftAssist.BeepLight", () => IsShiftAssistLightEnabled() && _shiftAssistBeepLatched);
+            AttachCore("ShiftAssist.BeepPrimary", () => IsShiftAssistLightEnabled() && _shiftAssistBeepPrimaryLatched);
+            AttachCore("ShiftAssist.BeepUrgent", () => IsShiftAssistLightEnabled() && _shiftAssistBeepUrgentLatched);
             AttachCore("ShiftAssist.ShiftLightEnabled", () => IsShiftAssistLightEnabled() ? 1 : 0);
             AttachCore("ShiftAssist.Learn.Enabled", () => Settings?.ShiftAssistLearningModeEnabled == true ? 1 : 0);
             AttachCore("ShiftAssist.Learn.State", () => ToLearningStateText(_shiftAssistLastLearningTick?.State ?? ShiftAssistLearningState.Off));
