@@ -21,6 +21,7 @@ namespace LaunchPlugin
         public int PeakRpm { get; set; }
         public int LastSampleRpm { get; set; }
         public bool SampleAdded { get; set; }
+        public bool PullAccepted { get; set; }
         public int SamplesForGear { get; set; }
         public int LearnedRpmForGear { get; set; }
         public bool ShouldApplyLearnedRpm { get; set; }
@@ -68,7 +69,8 @@ namespace LaunchPlugin
         private const double MinThrottleStrong = 0.95;
         private const double MinThrottleHardEnd = 0.90;
         private const int ThrottleDipGraceMs = 150;
-        private const double BrakeNoiseThreshold = 0.01;
+        private const double BrakeNoiseEnter01 = 0.02;
+        private const double BrakeNoiseExit01 = 0.01;
         private const int BrakeActiveMs = 100;
         private const double MinMovementMps = 5.0 / 3.6;
         private const double NearRedlineRatio = 0.99;
@@ -103,6 +105,7 @@ namespace LaunchPlugin
         private double _samplingLimiterHoldStartedSec;
         private double _samplingThrottleDipStartedSec;
         private double _samplingBrakeActiveStartedSec;
+        private bool _samplingBrakeActiveTiming;
         private bool _samplingPendingUpshiftGrace;
         private double _samplingUpshiftGraceUntilSec;
         private double _lastSessionTimeSec = double.NaN;
@@ -127,7 +130,9 @@ namespace LaunchPlugin
                 LearnRedlineRpm = redlineRpmForGear,
                 LearnCaptureMinRpm = captureMinRpm,
                 LearnCapturedRpm = 0,
-                LearnEndWasUpshift = false
+                LearnEndWasUpshift = false,
+                ShouldApplyLearnedRpm = false,
+                PullAccepted = false
             };
 
             string stackKey = string.IsNullOrWhiteSpace(gearStackId) ? "Default" : gearStackId.Trim();
@@ -167,7 +172,7 @@ namespace LaunchPlugin
                 return tick;
             }
 
-            bool gateStrong = effectiveGear >= 1 && effectiveGear <= GearCount && throttle01 >= MinThrottleStrong && brake01 <= BrakeNoiseThreshold && speedMps >= MinMovementMps;
+            bool gateStrong = effectiveGear >= 1 && effectiveGear <= GearCount && throttle01 >= MinThrottleStrong && brake01 <= BrakeNoiseExit01 && speedMps >= MinMovementMps;
 
             if (effectiveGear != _stableGear)
             {
@@ -207,6 +212,7 @@ namespace LaunchPlugin
                     _samplingLimiterHoldStartedSec = double.NaN;
                     _samplingThrottleDipStartedSec = double.NaN;
                     _samplingBrakeActiveStartedSec = double.NaN;
+                    _samplingBrakeActiveTiming = false;
                     _samplingPendingUpshiftGrace = false;
                     _samplingUpshiftGraceUntilSec = double.NaN;
                 }
@@ -279,7 +285,6 @@ namespace LaunchPlugin
 
             bool throttleStrongNow = throttle01 >= MinThrottleStrong;
             bool throttleHardDropNow = throttle01 < MinThrottleHardEnd;
-            bool brakeAboveNoise = brake01 > BrakeNoiseThreshold;
             bool moving = speedMps >= MinMovementMps;
             bool nearRedline = redlineRpmForGear > 0 && rpm >= (int)Math.Round(redlineRpmForGear * NearRedlineRatio);
 
@@ -298,17 +303,22 @@ namespace LaunchPlugin
                 throttleDipExpired = sessionTimeSec >= (_samplingThrottleDipStartedSec + (ThrottleDipGraceMs / 1000.0));
             }
 
-            if (!brakeAboveNoise)
+            if (brake01 > BrakeNoiseEnter01)
             {
-                _samplingBrakeActiveStartedSec = double.NaN;
+                if (!_samplingBrakeActiveTiming)
+                {
+                    _samplingBrakeActiveTiming = true;
+                    _samplingBrakeActiveStartedSec = hasValidSessionTime ? sessionTimeSec : double.NaN;
+                }
             }
-            else if (hasValidSessionTime && !IsFinite(_samplingBrakeActiveStartedSec))
+            else if (brake01 < BrakeNoiseExit01)
             {
-                _samplingBrakeActiveStartedSec = sessionTimeSec;
+                _samplingBrakeActiveTiming = false;
+                _samplingBrakeActiveStartedSec = double.NaN;
             }
 
             bool brakeActiveLongEnough = false;
-            if (hasValidSessionTime && IsFinite(_samplingBrakeActiveStartedSec))
+            if (_samplingBrakeActiveTiming && hasValidSessionTime && IsFinite(_samplingBrakeActiveStartedSec))
             {
                 brakeActiveLongEnough = sessionTimeSec >= (_samplingBrakeActiveStartedSec + (BrakeActiveMs / 1000.0));
             }
@@ -374,6 +384,13 @@ namespace LaunchPlugin
                 return;
             }
 
+            if (_samplingLimiterHoldActive && tick.LimiterHoldMs >= MaxLimiterHoldMs)
+            {
+                _samplingPendingUpshiftGrace = true;
+                _samplingUpshiftGraceUntilSec = sessionTimeSec + (MaxWindowUpshiftGraceMs / 1000.0);
+                return;
+            }
+
             bool maxDurationReached = windowMs >= MaxWindowMs;
             bool gateEnd = throttleDipExpired || brakeActiveLongEnough || !moving;
 
@@ -395,12 +412,6 @@ namespace LaunchPlugin
             {
                 if (_samplingLimiterHoldActive && throttleStrongNow)
                 {
-                    if (tick.LimiterHoldMs >= MaxLimiterHoldMs)
-                    {
-                        _samplingPendingUpshiftGrace = true;
-                        _samplingUpshiftGraceUntilSec = sessionTimeSec + (MaxWindowUpshiftGraceMs / 1000.0);
-                    }
-
                     return;
                 }
 
@@ -416,7 +427,8 @@ namespace LaunchPlugin
                     return;
                 }
 
-                FinalizeSample(stack, tick, windowMs, "GateEnd", false, false);
+                string gateEndReason = brakeActiveLongEnough ? "BrakeActive" : "GateEnd";
+                FinalizeSample(stack, tick, windowMs, gateEndReason, false, false);
                 ResetSampling();
             }
         }
@@ -472,6 +484,7 @@ namespace LaunchPlugin
             if (accepted)
             {
                 int preShiftRpm = _samplingPreShiftRpm > 0 ? _samplingPreShiftRpm : _samplingLastObservedRpm;
+                tick.PullAccepted = true;
                 tick.SampleAdded = true;
                 tick.LastSampleRpm = preShiftRpm;
                 tick.LearnSampleRpmFinal = preShiftRpm;
@@ -489,10 +502,7 @@ namespace LaunchPlugin
                 tick.SamplesForGear = gearData.AcceptedPullCount;
                 tick.LearnedRpmForGear = gearData.LearnedRpm;
 
-                if (tick.ApplyGear >= 1 && tick.ApplyGear <= GearCount && tick.ApplyRpm > 0)
-                {
-                    tick.ShouldApplyLearnedRpm = true;
-                }
+                tick.ShouldApplyLearnedRpm = tick.ApplyGear >= 1 && tick.ApplyGear <= GearCount && tick.ApplyRpm > 0;
             }
             else
             {
@@ -717,6 +727,7 @@ namespace LaunchPlugin
             _samplingLimiterHoldStartedSec = double.NaN;
             _samplingThrottleDipStartedSec = double.NaN;
             _samplingBrakeActiveStartedSec = double.NaN;
+            _samplingBrakeActiveTiming = false;
             _samplingPendingUpshiftGrace = false;
             _samplingUpshiftGraceUntilSec = double.NaN;
         }
@@ -730,6 +741,7 @@ namespace LaunchPlugin
             _lastTick.PeakRpm = tick.PeakRpm;
             _lastTick.LastSampleRpm = tick.LastSampleRpm;
             _lastTick.SampleAdded = tick.SampleAdded;
+            _lastTick.PullAccepted = tick.PullAccepted;
             _lastTick.SamplesForGear = tick.SamplesForGear;
             _lastTick.LearnedRpmForGear = tick.LearnedRpmForGear;
             _lastTick.ShouldApplyLearnedRpm = tick.ShouldApplyLearnedRpm;

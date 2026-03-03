@@ -7173,7 +7173,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnSamplingRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,LearnLimiterHoldActive,LearnLimiterHoldMs,LearnValidCurvePointsThisPull,LearnArtifactReset,LearnArtifactReason,LearnCurrentK,LearnCurrentKValid,LearnNextK,LearnNextKValid,LearnCurrentBinIndex,LearnCurrentBinCount,LearnCurrentCurveAccelMps2,LearnCrossoverCandidateRpm,LearnCrossoverComputedRpm,LearnCrossoverInsufficientData,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnPullAccepted,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnSamplingRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,LearnLimiterHoldActive,LearnLimiterHoldMs,LearnValidCurvePointsThisPull,LearnArtifactReset,LearnArtifactReason,LearnCurrentK,LearnCurrentKValid,LearnNextK,LearnNextKValid,LearnCurrentBinIndex,LearnCurrentBinCount,LearnCurrentCurveAccelMps2,LearnCrossoverCandidateRpm,LearnCrossoverComputedRpm,LearnCrossoverInsufficientData,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
                     }
                 }
 
@@ -7181,6 +7181,7 @@ namespace LaunchPlugin
                 int learnPeakRpm = learningTick?.PeakRpm ?? 0;
                 double learnPeakAccelMps2 = learningTick?.PeakAccelMps2 ?? 0.0;
                 bool learnSampleAdded = learningTick?.SampleAdded == true;
+                bool learnPullAccepted = learningTick?.PullAccepted == true;
                 int learnSamplesForGear = learningTick?.SamplesForGear ?? 0;
                 int learnLearnedRpmForGear = learningTick?.LearnedRpmForGear ?? 0;
                 int learnMinRpm = learningTick?.LearnMinRpm ?? 0;
@@ -7247,7 +7248,7 @@ namespace LaunchPlugin
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42:F6},{43},{44:F6},{45},{46},{47},{48:F4},{49},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63},{64},{65},{66},{67},{68},{69},{70},{71},{72},{73},{74},{75},{76},{77},{78},{79}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43:F6},{44},{45:F6},{46},{47},{48},{49:F4},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63},{64},{65},{66},{67},{68},{69},{70},{71},{72},{73},{74},{75},{76},{77},{78},{79},{80}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -7272,6 +7273,7 @@ namespace LaunchPlugin
                     learnPeakRpm,
                     learnPeakAccelMps2,
                     learnSampleAdded ? "1" : "0",
+                    learnPullAccepted ? "1" : "0",
                     learnSamplesForGear,
                     learnLearnedRpmForGear,
                     learnMinRpm,
