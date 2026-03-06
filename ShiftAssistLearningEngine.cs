@@ -76,7 +76,7 @@ namespace LaunchPlugin
         private const double NearRedlineRatio = 0.99;
         private const int BinSizeRpm = 50;
         private const int MinBinSamples = 3;
-        private const int MinBinsWithData = 8;
+        private const int MinBinsWithData = 6;
         private const int MinRatioSamples = 12;
         private const double MaxPlausibleAccelMps2 = 30.0;
         private const double CrossoverMarginMps2 = 0.10;
@@ -84,6 +84,8 @@ namespace LaunchPlugin
         private const int StableCrossoverBufferSize = 5;
         private const int StableCrossoverMinSamples = 3;
         private const int MinCurvePointsPerPull = 25;
+        private const int MaxPlausibleEngineRpm = 22000;
+        private const int RedlinePlausibilityPaddingRpm = 1500;
 
         private readonly Dictionary<string, StackRuntime> _stacks = new Dictionary<string, StackRuntime>(StringComparer.OrdinalIgnoreCase);
         private readonly ShiftAssistLearningTick _lastTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
@@ -359,7 +361,7 @@ namespace LaunchPlugin
                 }
 
                 var gearData = stack.Gears[_samplingGear - 1];
-                gearData.AddCurveSample(rpm, speedMps, lonAccelMps2);
+                gearData.AddCurveSample(rpm, speedMps, lonAccelMps2, redlineRpmForGear);
                 _samplingValidCurvePoints++;
                 tick.ValidCurvePointsThisPull = _samplingValidCurvePoints;
             }
@@ -477,6 +479,7 @@ namespace LaunchPlugin
             tick.CurrentBinIndex = current.GetBinIndex(rpm);
             tick.CurrentBinCount = current.GetBinCount(tick.CurrentBinIndex);
             tick.CurrentCurveAccelMps2 = current.GetCurveAccel(rpm);
+            tick.CrossoverCandidateRpm = current.LastCrossoverCandidateRpm;
             tick.CrossoverComputedRpmForGear = current.CrossoverRpm;
             tick.CrossoverInsufficientData = current.CrossoverInsufficientData ? 1 : 0;
         }
@@ -503,10 +506,7 @@ namespace LaunchPlugin
                 gearData.AcceptedPullCount++;
                 gearData.SetReArmRequired(_samplingPeakRpm);
 
-                if (_samplingGear >= 1 && _samplingGear < GearCount)
-                {
-                    RecomputeCrossover(stack, _samplingGear, _samplingRedlineRpm, tick);
-                }
+                RecomputeCrossovers(stack, _samplingGear, tick);
 
                 tick.SamplesForGear = gearData.AcceptedPullCount;
                 tick.LearnedRpmForGear = gearData.LearnedRpm;
@@ -524,27 +524,73 @@ namespace LaunchPlugin
             }
         }
 
-        private void RecomputeCrossover(StackRuntime stack, int sourceGear, int samplingRedlineRpm, ShiftAssistLearningTick tick)
+        private void RecomputeCrossovers(StackRuntime stack, int triggerGear, ShiftAssistLearningTick tick)
         {
+            int applyGear = 0;
+            int applyRpm = 0;
+
+            for (int sourceGear = 1; sourceGear < GearCount; sourceGear++)
+            {
+                int stableLearnedRpm;
+                bool stableForGear = RecomputeCrossoverForGear(stack, sourceGear, out stableLearnedRpm);
+                if (!stableForGear)
+                {
+                    continue;
+                }
+
+                if (sourceGear == triggerGear || sourceGear == (triggerGear - 1))
+                {
+                    applyGear = sourceGear;
+                    applyRpm = stableLearnedRpm;
+                }
+                else if (applyGear <= 0)
+                {
+                    applyGear = sourceGear;
+                    applyRpm = stableLearnedRpm;
+                }
+            }
+
+            if (applyGear > 0 && applyRpm > 0)
+            {
+                tick.ApplyGear = applyGear;
+                tick.ApplyRpm = applyRpm;
+            }
+        }
+
+        private bool RecomputeCrossoverForGear(StackRuntime stack, int sourceGear, out int stableLearnedRpm)
+        {
+            stableLearnedRpm = 0;
             if (sourceGear < 1 || sourceGear >= GearCount)
             {
-                return;
+                return false;
             }
 
             var curr = stack.Gears[sourceGear - 1];
             var next = stack.Gears[sourceGear];
             curr.CrossoverInsufficientData = true;
+            curr.LastCrossoverCandidateRpm = 0;
 
             if (!curr.HasCoverage || !next.HasCoverage || !curr.HasValidRatio || !next.HasValidRatio)
             {
-                return;
+                return false;
             }
 
-            int minRpm = Math.Max(ComputeLearnMinRpm(sourceGear, samplingRedlineRpm), AbsoluteMinLearnRpm);
-            int maxRpm = samplingRedlineRpm > 0 ? (samplingRedlineRpm - RedlineHeadroomRpm) : (minRpm + 3000);
+            int minRpm = Math.Max(curr.MinObservedRpm, AbsoluteMinLearnRpm);
+            int observedUpperRpm = curr.MaxObservedRpm - RedlineHeadroomRpm;
+            int redlineUpperRpm = curr.GetCrossoverUpperRpmCeiling(RedlineHeadroomRpm);
+            int maxRpm = redlineUpperRpm > 0
+                ? Math.Min(observedUpperRpm, redlineUpperRpm)
+                : observedUpperRpm;
             if (maxRpm <= minRpm)
             {
-                return;
+                int observedFallbackUpper = curr.MaxObservedRpm - BinSizeRpm;
+                maxRpm = redlineUpperRpm > 0
+                    ? Math.Min(observedFallbackUpper, redlineUpperRpm)
+                    : observedFallbackUpper;
+                if (maxRpm <= minRpm)
+                {
+                    return false;
+                }
             }
 
             int found = 0;
@@ -570,24 +616,24 @@ namespace LaunchPlugin
                 }
             }
 
-            tick.CrossoverCandidateRpm = found;
+            curr.LastCrossoverCandidateRpm = found;
 
             if (found <= 0)
             {
-                return;
+                return false;
             }
 
             curr.CrossoverInsufficientData = false;
             curr.CrossoverRpm = found;
             curr.PushCrossoverCandidate(found, StableCrossoverBufferSize);
 
-            int stableLearnedRpm;
             if (curr.TryGetStableLearnedRpm(StableCrossoverToleranceRpm, StableCrossoverMinSamples, out stableLearnedRpm))
             {
                 curr.LearnedRpm = stableLearnedRpm;
-                tick.ApplyGear = sourceGear;
-                tick.ApplyRpm = stableLearnedRpm;
+                return true;
             }
+
+            return false;
         }
 
         private bool DetectArtifactReset(bool hasValidSessionTime, double sessionTimeSec, int gear, int rpm, double speedMps, out string reason)
@@ -808,15 +854,26 @@ namespace LaunchPlugin
             public double RatioK { get; private set; }
             public bool HasValidRatio { get; private set; }
             public bool HasCoverage { get; private set; }
+            public int MinObservedRpm { get; private set; }
+            public int MaxObservedRpm { get; private set; }
+            public int SourceGearRedlineRpm { get; private set; }
             public int CrossoverRpm { get; set; }
             public bool CrossoverInsufficientData { get; set; }
+            public int LastCrossoverCandidateRpm { get; set; }
 
-            public void AddCurveSample(int rpm, double speedMps, double accelMps2)
+            public void AddCurveSample(int rpm, double speedMps, double accelMps2, int redlineRpmForGear)
             {
-                if (rpm <= 0 || !IsPlausibleAccel(accelMps2))
+                if (rpm <= 0 || rpm > MaxPlausibleEngineRpm || !IsPlausibleAccel(accelMps2))
                 {
                     return;
                 }
+
+                if (redlineRpmForGear > 0)
+                {
+                    SourceGearRedlineRpm = redlineRpmForGear;
+                }
+
+                bool rpmPlausibleForBounds = IsRpmPlausibleForBounds(rpm, redlineRpmForGear);
 
                 int idx = GetBinIndex(rpm);
                 if (!_bins.TryGetValue(idx, out BinRuntime bin) || bin == null)
@@ -826,6 +883,19 @@ namespace LaunchPlugin
                 }
 
                 bin.Add(accelMps2);
+
+                if (rpmPlausibleForBounds)
+                {
+                    if (MinObservedRpm <= 0 || rpm < MinObservedRpm)
+                    {
+                        MinObservedRpm = rpm;
+                    }
+
+                    if (rpm > MaxObservedRpm)
+                    {
+                        MaxObservedRpm = rpm;
+                    }
+                }
 
                 if (speedMps >= MinMovementMps)
                 {
@@ -884,6 +954,33 @@ namespace LaunchPlugin
                 }
 
                 return sum / n;
+            }
+
+            public int GetCrossoverUpperRpmCeiling(int headroomRpm)
+            {
+                if (SourceGearRedlineRpm <= 0)
+                {
+                    return 0;
+                }
+
+                int ceiling = SourceGearRedlineRpm - headroomRpm;
+                return ceiling > AbsoluteMinLearnRpm ? ceiling : AbsoluteMinLearnRpm;
+            }
+
+            private bool IsRpmPlausibleForBounds(int rpm, int redlineRpmForGear)
+            {
+                if (rpm <= 0 || rpm > MaxPlausibleEngineRpm)
+                {
+                    return false;
+                }
+
+                int referenceRedline = redlineRpmForGear > 0 ? redlineRpmForGear : SourceGearRedlineRpm;
+                if (referenceRedline > 0 && rpm > (referenceRedline + RedlinePlausibilityPaddingRpm))
+                {
+                    return false;
+                }
+
+                return true;
             }
 
             public void PushCrossoverCandidate(int rpm, int maxSamples)
@@ -951,6 +1048,10 @@ namespace LaunchPlugin
                 HasCoverage = false;
                 CrossoverRpm = 0;
                 CrossoverInsufficientData = false;
+                LastCrossoverCandidateRpm = 0;
+                MinObservedRpm = 0;
+                MaxObservedRpm = 0;
+                SourceGearRedlineRpm = 0;
                 _recentCrossoverCandidates.Clear();
             }
 
