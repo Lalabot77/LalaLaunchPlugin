@@ -76,7 +76,7 @@ namespace LaunchPlugin
         private const double NearRedlineRatio = 0.99;
         private const int BinSizeRpm = 50;
         private const int MinBinSamples = 3;
-        private const int MinBinsWithData = 6;
+        private const int MinBinsWithData = 4;
         private const int MinRatioSamples = 12;
         private const double MaxPlausibleAccelMps2 = 30.0;
         private const double CrossoverMarginMps2 = 0.10;
