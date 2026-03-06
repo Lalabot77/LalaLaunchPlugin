@@ -94,6 +94,9 @@ namespace LaunchPlugin
         private const int MinCurvePointsPerPull = 25;
         private const int MaxPlausibleEngineRpm = 22000;
         private const int RedlinePlausibilityPaddingRpm = 1500;
+        private const int SafeLearnedRpmHeadroomRpm = 200;
+        private const int HighestPairFallbackPullsMin = 3;
+        private const int HighestPairFallbackSafetyMarginRpm = 150;
 
         private readonly Dictionary<string, StackRuntime> _stacks = new Dictionary<string, StackRuntime>(StringComparer.OrdinalIgnoreCase);
         private readonly ShiftAssistLearningTick _lastTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
@@ -557,12 +560,12 @@ namespace LaunchPlugin
                 if (sourceGear == triggerGear || sourceGear == (triggerGear - 1))
                 {
                     applyGear = sourceGear;
-                    applyRpm = stableLearnedRpm;
+                    applyRpm = ClampLearnedRpmToSafeCeiling(stack.Gears[sourceGear - 1], stableLearnedRpm);
                 }
                 else if (applyGear <= 0)
                 {
                     applyGear = sourceGear;
-                    applyRpm = stableLearnedRpm;
+                    applyRpm = ClampLearnedRpmToSafeCeiling(stack.Gears[sourceGear - 1], stableLearnedRpm);
                 }
             }
 
@@ -583,6 +586,7 @@ namespace LaunchPlugin
 
             var curr = stack.Gears[sourceGear - 1];
             var next = stack.Gears[sourceGear];
+            int safeMaxLearnedRpm = curr.GetCrossoverUpperRpmCeiling(SafeLearnedRpmHeadroomRpm);
             curr.CrossoverInsufficientData = true;
             curr.LastCrossoverCandidateRpm = 0;
             curr.LastCurrentCurveValid = curr.HasCoverage;
@@ -609,6 +613,11 @@ namespace LaunchPlugin
 
             int minRpm = currUsableMinRpm;
             int maxRpm = currUsableMaxRpm;
+            if (safeMaxLearnedRpm > 0 && maxRpm > safeMaxLearnedRpm)
+            {
+                maxRpm = safeMaxLearnedRpm;
+            }
+
             curr.LastScanMinRpm = minRpm;
             curr.LastScanMaxRpm = maxRpm;
             if (maxRpm <= minRpm)
@@ -656,13 +665,36 @@ namespace LaunchPlugin
 
             curr.LastPredictedNextRpmInRange = predictedInRange;
 
-            curr.LastCrossoverCandidateRpm = found;
-
             if (found <= 0)
             {
+                if (TryBuildHighestPairFallback(stack, sourceGear, curr, minRpm, maxRpm, safeMaxLearnedRpm, out int fallbackRpm))
+                {
+                    found = fallbackRpm;
+                    curr.LastCrossoverCandidateRpm = found;
+                    curr.CrossoverInsufficientData = false;
+                    curr.CrossoverRpm = found;
+                    curr.PushCrossoverCandidate(found, StableCrossoverBufferSize);
+                    curr.LastCrossoverSkipReason = "SolvedFallbackHighestPair";
+
+                    if (curr.TryGetStableLearnedRpm(StableCrossoverToleranceRpm, StableCrossoverMinSamples, out stableLearnedRpm))
+                    {
+                        stableLearnedRpm = ClampLearnedRpmToSafeCeiling(curr, stableLearnedRpm);
+                        curr.LearnedRpm = stableLearnedRpm;
+                        curr.LastCrossoverSkipReason = "StableLearned(FallbackHighestPair)";
+                        return stableLearnedRpm > 0;
+                    }
+
+                    curr.LastCrossoverSkipReason = "AwaitingStability(FallbackHighestPair)";
+                    return false;
+                }
+
+                curr.LastCrossoverCandidateRpm = 0;
                 curr.LastCrossoverSkipReason = predictedInRange ? "NoCrossoverFound" : "PredictedNextRpmOutOfRange";
                 return false;
             }
+
+            found = ClampLearnedRpmToSafeCeiling(curr, found);
+            curr.LastCrossoverCandidateRpm = found;
 
             curr.CrossoverInsufficientData = false;
             curr.CrossoverRpm = found;
@@ -671,13 +703,84 @@ namespace LaunchPlugin
 
             if (curr.TryGetStableLearnedRpm(StableCrossoverToleranceRpm, StableCrossoverMinSamples, out stableLearnedRpm))
             {
+                stableLearnedRpm = ClampLearnedRpmToSafeCeiling(curr, stableLearnedRpm);
                 curr.LearnedRpm = stableLearnedRpm;
-                curr.LastCrossoverSkipReason = "StableLearned";
-                return true;
+                curr.LastCrossoverSkipReason = "StableLearned(Crossover)";
+                return stableLearnedRpm > 0;
             }
 
             curr.LastCrossoverSkipReason = "AwaitingStability";
             return false;
+        }
+
+        private bool TryBuildHighestPairFallback(StackRuntime stack, int sourceGear, GearRuntime current, int scanMinRpm, int scanMaxRpm, int safeMaxLearnedRpm, out int fallbackRpm)
+        {
+            fallbackRpm = 0;
+            if (!IsHighestNormalUpshiftPair(stack, sourceGear))
+            {
+                return false;
+            }
+
+            if (current.AcceptedPullCount < HighestPairFallbackPullsMin || !current.LastCurrentCurveValid || !current.LastCurrentKValid || !current.LastNextKValid)
+            {
+                return false;
+            }
+
+            int boundedMax = scanMaxRpm;
+            if (safeMaxLearnedRpm > 0 && (boundedMax <= 0 || boundedMax > safeMaxLearnedRpm))
+            {
+                boundedMax = safeMaxLearnedRpm;
+            }
+
+            if (boundedMax <= scanMinRpm)
+            {
+                return false;
+            }
+
+            fallbackRpm = boundedMax - HighestPairFallbackSafetyMarginRpm;
+            if (fallbackRpm < scanMinRpm)
+            {
+                fallbackRpm = scanMinRpm;
+            }
+
+            fallbackRpm = ClampLearnedRpmToSafeCeiling(current, fallbackRpm);
+            return fallbackRpm > 0;
+        }
+
+        private bool IsHighestNormalUpshiftPair(StackRuntime stack, int sourceGear)
+        {
+            int highestForwardGearWithData = 0;
+            for (int gear = 1; gear <= GearCount; gear++)
+            {
+                var g = stack.Gears[gear - 1];
+                if (g.AcceptedPullCount > 0 || g.HasCoverage || g.HasValidRatio || g.SourceGearRedlineRpm > 0)
+                {
+                    highestForwardGearWithData = gear;
+                }
+            }
+
+            if (highestForwardGearWithData < 2)
+            {
+                return false;
+            }
+
+            return sourceGear == (highestForwardGearWithData - 1);
+        }
+
+        private int ClampLearnedRpmToSafeCeiling(GearRuntime gearData, int rpm)
+        {
+            if (gearData == null || rpm <= 0)
+            {
+                return 0;
+            }
+
+            int safeMax = gearData.GetCrossoverUpperRpmCeiling(SafeLearnedRpmHeadroomRpm);
+            if (safeMax <= 0)
+            {
+                return rpm;
+            }
+
+            return rpm > safeMax ? safeMax : rpm;
         }
 
         private bool DetectArtifactReset(bool hasValidSessionTime, double sessionTimeSec, int gear, int rpm, double speedMps, out string reason)
