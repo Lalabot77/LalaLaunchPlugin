@@ -607,35 +607,14 @@ namespace LaunchPlugin
                 return false;
             }
 
-            int mappedMinFromNext = (int)Math.Round(nextUsableMinRpm * (curr.RatioK / next.RatioK));
-            int mappedMaxFromNext = (int)Math.Round(nextUsableMaxRpm * (curr.RatioK / next.RatioK));
-
-            int minRpm = Math.Max(curr.MinObservedRpm, AbsoluteMinLearnRpm);
-            minRpm = Math.Max(minRpm, currUsableMinRpm);
-            minRpm = Math.Max(minRpm, mappedMinFromNext - BinSizeRpm);
-            int observedUpperRpm = curr.MaxObservedRpm - RedlineHeadroomRpm;
-            int redlineUpperRpm = curr.GetCrossoverUpperRpmCeiling(RedlineHeadroomRpm);
-            int maxRpm = redlineUpperRpm > 0
-                ? Math.Min(observedUpperRpm, redlineUpperRpm)
-                : observedUpperRpm;
-            maxRpm = Math.Min(maxRpm, currUsableMaxRpm);
-            maxRpm = Math.Min(maxRpm, mappedMaxFromNext + BinSizeRpm);
+            int minRpm = currUsableMinRpm;
+            int maxRpm = currUsableMaxRpm;
             curr.LastScanMinRpm = minRpm;
             curr.LastScanMaxRpm = maxRpm;
             if (maxRpm <= minRpm)
             {
-                int observedFallbackUpper = curr.MaxObservedRpm - BinSizeRpm;
-                maxRpm = redlineUpperRpm > 0
-                    ? Math.Min(observedFallbackUpper, redlineUpperRpm)
-                    : observedFallbackUpper;
-                maxRpm = Math.Min(maxRpm, currUsableMaxRpm);
-                maxRpm = Math.Min(maxRpm, mappedMaxFromNext + BinSizeRpm);
-                curr.LastScanMaxRpm = maxRpm;
-                if (maxRpm <= minRpm)
-                {
-                    curr.LastCrossoverSkipReason = "ScanRangeInvalid";
-                    return false;
-                }
+                curr.LastCrossoverSkipReason = "ScanRangeInvalid";
+                return false;
             }
 
             int found = 0;
