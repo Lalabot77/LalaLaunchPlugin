@@ -7173,7 +7173,7 @@ namespace LaunchPlugin
                     if (!File.Exists(_shiftAssistDebugCsvPath))
                     {
                         File.WriteAllText(_shiftAssistDebugCsvPath,
-                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnPullAccepted,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnSamplingRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,LearnLimiterHoldActive,LearnLimiterHoldMs,LearnValidCurvePointsThisPull,LearnArtifactReset,LearnArtifactReason,LearnCurrentK,LearnCurrentKValid,LearnNextK,LearnNextKValid,LearnCurrentBinIndex,LearnCurrentBinCount,LearnCurrentCurveAccelMps2,LearnCrossoverCandidateRpm,LearnCrossoverComputedRpm,LearnCrossoverInsufficientData,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
+                            "UtcTime,SessionTimeSec,Gear,MaxForwardGears,Rpm,Throttle01,TargetRpm,EffectiveTargetRpm,RpmRate,LeadTimeMs,BeepTriggered,BeepLatched,EngineState,SuppressDownshift,SuppressUpshift,SpeedMps,AccelDerivedMps2,LonAccelTelemetryMps2,EffectiveGear,LearnEnabled,LearnState,LearnPeakRpm,LearnPeakAccelMps2,LearnSampleAdded,LearnPullAccepted,LearnSamplesForGear,LearnLearnedRpmForGear,LearnMinRpm,LearnRedlineRpm,LearnSamplingRedlineRpm,LearnRedlineSource,LearnCaptureMinRpm,LearnCapturedRpm,LearnSampleRpmFinal,LearnSampleRpmWasClamped,LearnEndReason,LearnEndWasUpshift,LearnRejectedReason,LearnLimiterHoldActive,LearnLimiterHoldMs,LearnValidCurvePointsThisPull,LearnArtifactReset,LearnArtifactReason,LearnCurrentK,LearnCurrentKValid,LearnNextK,LearnNextKValid,LearnCurrentBinIndex,LearnCurrentBinCount,LearnCurrentCurveAccelMps2,LearnCrossoverCandidateRpm,LearnCrossoverComputedRpm,LearnCrossoverInsufficientData,LearnCrossoverCurrentCurveValid,LearnCrossoverNextCurveValid,LearnCrossoverCurrentKValid,LearnCrossoverNextKValid,LearnCrossoverScanMinRpm,LearnCrossoverScanMaxRpm,LearnCrossoverPredictedNextRpmInRange,LearnCrossoverSkipReason,DelayPending,DelayPendingGear,DelayPendingAgeMs,DelayPendingRpmAtCue,DelayPendingTargetGear,DelayPendingDownshiftAgeMs,DelayCapturedMs,DelayCaptureEvent,DelayBeepType,DelayRpmAtBeep,DelayCaptureState,UrgentEnabled,BeepSoundEnabled,BeepVolumePct,UrgentVolumePctDerived,CueActive,MsSincePrimaryAudioIssued,MsSincePrimaryCueTrigger,MsSinceUrgentPlayed,UrgentMinGapMsFixed,UrgentEligible,UrgentSuppressedReason,UrgentAttempted,UrgentPlayed,UrgentPlayError,RedlineRpm,OverRedline,BeepType" + Environment.NewLine);
                     }
                 }
 
@@ -7210,6 +7210,15 @@ namespace LaunchPlugin
                 int learnCrossoverCandidateRpm = learningTick?.CrossoverCandidateRpm ?? 0;
                 int learnCrossoverComputedRpm = learningTick?.CrossoverComputedRpmForGear ?? 0;
                 int learnCrossoverInsufficientData = learningTick?.CrossoverInsufficientData ?? 0;
+                int learnCrossoverCurrentCurveValid = learningTick?.CrossoverCurrentCurveValid ?? 0;
+                int learnCrossoverNextCurveValid = learningTick?.CrossoverNextCurveValid ?? 0;
+                int learnCrossoverCurrentKValid = learningTick?.CrossoverCurrentKValid ?? 0;
+                int learnCrossoverNextKValid = learningTick?.CrossoverNextKValid ?? 0;
+                int learnCrossoverScanMinRpm = learningTick?.CrossoverScanMinRpm ?? 0;
+                int learnCrossoverScanMaxRpm = learningTick?.CrossoverScanMaxRpm ?? 0;
+                int learnCrossoverPredictedNextRpmInRange = learningTick?.CrossoverPredictedNextRpmInRange ?? 0;
+                string learnCrossoverSkipReason = !string.IsNullOrWhiteSpace(learningTick?.CrossoverSkipReason) ? learningTick.CrossoverSkipReason : "NONE";
+                learnCrossoverSkipReason = SanitizeShiftAssistDebugCsvText(learnCrossoverSkipReason);
                 long delayNowTs = Stopwatch.GetTimestamp();
                 int delayPending = _shiftAssistPendingDelayActive ? 1 : 0;
                 int delayPendingGear = _shiftAssistPendingDelayGear;
@@ -7248,7 +7257,7 @@ namespace LaunchPlugin
 
                 var line = string.Format(
                     CultureInfo.InvariantCulture,
-                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43:F6},{44},{45:F6},{46},{47},{48},{49:F4},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63},{64},{65},{66},{67},{68},{69},{70},{71},{72},{73},{74},{75},{76},{77},{78},{79},{80}",
+                    "{0:o},{1},{2},{3},{4},{5:F4},{6},{7},{8},{9},{10},{11},{12},{13},{14},{15:F4},{16:F4},{17:F4},{18},{19},{20},{21},{22:F4},{23},{24},{25},{26},{27},{28},{29},{30},{31},{32},{33},{34},{35},{36},{37},{38},{39},{40},{41},{42},{43:F6},{44},{45:F6},{46},{47},{48},{49:F4},{50},{51},{52},{53},{54},{55},{56},{57},{58},{59},{60},{61},{62},{63},{64},{65},{66},{67},{68},{69},{70},{71},{72},{73},{74},{75},{76},{77},{78},{79},{80},{81},{82},{83},{84},{85},{86},{87},{88}",
                     nowUtc,
                     sessionTimeSec.ToString("F3", CultureInfo.InvariantCulture),
                     gear,
@@ -7302,6 +7311,14 @@ namespace LaunchPlugin
                     learnCrossoverCandidateRpm,
                     learnCrossoverComputedRpm,
                     learnCrossoverInsufficientData,
+                    learnCrossoverCurrentCurveValid,
+                    learnCrossoverNextCurveValid,
+                    learnCrossoverCurrentKValid,
+                    learnCrossoverNextKValid,
+                    learnCrossoverScanMinRpm,
+                    learnCrossoverScanMaxRpm,
+                    learnCrossoverPredictedNextRpmInRange,
+                    learnCrossoverSkipReason,
                     delayPending,
                     delayPendingGear,
                     delayPendingAgeMs,

@@ -52,6 +52,14 @@ namespace LaunchPlugin
         public int CrossoverComputedRpmForGear { get; set; }
         public int CrossoverInsufficientData { get; set; }
         public int ValidCurvePointsThisPull { get; set; }
+        public int CrossoverCurrentCurveValid { get; set; }
+        public int CrossoverNextCurveValid { get; set; }
+        public int CrossoverCurrentKValid { get; set; }
+        public int CrossoverNextKValid { get; set; }
+        public int CrossoverScanMinRpm { get; set; }
+        public int CrossoverScanMaxRpm { get; set; }
+        public int CrossoverPredictedNextRpmInRange { get; set; }
+        public string CrossoverSkipReason { get; set; }
     }
 
     public class ShiftAssistLearningEngine
@@ -482,6 +490,14 @@ namespace LaunchPlugin
             tick.CrossoverCandidateRpm = current.LastCrossoverCandidateRpm;
             tick.CrossoverComputedRpmForGear = current.CrossoverRpm;
             tick.CrossoverInsufficientData = current.CrossoverInsufficientData ? 1 : 0;
+            tick.CrossoverCurrentCurveValid = current.LastCurrentCurveValid ? 1 : 0;
+            tick.CrossoverNextCurveValid = current.LastNextCurveValid ? 1 : 0;
+            tick.CrossoverCurrentKValid = current.LastCurrentKValid ? 1 : 0;
+            tick.CrossoverNextKValid = current.LastNextKValid ? 1 : 0;
+            tick.CrossoverScanMinRpm = current.LastScanMinRpm;
+            tick.CrossoverScanMaxRpm = current.LastScanMaxRpm;
+            tick.CrossoverPredictedNextRpmInRange = current.LastPredictedNextRpmInRange ? 1 : 0;
+            tick.CrossoverSkipReason = current.LastCrossoverSkipReason;
         }
 
         private void FinalizeSample(StackRuntime stack, ShiftAssistLearningTick tick, int windowMs, string endReason, bool endWasUpshift, bool fromGraceTimeout)
@@ -569,31 +585,61 @@ namespace LaunchPlugin
             var next = stack.Gears[sourceGear];
             curr.CrossoverInsufficientData = true;
             curr.LastCrossoverCandidateRpm = 0;
+            curr.LastCurrentCurveValid = curr.HasCoverage;
+            curr.LastNextCurveValid = next.HasCoverage;
+            curr.LastCurrentKValid = curr.HasValidRatio;
+            curr.LastNextKValid = next.HasValidRatio;
+            curr.LastScanMinRpm = 0;
+            curr.LastScanMaxRpm = 0;
+            curr.LastPredictedNextRpmInRange = false;
+            curr.LastCrossoverSkipReason = string.Empty;
 
-            if (!curr.HasCoverage || !next.HasCoverage || !curr.HasValidRatio || !next.HasValidRatio)
+            if (!curr.LastCurrentCurveValid || !curr.LastNextCurveValid || !curr.LastCurrentKValid || !curr.LastNextKValid)
             {
+                curr.LastCrossoverSkipReason = "PrecheckInvalid";
                 return false;
             }
 
+            if (!curr.TryGetUsableCurveRange(out int currUsableMinRpm, out int currUsableMaxRpm)
+                || !next.TryGetUsableCurveRange(out int nextUsableMinRpm, out int nextUsableMaxRpm))
+            {
+                curr.LastCrossoverSkipReason = "UsableRangeUnavailable";
+                return false;
+            }
+
+            int mappedMinFromNext = (int)Math.Round(nextUsableMinRpm * (curr.RatioK / next.RatioK));
+            int mappedMaxFromNext = (int)Math.Round(nextUsableMaxRpm * (curr.RatioK / next.RatioK));
+
             int minRpm = Math.Max(curr.MinObservedRpm, AbsoluteMinLearnRpm);
+            minRpm = Math.Max(minRpm, currUsableMinRpm);
+            minRpm = Math.Max(minRpm, mappedMinFromNext - BinSizeRpm);
             int observedUpperRpm = curr.MaxObservedRpm - RedlineHeadroomRpm;
             int redlineUpperRpm = curr.GetCrossoverUpperRpmCeiling(RedlineHeadroomRpm);
             int maxRpm = redlineUpperRpm > 0
                 ? Math.Min(observedUpperRpm, redlineUpperRpm)
                 : observedUpperRpm;
+            maxRpm = Math.Min(maxRpm, currUsableMaxRpm);
+            maxRpm = Math.Min(maxRpm, mappedMaxFromNext + BinSizeRpm);
+            curr.LastScanMinRpm = minRpm;
+            curr.LastScanMaxRpm = maxRpm;
             if (maxRpm <= minRpm)
             {
                 int observedFallbackUpper = curr.MaxObservedRpm - BinSizeRpm;
                 maxRpm = redlineUpperRpm > 0
                     ? Math.Min(observedFallbackUpper, redlineUpperRpm)
                     : observedFallbackUpper;
+                maxRpm = Math.Min(maxRpm, currUsableMaxRpm);
+                maxRpm = Math.Min(maxRpm, mappedMaxFromNext + BinSizeRpm);
+                curr.LastScanMaxRpm = maxRpm;
                 if (maxRpm <= minRpm)
                 {
+                    curr.LastCrossoverSkipReason = "ScanRangeInvalid";
                     return false;
                 }
             }
 
             int found = 0;
+            bool predictedInRange = false;
             for (int r = minRpm; r <= maxRpm; r += BinSizeRpm)
             {
                 double aCurr = curr.GetCurveAccel(r);
@@ -603,7 +649,20 @@ namespace LaunchPlugin
                 }
 
                 double r2 = r * (next.RatioK / curr.RatioK);
-                double aNext = next.GetCurveAccel((int)Math.Round(r2));
+                int nextRpm = (int)Math.Round(r2);
+                bool nextRpmInRange = nextRpm >= (nextUsableMinRpm - BinSizeRpm) && nextRpm <= (nextUsableMaxRpm + BinSizeRpm);
+                if (!nextRpmInRange)
+                {
+                    continue;
+                }
+
+                predictedInRange = true;
+                double aNext = next.GetCurveAccel(nextRpm);
+                if (!IsFinite(aNext))
+                {
+                    aNext = next.GetCurveAccelAtNearestBin(nextRpm, 2);
+                }
+
                 if (!IsFinite(aNext))
                 {
                     continue;
@@ -616,23 +675,29 @@ namespace LaunchPlugin
                 }
             }
 
+            curr.LastPredictedNextRpmInRange = predictedInRange;
+
             curr.LastCrossoverCandidateRpm = found;
 
             if (found <= 0)
             {
+                curr.LastCrossoverSkipReason = predictedInRange ? "NoCrossoverFound" : "PredictedNextRpmOutOfRange";
                 return false;
             }
 
             curr.CrossoverInsufficientData = false;
             curr.CrossoverRpm = found;
             curr.PushCrossoverCandidate(found, StableCrossoverBufferSize);
+            curr.LastCrossoverSkipReason = "Solved";
 
             if (curr.TryGetStableLearnedRpm(StableCrossoverToleranceRpm, StableCrossoverMinSamples, out stableLearnedRpm))
             {
                 curr.LearnedRpm = stableLearnedRpm;
+                curr.LastCrossoverSkipReason = "StableLearned";
                 return true;
             }
 
+            curr.LastCrossoverSkipReason = "AwaitingStability";
             return false;
         }
 
@@ -822,6 +887,14 @@ namespace LaunchPlugin
             _lastTick.CrossoverComputedRpmForGear = tick.CrossoverComputedRpmForGear;
             _lastTick.CrossoverInsufficientData = tick.CrossoverInsufficientData;
             _lastTick.ValidCurvePointsThisPull = tick.ValidCurvePointsThisPull;
+            _lastTick.CrossoverCurrentCurveValid = tick.CrossoverCurrentCurveValid;
+            _lastTick.CrossoverNextCurveValid = tick.CrossoverNextCurveValid;
+            _lastTick.CrossoverCurrentKValid = tick.CrossoverCurrentKValid;
+            _lastTick.CrossoverNextKValid = tick.CrossoverNextKValid;
+            _lastTick.CrossoverScanMinRpm = tick.CrossoverScanMinRpm;
+            _lastTick.CrossoverScanMaxRpm = tick.CrossoverScanMaxRpm;
+            _lastTick.CrossoverPredictedNextRpmInRange = tick.CrossoverPredictedNextRpmInRange;
+            _lastTick.CrossoverSkipReason = tick.CrossoverSkipReason;
         }
 
         private class StackRuntime
@@ -860,6 +933,14 @@ namespace LaunchPlugin
             public int CrossoverRpm { get; set; }
             public bool CrossoverInsufficientData { get; set; }
             public int LastCrossoverCandidateRpm { get; set; }
+            public bool LastCurrentCurveValid { get; set; }
+            public bool LastNextCurveValid { get; set; }
+            public bool LastCurrentKValid { get; set; }
+            public bool LastNextKValid { get; set; }
+            public int LastScanMinRpm { get; set; }
+            public int LastScanMaxRpm { get; set; }
+            public bool LastPredictedNextRpmInRange { get; set; }
+            public string LastCrossoverSkipReason { get; set; }
 
             public void AddCurveSample(int rpm, double speedMps, double accelMps2, int redlineRpmForGear)
             {
@@ -967,6 +1048,63 @@ namespace LaunchPlugin
                 return ceiling > AbsoluteMinLearnRpm ? ceiling : AbsoluteMinLearnRpm;
             }
 
+            public bool TryGetUsableCurveRange(out int minRpm, out int maxRpm)
+            {
+                minRpm = 0;
+                maxRpm = 0;
+                int minIndex = int.MaxValue;
+                int maxIndex = int.MinValue;
+
+                foreach (var kv in _bins)
+                {
+                    if (kv.Value == null || kv.Value.Count < MinBinSamples)
+                    {
+                        continue;
+                    }
+
+                    if (kv.Key < minIndex)
+                    {
+                        minIndex = kv.Key;
+                    }
+
+                    if (kv.Key > maxIndex)
+                    {
+                        maxIndex = kv.Key;
+                    }
+                }
+
+                if (minIndex == int.MaxValue || maxIndex == int.MinValue)
+                {
+                    return false;
+                }
+
+                minRpm = minIndex * BinSizeRpm;
+                maxRpm = maxIndex * BinSizeRpm;
+                return maxRpm > minRpm;
+            }
+
+            public double GetCurveAccelAtNearestBin(int rpm, int maxBinDistance)
+            {
+                int center = GetBinIndex(rpm);
+                for (int distance = 0; distance <= maxBinDistance; distance++)
+                {
+                    int lower = center - distance;
+                    int upper = center + distance;
+
+                    if (_bins.TryGetValue(lower, out BinRuntime lowerBin) && lowerBin != null && lowerBin.Count >= MinBinSamples)
+                    {
+                        return lowerBin.Median;
+                    }
+
+                    if (upper != lower && _bins.TryGetValue(upper, out BinRuntime upperBin) && upperBin != null && upperBin.Count >= MinBinSamples)
+                    {
+                        return upperBin.Median;
+                    }
+                }
+
+                return double.NaN;
+            }
+
             private bool IsRpmPlausibleForBounds(int rpm, int redlineRpmForGear)
             {
                 if (rpm <= 0 || rpm > MaxPlausibleEngineRpm)
@@ -1049,6 +1187,14 @@ namespace LaunchPlugin
                 CrossoverRpm = 0;
                 CrossoverInsufficientData = false;
                 LastCrossoverCandidateRpm = 0;
+                LastCurrentCurveValid = false;
+                LastNextCurveValid = false;
+                LastCurrentKValid = false;
+                LastNextKValid = false;
+                LastScanMinRpm = 0;
+                LastScanMaxRpm = 0;
+                LastPredictedNextRpmInRange = false;
+                LastCrossoverSkipReason = string.Empty;
                 MinObservedRpm = 0;
                 MaxObservedRpm = 0;
                 SourceGearRedlineRpm = 0;
