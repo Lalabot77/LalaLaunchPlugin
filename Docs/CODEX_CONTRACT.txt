@@ -27,30 +27,62 @@ Every code change must update relevant documentation.
 
 Always evaluate and update as needed:
 
-- SimHubParameterInventory.md (exports / settings / properties)
-- SimHubLogMessages.md (new or modified log lines)
-- Subsystems/<affected_subsystem>.md
-- Plugin_UI_Tooltips.md (if UI text changes)
-- Project_Index.md (if subsystem description changes)
-- RepoStatus.md (update validation commit + summary)
+- `SimHubParameterInventory.md` (exports / settings / properties)
+- `SimHubLogMessages.md` (new or modified log lines)
+- `Subsystems/<affected_subsystem>.md`
+- `Plugin_UI_Tooltips.md` (if UI text changes)
+- `Project_Index.md` (if subsystem description changes)
+- `RepoStatus.md` (update validation commit + summary)
 
 Documentation must:
 - Reflect final behavior.
 - Remove outdated statements.
-- Not mention deprecated settings unless marked “legacy (unused)”.
+- Not mention deprecated settings unless marked `legacy (unused)`.
 
 No task is complete without documentation alignment.
 
 ---
 
-## 3. Stability First
+## 3. Codex Execution Method (Mandatory Working Order)
+
+For every non-trivial task:
+
+- Read `Docs/Project_Index.md` first.
+- Use `Docs/Project_Index.md` to locate the canonical docs for the affected area.
+- Read the relevant `Docs/Subsystems/*.md` files before editing code or subsystem docs.
+- Check `Docs/RepoStatus.md` before implementation when current validated state matters.
+- Treat `Docs/Code_Snapshot.md` as orientation only. If it conflicts with canonical docs, the canonical docs win.
+
+Before editing on any non-trivial task:
+
+- Do a no-edit analysis pass first.
+- State the relevant code paths or documentation paths being touched.
+- State the system invariants that must remain true.
+- State the edit boundaries and keep them tight.
+
+While implementing:
+
+- Prefer subsystem-local documentation updates over growing central/global docs.
+- Keep edits inside the owning subsystem where practical.
+- Do not widen file responsibilities without a clear need.
+- Keep architecture guardrails in mind; extend existing subsystem seams before creating new cross-cutting behaviour.
+- If canonical docs are missing or unclear, update the canonical doc rather than relying on ad hoc task wording.
+
+At task close:
+
+- Re-check the edited docs/files against the final repo state.
+- Update `Docs/RepoStatus.md` with the validation commit and summary when documentation or behaviour changed.
+
+---
+
+## 4. Stability First
 
 This project is actively under test.
 
 Therefore:
 
 - Do NOT alter runtime behavior outside task scope.
-- Do NOT modify ShiftAssistEngine logic unless explicitly requested.
+- Do NOT modify `ShiftAssistEngine` logic unless explicitly requested.
 - Do NOT change learning behavior unless explicitly requested.
 - Do NOT introduce timing side effects in telemetry loop.
 - Do NOT block main thread.
@@ -58,7 +90,7 @@ Therefore:
 
 ---
 
-## 4. C# and Dependency Rules
+## 5. C# and Dependency Rules
 
 - Target C# 7.3 compatibility.
 - No new NuGet packages unless explicitly requested.
@@ -69,7 +101,7 @@ Therefore:
 
 ---
 
-## 5. Audio System Rules (Shift Assist)
+## 6. Audio System Rules (Shift Assist)
 
 Unless explicitly overridden:
 
@@ -80,7 +112,7 @@ Unless explicitly overridden:
 
 ---
 
-## 6. Logging Discipline
+## 7. Logging Discipline
 
 - No log spam.
 - Warnings must be one-time where possible.
@@ -89,7 +121,7 @@ Unless explicitly overridden:
 
 ---
 
-## 7. JSON / Profile Compatibility
+## 8. JSON / Profile Compatibility
 
 If removing a setting:
 - Ensure existing JSON profiles do not break.
@@ -97,7 +129,7 @@ If removing a setting:
 
 ---
 
-## 8. Definition of Done
+## 9. Definition of Done
 
 A task is only complete when:
 
@@ -105,4 +137,4 @@ A task is only complete when:
 - Scope respected.
 - No unintended behavior changes.
 - Documentation updated.
-- RepoStatus.md updated with new validation commit.
+- `RepoStatus.md` updated with new validation commit.

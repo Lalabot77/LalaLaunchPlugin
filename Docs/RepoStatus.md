@@ -1,33 +1,31 @@
 # Repository status
 
-Validated against commit: 8490336
-Last updated: 2026-03-03
+Validated against commit: cd7b02a
+Last updated: 2026-03-07
 Branch: work
 
 ## Current repo/link status
 - Local branch present: `work`.
 - No Git remote is configured in this checkout (`git remote -v` returns empty).
-- HEAD includes post-PR426 updates, including Shift Assist learning controls, lock/reset actions, per-gear ShiftRPM exports, and debug visibility toggles.
+- HEAD includes the existing post-PR426 plugin/runtime changes already documented in the canonical subsystem and inventory docs.
 
 ## Documentation sync status (requested set)
-- `SimHubParameterInventory.md` — refreshed to current head/date and includes Shift Assist export inventory.
-- `SimHubLogMessages.md` — refreshed and expanded Shift Assist + Dark Mode log coverage (actions, Lovely availability, auto transitions).
-- `Code_Snapshot.md` — regenerated as non-canonical orientation snapshot for current head.
-- `Plugin_UI_Tooltips.md` — refreshed in-repo tooltip inventory (line references + Shift Assist control section).
-- `Project_Index.md` — updated subsystem map including Dash integration dark-mode scope.
-- `Subsystems/Shift_Assist.md` — refreshed in the standard subsystem format with latest export/log coverage.
-- `Subsystems/Dash_Integration.md` — updated with Dark Mode export contract and dashboard-consumption guidance.
+- `CODEX_CONTRACT.txt` - strengthened as the permanent global Codex policy file and now defines mandatory analysis/start-order workflow rules.
+- `Architecture_Guardrails.md` - added as the lightweight architecture and subsystem-ownership guardrail for humans and agents.
+- `CODEX_TASK_TEMPLATE.txt` - added as the reusable analysis-first task skeleton for future Codex work.
+- `Project_Index.md` - updated with explicit Codex read/start order and links to the new workflow docs.
+- `SimHubParameterInventory.md` - retained as the canonical SimHub export contract.
+- `SimHubLogMessages.md` - retained as the canonical Info/Warn/Error log catalogue.
+- `Code_Snapshot.md` - retained as a non-canonical orientation snapshot only.
+- `Subsystems/*.md` - retained as the canonical subsystem-local truth for affected areas.
 
 ## Delivery status highlights
-- Dark Mode global dash controls updated with Lovely checkbox always visible (availability-gated by enable state), forced-off persistence when Lovely disappears, and docs alignment across inventory/log/tooltip/subsystem/index docs.
-- ShiftAssist debug CSV now logs urgent eligibility/attempt/outcome and timing anchors.
-- Shift Assist learning acceptance widened (throttle/brake micro-noise tolerance, movement gate, limiter-hold + timeout grace, artifact-reset cancellation) and learned RPM now uses telemetry crossover (`gear g` vs `g+1`) with stability-gated auto-apply.
-- PR454 follow-up hardening: `MinWindowMs=250ms`, limiter-hold continuation capped (`2000ms`), crossover scan band now anchored to sampling-gear redline, and pull acceptance requires minimum valid curve points.
-- PR454 follow-up #2: brake hysteresis timing (`>2%` enter / `<1%` exit, `100ms`), limiter-hold cap enforced on total limiter time, and debug semantics clarified with explicit `PullAccepted` (with `SampleAdded` compatibility mirror).
-- Shift Assist urgent cue now enforces the fixed 1000ms delay inside `ShiftAssistEngine` (preventing early consumption), keeps cue-dependent playback gating in `LalaLaunch`, and keeps urgent volume derived from the primary slider (50%).
-- Shift Assist subsystem: **INTEGRATED** (settings, evaluation, audio, exports, logs, delay telemetry).
-- Declutter mode + event marker actions: **COMPLETE** (post-PR381 baseline retained).
-- Canonical docs listed above: **SYNCED** to `8490336`.
+- Docs/workflow standardisation pass completed with no plugin/runtime/code changes.
+- Codex working method is now explicit: start from `Project_Index.md`, follow `CODEX_CONTRACT.txt`, read affected subsystem docs first, use `Code_Snapshot.md` only as non-canonical orientation, and close by syncing `RepoStatus.md`.
+- Architecture guardrails are now documented separately so future tasks can stay subsystem-aware without forcing a rewrite.
+- Existing subsystem docs and canonical docs were preserved; no documentation files were removed in this pass.
+- Canonical docs listed above: **SYNCED** to `cd7b02a`.
 
 ## Notes
-- `Code_Snapshot.md` remains intentionally non-canonical; contract truth lives in parameter/log inventories and subsystem docs.
+- `Code_Snapshot.md` remains intentionally non-canonical; contract truth lives in the canonical inventories, subsystem docs, and repo workflow docs.
+- Potential consolidation candidates were observed but left untouched where the overlap is not unquestionably safe to retire.
