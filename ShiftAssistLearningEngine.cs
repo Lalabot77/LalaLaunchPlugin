@@ -84,7 +84,6 @@ namespace LaunchPlugin
         private const int MinRatioSamples = 12;
         private const double MinUsefulAccelMps2 = 0.25;
         private const double MaxPlausibleAccelMps2 = 30.0;
-        private const double CrossoverMarginMps2 = 0.10;
         private const int StableCrossoverToleranceRpm = 60;
         private const int StableCrossoverBufferSize = 5;
         private const int StableCrossoverMinSamples = 3;
@@ -522,7 +521,7 @@ namespace LaunchPlugin
                 }
 
                 curr.LastPredictedNextRpmInRange = true;
-                if (aNext >= (aCurr + CrossoverMarginMps2))
+                if (aNext >= aCurr)
                 {
                     foundSpeedKph = speedKph;
                     break;

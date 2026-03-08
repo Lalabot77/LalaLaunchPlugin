@@ -63,7 +63,7 @@ Branch: work
   - plausibility filters for RPM/acceleration and explicit rejection of near-zero or negative acceleration contamination.
 - Per-gear curves are now learned in the **speed domain** (acceleration vs speed bins), with robust per-bin medians and coverage checks (minimum bins + minimum total valid samples).
 - Per-gear ratio proxy (`k = rpm/speed`) is still learned from valid samples and must be ready for solve.
-- Shift solve for gear `g` requires both adjacent curves (`g` and `g+1`) plus valid ratios. Solver scans shared speed overlap and finds the first speed where `a_{g+1}(v) >= a_g(v) + margin`, then converts speed back to source-gear RPM via ratio.
+- Shift solve for gear `g` requires both adjacent curves (`g` and `g+1`) plus valid ratios. Solver scans shared speed overlap and finds the first speed where `a_{g+1}(v) >= a_g(v)`, then converts speed back to source-gear RPM via ratio (no fixed positive acceleration margin bias).
 - Learned values are published only after real adjacent-gear crossover candidates are stable in a short rolling buffer. No fallback-generated learned values are published.
 - Auto-apply decisions are driven by stable-solve existence (not only by whether cached `LearnedRpm` changed), so a still-stable solved RPM can continue to drive `Apply Learned` behavior after target edits/resets.
 - Safe bound is enforced at all stages: learned/apply RPM is clamped to `source redline - 200`.
