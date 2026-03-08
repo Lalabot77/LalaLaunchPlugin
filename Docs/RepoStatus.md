@@ -1,14 +1,5 @@
 # Repository status
 
-<<<<<<< HEAD
-<<<<<<< ours
-Validated against commit: dce8db8
-Last updated: 2026-03-07
-=======
-Validated against commit: 5a8c6fd
-Last updated: 2026-03-08
->>>>>>> theirs
-=======
 Validated against commit: 5a8c6fd
 Last updated: 2026-03-08
 >>>>>>> b67acec7d1d25150a0bbc5db340a072e27f8e8fb
@@ -31,8 +22,7 @@ Branch: work
 - `Subsystems/*.md` - retained as the canonical subsystem-local truth for affected areas.
 
 ## Delivery status highlights
-<<<<<<< HEAD
-<<<<<<< ours
+
 - Root `AGENTS.md` added as the top-level agent entry point for Codex Desktop and future agent tooling.
 - Docs/workflow standardisation pass completed with no plugin/runtime/code changes.
 - Codex working method is now explicit: read `AGENTS.md`, start from `Project_Index.md`, follow `CODEX_CONTRACT.txt`, use `Architecture_Guardrails.md`, read affected subsystem docs first, use `Code_Snapshot.md` only as non-canonical orientation, and close by syncing `RepoStatus.md`.
@@ -52,8 +42,7 @@ Branch: work
 - Shift Assist subsystem: **INTEGRATED** (settings, evaluation, audio, exports, logs, delay telemetry).
 - Declutter mode + event marker actions: **COMPLETE** (post-PR381 baseline retained).
 - Canonical docs listed above: **SYNCED** to `5a8c6fd`.
-<<<<<<< HEAD
->>>>>>> theirs
+
 =======
 >>>>>>> b67acec7d1d25150a0bbc5db340a072e27f8e8fb
 
