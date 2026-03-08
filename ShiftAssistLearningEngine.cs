@@ -371,7 +371,7 @@ namespace LaunchPlugin
         {
             for (int gear = 1; gear < GearCount; gear++)
             {
-                RecomputeCrossoverForGear(stack, gear, false, out int _);
+                RecomputeCrossoverForGear(stack, gear, false, out int _, out bool _);
             }
 
             if (activeGear >= 1 && activeGear <= GearCount)
@@ -441,8 +441,8 @@ namespace LaunchPlugin
 
             for (int sourceGear = 1; sourceGear < GearCount; sourceGear++)
             {
-                bool learnedUpdated = RecomputeCrossoverForGear(stack, sourceGear, true, out int stableLearnedRpm);
-                if (!learnedUpdated || stableLearnedRpm <= 0)
+                bool stableSolveExists = RecomputeCrossoverForGear(stack, sourceGear, true, out int stableLearnedRpm, out bool _);
+                if (!stableSolveExists || stableLearnedRpm <= 0)
                 {
                     continue;
                 }
@@ -462,9 +462,10 @@ namespace LaunchPlugin
             }
         }
 
-        private bool RecomputeCrossoverForGear(StackRuntime stack, int sourceGear, bool publishLearned, out int stableLearnedRpm)
+        private bool RecomputeCrossoverForGear(StackRuntime stack, int sourceGear, bool publishLearned, out int stableLearnedRpm, out bool learnedRpmChanged)
         {
             stableLearnedRpm = 0;
+            learnedRpmChanged = false;
             if (sourceGear < 1 || sourceGear >= GearCount)
             {
                 return false;
@@ -563,13 +564,12 @@ namespace LaunchPlugin
             stableLearnedRpm = solvedRpm;
             curr.LastCrossoverSkipReason = "StableSolved";
 
-            if (!publishLearned)
+            if (publishLearned)
             {
-                return false;
+                learnedRpmChanged = curr.PublishLearnedRpm(solvedRpm);
             }
 
-            bool changed = curr.PublishLearnedRpm(solvedRpm);
-            return changed;
+            return true;
         }
 
         private int ClampLearnedRpmToSafeCeiling(GearRuntime gearData, int rpm)

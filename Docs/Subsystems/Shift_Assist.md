@@ -65,6 +65,7 @@ Branch: work
 - Per-gear ratio proxy (`k = rpm/speed`) is still learned from valid samples and must be ready for solve.
 - Shift solve for gear `g` requires both adjacent curves (`g` and `g+1`) plus valid ratios. Solver scans shared speed overlap and finds the first speed where `a_{g+1}(v) >= a_g(v) + margin`, then converts speed back to source-gear RPM via ratio.
 - Learned values are published only after real adjacent-gear crossover candidates are stable in a short rolling buffer. No fallback-generated learned values are published.
+- Auto-apply decisions are driven by stable-solve existence (not only by whether cached `LearnedRpm` changed), so a still-stable solved RPM can continue to drive `Apply Learned` behavior after target edits/resets.
 - Safe bound is enforced at all stages: learned/apply RPM is clamped to `source redline - 200`.
 - `Reset Learning` clears all stored curve bins, ratio samples, crossover buffers, and learned values for the active stack; storage is stack-scoped (not per track/session).
 - Driver delay measurement remains independent: delay stays cue->upshift based on applied targets (manual or learned).
