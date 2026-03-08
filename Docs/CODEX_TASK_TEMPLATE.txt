@@ -1,0 +1,85 @@
+CODEX TASK - <short task name>
+
+Use `Docs/CODEX_CONTRACT.txt` as mandatory engineering policy.
+Use `Docs/Project_Index.md` as the canonical start point for docs discovery.
+Use affected `Docs/Subsystems/*.md` files as canonical local truth.
+Treat `Docs/Code_Snapshot.md` as orientation only if canonical docs conflict.
+Keep documentation aligned with final repo state and update `Docs/RepoStatus.md` at the end.
+
+Goal
+
+<State the concrete outcome. Keep it task-specific and testable.>
+
+Context
+
+<List the relevant subsystem(s), docs, and constraints already known.>
+
+Phase 1 - Codebase analysis (no edits)
+
+Before editing:
+- Read `Docs/Project_Index.md`.
+- Read `Docs/CODEX_CONTRACT.txt`.
+- Read the affected subsystem docs.
+- Check `Docs/RepoStatus.md` when current validated state matters.
+- Use `Docs/Code_Snapshot.md` only for orientation if needed.
+
+Identify:
+- canonical entry points and owning docs
+- affected code paths and documentation paths
+- subsystem boundaries that must stay intact
+- any existing overlap/ambiguity that matters to the task
+
+Do not edit during this phase.
+
+System invariants
+
+- <List behaviour, export, logging, UI, JSON/profile, and compatibility rules that must remain unchanged.>
+
+Edit boundaries
+
+Allowed edits:
+- <List allowed files or areas.>
+
+Do not:
+- <List explicit out-of-scope files, behaviours, and refactors.>
+
+Phase 2 - Implementation
+
+Before editing, state:
+- relevant code/doc paths
+- system invariants
+- edit boundaries
+
+Implementation rules:
+- keep changes inside the owning subsystem where practical
+- prefer subsystem-local docs over expanding central docs
+- do not widen file responsibilities without clear need
+- update canonical docs when behaviour/contracts change
+- preserve compatibility unless the task explicitly approves a break
+
+Documentation updates required
+
+Check and update as needed:
+- `Docs/Subsystems/<affected>.md`
+- `Docs/SimHubParameterInventory.md`
+- `Docs/SimHubLogMessages.md`
+- `Docs/Plugin_UI_Tooltips.md`
+- `Docs/Project_Index.md`
+- `Docs/RepoStatus.md`
+
+Phase 3 - Verification
+
+Confirm:
+- scope stayed within boundaries
+- invariants still hold
+- docs match the final repo state
+- `Docs/RepoStatus.md` reflects the task
+- no unrelated behaviour changed
+
+Output format
+
+Provide:
+1. Short summary of what changed
+2. Files added/updated
+3. Verification result
+4. Any follow-up observations or safe future cleanup candidates

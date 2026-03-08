@@ -7,16 +7,18 @@ Branch: work
 ## Current repo/link status
 - Local branch present: `work`.
 - No Git remote is configured in this checkout (`git remote -v` returns empty).
-- HEAD includes post-PR426 updates, including Shift Assist learning controls, lock/reset actions, per-gear ShiftRPM exports, and debug visibility toggles.
+- HEAD includes the existing post-PR426 plugin/runtime changes already documented in the canonical subsystem and inventory docs.
 
 ## Documentation sync status (requested set)
-- `SimHubParameterInventory.md` — refreshed to current head/date and includes Shift Assist export inventory.
-- `SimHubLogMessages.md` — refreshed and expanded Shift Assist + Dark Mode log coverage (actions, Lovely availability, auto transitions).
-- `Code_Snapshot.md` — regenerated as non-canonical orientation snapshot for current head.
-- `Plugin_UI_Tooltips.md` — refreshed in-repo tooltip inventory (line references + Shift Assist control section).
-- `Project_Index.md` — updated subsystem map including Dash integration dark-mode scope.
-- `Subsystems/Shift_Assist.md` — refreshed in the standard subsystem format with latest export/log coverage.
-- `Subsystems/Dash_Integration.md` — updated with Dark Mode export contract and dashboard-consumption guidance.
+- `AGENTS.md` - added at repo root as the always-read agent entry point that directs tools into the canonical docs workflow without duplicating policy.
+- `CODEX_CONTRACT.txt` - strengthened as the permanent global Codex policy file and now defines mandatory analysis/start-order workflow rules.
+- `Architecture_Guardrails.md` - added as the lightweight architecture and subsystem-ownership guardrail for humans and agents.
+- `CODEX_TASK_TEMPLATE.txt` - added as the reusable analysis-first task skeleton for future Codex work.
+- `Project_Index.md` - updated with explicit root-`AGENTS.md` cross-reference, read/start order, and links to the workflow docs.
+- `SimHubParameterInventory.md` - retained as the canonical SimHub export contract.
+- `SimHubLogMessages.md` - retained as the canonical Info/Warn/Error log catalogue.
+- `Code_Snapshot.md` - retained as a non-canonical orientation snapshot only.
+- `Subsystems/*.md` - retained as the canonical subsystem-local truth for affected areas.
 
 ## Delivery status highlights
 - Dark Mode global dash controls updated with Lovely checkbox always visible (availability-gated by enable state), forced-off persistence when Lovely disappears, and docs alignment across inventory/log/tooltip/subsystem/index docs.
@@ -31,4 +33,6 @@ Branch: work
 - Canonical docs listed above: **SYNCED** to `5a8c6fd`.
 
 ## Notes
-- `Code_Snapshot.md` remains intentionally non-canonical; contract truth lives in parameter/log inventories and subsystem docs.
+- Canonical agent/doc hierarchy is now: `AGENTS.md` -> `Docs/Project_Index.md` -> `Docs/CODEX_CONTRACT.txt` / `Docs/Architecture_Guardrails.md` / relevant `Docs/Subsystems/*.md` -> `Docs/RepoStatus.md`, with `Docs/CODEX_TASK_TEMPLATE.txt` used for explicit task framing.
+- `Docs/Code_Snapshot.md` remains intentionally non-canonical; contract truth lives in the canonical inventories, subsystem docs, and repo workflow docs.
+- Potential consolidation candidates were observed but left untouched where the overlap is not unquestionably safe to retire.

@@ -1,16 +1,29 @@
 # Project Index
 
-Validated against commit: b9250e1
-Last updated: 2026-02-24
+Validated against commit: dce8db8
+Last updated: 2026-03-07
 Branch: work
 
 ## What this repo is
 LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch instrumentation, fuel strategy and planning, pit-cycle analytics, rejoin support, Shift Assist cueing, messaging, and multi-dash visibility coordination.
 
+## Codex read/start order
+1. If present at repo root, read `../AGENTS.md` as the thin agent entry point, then start with `Project_Index.md`.
+2. Read `CODEX_CONTRACT.txt` for mandatory engineering policy.
+3. Use `Architecture_Guardrails.md` for subsystem boundaries and ownership guidance.
+4. Read the relevant `Subsystems/*.md` files before editing affected areas.
+5. Check `RepoStatus.md` for the current validated repo/doc state.
+6. Use `Code_Snapshot.md` only for orientation when needed; it is not canonical if it conflicts with the docs above.
+7. Follow the analysis-first workflow and reusable task framing in `CODEX_TASK_TEMPLATE.txt`.
+
 ## Start here (canonical docs)
-- [SimHubParameterInventory.md](SimHubParameterInventory.md) — canonical SimHub export contract.
-- [SimHubLogMessages.md](SimHubLogMessages.md) — canonical Info/Warn/Error log catalogue.
-- [Subsystems/Shift_Assist.md](Subsystems/Shift_Assist.md) — Shift Assist purpose, inputs/state, outputs, and validation checklist.
+- [../AGENTS.md](../AGENTS.md) - root-level agent pointer into the canonical docs workflow.
+- [CODEX_CONTRACT.txt](CODEX_CONTRACT.txt) - mandatory Codex/global engineering policy.
+- [Architecture_Guardrails.md](Architecture_Guardrails.md) - practical architecture boundaries and subsystem ownership guidance.
+- [CODEX_TASK_TEMPLATE.txt](CODEX_TASK_TEMPLATE.txt) - reusable task skeleton for analysis-first Codex work.
+- [SimHubParameterInventory.md](SimHubParameterInventory.md) - canonical SimHub export contract.
+- [SimHubLogMessages.md](SimHubLogMessages.md) - canonical Info/Warn/Error log catalogue.
+- [Subsystems/Shift_Assist.md](Subsystems/Shift_Assist.md) - Shift Assist purpose, inputs/state, outputs, and validation checklist.
 - [Subsystems/Pit_Entry_Assist.md](Subsystems/Pit_Entry_Assist.md)
 - [Subsystems/Track_Markers.md](Subsystems/Track_Markers.md)
 - [Subsystems/Opponents.md](Subsystems/Opponents.md)
@@ -18,7 +31,7 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch instrumenta
 - [Subsystems/Message_System_V1.md](Subsystems/Message_System_V1.md)
 - [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md)
 - [Subsystems/Trace_Logging.md](Subsystems/Trace_Logging.md)
-- [RepoStatus.md](RepoStatus.md) — current branch/repo health and delivery status.
+- [RepoStatus.md](RepoStatus.md) - current branch/repo health and delivery status.
 
 ## Subsystem map
 | Subsystem | Purpose | Documentation link |
@@ -36,6 +49,6 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch instrumenta
 | Dash integration | Main/message/overlay visibility, screen state exports, and global dark-mode controls (`LalaLaunch.Dash.DarkMode.*`) | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Freshness
-- Validated against commit: b9250e1
-- Date: 2026-02-24
+- Validated against commit: dce8db8
+- Date: 2026-03-07
 - Branch: work
