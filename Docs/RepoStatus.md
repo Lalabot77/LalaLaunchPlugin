@@ -1,5 +1,6 @@
 # Repository status
 
+<<<<<<< HEAD
 <<<<<<< ours
 Validated against commit: dce8db8
 Last updated: 2026-03-07
@@ -7,6 +8,10 @@ Last updated: 2026-03-07
 Validated against commit: 5a8c6fd
 Last updated: 2026-03-08
 >>>>>>> theirs
+=======
+Validated against commit: 5a8c6fd
+Last updated: 2026-03-08
+>>>>>>> b67acec7d1d25150a0bbc5db340a072e27f8e8fb
 Branch: work
 
 ## Current repo/link status
@@ -26,6 +31,7 @@ Branch: work
 - `Subsystems/*.md` - retained as the canonical subsystem-local truth for affected areas.
 
 ## Delivery status highlights
+<<<<<<< HEAD
 <<<<<<< ours
 - Root `AGENTS.md` added as the top-level agent entry point for Codex Desktop and future agent tooling.
 - Docs/workflow standardisation pass completed with no plugin/runtime/code changes.
@@ -34,6 +40,8 @@ Branch: work
 - Existing subsystem docs and canonical docs were preserved; no documentation files were removed in this pass.
 - Canonical docs and agent entry docs listed above: **SYNCED** to `dce8db8`.
 =======
+=======
+>>>>>>> b67acec7d1d25150a0bbc5db340a072e27f8e8fb
 - Dark Mode global dash controls updated with Lovely checkbox always visible (availability-gated by enable state), forced-off persistence when Lovely disappears, and docs alignment across inventory/log/tooltip/subsystem/index docs.
 - ShiftAssist debug CSV now logs urgent eligibility/attempt/outcome and timing anchors.
 - Shift Assist learning acceptance widened (throttle/brake micro-noise tolerance, movement gate, limiter-hold + timeout grace, artifact-reset cancellation) and learned RPM now uses telemetry crossover (`gear g` vs `g+1`) with stability-gated auto-apply.
@@ -44,7 +52,10 @@ Branch: work
 - Shift Assist subsystem: **INTEGRATED** (settings, evaluation, audio, exports, logs, delay telemetry).
 - Declutter mode + event marker actions: **COMPLETE** (post-PR381 baseline retained).
 - Canonical docs listed above: **SYNCED** to `5a8c6fd`.
+<<<<<<< HEAD
 >>>>>>> theirs
+=======
+>>>>>>> b67acec7d1d25150a0bbc5db340a072e27f8e8fb
 
 ## Notes
 - Canonical agent/doc hierarchy is now: `AGENTS.md` -> `Docs/Project_Index.md` -> `Docs/CODEX_CONTRACT.txt` / `Docs/Architecture_Guardrails.md` / relevant `Docs/Subsystems/*.md` -> `Docs/RepoStatus.md`, with `Docs/CODEX_TASK_TEMPLATE.txt` used for explicit task framing.
