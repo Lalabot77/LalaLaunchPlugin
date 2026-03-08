@@ -470,6 +470,22 @@ namespace LaunchPlugin
                 return false;
             }
 
+            if (sourceGear == 1)
+            {
+                var firstGear = stack.Gears[0];
+                firstGear.CrossoverInsufficientData = true;
+                firstGear.LastCrossoverCandidateRpm = 0;
+                firstGear.LastCurrentCurveValid = firstGear.HasCoverage;
+                firstGear.LastNextCurveValid = stack.Gears[1].HasCoverage;
+                firstGear.LastCurrentKValid = firstGear.HasValidRatio;
+                firstGear.LastNextKValid = stack.Gears[1].HasValidRatio;
+                firstGear.LastScanMinRpm = 0;
+                firstGear.LastScanMaxRpm = 0;
+                firstGear.LastPredictedNextRpmInRange = false;
+                firstGear.LastCrossoverSkipReason = "Gear1Excluded";
+                return false;
+            }
+
             var curr = stack.Gears[sourceGear - 1];
             var next = stack.Gears[sourceGear];
 
@@ -505,13 +521,21 @@ namespace LaunchPlugin
                 return false;
             }
 
-            int minScanRpm = ClampLearnedRpmToSafeCeiling(curr, (int)Math.Round(curr.RatioK * ToMps(minScanSpeedKph)));
+            int overlapSpanKph = maxScanSpeedKph - minScanSpeedKph;
+            int scanStartSpeedKph = minScanSpeedKph + (int)Math.Ceiling(overlapSpanKph * 0.20);
+            if (scanStartSpeedKph > maxScanSpeedKph)
+            {
+                curr.LastCrossoverSkipReason = "NoSpeedOverlap";
+                return false;
+            }
+
+            int minScanRpm = ClampLearnedRpmToSafeCeiling(curr, (int)Math.Round(curr.RatioK * ToMps(scanStartSpeedKph)));
             int maxScanRpm = ClampLearnedRpmToSafeCeiling(curr, (int)Math.Round(curr.RatioK * ToMps(maxScanSpeedKph)));
             curr.LastScanMinRpm = minScanRpm;
             curr.LastScanMaxRpm = maxScanRpm;
 
             int foundSpeedKph = 0;
-            for (int speedKph = minScanSpeedKph; speedKph <= maxScanSpeedKph; speedKph += 1)
+            for (int speedKph = scanStartSpeedKph; speedKph <= maxScanSpeedKph; speedKph += 1)
             {
                 double aCurr = curr.GetCurveAccelAtSpeed(speedKph);
                 double aNext = next.GetCurveAccelAtSpeed(speedKph);
