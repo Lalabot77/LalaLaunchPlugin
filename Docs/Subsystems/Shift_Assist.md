@@ -1,7 +1,7 @@
 # Shift Assist
 
 Validated against commit: b115732
-Last updated: 2026-03-01
+Last updated: 2026-03-06
 Branch: work
 
 ## Purpose
@@ -56,16 +56,17 @@ Branch: work
 
 
 ## Learning model (physics/telemetry)
-- Learning computes **optimal upshift RPM** from telemetry curves (not driver timing):
-  - WOT acceptance gate uses throttle `>=95%` with up to `150ms` dip grace; brake activity uses hysteresis (`>2.0%` enter, `<1.0%` exit) and is only considered active after `>=100ms` sustained timing.
-  - Samples are only recorded while speed is moving (`>=5 kph`).
-  - Near-redline sampling uses limiter-hold behavior (`>=99%` of redline + valid throttle) so pulls are not prematurely ended at limiter.
-  - If max window is hit, a `400ms` grace window allows a trailing upshift to still count as valid; limiter-hold is capped at `2000ms` total continuous limiter-hold time (not extra time after max-window).
-  - Reset/teleport artifacts (session-time rewind, extreme speed jump, impossible RPM discontinuity) cancel current sampling with artifact reasoning instead of normal rejection.
-- Per-gear curves are built as RPM bins (50 RPM), with median accel per bin and light 3-bin smoothing for evaluation. Pull acceptance also requires a minimum number of valid curve points in-window before commit.
-- Gear ratio proxy per gear is learned from telemetry as median `k_g = rpm/speed` using moving samples.
-- Crossover rule for gear `g -> g+1`: choose the smallest RPM `r` where `a_next(r * k_{g+1}/k_g) >= a_curr(r) + margin`.
-- Learned RPM auto-apply still respects per-gear lock state and requires short-term stability (same result within tolerance across consecutive evaluations) before profile write-back.
+- Learning mode is **passive background collection** while enabled: users can drive normally and the engine continuously accumulates usable telemetry for the active car/profile stack.
+- Gating remains strict before accepting a sample into curve storage:
+  - throttle gate (`>=95%`), brake-noise filtering (`>2.0%` enter / `<=1.0%` exit with timing), and movement gate (`>=5 kph`).
+  - artifact reset protection (session-time rewind, large speed discontinuity, impossible in-gear RPM jump).
+  - plausibility filters for RPM/acceleration and explicit rejection of near-zero or negative acceleration contamination.
+- Per-gear curves are now learned in the **speed domain** (acceleration vs speed bins), with robust per-bin medians and coverage checks (minimum bins + minimum total valid samples).
+- Per-gear ratio proxy (`k = rpm/speed`) is still learned from valid samples and must be ready for solve.
+- Shift solve for gear `g` requires both adjacent curves (`g` and `g+1`) plus valid ratios. Solver scans shared speed overlap and finds the first speed where `a_{g+1}(v) >= a_g(v) + margin`, then converts speed back to source-gear RPM via ratio.
+- Learned values are published only after real adjacent-gear crossover candidates are stable in a short rolling buffer. No fallback-generated learned values are published.
+- Safe bound is enforced at all stages: learned/apply RPM is clamped to `source redline - 200`.
+- `Reset Learning` clears all stored curve bins, ratio samples, crossover buffers, and learned values for the active stack; storage is stack-scoped (not per track/session).
 - Driver delay measurement remains independent: delay stays cue->upshift based on applied targets (manual or learned).
 
 ## Debug CSV — Urgent Columns
@@ -74,7 +75,7 @@ Branch: work
 - `UrgentEligible`, `UrgentSuppressedReason`, `UrgentAttempted`, `UrgentPlayed`, `UrgentPlayError` provide per-tick urgent decision/outcome observability.
 - `UrgentPlayError` is CSV-sanitized (quotes/newlines/commas).
 - `RedlineRpm`, `OverRedline`, `Rpm`, `Gear`, `BeepType` provide lightweight runtime context for diagnosing missed urgent reminders around limiter/redline conditions.
-- Learning debug columns now also include limiter-hold status/time, artifact reset flags/reason, sampling redline used for crossover banding, valid-curve-point count for the pull, current/next gear ratio estimates (`k` + validity), current bin diagnostics, and crossover candidate/final RPM with insufficient-data indicator. `LearnPullAccepted` is the canonical accepted-pull flag; `LearnSampleAdded` is retained for compatibility and mirrors accepted-pull semantics.
+- Learning debug columns expose passive-collection and solve readiness: artifact flags, limiter hold, current/next ratio validity, current speed-bin diagnostics, crossover candidate/final RPM, scan bounds, and explicit skip reasons such as awaiting curve coverage, missing overlap, or awaiting stability. `LearnedRpm_G*` stays `0` until a genuine adjacent-gear solve is stable.
 
 ## Outputs (exports + logs)
 - Exports: `ShiftAssist.ActiveGearStackId`, `ShiftAssist.TargetRPM_CurrentGear`, `ShiftAssist.ShiftRPM_G1..G8`, `ShiftAssist.EffectiveTargetRPM_CurrentGear`, `ShiftAssist.RpmRate`, `ShiftAssist.Beep`, `ShiftAssist.ShiftLight`, `ShiftAssist.ShiftLightPrimary`, `ShiftAssist.ShiftLightUrgent`, `ShiftAssist.BeepLight`, `ShiftAssist.BeepPrimary`, `ShiftAssist.BeepUrgent`, `ShiftAssist.ShiftLightEnabled`, `ShiftAssist.Learn.Enabled`, `ShiftAssist.Learn.State`, `ShiftAssist.Learn.ActiveGear`, `ShiftAssist.Learn.WindowMs`, `ShiftAssist.Learn.PeakAccelMps2`, `ShiftAssist.Learn.PeakRpm`, `ShiftAssist.Learn.LastSampleRpm`, `ShiftAssist.Learn.SavedPulse`, `ShiftAssist.Learn.Samples_G1..G8`, `ShiftAssist.Learn.LearnedRpm_G1..G8`, `ShiftAssist.Learn.Locked_G1..G8`, `ShiftAssist.State`, `ShiftAssist.Debug.AudioDelayMs`, `ShiftAssist.Debug.AudioDelayAgeMs`, `ShiftAssist.Debug.AudioIssued`, `ShiftAssist.Debug.AudioBackend`, `ShiftAssist.Debug.CsvEnabled`, `ShiftAssist.DelayAvg_G1..G8`, `ShiftAssist.DelayN_G1..G8`, `ShiftAssist.Delay.Pending`, `ShiftAssist.Delay.PendingGear`, `ShiftAssist.Delay.PendingAgeMs`, `ShiftAssist.Delay.PendingRpmAtCue`, `ShiftAssist.Delay.RpmAtBeep`, `ShiftAssist.Delay.CaptureState`.

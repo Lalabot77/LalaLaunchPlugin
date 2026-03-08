@@ -68,35 +68,29 @@ namespace LaunchPlugin
         private const int StableGearArmMs = 200;
         private const int MinWindowMs = 250;
         private const int MaxWindowMs = 3000;
-        private const int MaxWindowUpshiftGraceMs = 400;
-        private const int MaxLimiterHoldMs = 2000;
-        private const int ReArmRpmDrop = 500;
         private const int AbsoluteMinLearnRpm = 2000;
         private const double LearnTrackMinRedlineRatio = 0.70;
         private const int RedlineHeadroomRpm = 300;
         private const double MinThrottleStrong = 0.95;
-        private const double MinThrottleHardEnd = 0.90;
-        private const int ThrottleDipGraceMs = 150;
         private const double BrakeNoiseEnter01 = 0.02;
         private const double BrakeNoiseExit01 = 0.01;
         private const int BrakeActiveMs = 100;
         private const double MinMovementMps = 5.0 / 3.6;
         private const double NearRedlineRatio = 0.99;
-        private const int BinSizeRpm = 50;
+        private const int SpeedBinWidthKph = 2;
         private const int MinBinSamples = 3;
         private const int MinBinsWithData = 4;
+        private const int MinCurveTotalSamples = 30;
         private const int MinRatioSamples = 12;
+        private const double MinUsefulAccelMps2 = 0.25;
         private const double MaxPlausibleAccelMps2 = 30.0;
         private const double CrossoverMarginMps2 = 0.10;
-        private const int StableCrossoverToleranceRpm = 50;
+        private const int StableCrossoverToleranceRpm = 60;
         private const int StableCrossoverBufferSize = 5;
         private const int StableCrossoverMinSamples = 3;
-        private const int MinCurvePointsPerPull = 25;
         private const int MaxPlausibleEngineRpm = 22000;
         private const int RedlinePlausibilityPaddingRpm = 1500;
         private const int SafeLearnedRpmHeadroomRpm = 200;
-        private const int HighestPairFallbackPullsMin = 3;
-        private const int HighestPairFallbackSafetyMarginRpm = 150;
 
         private readonly Dictionary<string, StackRuntime> _stacks = new Dictionary<string, StackRuntime>(StringComparer.OrdinalIgnoreCase);
         private readonly ShiftAssistLearningTick _lastTick = new ShiftAssistLearningTick { State = ShiftAssistLearningState.Off };
@@ -110,25 +104,19 @@ namespace LaunchPlugin
         private int _samplingLearnMinRpm;
         private int _samplingCaptureMinRpm;
         private int _samplingLastObservedRpm;
-        private int _samplingPreShiftRpm;
         private double _samplingPeakAccel;
         private int _samplingPeakRpm;
         private int _samplingRedlineRpm;
         private int _samplingValidCurvePoints;
         private bool _samplingLimiterHoldActive;
         private double _samplingLimiterHoldStartedSec;
-        private double _samplingThrottleDipStartedSec;
         private double _samplingBrakeActiveStartedSec;
         private bool _samplingBrakeActiveTiming;
-        private bool _samplingPendingUpshiftGrace;
-        private double _samplingUpshiftGraceUntilSec;
-        private string _samplingGraceSource;
+
         private double _lastSessionTimeSec = double.NaN;
         private double _lastSpeedMps = double.NaN;
-        private int _lastRpm = 0;
-        private int _lastGear = 0;
-
-        public ShiftAssistLearningTick LastTick => _lastTick;
+        private int _lastRpm;
+        private int _lastGear;
 
         public ShiftAssistLearningTick Update(bool learningEnabled, string gearStackId, int effectiveGear, int rpm, double throttle01, double brake01, double speedMps, double sessionTimeSec, double lonAccelMps2, int redlineRpmForGear)
         {
@@ -138,20 +126,14 @@ namespace LaunchPlugin
             {
                 State = learningEnabled ? ShiftAssistLearningState.Armed : ShiftAssistLearningState.Off,
                 ActiveGear = effectiveGear,
-                PeakAccelMps2 = _samplingPeakAccel,
-                PeakRpm = _samplingPeakRpm,
-                LastSampleRpm = _lastTick.LastSampleRpm,
                 LearnMinRpm = learnMinRpm,
                 LearnRedlineRpm = redlineRpmForGear,
                 LearnCaptureMinRpm = captureMinRpm,
-                LearnCapturedRpm = 0,
-                LearnEndWasUpshift = false,
-                ShouldApplyLearnedRpm = false,
-                PullAccepted = false
+                SamplingRedlineRpm = redlineRpmForGear,
+                CrossoverSkipReason = string.Empty
             };
 
-            string stackKey = string.IsNullOrWhiteSpace(gearStackId) ? "Default" : gearStackId.Trim();
-            var stack = EnsureStack(stackKey);
+            var stack = EnsureStack(gearStackId);
             bool hasValidSessionTime = IsFinite(sessionTimeSec) && sessionTimeSec >= 0.0;
 
             bool artifactResetDetected = DetectArtifactReset(hasValidSessionTime, sessionTimeSec, effectiveGear, rpm, speedMps, out string artifactReason);
@@ -164,7 +146,7 @@ namespace LaunchPlugin
                 _stableGear = 0;
                 _stableGearSinceSec = double.NaN;
                 PopulatePerGearStats(stack, effectiveGear, tick);
-                PopulateDebugCurveFields(stack, effectiveGear, rpm, tick);
+                PopulateDebugCurveFields(stack, effectiveGear, speedMps, tick);
                 CopyTick(tick);
                 UpdateLastTelemetry(hasValidSessionTime, sessionTimeSec, speedMps, rpm, effectiveGear);
                 return tick;
@@ -172,18 +154,9 @@ namespace LaunchPlugin
 
             if (artifactResetDetected)
             {
-                if (_samplingActive)
-                {
-                    tick.State = ShiftAssistLearningState.Armed;
-                    tick.LearnEndReason = "ArtifactReset";
-                    tick.LearnRejectedReason = string.Empty;
-                    tick.PullAccepted = false;
-                    tick.SampleAdded = false;
-                }
-
                 ResetSampling();
                 PopulatePerGearStats(stack, effectiveGear, tick);
-                PopulateDebugCurveFields(stack, effectiveGear, rpm, tick);
+                PopulateDebugCurveFields(stack, effectiveGear, speedMps, tick);
                 CopyTick(tick);
                 UpdateLastTelemetry(hasValidSessionTime, sessionTimeSec, speedMps, rpm, effectiveGear);
                 return tick;
@@ -200,148 +173,7 @@ namespace LaunchPlugin
             bool stableReady = effectiveGear >= 1 && effectiveGear <= GearCount && hasValidSessionTime && IsFinite(_stableGearSinceSec)
                 && sessionTimeSec >= (_stableGearSinceSec + (StableGearArmMs / 1000.0));
 
-            bool canArmForGear = true;
-            if (effectiveGear >= 1 && effectiveGear <= GearCount)
-            {
-                var effectiveGearData = stack.Gears[effectiveGear - 1];
-                effectiveGearData.TryClearReArmReset(rpm, ReArmRpmDrop);
-                canArmForGear = !effectiveGearData.RequireRpmReset;
-            }
-
-            bool rpmMeetsLearnMin = rpm >= learnMinRpm;
-
-            if (!_samplingActive)
-            {
-                if (gateStrong && stableReady && canArmForGear && rpmMeetsLearnMin)
-                {
-                    _samplingActive = true;
-                    _samplingGear = effectiveGear;
-                    _samplingStartSec = sessionTimeSec;
-                    _samplingLearnMinRpm = learnMinRpm;
-                    _samplingCaptureMinRpm = captureMinRpm;
-                    _samplingLastObservedRpm = rpm;
-                    _samplingPreShiftRpm = rpm;
-                    _samplingPeakAccel = IsPlausibleAccel(lonAccelMps2) ? lonAccelMps2 : 0.0;
-                    _samplingPeakRpm = IsPlausibleAccel(lonAccelMps2) ? rpm : 0;
-                    _samplingRedlineRpm = redlineRpmForGear;
-                    _samplingValidCurvePoints = 0;
-                    _samplingLimiterHoldActive = false;
-                    _samplingLimiterHoldStartedSec = double.NaN;
-                    _samplingThrottleDipStartedSec = double.NaN;
-                    _samplingBrakeActiveStartedSec = double.NaN;
-                    _samplingBrakeActiveTiming = false;
-                    _samplingPendingUpshiftGrace = false;
-                    _samplingUpshiftGraceUntilSec = double.NaN;
-                    _samplingGraceSource = string.Empty;
-                }
-            }
-
-            if (_samplingActive)
-            {
-                ProcessSampling(stack, tick, effectiveGear, rpm, throttle01, brake01, speedMps, hasValidSessionTime, sessionTimeSec, lonAccelMps2, redlineRpmForGear);
-            }
-            else
-            {
-                tick.WindowMs = 0;
-                tick.PeakAccelMps2 = 0.0;
-                tick.PeakRpm = 0;
-            }
-
-            PopulatePerGearStats(stack, effectiveGear, tick);
-            PopulateDebugCurveFields(stack, effectiveGear, rpm, tick);
-            CopyTick(tick);
-            UpdateLastTelemetry(hasValidSessionTime, sessionTimeSec, speedMps, rpm, effectiveGear);
-            return tick;
-        }
-
-        public int GetSampleCount(string gearStackId, int gear)
-        {
-            if (gear < 1 || gear > GearCount)
-            {
-                return 0;
-            }
-
-            return EnsureStack(gearStackId).Gears[gear - 1].AcceptedPullCount;
-        }
-
-        public int GetLearnedRpm(string gearStackId, int gear)
-        {
-            if (gear < 1 || gear > GearCount)
-            {
-                return 0;
-            }
-
-            return EnsureStack(gearStackId).Gears[gear - 1].LearnedRpm;
-        }
-
-        public void ResetSamplesForStack(string gearStackId)
-        {
-            EnsureStack(gearStackId).Reset();
-        }
-
-        private void ProcessSampling(StackRuntime stack, ShiftAssistLearningTick tick, int effectiveGear, int rpm, double throttle01, double brake01, double speedMps, bool hasValidSessionTime, double sessionTimeSec, double lonAccelMps2, int redlineRpmForGear)
-        {
-            tick.State = ShiftAssistLearningState.Sampling;
-            tick.ActiveGear = _samplingGear;
-            tick.LearnMinRpm = _samplingLearnMinRpm;
-            tick.LearnCaptureMinRpm = _samplingCaptureMinRpm;
-            tick.SamplingRedlineRpm = _samplingRedlineRpm;
-            tick.ValidCurvePointsThisPull = _samplingValidCurvePoints;
-
-            int windowMs = 0;
-            if (hasValidSessionTime && IsFinite(_samplingStartSec))
-            {
-                windowMs = (int)Math.Max(0.0, Math.Round((sessionTimeSec - _samplingStartSec) * 1000.0));
-            }
-
-            tick.WindowMs = windowMs;
-
-            if (effectiveGear == _samplingGear && rpm > 0)
-            {
-                _samplingPreShiftRpm = rpm;
-            }
-
-            bool throttleStrongNow = throttle01 >= MinThrottleStrong;
-            bool throttleHardDropNow = throttle01 < MinThrottleHardEnd;
-            bool moving = speedMps >= MinMovementMps;
-            bool nearRedline = redlineRpmForGear > 0 && rpm >= (int)Math.Round(redlineRpmForGear * NearRedlineRatio);
-
-            if (throttleStrongNow)
-            {
-                _samplingThrottleDipStartedSec = double.NaN;
-            }
-            else if (hasValidSessionTime && !IsFinite(_samplingThrottleDipStartedSec))
-            {
-                _samplingThrottleDipStartedSec = sessionTimeSec;
-            }
-
-            bool throttleDipExpired = throttleHardDropNow;
-            if (!throttleDipExpired && hasValidSessionTime && IsFinite(_samplingThrottleDipStartedSec))
-            {
-                throttleDipExpired = sessionTimeSec >= (_samplingThrottleDipStartedSec + (ThrottleDipGraceMs / 1000.0));
-            }
-
-            if (brake01 > BrakeNoiseEnter01)
-            {
-                if (!_samplingBrakeActiveTiming)
-                {
-                    _samplingBrakeActiveTiming = true;
-                    _samplingBrakeActiveStartedSec = hasValidSessionTime ? sessionTimeSec : double.NaN;
-                }
-            }
-            else if (brake01 < BrakeNoiseExit01)
-            {
-                _samplingBrakeActiveTiming = false;
-                _samplingBrakeActiveStartedSec = double.NaN;
-            }
-
-            bool brakeActiveLongEnough = false;
-            if (_samplingBrakeActiveTiming && hasValidSessionTime && IsFinite(_samplingBrakeActiveStartedSec))
-            {
-                brakeActiveLongEnough = sessionTimeSec >= (_samplingBrakeActiveStartedSec + (BrakeActiveMs / 1000.0));
-            }
-
-            bool limiterHoldNow = nearRedline && throttleStrongNow;
+            bool limiterHoldNow = redlineRpmForGear > 0 && rpm >= (int)Math.Round(redlineRpmForGear * NearRedlineRatio) && throttle01 >= MinThrottleStrong;
             if (limiterHoldNow)
             {
                 if (!_samplingLimiterHoldActive)
@@ -361,97 +193,194 @@ namespace LaunchPlugin
                 ? (int)Math.Max(0.0, Math.Round((sessionTimeSec - _samplingLimiterHoldStartedSec) * 1000.0))
                 : 0;
 
-            bool validForCurveSample = effectiveGear == _samplingGear && rpm >= _samplingLearnMinRpm && moving && throttleStrongNow && !brakeActiveLongEnough;
-            if (validForCurveSample)
+            bool sampleAdded = false;
+            if (stableReady && gateStrong && rpm >= learnMinRpm)
             {
-                _samplingLastObservedRpm = rpm;
-                if (IsPlausibleAccel(lonAccelMps2) && lonAccelMps2 > _samplingPeakAccel)
-                {
-                    _samplingPeakAccel = lonAccelMps2;
-                    _samplingPeakRpm = rpm;
-                }
-
-                var gearData = stack.Gears[_samplingGear - 1];
-                gearData.AddCurveSample(rpm, speedMps, lonAccelMps2, redlineRpmForGear);
-                _samplingValidCurvePoints++;
-                tick.ValidCurvePointsThisPull = _samplingValidCurvePoints;
+                sampleAdded = TryAddPassiveSample(stack, effectiveGear, rpm, speedMps, lonAccelMps2, brake01, hasValidSessionTime, sessionTimeSec, redlineRpmForGear, tick);
             }
 
+            UpdateSamplingWindow(tick, effectiveGear, rpm, gateStrong, stableReady, sampleAdded, hasValidSessionTime, sessionTimeSec, redlineRpmForGear);
+
+            if (sampleAdded)
+            {
+                RecomputeCrossovers(stack, effectiveGear, tick);
+            }
+            else
+            {
+                RefreshSolveDiagnostics(stack, effectiveGear);
+            }
+
+            PopulatePerGearStats(stack, effectiveGear, tick);
+            PopulateDebugCurveFields(stack, effectiveGear, speedMps, tick);
+            CopyTick(tick);
+            UpdateLastTelemetry(hasValidSessionTime, sessionTimeSec, speedMps, rpm, effectiveGear);
+            return tick;
+        }
+
+        public int GetSampleCount(string gearStackId, int gear)
+        {
+            if (gear < 1 || gear > GearCount)
+            {
+                return 0;
+            }
+
+            return EnsureStack(gearStackId).Gears[gear - 1].UsefulSampleCount;
+        }
+
+        public int GetLearnedRpm(string gearStackId, int gear)
+        {
+            if (gear < 1 || gear > GearCount)
+            {
+                return 0;
+            }
+
+            return EnsureStack(gearStackId).Gears[gear - 1].LearnedRpm;
+        }
+
+        public void ResetSamplesForStack(string gearStackId)
+        {
+            EnsureStack(gearStackId).Reset();
+            ResetSampling();
+        }
+
+        private bool TryAddPassiveSample(StackRuntime stack, int gear, int rpm, double speedMps, double accelMps2, double brake01, bool hasValidSessionTime, double sessionTimeSec, int redlineRpmForGear, ShiftAssistLearningTick tick)
+        {
+            if (gear < 1 || gear > GearCount)
+            {
+                return false;
+            }
+
+            if (brake01 > BrakeNoiseEnter01)
+            {
+                if (!_samplingBrakeActiveTiming)
+                {
+                    _samplingBrakeActiveTiming = true;
+                    _samplingBrakeActiveStartedSec = hasValidSessionTime ? sessionTimeSec : double.NaN;
+                }
+            }
+            else if (brake01 <= BrakeNoiseExit01)
+            {
+                _samplingBrakeActiveTiming = false;
+                _samplingBrakeActiveStartedSec = double.NaN;
+            }
+
+            bool brakeActiveLongEnough = _samplingBrakeActiveTiming
+                && hasValidSessionTime
+                && IsFinite(_samplingBrakeActiveStartedSec)
+                && sessionTimeSec >= (_samplingBrakeActiveStartedSec + (BrakeActiveMs / 1000.0));
+
+            if (brakeActiveLongEnough)
+            {
+                return false;
+            }
+
+            if (!IsPlausibleAccel(accelMps2) || accelMps2 < MinUsefulAccelMps2)
+            {
+                return false;
+            }
+
+            var gearData = stack.Gears[gear - 1];
+            gearData.AddCurveSample(rpm, speedMps, accelMps2, redlineRpmForGear);
+
+            tick.SampleAdded = true;
+            tick.PullAccepted = true;
+            tick.PeakAccelMps2 = accelMps2;
+            tick.PeakRpm = rpm;
+            tick.LastSampleRpm = rpm;
+            tick.LearnCapturedRpm = rpm;
+            tick.LearnSampleRpmFinal = rpm;
+            tick.LearnSampleRpmWasClamped = false;
+            return true;
+        }
+
+        private void UpdateSamplingWindow(ShiftAssistLearningTick tick, int effectiveGear, int rpm, bool gateStrong, bool stableReady, bool sampleAdded, bool hasValidSessionTime, double sessionTimeSec, int redlineRpmForGear)
+        {
+            if (!_samplingActive)
+            {
+                if (stableReady && gateStrong)
+                {
+                    _samplingActive = true;
+                    _samplingGear = effectiveGear;
+                    _samplingStartSec = sessionTimeSec;
+                    _samplingLearnMinRpm = tick.LearnMinRpm;
+                    _samplingCaptureMinRpm = tick.LearnCaptureMinRpm;
+                    _samplingLastObservedRpm = rpm;
+                    _samplingPeakAccel = 0.0;
+                    _samplingPeakRpm = 0;
+                    _samplingRedlineRpm = redlineRpmForGear;
+                    _samplingValidCurvePoints = 0;
+                }
+            }
+
+            if (!_samplingActive)
+            {
+                return;
+            }
+
+            tick.State = ShiftAssistLearningState.Sampling;
+            tick.ActiveGear = _samplingGear;
+            tick.SamplingRedlineRpm = _samplingRedlineRpm;
+
+            if (sampleAdded)
+            {
+                _samplingValidCurvePoints++;
+                _samplingLastObservedRpm = rpm;
+                if (tick.PeakAccelMps2 > _samplingPeakAccel)
+                {
+                    _samplingPeakAccel = tick.PeakAccelMps2;
+                    _samplingPeakRpm = rpm;
+                }
+            }
+
+            if (IsPlausibleAccel(tick.PeakAccelMps2) && tick.PeakAccelMps2 > _samplingPeakAccel)
+            {
+                _samplingPeakAccel = tick.PeakAccelMps2;
+                _samplingPeakRpm = rpm;
+            }
+
+            if (hasValidSessionTime && IsFinite(_samplingStartSec))
+            {
+                tick.WindowMs = (int)Math.Max(0.0, Math.Round((sessionTimeSec - _samplingStartSec) * 1000.0));
+            }
+
+            tick.ValidCurvePointsThisPull = _samplingValidCurvePoints;
             tick.PeakAccelMps2 = _samplingPeakAccel;
             tick.PeakRpm = _samplingPeakRpm;
 
             bool gearChanged = effectiveGear != _samplingGear;
-            bool endWasUpshift = gearChanged && effectiveGear == (_samplingGear + 1);
+            bool maxWindow = tick.WindowMs >= MaxWindowMs;
+            bool gateLost = !gateStrong;
 
-            if (_samplingPendingUpshiftGrace)
+            if (gearChanged || maxWindow || gateLost)
             {
-                if (endWasUpshift)
+                bool endedAsUpshift = gearChanged && effectiveGear == (_samplingGear + 1);
+                bool complete = endedAsUpshift && tick.WindowMs >= MinWindowMs && _samplingValidCurvePoints > 0;
+                tick.State = complete ? ShiftAssistLearningState.Complete : ShiftAssistLearningState.Rejected;
+                tick.LearnEndWasUpshift = endedAsUpshift;
+                tick.LearnEndReason = gearChanged ? (endedAsUpshift ? "GearChangedUpshift" : "GearChangedOther") : (maxWindow ? "WindowElapsed" : "GateLost");
+                if (!complete)
                 {
-                    string upshiftInGraceReason = _samplingGraceSource == "LimiterHold" ? "UpshiftInGrace(LimiterHold)" : "UpshiftInGrace(MaxWindow)";
-                    FinalizeSample(stack, tick, windowMs, upshiftInGraceReason, true, false);
-                    ResetSampling();
-                    return;
+                    tick.LearnRejectedReason = "Collecting";
                 }
 
-                bool graceExpired = !hasValidSessionTime || !IsFinite(_samplingUpshiftGraceUntilSec) || sessionTimeSec > _samplingUpshiftGraceUntilSec;
-                if (graceExpired)
-                {
-                    string graceExpiredReason = _samplingGraceSource == "LimiterHold" ? "LimiterHoldGraceExpired" : "MaxWindowGraceExpired";
-                    FinalizeSample(stack, tick, windowMs, graceExpiredReason, false, true);
-                    ResetSampling();
-                }
-
-                return;
-            }
-
-            if (_samplingLimiterHoldActive && tick.LimiterHoldMs >= MaxLimiterHoldMs)
-            {
-                _samplingPendingUpshiftGrace = true;
-                _samplingUpshiftGraceUntilSec = sessionTimeSec + (MaxWindowUpshiftGraceMs / 1000.0);
-                _samplingGraceSource = "LimiterHold";
-                return;
-            }
-
-            bool maxDurationReached = windowMs >= MaxWindowMs;
-            bool gateEnd = throttleDipExpired || brakeActiveLongEnough || !moving;
-
-            if (gearChanged)
-            {
-                FinalizeSample(stack, tick, windowMs, endWasUpshift ? "GearChangedUpshift" : "GearChangedOther", endWasUpshift, false);
                 ResetSampling();
-                return;
+            }
+        }
+
+        private void RefreshSolveDiagnostics(StackRuntime stack, int activeGear)
+        {
+            for (int gear = 1; gear < GearCount; gear++)
+            {
+                RecomputeCrossoverForGear(stack, gear, false, out int _);
             }
 
-            if (!hasValidSessionTime)
+            if (activeGear >= 1 && activeGear <= GearCount)
             {
-                FinalizeSample(stack, tick, windowMs, "InvalidSessionTime", false, false);
-                ResetSampling();
-                return;
-            }
-
-            if (maxDurationReached)
-            {
-                if (_samplingLimiterHoldActive && throttleStrongNow)
+                var g = stack.Gears[activeGear - 1];
+                if (g.LastCrossoverSkipReason == null)
                 {
-                    return;
+                    g.LastCrossoverSkipReason = string.Empty;
                 }
-
-                _samplingPendingUpshiftGrace = true;
-                _samplingUpshiftGraceUntilSec = sessionTimeSec + (MaxWindowUpshiftGraceMs / 1000.0);
-                _samplingGraceSource = "MaxWindow";
-                return;
-            }
-
-            if (gateEnd)
-            {
-                if (_samplingLimiterHoldActive && throttleStrongNow)
-                {
-                    return;
-                }
-
-                string gateEndReason = brakeActiveLongEnough ? "BrakeActive" : "GateEnd";
-                FinalizeSample(stack, tick, windowMs, gateEndReason, false, false);
-                ResetSampling();
             }
         }
 
@@ -460,7 +389,7 @@ namespace LaunchPlugin
             if (effectiveGear >= 1 && effectiveGear <= GearCount)
             {
                 var g = stack.Gears[effectiveGear - 1];
-                tick.SamplesForGear = g.AcceptedPullCount;
+                tick.SamplesForGear = g.UsefulSampleCount;
                 tick.LearnedRpmForGear = g.LearnedRpm;
             }
             else
@@ -470,7 +399,7 @@ namespace LaunchPlugin
             }
         }
 
-        private void PopulateDebugCurveFields(StackRuntime stack, int effectiveGear, int rpm, ShiftAssistLearningTick tick)
+        private void PopulateDebugCurveFields(StackRuntime stack, int effectiveGear, double speedMps, ShiftAssistLearningTick tick)
         {
             if (effectiveGear < 1 || effectiveGear > GearCount)
             {
@@ -480,6 +409,7 @@ namespace LaunchPlugin
             var current = stack.Gears[effectiveGear - 1];
             tick.CurrentGearRatioK = current.RatioK;
             tick.CurrentGearRatioKValid = current.HasValidRatio ? 1 : 0;
+
             if (effectiveGear < GearCount)
             {
                 var next = stack.Gears[effectiveGear];
@@ -487,9 +417,10 @@ namespace LaunchPlugin
                 tick.NextGearRatioKValid = next.HasValidRatio ? 1 : 0;
             }
 
-            tick.CurrentBinIndex = current.GetBinIndex(rpm);
+            int speedKph = ToSpeedKph(speedMps);
+            tick.CurrentBinIndex = current.GetBinIndex(speedKph);
             tick.CurrentBinCount = current.GetBinCount(tick.CurrentBinIndex);
-            tick.CurrentCurveAccelMps2 = current.GetCurveAccel(rpm);
+            tick.CurrentCurveAccelMps2 = current.GetCurveAccelAtSpeed(speedKph);
             tick.CrossoverCandidateRpm = current.LastCrossoverCandidateRpm;
             tick.CrossoverComputedRpmForGear = current.CrossoverRpm;
             tick.CrossoverInsufficientData = current.CrossoverInsufficientData ? 1 : 0;
@@ -503,46 +434,6 @@ namespace LaunchPlugin
             tick.CrossoverSkipReason = current.LastCrossoverSkipReason;
         }
 
-        private void FinalizeSample(StackRuntime stack, ShiftAssistLearningTick tick, int windowMs, string endReason, bool endWasUpshift, bool fromGraceTimeout)
-        {
-            tick.LearnEndReason = endReason;
-            tick.LearnEndWasUpshift = endWasUpshift;
-
-            var gearData = _samplingGear >= 1 && _samplingGear <= GearCount ? stack.Gears[_samplingGear - 1] : null;
-            bool enoughCurvePoints = _samplingValidCurvePoints >= MinCurvePointsPerPull;
-            bool accepted = gearData != null && windowMs >= MinWindowMs && endWasUpshift && enoughCurvePoints;
-
-            if (accepted)
-            {
-                int preShiftRpm = _samplingPreShiftRpm > 0 ? _samplingPreShiftRpm : _samplingLastObservedRpm;
-                tick.PullAccepted = true;
-                tick.SampleAdded = true;
-                tick.LastSampleRpm = preShiftRpm;
-                tick.LearnSampleRpmFinal = preShiftRpm;
-                tick.LearnSampleRpmWasClamped = false;
-                tick.State = ShiftAssistLearningState.Complete;
-
-                gearData.AcceptedPullCount++;
-                gearData.SetReArmRequired(_samplingPeakRpm);
-
-                RecomputeCrossovers(stack, _samplingGear, tick);
-
-                tick.SamplesForGear = gearData.AcceptedPullCount;
-                tick.LearnedRpmForGear = gearData.LearnedRpm;
-
-                tick.ShouldApplyLearnedRpm = tick.ApplyGear >= 1 && tick.ApplyGear <= GearCount && tick.ApplyRpm > 0;
-            }
-            else
-            {
-                tick.State = ShiftAssistLearningState.Rejected;
-                tick.LearnRejectedReason = fromGraceTimeout
-                    ? (!string.IsNullOrWhiteSpace(tick.LearnEndReason) ? tick.LearnEndReason : "GraceExpired")
-                    : (!endWasUpshift ? "EndNotUpshift" :
-                    (windowMs < MinWindowMs ? "WindowTooShort" :
-                    (!enoughCurvePoints ? "TooFewCurvePoints" : "Unknown")));
-            }
-        }
-
         private void RecomputeCrossovers(StackRuntime stack, int triggerGear, ShiftAssistLearningTick tick)
         {
             int applyGear = 0;
@@ -550,33 +441,28 @@ namespace LaunchPlugin
 
             for (int sourceGear = 1; sourceGear < GearCount; sourceGear++)
             {
-                int stableLearnedRpm;
-                bool stableForGear = RecomputeCrossoverForGear(stack, sourceGear, out stableLearnedRpm);
-                if (!stableForGear)
+                bool learnedUpdated = RecomputeCrossoverForGear(stack, sourceGear, true, out int stableLearnedRpm);
+                if (!learnedUpdated || stableLearnedRpm <= 0)
                 {
                     continue;
                 }
 
-                if (sourceGear == triggerGear || sourceGear == (triggerGear - 1))
+                if (applyGear == 0 || sourceGear == triggerGear || sourceGear == (triggerGear - 1))
                 {
                     applyGear = sourceGear;
-                    applyRpm = ClampLearnedRpmToSafeCeiling(stack.Gears[sourceGear - 1], stableLearnedRpm);
-                }
-                else if (applyGear <= 0)
-                {
-                    applyGear = sourceGear;
-                    applyRpm = ClampLearnedRpmToSafeCeiling(stack.Gears[sourceGear - 1], stableLearnedRpm);
+                    applyRpm = stableLearnedRpm;
                 }
             }
 
             if (applyGear > 0 && applyRpm > 0)
             {
+                tick.ShouldApplyLearnedRpm = true;
                 tick.ApplyGear = applyGear;
                 tick.ApplyRpm = applyRpm;
             }
         }
 
-        private bool RecomputeCrossoverForGear(StackRuntime stack, int sourceGear, out int stableLearnedRpm)
+        private bool RecomputeCrossoverForGear(StackRuntime stack, int sourceGear, bool publishLearned, out int stableLearnedRpm)
         {
             stableLearnedRpm = 0;
             if (sourceGear < 1 || sourceGear >= GearCount)
@@ -586,7 +472,7 @@ namespace LaunchPlugin
 
             var curr = stack.Gears[sourceGear - 1];
             var next = stack.Gears[sourceGear];
-            int safeMaxLearnedRpm = curr.GetCrossoverUpperRpmCeiling(SafeLearnedRpmHeadroomRpm);
+
             curr.CrossoverInsufficientData = true;
             curr.LastCrossoverCandidateRpm = 0;
             curr.LastCurrentCurveValid = curr.HasCoverage;
@@ -600,171 +486,90 @@ namespace LaunchPlugin
 
             if (!curr.LastCurrentCurveValid || !curr.LastNextCurveValid || !curr.LastCurrentKValid || !curr.LastNextKValid)
             {
-                curr.LastCrossoverSkipReason = "PrecheckInvalid";
+                curr.LastCrossoverSkipReason = "AwaitCurveOrRatio";
                 return false;
             }
 
-            if (!curr.TryGetUsableCurveRange(out int currUsableMinRpm, out int currUsableMaxRpm)
-                || !next.TryGetUsableCurveRange(out int nextUsableMinRpm, out int nextUsableMaxRpm))
+            if (!curr.TryGetUsableSpeedRange(out int minSpeedKph, out int maxSpeedKph)
+                || !next.TryGetUsableSpeedRange(out int nextMinSpeedKph, out int nextMaxSpeedKph))
             {
                 curr.LastCrossoverSkipReason = "UsableRangeUnavailable";
                 return false;
             }
 
-            int minRpm = currUsableMinRpm;
-            int maxRpm = currUsableMaxRpm;
-            if (safeMaxLearnedRpm > 0 && maxRpm > safeMaxLearnedRpm)
+            int minScanSpeedKph = minSpeedKph > nextMinSpeedKph ? minSpeedKph : nextMinSpeedKph;
+            int maxScanSpeedKph = maxSpeedKph < nextMaxSpeedKph ? maxSpeedKph : nextMaxSpeedKph;
+            if (maxScanSpeedKph <= minScanSpeedKph)
             {
-                maxRpm = safeMaxLearnedRpm;
-            }
-
-            curr.LastScanMinRpm = minRpm;
-            curr.LastScanMaxRpm = maxRpm;
-            if (maxRpm <= minRpm)
-            {
-                curr.LastCrossoverSkipReason = "ScanRangeInvalid";
+                curr.LastCrossoverSkipReason = "NoSpeedOverlap";
                 return false;
             }
 
-            int found = 0;
-            bool predictedInRange = false;
-            for (int r = minRpm; r <= maxRpm; r += BinSizeRpm)
+            int minScanRpm = ClampLearnedRpmToSafeCeiling(curr, (int)Math.Round(curr.RatioK * ToMps(minScanSpeedKph)));
+            int maxScanRpm = ClampLearnedRpmToSafeCeiling(curr, (int)Math.Round(curr.RatioK * ToMps(maxScanSpeedKph)));
+            curr.LastScanMinRpm = minScanRpm;
+            curr.LastScanMaxRpm = maxScanRpm;
+
+            int foundSpeedKph = 0;
+            for (int speedKph = minScanSpeedKph; speedKph <= maxScanSpeedKph; speedKph += 1)
             {
-                double aCurr = curr.GetCurveAccel(r);
-                if (!IsFinite(aCurr))
+                double aCurr = curr.GetCurveAccelAtSpeed(speedKph);
+                double aNext = next.GetCurveAccelAtSpeed(speedKph);
+                if (!IsFinite(aCurr) || !IsFinite(aNext))
                 {
                     continue;
                 }
 
-                double r2 = r * (next.RatioK / curr.RatioK);
-                int nextRpm = (int)Math.Round(r2);
-                bool nextRpmInRange = nextRpm >= (nextUsableMinRpm - BinSizeRpm) && nextRpm <= (nextUsableMaxRpm + BinSizeRpm);
-                if (!nextRpmInRange)
-                {
-                    continue;
-                }
-
-                predictedInRange = true;
-                double aNext = next.GetCurveAccel(nextRpm);
-                if (!IsFinite(aNext))
-                {
-                    aNext = next.GetCurveAccelAtNearestBin(nextRpm, 2);
-                }
-
-                if (!IsFinite(aNext))
-                {
-                    continue;
-                }
-
+                curr.LastPredictedNextRpmInRange = true;
                 if (aNext >= (aCurr + CrossoverMarginMps2))
                 {
-                    found = r;
+                    foundSpeedKph = speedKph;
                     break;
                 }
             }
 
-            curr.LastPredictedNextRpmInRange = predictedInRange;
-
-            if (found <= 0)
+            if (foundSpeedKph <= 0)
             {
-                if (TryBuildHighestPairFallback(stack, sourceGear, curr, minRpm, maxRpm, safeMaxLearnedRpm, out int fallbackRpm))
-                {
-                    found = fallbackRpm;
-                    curr.LastCrossoverCandidateRpm = found;
-                    curr.CrossoverInsufficientData = false;
-                    curr.CrossoverRpm = found;
-                    curr.PushCrossoverCandidate(found, StableCrossoverBufferSize);
-                    curr.LastCrossoverSkipReason = "SolvedFallbackHighestPair";
-
-                    if (curr.TryGetStableLearnedRpm(StableCrossoverToleranceRpm, StableCrossoverMinSamples, out stableLearnedRpm))
-                    {
-                        stableLearnedRpm = ClampLearnedRpmToSafeCeiling(curr, stableLearnedRpm);
-                        curr.LearnedRpm = stableLearnedRpm;
-                        curr.LastCrossoverSkipReason = "StableLearned(FallbackHighestPair)";
-                        return stableLearnedRpm > 0;
-                    }
-
-                    curr.LastCrossoverSkipReason = "AwaitingStability(FallbackHighestPair)";
-                    return false;
-                }
-
-                curr.LastCrossoverCandidateRpm = 0;
-                curr.LastCrossoverSkipReason = predictedInRange ? "NoCrossoverFound" : "PredictedNextRpmOutOfRange";
+                curr.LastCrossoverSkipReason = curr.LastPredictedNextRpmInRange ? "NoCrossoverYet" : "MissingOverlappingBins";
                 return false;
             }
 
-            found = ClampLearnedRpmToSafeCeiling(curr, found);
-            curr.LastCrossoverCandidateRpm = found;
+            int candidateRpm = (int)Math.Round(curr.RatioK * ToMps(foundSpeedKph));
+            candidateRpm = ClampLearnedRpmToSafeCeiling(curr, candidateRpm);
+            if (candidateRpm <= 0)
+            {
+                curr.LastCrossoverSkipReason = "CandidateOutOfBounds";
+                return false;
+            }
 
+            curr.LastCrossoverCandidateRpm = candidateRpm;
             curr.CrossoverInsufficientData = false;
-            curr.CrossoverRpm = found;
-            curr.PushCrossoverCandidate(found, StableCrossoverBufferSize);
-            curr.LastCrossoverSkipReason = "Solved";
+            curr.CrossoverRpm = candidateRpm;
+            curr.PushCrossoverCandidate(candidateRpm, StableCrossoverBufferSize);
 
-            if (curr.TryGetStableLearnedRpm(StableCrossoverToleranceRpm, StableCrossoverMinSamples, out stableLearnedRpm))
+            if (!curr.TryGetStableLearnedRpm(StableCrossoverToleranceRpm, StableCrossoverMinSamples, out int solvedRpm))
             {
-                stableLearnedRpm = ClampLearnedRpmToSafeCeiling(curr, stableLearnedRpm);
-                curr.LearnedRpm = stableLearnedRpm;
-                curr.LastCrossoverSkipReason = "StableLearned(Crossover)";
-                return stableLearnedRpm > 0;
+                curr.LastCrossoverSkipReason = "AwaitingStability";
+                return false;
             }
 
-            curr.LastCrossoverSkipReason = "AwaitingStability";
-            return false;
-        }
+            solvedRpm = ClampLearnedRpmToSafeCeiling(curr, solvedRpm);
+            if (solvedRpm <= 0)
+            {
+                curr.LastCrossoverSkipReason = "StableOutOfBounds";
+                return false;
+            }
 
-        private bool TryBuildHighestPairFallback(StackRuntime stack, int sourceGear, GearRuntime current, int scanMinRpm, int scanMaxRpm, int safeMaxLearnedRpm, out int fallbackRpm)
-        {
-            fallbackRpm = 0;
-            if (!IsHighestNormalUpshiftPair(stack, sourceGear))
+            stableLearnedRpm = solvedRpm;
+            curr.LastCrossoverSkipReason = "StableSolved";
+
+            if (!publishLearned)
             {
                 return false;
             }
 
-            if (current.AcceptedPullCount < HighestPairFallbackPullsMin || !current.LastCurrentCurveValid || !current.LastCurrentKValid || !current.LastNextKValid)
-            {
-                return false;
-            }
-
-            int boundedMax = scanMaxRpm;
-            if (safeMaxLearnedRpm > 0 && (boundedMax <= 0 || boundedMax > safeMaxLearnedRpm))
-            {
-                boundedMax = safeMaxLearnedRpm;
-            }
-
-            if (boundedMax <= scanMinRpm)
-            {
-                return false;
-            }
-
-            fallbackRpm = boundedMax - HighestPairFallbackSafetyMarginRpm;
-            if (fallbackRpm < scanMinRpm)
-            {
-                fallbackRpm = scanMinRpm;
-            }
-
-            fallbackRpm = ClampLearnedRpmToSafeCeiling(current, fallbackRpm);
-            return fallbackRpm > 0;
-        }
-
-        private bool IsHighestNormalUpshiftPair(StackRuntime stack, int sourceGear)
-        {
-            int highestForwardGearWithData = 0;
-            for (int gear = 1; gear <= GearCount; gear++)
-            {
-                var g = stack.Gears[gear - 1];
-                if (g.AcceptedPullCount > 0 || g.HasCoverage || g.HasValidRatio || g.SourceGearRedlineRpm > 0)
-                {
-                    highestForwardGearWithData = gear;
-                }
-            }
-
-            if (highestForwardGearWithData < 2)
-            {
-                return false;
-            }
-
-            return sourceGear == (highestForwardGearWithData - 1);
+            bool changed = curr.PublishLearnedRpm(solvedRpm);
+            return changed;
         }
 
         private int ClampLearnedRpmToSafeCeiling(GearRuntime gearData, int rpm)
@@ -775,12 +580,12 @@ namespace LaunchPlugin
             }
 
             int safeMax = gearData.GetCrossoverUpperRpmCeiling(SafeLearnedRpmHeadroomRpm);
-            if (safeMax <= 0)
+            if (safeMax > 0 && rpm > safeMax)
             {
-                return rpm;
+                rpm = safeMax;
             }
 
-            return rpm > safeMax ? safeMax : rpm;
+            return rpm < AbsoluteMinLearnRpm ? 0 : rpm;
         }
 
         private bool DetectArtifactReset(bool hasValidSessionTime, double sessionTimeSec, int gear, int rpm, double speedMps, out string reason)
@@ -896,6 +701,21 @@ namespace LaunchPlugin
             return runtime;
         }
 
+        private static int ToSpeedKph(double speedMps)
+        {
+            if (!IsFinite(speedMps) || speedMps < 0.0)
+            {
+                return 0;
+            }
+
+            return (int)Math.Round(speedMps * 3.6);
+        }
+
+        private static double ToMps(int speedKph)
+        {
+            return speedKph / 3.6;
+        }
+
         private static bool IsFinite(double value)
         {
             return !double.IsNaN(value) && !double.IsInfinity(value);
@@ -914,19 +734,14 @@ namespace LaunchPlugin
             _samplingLearnMinRpm = 0;
             _samplingCaptureMinRpm = 0;
             _samplingLastObservedRpm = 0;
-            _samplingPreShiftRpm = 0;
             _samplingPeakAccel = 0.0;
             _samplingPeakRpm = 0;
             _samplingRedlineRpm = 0;
             _samplingValidCurvePoints = 0;
             _samplingLimiterHoldActive = false;
             _samplingLimiterHoldStartedSec = double.NaN;
-            _samplingThrottleDipStartedSec = double.NaN;
             _samplingBrakeActiveStartedSec = double.NaN;
             _samplingBrakeActiveTiming = false;
-            _samplingPendingUpshiftGrace = false;
-            _samplingUpshiftGraceUntilSec = double.NaN;
-            _samplingGraceSource = string.Empty;
         }
 
         private void CopyTick(ShiftAssistLearningTick tick)
@@ -1002,15 +817,11 @@ namespace LaunchPlugin
             private readonly List<double> _ratioSamples = new List<double>();
             private readonly List<int> _recentCrossoverCandidates = new List<int>();
 
-            public int AcceptedPullCount { get; set; }
-            public int LearnedRpm { get; set; }
-            public int LastCapturedPeakRpm { get; private set; }
-            public bool RequireRpmReset { get; private set; }
+            public int UsefulSampleCount { get; private set; }
+            public int LearnedRpm { get; private set; }
             public double RatioK { get; private set; }
             public bool HasValidRatio { get; private set; }
             public bool HasCoverage { get; private set; }
-            public int MinObservedRpm { get; private set; }
-            public int MaxObservedRpm { get; private set; }
             public int SourceGearRedlineRpm { get; private set; }
             public int CrossoverRpm { get; set; }
             public bool CrossoverInsufficientData { get; set; }
@@ -1026,7 +837,12 @@ namespace LaunchPlugin
 
             public void AddCurveSample(int rpm, double speedMps, double accelMps2, int redlineRpmForGear)
             {
-                if (rpm <= 0 || rpm > MaxPlausibleEngineRpm || !IsPlausibleAccel(accelMps2))
+                if (rpm <= 0 || rpm > MaxPlausibleEngineRpm || !IsPlausibleAccel(accelMps2) || accelMps2 < MinUsefulAccelMps2)
+                {
+                    return;
+                }
+
+                if (!IsFinite(speedMps) || speedMps < MinMovementMps)
                 {
                     return;
                 }
@@ -1036,9 +852,13 @@ namespace LaunchPlugin
                     SourceGearRedlineRpm = redlineRpmForGear;
                 }
 
-                bool rpmPlausibleForBounds = IsRpmPlausibleForBounds(rpm, redlineRpmForGear);
+                if (!IsRpmPlausibleForBounds(rpm, redlineRpmForGear))
+                {
+                    return;
+                }
 
-                int idx = GetBinIndex(rpm);
+                int speedKph = ToSpeedKph(speedMps);
+                int idx = GetBinIndex(speedKph);
                 if (!_bins.TryGetValue(idx, out BinRuntime bin) || bin == null)
                 {
                     bin = new BinRuntime();
@@ -1046,30 +866,15 @@ namespace LaunchPlugin
                 }
 
                 bin.Add(accelMps2);
+                UsefulSampleCount++;
 
-                if (rpmPlausibleForBounds)
+                double ratio = rpm / speedMps;
+                if (IsFinite(ratio) && ratio > 0.0)
                 {
-                    if (MinObservedRpm <= 0 || rpm < MinObservedRpm)
+                    _ratioSamples.Add(ratio);
+                    if (_ratioSamples.Count > 400)
                     {
-                        MinObservedRpm = rpm;
-                    }
-
-                    if (rpm > MaxObservedRpm)
-                    {
-                        MaxObservedRpm = rpm;
-                    }
-                }
-
-                if (speedMps >= MinMovementMps)
-                {
-                    double ratio = rpm / speedMps;
-                    if (IsFinite(ratio) && ratio > 0.0)
-                    {
-                        _ratioSamples.Add(ratio);
-                        if (_ratioSamples.Count > 400)
-                        {
-                            _ratioSamples.RemoveAt(0);
-                        }
+                        _ratioSamples.RemoveAt(0);
                     }
                 }
 
@@ -1077,14 +882,14 @@ namespace LaunchPlugin
                 RefreshRatio();
             }
 
-            public int GetBinIndex(int rpm)
+            public int GetBinIndex(int speedKph)
             {
-                if (rpm <= 0)
+                if (speedKph <= 0)
                 {
                     return 0;
                 }
 
-                return rpm / BinSizeRpm;
+                return speedKph / SpeedBinWidthKph;
             }
 
             public int GetBinCount(int binIndex)
@@ -1097,9 +902,9 @@ namespace LaunchPlugin
                 return 0;
             }
 
-            public double GetCurveAccel(int rpm)
+            public double GetCurveAccelAtSpeed(int speedKph)
             {
-                int center = GetBinIndex(rpm);
+                int center = GetBinIndex(speedKph);
                 double sum = 0.0;
                 int n = 0;
                 for (int i = center - 1; i <= center + 1; i++)
@@ -1130,12 +935,13 @@ namespace LaunchPlugin
                 return ceiling > AbsoluteMinLearnRpm ? ceiling : AbsoluteMinLearnRpm;
             }
 
-            public bool TryGetUsableCurveRange(out int minRpm, out int maxRpm)
+            public bool TryGetUsableSpeedRange(out int minSpeedKph, out int maxSpeedKph)
             {
-                minRpm = 0;
-                maxRpm = 0;
+                minSpeedKph = 0;
+                maxSpeedKph = 0;
                 int minIndex = int.MaxValue;
                 int maxIndex = int.MinValue;
+                int binsWithData = 0;
 
                 foreach (var kv in _bins)
                 {
@@ -1144,6 +950,7 @@ namespace LaunchPlugin
                         continue;
                     }
 
+                    binsWithData++;
                     if (kv.Key < minIndex)
                     {
                         minIndex = kv.Key;
@@ -1155,52 +962,14 @@ namespace LaunchPlugin
                     }
                 }
 
-                if (minIndex == int.MaxValue || maxIndex == int.MinValue)
+                if (binsWithData < MinBinsWithData || UsefulSampleCount < MinCurveTotalSamples || minIndex == int.MaxValue)
                 {
                     return false;
                 }
 
-                minRpm = minIndex * BinSizeRpm;
-                maxRpm = maxIndex * BinSizeRpm;
-                return maxRpm > minRpm;
-            }
-
-            public double GetCurveAccelAtNearestBin(int rpm, int maxBinDistance)
-            {
-                int center = GetBinIndex(rpm);
-                for (int distance = 0; distance <= maxBinDistance; distance++)
-                {
-                    int lower = center - distance;
-                    int upper = center + distance;
-
-                    if (_bins.TryGetValue(lower, out BinRuntime lowerBin) && lowerBin != null && lowerBin.Count >= MinBinSamples)
-                    {
-                        return lowerBin.Median;
-                    }
-
-                    if (upper != lower && _bins.TryGetValue(upper, out BinRuntime upperBin) && upperBin != null && upperBin.Count >= MinBinSamples)
-                    {
-                        return upperBin.Median;
-                    }
-                }
-
-                return double.NaN;
-            }
-
-            private bool IsRpmPlausibleForBounds(int rpm, int redlineRpmForGear)
-            {
-                if (rpm <= 0 || rpm > MaxPlausibleEngineRpm)
-                {
-                    return false;
-                }
-
-                int referenceRedline = redlineRpmForGear > 0 ? redlineRpmForGear : SourceGearRedlineRpm;
-                if (referenceRedline > 0 && rpm > (referenceRedline + RedlinePlausibilityPaddingRpm))
-                {
-                    return false;
-                }
-
-                return true;
+                minSpeedKph = minIndex * SpeedBinWidthKph;
+                maxSpeedKph = (maxIndex + 1) * SpeedBinWidthKph;
+                return maxSpeedKph > minSpeedKph;
             }
 
             public void PushCrossoverCandidate(int rpm, int maxSamples)
@@ -1255,17 +1024,34 @@ namespace LaunchPlugin
                 return learnedRpm > 0;
             }
 
+            public bool PublishLearnedRpm(int rpm)
+            {
+                if (rpm <= 0)
+                {
+                    return false;
+                }
+
+                if (LearnedRpm == rpm)
+                {
+                    return false;
+                }
+
+                LearnedRpm = rpm;
+                return true;
+            }
+
+
             public void Reset()
             {
                 _bins.Clear();
                 _ratioSamples.Clear();
-                AcceptedPullCount = 0;
+                _recentCrossoverCandidates.Clear();
+                UsefulSampleCount = 0;
                 LearnedRpm = 0;
-                LastCapturedPeakRpm = 0;
-                RequireRpmReset = false;
                 RatioK = 0.0;
                 HasValidRatio = false;
                 HasCoverage = false;
+                SourceGearRedlineRpm = 0;
                 CrossoverRpm = 0;
                 CrossoverInsufficientData = false;
                 LastCrossoverCandidateRpm = 0;
@@ -1277,30 +1063,22 @@ namespace LaunchPlugin
                 LastScanMaxRpm = 0;
                 LastPredictedNextRpmInRange = false;
                 LastCrossoverSkipReason = string.Empty;
-                MinObservedRpm = 0;
-                MaxObservedRpm = 0;
-                SourceGearRedlineRpm = 0;
-                _recentCrossoverCandidates.Clear();
             }
 
-            public void SetReArmRequired(int peakRpm)
+            private bool IsRpmPlausibleForBounds(int rpm, int redlineRpmForGear)
             {
-                LastCapturedPeakRpm = peakRpm > 0 ? peakRpm : 0;
-                RequireRpmReset = LastCapturedPeakRpm > 0;
-            }
-
-            public void TryClearReArmReset(int rpm, int reArmRpmDrop)
-            {
-                if (!RequireRpmReset || LastCapturedPeakRpm <= 0)
+                if (rpm <= 0 || rpm > MaxPlausibleEngineRpm)
                 {
-                    return;
+                    return false;
                 }
 
-                int reArmThreshold = LastCapturedPeakRpm - reArmRpmDrop;
-                if (rpm <= reArmThreshold)
+                int referenceRedline = redlineRpmForGear > 0 ? redlineRpmForGear : SourceGearRedlineRpm;
+                if (referenceRedline > 0 && rpm > (referenceRedline + RedlinePlausibilityPaddingRpm))
                 {
-                    RequireRpmReset = false;
+                    return false;
                 }
+
+                return true;
             }
 
             private void RefreshCoverage()
@@ -1314,7 +1092,7 @@ namespace LaunchPlugin
                     }
                 }
 
-                HasCoverage = withData >= MinBinsWithData;
+                HasCoverage = withData >= MinBinsWithData && UsefulSampleCount >= MinCurveTotalSamples;
             }
 
             private void RefreshRatio()
@@ -1322,6 +1100,7 @@ namespace LaunchPlugin
                 if (_ratioSamples.Count < MinRatioSamples)
                 {
                     HasValidRatio = false;
+                    RatioK = 0.0;
                     return;
                 }
 
@@ -1362,7 +1141,7 @@ namespace LaunchPlugin
             public void Add(double accelMps2)
             {
                 _accel.Add(accelMps2);
-                if (_accel.Count > 60)
+                if (_accel.Count > 80)
                 {
                     _accel.RemoveAt(0);
                 }
