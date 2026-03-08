@@ -82,7 +82,7 @@ namespace LaunchPlugin
         private const int MinBinsWithData = 4;
         private const int MinCurveTotalSamples = 30;
         private const int MinRatioSamples = 12;
-        private const double MinUsefulAccelMps2 = 0.25;
+        private const double MinUsefulAccelMps2 = 0.15;
         private const double MaxPlausibleAccelMps2 = 30.0;
         private const int StableCrossoverToleranceRpm = 60;
         private const int StableCrossoverBufferSize = 5;
