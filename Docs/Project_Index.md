@@ -1,6 +1,6 @@
 # Project Index
 
-Validated against commit: cd7b02a
+Validated against commit: dce8db8
 Last updated: 2026-03-07
 Branch: work
 
@@ -8,14 +8,16 @@ Branch: work
 LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch instrumentation, fuel strategy and planning, pit-cycle analytics, rejoin support, Shift Assist cueing, messaging, and multi-dash visibility coordination.
 
 ## Codex read/start order
-1. Start with `Project_Index.md`.
+1. If present at repo root, read `../AGENTS.md` as the thin agent entry point, then start with `Project_Index.md`.
 2. Read `CODEX_CONTRACT.txt` for mandatory engineering policy.
-3. Read the relevant `Subsystems/*.md` files before editing affected areas.
-4. Check `RepoStatus.md` for the current validated repo/doc state.
-5. Use `Code_Snapshot.md` only for orientation when needed; it is not canonical if it conflicts with the docs above.
-6. Follow the analysis-first workflow and reusable task framing in `CODEX_TASK_TEMPLATE.txt`.
+3. Use `Architecture_Guardrails.md` for subsystem boundaries and ownership guidance.
+4. Read the relevant `Subsystems/*.md` files before editing affected areas.
+5. Check `RepoStatus.md` for the current validated repo/doc state.
+6. Use `Code_Snapshot.md` only for orientation when needed; it is not canonical if it conflicts with the docs above.
+7. Follow the analysis-first workflow and reusable task framing in `CODEX_TASK_TEMPLATE.txt`.
 
 ## Start here (canonical docs)
+- [../AGENTS.md](../AGENTS.md) - root-level agent pointer into the canonical docs workflow.
 - [CODEX_CONTRACT.txt](CODEX_CONTRACT.txt) - mandatory Codex/global engineering policy.
 - [Architecture_Guardrails.md](Architecture_Guardrails.md) - practical architecture boundaries and subsystem ownership guidance.
 - [CODEX_TASK_TEMPLATE.txt](CODEX_TASK_TEMPLATE.txt) - reusable task skeleton for analysis-first Codex work.
@@ -47,6 +49,6 @@ LalaLaunchPlugin is a SimHub plugin for iRacing that provides launch instrumenta
 | Dash integration | Main/message/overlay visibility, screen state exports, and global dark-mode controls (`LalaLaunch.Dash.DarkMode.*`) | [Subsystems/Dash_Integration.md](Subsystems/Dash_Integration.md) |
 
 ## Freshness
-- Validated against commit: cd7b02a
+- Validated against commit: dce8db8
 - Date: 2026-03-07
 - Branch: work
