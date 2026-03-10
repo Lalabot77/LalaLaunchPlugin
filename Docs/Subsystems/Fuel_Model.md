@@ -141,7 +141,7 @@ Using current fuel + projected laps + burns (push/stable/save), compute:
 - Liters needed vs end (`Fuel.Pit.TotalNeededToEnd`), liters to add (`Fuel.Pit.NeedToAdd`).
 - “Will add” litres based on MFD request clamped to tank space.
 - Required stops by capacity vs by plan, and final stops required to end.
-- **Stops-required fields:** `PitStopsRequiredByFuel` is computed from liters short ÷ effective tank capacity. `PitStopsRequiredByPlan` prefers the strategy-required stop count when available, otherwise falls back to the fuel-only calculation. `Pit.StopsRequiredToEnd` mirrors the plan-first value for dashboards.
+- **Stops-required fields:** `PitStopsRequiredByFuel` is computed from liters short ÷ effective tank capacity. `PitStopsRequiredByPlan` mirrors driver-selected strategy planning (`Auto/No Stop/Single Stop/Multi Stop`) while retaining a separate raw calculated stop figure in `LalaLaunch.Strategy.CalculatedStops`. `Pit.StopsRequiredToEnd` mirrors the plan-first value for dashboards.
 - **Stint burn target (current tank only):** a per-lap target burn that respects the configured pit-in reserve (percentage of one lap’s stable burn). The output is banded (`SAVE`/`PUSH`/`HOLD`/`OKAY`) to guide the current stint without implying long-term strategy.
 
 ### 7) Pit window state machine (continuous)
@@ -198,3 +198,11 @@ Reset contract (what gets cleared) is canonical in `FuelProperties_Spec.md`.
 
 ## Failure modes / known edge cases
 - **Replay sessions:** timer behaviour and lap validity may differ; projection/after-zero source switching should be validated with logs.
+
+
+### Start-of-race strategy exports
+- `LalaLaunch.Strategy.Selected` / `SelectedText`: selected strategy mode (0 No Stop, 1 Single Stop, 2 Multi Stop, 3 Auto).
+- `LalaLaunch.Strategy.PlannedStops`: stop plan after override.
+- `LalaLaunch.Strategy.CalculatedStops`: raw capacity-based stops from current fuel and forecast requirement (clamped >= 0, rounded 1dp).
+- `LalaLaunch.Strategy.TotalFuelNeeded`: live fuel needed to finish from now.
+- `LalaLaunch.Strategy.FuelDeltaToEnd`: current fuel minus live fuel needed to finish.

@@ -140,7 +140,8 @@ Contractual flow: `FuelTab_SourceFlowNotes.md`.
 Using planner-selected lap time + fuel per lap:
 - Total fuel required to finish.
 - Fuel delta (surplus/deficit).
-- Number of stops required by plan.
+- Number of stops required by plan (after applying the selected Pit Strategy override).
+- Raw calculated stop count remains separate from selected strategy for visibility.
 - Pit add requirement.
 
 These values are **planner-only** and intentionally decoupled from live volatility.

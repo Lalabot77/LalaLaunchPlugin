@@ -26,8 +26,17 @@ namespace LaunchPlugin
         public int? RaceMinutes { get; set; }   // when Type == TimeLimited
         public int? RaceLaps { get; set; }   // when Type == LapLimited
 
-        // Strategy bits
-        public bool MandatoryStopRequired { get; set; }
+        // Strategy bits: 0=No Stop, 1=Single Stop, 2=Multi Stop, 3=Auto
+        public int PitStrategyMode { get; set; } = 3;
+
+        // Legacy compatibility for older preset JSON and legacy preset editor checkbox.
+        // true -> Single Stop, false -> Auto.
+        [JsonProperty("MandatoryStopRequired", NullValueHandling = NullValueHandling.Ignore)]
+        public bool MandatoryStopRequired
+        {
+            get { return PitStrategyMode == 1; }
+            set { PitStrategyMode = value ? 1 : 3; }
+        }
 
         // Tyre change time (seconds). null => leave current UI value unchanged.
         public double? TireChangeTimeSec { get; set; }
