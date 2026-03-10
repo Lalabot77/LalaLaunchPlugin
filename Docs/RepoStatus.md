@@ -1,6 +1,6 @@
 # Repository status
 
-Validated against commit: f1d051b
+Validated against commit: ea90c75
 Last updated: 2026-03-10
 Branch: work
 
@@ -9,19 +9,20 @@ Branch: work
 - No Git remote is configured in this checkout (`git remote -v` returns empty).
 
 ## Documentation sync status (requested set)
-- `Docs/Subsystems/Fuel_Model.md` updated for strategy-selected vs calculated stop separation and new strategy exports.
-- `Docs/Subsystems/Fuel_Planner_Tab.md` updated for Pit Strategy planner behavior (selected override vs raw calculation).
-- `Docs/SimHubParameterInventory.md` updated with `LalaLaunch.Strategy.*` export contract entries.
-- `Docs/Plugin_UI_Tooltips.md` updated for Fuel tab Pit Strategy selector tooltip text.
+- `Docs/Subsystems/Fuel_Model.md` updated with `FuelDeltaToEnd` (raw) vs `FuelDeltaPlanned` (strategy-aware) semantics.
+- `Docs/SimHubParameterInventory.md` updated with `LalaLaunch.Strategy.FuelDeltaPlanned` in the strategy export contract.
+- `Docs/Plugin_UI_Tooltips.md` updated for Preset editor Pit Strategy selector tooltip wording.
 - `Docs/Project_Index.md` reviewed; no wording changes required for this task.
 - `Docs/SimHubLogMessages.md` reviewed; no wording changes required for this task (no new logs).
 
 ## Delivery status highlights
-- Fuel tab mandatory-stop checkbox was replaced by a `Pit Strategy` selector with modes `Auto`, `No Stop`, `Single Stop`, and `Multi Stop`.
-- Planner/preset/profile persistence now stores pit strategy as numeric mode (`0/1/2/3`) and defaults safely to `Auto` when missing.
-- Legacy boolean `MandatoryStopRequired` profile/preset data remains load-compatible and maps to strategy (`true -> Single Stop`, `false -> Auto`).
-- Planner stop output now applies selected strategy override while keeping calculated-stop math independent.
-- Runtime now exports start-of-race strategy fields under `LalaLaunch.Strategy.*` for selected mode, planned stops, calculated stops, total fuel needed, and fuel delta to end.
+- Added runtime export `LalaLaunch.Strategy.FuelDeltaPlanned`.
+- `LalaLaunch.Strategy.FuelDeltaToEnd` remains unchanged (`CurrentFuel - TotalFuelNeeded`).
+- `FuelDeltaPlanned` behavior is conservative by strategy mode:
+  - `Single Stop`: `(CurrentFuel + PlannedSingleStopRefuel) - TotalFuelNeeded` using normalized/clamped `Pit_WillAdd` first.
+  - `No Stop`, `Multi Stop`, `Auto`: current-fuel-based delta (`CurrentFuel - TotalFuelNeeded`).
+- Preset editor now uses a direct 4-mode `Pit Strategy` selector (Auto/No Stop/Single Stop/Multi Stop) instead of legacy mandatory-stop checkbox semantics.
+- Legacy preset/profile JSON compatibility remains preserved through `MandatoryStopRequired` mapping in persisted models.
 
 ## Notes
 - `Docs/Code_Snapshot.md` remains non-canonical orientation-only documentation.

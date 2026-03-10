@@ -169,7 +169,7 @@ Branch: work
 - L149: Plan for a fixed race duration (minutes).
 - L156: Total race duration in minutes.
 - L176: Total race distance in laps.
-- L199: Include at least one pit stop in the plan.
+- L199: Preset strategy mode. Auto uses calculated stops; No Stop forces 0; Single Stop forces 1; Multi Stop forces at least 2.
 - L206: Additional stop time when changing tyres (sec).
 - L212: Limit usable tank size for the preset (L).
 - L218: Choose whether contingency is in laps or litres.

@@ -205,4 +205,5 @@ Reset contract (what gets cleared) is canonical in `FuelProperties_Spec.md`.
 - `LalaLaunch.Strategy.PlannedStops`: stop plan after override.
 - `LalaLaunch.Strategy.CalculatedStops`: raw capacity-based stops from current fuel and forecast requirement (clamped >= 0, rounded 1dp).
 - `LalaLaunch.Strategy.TotalFuelNeeded`: live fuel needed to finish from now.
-- `LalaLaunch.Strategy.FuelDeltaToEnd`: current fuel minus live fuel needed to finish.
+- `LalaLaunch.Strategy.FuelDeltaToEnd`: current fuel minus live fuel needed to finish (raw truth, no strategy add assumption).
+- `LalaLaunch.Strategy.FuelDeltaPlanned`: strategy-aware planned delta; currently only `Single Stop` adds planned refuel (`Pit_WillAdd`) before subtracting fuel needed.

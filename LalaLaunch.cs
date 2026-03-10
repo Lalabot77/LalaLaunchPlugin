@@ -606,6 +606,7 @@ namespace LaunchPlugin
         public double Strategy_CalculatedStops { get; private set; }
         public double Strategy_TotalFuelNeeded { get; private set; }
         public double Strategy_FuelDeltaToEnd { get; private set; }
+        public double Strategy_FuelDeltaPlanned { get; private set; }
         private bool _isRefuelSelected = true;
         private bool _isTireChangeSelected = true;
         public double LiveCarMaxFuel { get; private set; }
@@ -2899,6 +2900,7 @@ namespace LaunchPlugin
                 Strategy_CalculatedStops = 0;
                 Strategy_TotalFuelNeeded = 0;
                 Strategy_FuelDeltaToEnd = 0;
+                Strategy_FuelDeltaPlanned = 0;
 
                 Fuel_Delta_LitresCurrent = 0;
                 Fuel_Delta_LitresPlan = 0;
@@ -3100,6 +3102,22 @@ namespace LaunchPlugin
                 Strategy_CalculatedStops = Math.Round(Math.Max(0.0, rawCalculatedStops), 1);
                 Strategy_TotalFuelNeeded = litresRequiredToFinish;
                 Strategy_FuelDeltaToEnd = currentFuel - litresRequiredToFinish;
+
+                double plannedSingleStopRefuel = Pit_WillAdd;
+                if (plannedSingleStopRefuel <= 0.0)
+                {
+                    plannedSingleStopRefuel = Math.Max(0.0, pitWindowRequestedAdd);
+                }
+
+                switch (selectedStrategy)
+                {
+                    case 1:
+                        Strategy_FuelDeltaPlanned = (currentFuel + plannedSingleStopRefuel) - litresRequiredToFinish;
+                        break;
+                    default:
+                        Strategy_FuelDeltaPlanned = currentFuel - litresRequiredToFinish;
+                        break;
+                }
 
                 PitStopsRequiredByFuel = Math.Max(0, stopsRequiredByFuel);
                 PitStopsRequiredByPlan = Strategy_PlannedStops;
@@ -4345,6 +4363,7 @@ namespace LaunchPlugin
             AttachCore("LalaLaunch.Strategy.CalculatedStops", () => Strategy_CalculatedStops);
             AttachCore("LalaLaunch.Strategy.TotalFuelNeeded", () => Strategy_TotalFuelNeeded);
             AttachCore("LalaLaunch.Strategy.FuelDeltaToEnd", () => Strategy_FuelDeltaToEnd);
+            AttachCore("LalaLaunch.Strategy.FuelDeltaPlanned", () => Strategy_FuelDeltaPlanned);
             AttachCore("Fuel.ProjectionLapTime_Stable", () => ProjectionLapTime_Stable);
             AttachCore("Fuel.ProjectionLapTime_StableSource", () => ProjectionLapTime_StableSource);
             AttachCore("Fuel.Live.ProjectedDriveSecondsRemaining", () => LiveProjectedDriveSecondsRemaining);
@@ -11601,6 +11620,7 @@ namespace LaunchPlugin
             Strategy_CalculatedStops = 0;
             Strategy_TotalFuelNeeded = 0;
             Strategy_FuelDeltaToEnd = 0;
+            Strategy_FuelDeltaPlanned = 0;
 
             // --- Additional dashboard-facing fuel/projection outputs that must not latch across resets ---
             // (These were listed in SessionResetIssues.docx)
