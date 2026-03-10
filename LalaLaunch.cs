@@ -3087,7 +3087,7 @@ namespace LaunchPlugin
                         plannedStops = 1;
                         break;
                     case 2:
-                        plannedStops = Math.Max(2, stopsRequiredByFuel);
+                        plannedStops = Math.Max(0, stopsRequiredByFuel);
                         break;
                     default:
                         plannedStops = strategyRequiredStops > 0 ? strategyRequiredStops : stopsRequiredByFuel;
