@@ -227,6 +227,9 @@ Reset semantics are shared with the Fuel Model and documented centrally in:
 
 ## Failure modes / edge cases
 
+- **No Stop underfuelled outcomes**
+  - If `No Stop` is selected when required fuel exceeds start-capacity, planner output stays internally consistent and explicitly reports the strategy as underfuelled/impossible rather than mixing zero-stop summary with pit-path breakdown timing.
+
 - **Low confidence live data**
   - Live values may appear but `IsFuelReady == false`.
   - Planner must not auto-apply.

@@ -4746,7 +4746,7 @@ namespace LaunchPlugin
         bool forceSingleStop = selectedStrategy == (int)PitStrategyMode.SingleStop;
         bool forceMultiStop = selectedStrategy == (int)PitStrategyMode.MultiStop;
 
-        if (result.TotalFuel <= maxFuelLimit && (selectedStrategy == (int)PitStrategyMode.Auto || forceNoStop))
+        if (result.TotalFuel <= maxFuelLimit && (selectedStrategy == (int)PitStrategyMode.Auto || forceNoStop || forceMultiStop))
         {
             result.Stops = 0;
             result.FirstStintFuel = result.TotalFuel;
@@ -4794,7 +4794,7 @@ namespace LaunchPlugin
             LastLapsLappedExpected = lappedEventsNoStop.Count;
             return result;
         }
-        else if (result.TotalFuel <= maxFuelLimit && (forceSingleStop || forceMultiStop))
+        else if (result.TotalFuel <= maxFuelLimit && forceSingleStop)
         {
             // Base components
             double lane = pitLaneTimeLoss;
@@ -4896,6 +4896,26 @@ namespace LaunchPlugin
             return result;
         }
 
+        if (forceNoStop)
+        {
+            result.Stops = 0;
+            result.FirstStintFuel = Math.Round(maxFuelLimit, 1);
+
+            var bodyForcedNoStop = new StringBuilder();
+            bodyForcedNoStop.AppendLine($"STINT 1:  {totalLaps:F0} Laps   Est {TimeSpan.FromSeconds(totalLaps * playerPaceSeconds):hh\:mm\:ss}   Start {result.FirstStintFuel:F1} litres");
+            bodyForcedNoStop.AppendLine();
+            bodyForcedNoStop.AppendLine($"NO STOP FORCED: Required {result.TotalFuel:F1}L exceeds max start fuel {maxFuelLimit:F1}L.");
+            bodyForcedNoStop.AppendLine($"UNDERFUELLED: Short by {Math.Max(0.0, result.TotalFuel - maxFuelLimit):F1}L if no pit stop is taken.");
+
+            result.Breakdown = $"Summary:  {totalLaps:F0} Laps  |  No Stop Forced  |  Underfuelled" +
+                               Environment.NewLine + Environment.NewLine +
+                               bodyForcedNoStop.ToString();
+            result.TotalTime = totalLaps * playerPaceSeconds;
+            result.FirstStopTimeLoss = 0.0;
+            LastLapsLappedExpected = 0;
+            return result;
+        }
+
         // --- Logic for races requiring pit stops ---
         // We build the body first, then prepend a one-line Summary header.
         var body = new StringBuilder();
@@ -4913,17 +4933,9 @@ namespace LaunchPlugin
         // Calculate how many stops are required
         result.Stops = (int)Math.Ceiling(fuelNeededFromPits / maxFuelLimit);
 
-        if (forceNoStop)
-        {
-            result.Stops = 0;
-        }
-        else if (forceSingleStop)
+        if (forceSingleStop)
         {
             result.Stops = 1;
-        }
-        else if (forceMultiStop)
-        {
-            result.Stops = Math.Max(2, result.Stops);
         }
 
         // Stint 1 (starting stint)
