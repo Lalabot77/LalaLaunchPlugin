@@ -4931,11 +4931,21 @@ namespace LaunchPlugin
         var lappedEvents = new List<int>(); // for Summary: lap numbers the leader catches you
 
         // Calculate how many stops are required
-        result.Stops = (int)Math.Ceiling(fuelNeededFromPits / maxFuelLimit);
+        int baseStopsRequired = (int)Math.Ceiling(fuelNeededFromPits / maxFuelLimit);
+        result.Stops = baseStopsRequired;
 
+        bool singleStopInfeasible = false;
         if (forceSingleStop)
         {
-            result.Stops = 1;
+            if (baseStopsRequired <= 1)
+            {
+                result.Stops = 1;
+            }
+            else
+            {
+                // Keep truthful feasible stop count; do not claim impossible one-stop completion.
+                singleStopInfeasible = true;
+            }
         }
 
         // Stint 1 (starting stint)
@@ -5114,9 +5124,16 @@ namespace LaunchPlugin
             }
         }
 
+        if (singleStopInfeasible)
+        {
+            body.AppendLine();
+            body.AppendLine($"SINGLE STOP INFEASIBLE: Fuel model requires {baseStopsRequired} stops to finish.");
+        }
+
         // Summary: only include non-empty facts
         var summaryParts = new List<string> { $"{totalLaps:F0} Laps" };
         if (result.Stops > 0) summaryParts.Add($"{result.Stops} Stops");
+        if (singleStopInfeasible) summaryParts.Add($"Single Stop infeasible ({baseStopsRequired} needed)");
         if (lappedEvents.Count > 0) summaryParts.Add($"Lapped on Lap {string.Join(", ", lappedEvents)}");
 
         var summary = "Summary:  " + string.Join(" | ", summaryParts);

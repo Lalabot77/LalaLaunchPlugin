@@ -1,6 +1,6 @@
 # Repository status
 
-Validated against commit: 8e241a2
+Validated against commit: eac472a
 Last updated: 2026-03-10
 Branch: work
 
@@ -9,19 +9,18 @@ Branch: work
 - No Git remote is configured in this checkout (`git remote -v` returns empty).
 
 ## Documentation sync status (requested set)
-- `Docs/Subsystems/Fuel_Planner_Tab.md` updated with explicit forced `No Stop` underfuelled-output consistency behavior.
-- `Docs/Subsystems/Fuel_Model.md` kept aligned with Strategy planned-stop/runtime semantics (no extra wording regressions).
-- `Docs/SimHubParameterInventory.md` kept aligned with Strategy planned-stop semantics and race-start context wording.
-- `Docs/Plugin_UI_Tooltips.md` remains aligned with actual XAML tooltip wording for Multi Stop behavior.
+- `Docs/Subsystems/Fuel_Planner_Tab.md` updated for forced `No Stop` and `Single Stop` infeasible planner edge-case consistency wording.
+- `Docs/Subsystems/Fuel_Model.md` and `Docs/SimHubParameterInventory.md` remain aligned with Strategy.* runtime semantics and race-start context wording.
+- `Docs/Plugin_UI_Tooltips.md` updated to match actual XAML tooltip wording (`Single Stop` targets one stop when feasible; `Multi Stop` does not force an extra stop).
 - `Docs/Project_Index.md` reviewed; no wording changes required for this task.
 
 ## Delivery status highlights
-- Fixed forced `No Stop` planner inconsistency in `FuelCalcs.CalculateSingleStrategy(...)` by handling underfuelled forced-no-stop before entering pit-stop breakdown construction.
-- Planner now returns a consistent explicit no-stop-underfuelled result instead of entering pit-path logic then reporting zero stops.
-- Planner `Multi Stop` behavior no longer forces a minimum of 2 stops when one stop is sufficient.
-- Runtime `Strategy_PlannedStops` / `Fuel.PitStopsRequiredByPlan` remain aligned with intended Multi Stop behavior (no forced extra stop).
-- Preset clone/edit/save flow remains direct `PitStrategyMode` path (no reintroduced legacy coercion).
-- Strategy time-source basis (`CurrentSessionInfo._SessionTime`) and `FuelDeltaPlanned` follow-up behavior remain intact.
+- Fixed WPF strategy selector binding type mismatch by converting ComboBox `Tag` values to real `x:Int32` values in Fuel tab and Presets editor.
+- Fixed planner forced `No Stop` inconsistency by handling underfuelled no-stop intent before pit-stop breakdown path and returning an explicit underfuelled/no-stop result.
+- Fixed forced `Single Stop` infeasible behavior by preventing impossible one-stop claims when model requires more than one stop; planner now stays truthful and internally consistent.
+- Preserved intended `Multi Stop` behavior (no pointless forced extra stop when one stop is sufficient).
+- Runtime strategy path remains intact (`CurrentSessionInfo._SessionTime` basis, `FuelDeltaPlanned` intact, planned stops alignment preserved).
+- Preset clone/edit/save remains on direct `PitStrategyMode` path (no legacy coercion reintroduced).
 
 ## Notes
 - `Docs/Code_Snapshot.md` remains non-canonical orientation-only documentation.

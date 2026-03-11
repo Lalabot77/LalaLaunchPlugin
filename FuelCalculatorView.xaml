@@ -561,16 +561,16 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,6">
                             <TextBlock Text="Pit Strategy" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"
-                                       ToolTip="Driver-selected pit strategy for race planning/start information. Auto uses calculated stops; No Stop forces 0; Single Stop forces 1; Multi Stop follows calculated stop need and does not force an extra stop when one stop is sufficient."/>
+                                       ToolTip="Driver-selected pit strategy for race planning/start information. Auto uses calculated stops; No Stop forces 0; Single Stop targets 1 when feasible; Multi Stop follows calculated stop need and does not force an extra stop when one stop is sufficient."/>
                             <ComboBox Width="170"
                                       VerticalAlignment="Center"
                                       SelectedValuePath="Tag"
                                       SelectedValue="{Binding SelectedPitStrategy, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                      ToolTip="Auto uses calculated stops; No Stop forces 0 planned stops; Single Stop forces 1; Multi Stop follows calculated stop need and does not force an extra stop when one stop is sufficient.">
-                                <ComboBoxItem Content="Auto" Tag="3" />
-                                <ComboBoxItem Content="No Stop" Tag="0" />
-                                <ComboBoxItem Content="Single Stop" Tag="1" />
-                                <ComboBoxItem Content="Multi Stop" Tag="2" />
+                                      ToolTip="Auto uses calculated stops; No Stop forces 0 planned stops; Single Stop targets 1 when feasible; Multi Stop follows calculated stop need and does not force an extra stop when one stop is sufficient.">
+                                <ComboBoxItem Content="Auto"><ComboBoxItem.Tag><x:Int32>3</x:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="No Stop"><ComboBoxItem.Tag><x:Int32>0</x:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="Single Stop"><ComboBoxItem.Tag><x:Int32>1</x:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="Multi Stop"><ComboBoxItem.Tag><x:Int32>2</x:Int32></ComboBoxItem.Tag></ComboBoxItem>
                             </ComboBox>
                         </StackPanel>
 

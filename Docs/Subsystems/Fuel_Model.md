@@ -141,7 +141,7 @@ Using current fuel + projected laps + burns (push/stable/save), compute:
 - Liters needed vs end (`Fuel.Pit.TotalNeededToEnd`), liters to add (`Fuel.Pit.NeedToAdd`).
 - “Will add” litres based on MFD request clamped to tank space.
 - Required stops by capacity vs by plan, and final stops required to end.
-- **Stops-required fields:** `PitStopsRequiredByFuel` is computed from liters short ÷ effective tank capacity. `PitStopsRequiredByPlan` mirrors driver-selected strategy planning (`No Stop=0`, `Single Stop=1`, `Multi Stop` follows calculated need without forcing a second stop, `Auto` uses existing auto/planner path) while retaining a separate raw calculated stop figure in `LalaLaunch.Strategy.CalculatedStops`. `Pit.StopsRequiredToEnd` mirrors the plan-first value for dashboards.
+- **Stops-required fields:** `PitStopsRequiredByFuel` is computed from liters short ÷ effective tank capacity. `PitStopsRequiredByPlan` mirrors driver-selected strategy planning (`No Stop=0`, `Single Stop` targets one stop when feasible, `Multi Stop` follows calculated need without forcing a second stop, `Auto` uses existing auto/planner path) while retaining a separate raw calculated stop figure in `LalaLaunch.Strategy.CalculatedStops`. `Pit.StopsRequiredToEnd` mirrors the plan-first value for dashboards.
 - **Stint burn target (current tank only):** a per-lap target burn that respects the configured pit-in reserve (percentage of one lap’s stable burn). The output is banded (`SAVE`/`PUSH`/`HOLD`/`OKAY`) to guide the current stint without implying long-term strategy.
 
 ### 7) Pit window state machine (continuous)
