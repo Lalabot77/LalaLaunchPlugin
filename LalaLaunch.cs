@@ -3077,22 +3077,8 @@ namespace LaunchPlugin
                     : 0;
 
                 int selectedStrategy = NormalizeStrategyMode(FuelCalculator?.SelectedPitStrategy ?? 3);
-                int plannedStops;
-                switch (selectedStrategy)
-                {
-                    case 0:
-                        plannedStops = 0;
-                        break;
-                    case 1:
-                        plannedStops = 1;
-                        break;
-                    case 2:
-                        plannedStops = Math.Max(0, stopsRequiredByFuel);
-                        break;
-                    default:
-                        plannedStops = strategyRequiredStops > 0 ? strategyRequiredStops : stopsRequiredByFuel;
-                        break;
-                }
+                // Planner remains authoritative for feasible stop-count outputs.
+                int plannedStops = Math.Max(0, strategyRequiredStops);
 
                 double strategyProjectionLapSeconds = projectionLapSeconds;
                 double strategyFuelPerLap = stableFuelPerLap > 0.0 ? stableFuelPerLap : fuelPerLapForCalc;
