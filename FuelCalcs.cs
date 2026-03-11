@@ -4901,17 +4901,30 @@ namespace LaunchPlugin
             result.Stops = 0;
             result.FirstStintFuel = Math.Round(maxFuelLimit, 1);
 
+            double noStopLaps = totalLaps;
+            if (SelectedRaceType == RaceType.TimeLimited && playerPaceSeconds > 0.0)
+            {
+                // Forced no-stop impossible branch must use a true no-stop assumption,
+                // not a lap count already reduced by stop-time convergence.
+                noStopLaps = Math.Max(1.0, Math.Floor(raceClockSeconds / playerPaceSeconds));
+            }
+
+            double noStopContingencyFuel = IsContingencyInLaps ? (ContingencyValue * fuelPerLap) : ContingencyValue;
+            double noStopTotalFuel = (noStopLaps * fuelPerLap) + noStopContingencyFuel + FormationLapFuelLiters;
+            result.TotalFuel = noStopTotalFuel;
+
             var bodyForcedNoStop = new StringBuilder();
-            bodyForcedNoStop.AppendLine($"STINT 1:  {totalLaps:F0} Laps   Est {TimeSpan.FromSeconds(totalLaps * playerPaceSeconds):hh\:mm\:ss}   Start {result.FirstStintFuel:F1} litres");
+            bodyForcedNoStop.AppendLine($"STINT 1:  {noStopLaps:F0} Laps   Est {TimeSpan.FromSeconds(noStopLaps * playerPaceSeconds):hh\:mm\:ss}   Start {result.FirstStintFuel:F1} litres");
             bodyForcedNoStop.AppendLine();
             bodyForcedNoStop.AppendLine($"NO STOP FORCED: Required {result.TotalFuel:F1}L exceeds max start fuel {maxFuelLimit:F1}L.");
             bodyForcedNoStop.AppendLine($"UNDERFUELLED: Short by {Math.Max(0.0, result.TotalFuel - maxFuelLimit):F1}L if no pit stop is taken.");
 
-            result.Breakdown = $"Summary:  {totalLaps:F0} Laps  |  No Stop Forced  |  Underfuelled" +
+            result.Breakdown = $"Summary:  {noStopLaps:F0} Laps  |  No Stop Forced  |  Underfuelled" +
                                Environment.NewLine + Environment.NewLine +
                                bodyForcedNoStop.ToString();
-            result.TotalTime = totalLaps * playerPaceSeconds;
+            result.TotalTime = noStopLaps * playerPaceSeconds;
             result.FirstStopTimeLoss = 0.0;
+            result.PlayerLaps = noStopLaps;
             LastLapsLappedExpected = 0;
             return result;
         }
