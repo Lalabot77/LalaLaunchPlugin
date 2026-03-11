@@ -559,14 +559,19 @@
                             <ui:TitledSlider Title="Contingency Litres:" Minimum="0" Maximum="20" Value="{Binding ContingencyValue, Mode=TwoWay}" Visibility="{Binding IsContingencyLitres, Converter={StaticResource BooleanToVisibilityConverter}, Mode=OneWay}"
                                              ToolTip="Extra fuel to add as a safety margin (L)." />
                         </StackPanel>
-                        <!-- Pit Strategy: header + checkbox on one line -->
                         <StackPanel Orientation="Horizontal" Margin="0,10,0,6">
-                            <TextBlock Text="Pit Strategy" FontWeight="Bold" VerticalAlignment="Center"/>
-                            <CheckBox Content="Mandatory pit stop required"
-                                Margin="16,0,0,0"
-                                VerticalAlignment="Center"
-                                IsChecked="{Binding MandatoryStopRequired, Mode=TwoWay}"
-                                ToolTip="Force at least one pit stop. Stop time = Drive-Through Loss + Tyre Change Time (if any)."/>
+                            <TextBlock Text="Pit Strategy" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,16,0"
+                                       ToolTip="Driver-selected pit strategy for race planning/start information. Auto uses calculated stops; No Stop forces 0; Single Stop targets 1 when feasible; Multi Stop follows calculated stop need and does not force an extra stop when one stop is sufficient."/>
+                            <ComboBox Width="170"
+                                      VerticalAlignment="Center"
+                                      SelectedValuePath="Tag"
+                                      SelectedValue="{Binding SelectedPitStrategy, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      ToolTip="Auto uses calculated stops; No Stop forces 0 planned stops; Single Stop targets 1 when feasible; Multi Stop follows calculated stop need and does not force an extra stop when one stop is sufficient.">
+                                <ComboBoxItem Content="Auto"><ComboBoxItem.Tag><x:Int32>3</x:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="No Stop"><ComboBoxItem.Tag><x:Int32>0</x:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="Single Stop"><ComboBoxItem.Tag><x:Int32>1</x:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                                <ComboBoxItem Content="Multi Stop"><ComboBoxItem.Tag><x:Int32>2</x:Int32></ComboBoxItem.Tag></ComboBoxItem>
+                            </ComboBox>
                         </StackPanel>
 
                         <!-- Full-width sliders (restored to original single-column layout) -->

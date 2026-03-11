@@ -112,7 +112,7 @@ Branch: work
 - L555: Add extra litres as a safety margin.
 - L558: Number of extra laps of fuel to add.
 - L560: Extra fuel to add as a safety margin (L).
-- L569: Force at least one pit stop. Stop time = Drive-Through Loss + Tyre Change Time (if any).
+- L569: Driver-selected pit strategy for race planning/start information. Select driver strategy intent for race-start displays. Feasible planned stop count remains planner-authoritative.
 - L580: Estimated pit lane loss per stop. Auto selection uses: drive-through loss, then direct pit entry-to-exit time, then the default.
 - L592: Additional stationary time if tyres are changed. Set to 0s for a drive-through-only stop.
 - L606: Reload the planner from the active profile and live session without clearing live samples.
@@ -169,7 +169,7 @@ Branch: work
 - L149: Plan for a fixed race duration (minutes).
 - L156: Total race duration in minutes.
 - L176: Total race distance in laps.
-- L199: Include at least one pit stop in the plan.
+- L199: Preset strategy mode. Select driver strategy intent for race-start displays. Feasible planned stop count remains planner-authoritative.
 - L206: Additional stop time when changing tyres (sec).
 - L212: Limit usable tank size for the preset (L).
 - L218: Choose whether contingency is in laps or litres.

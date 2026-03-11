@@ -1,7 +1,7 @@
 # Repository status
 
-Validated against commit: d5ac562
-Last updated: 2026-03-08
+Validated against commit: 15ee41b
+Last updated: 2026-03-10
 Branch: work
 
 ## Current repo/link status
@@ -9,16 +9,14 @@ Branch: work
 - No Git remote is configured in this checkout (`git remote -v` returns empty).
 
 ## Documentation sync status (requested set)
-- `Docs/Subsystems/Shift_Assist.md` updated to reflect the current crossover solve rule (`a_{g+1}(v) >= a_g(v)` with no fixed positive acceleration margin).
-- `Docs/SimHubParameterInventory.md` reviewed; no wording changes required for this task.
-- `Docs/SimHubLogMessages.md` reviewed; no wording changes required for this task.
-- `Docs/Plugin_UI_Tooltips.md` reviewed; no wording changes required for this task.
+- `Docs/Subsystems/Fuel_Planner_Tab.md` updated to clarify forced `No Stop` underfuelled handling now uses full no-stop race clock basis in time-limited mode.
 - `Docs/Project_Index.md` reviewed; no wording changes required for this task.
 
 ## Delivery status highlights
-- Shift Assist Learning v2 crossover solve no longer applies a fixed +0.10 m/s² adjacent-gear acceleration margin before declaring crossover.
-- Solver now resolves at the first real speed-domain crossover (`aNext >= aCurr`) while preserving existing overlap/ratio validation, rolling stability gating, and safe clamp behavior (`source redline - 200`).
-- No UI, cue logic, audio routing, stack persistence/reset semantics, or fallback-learn behavior changes were introduced.
+- Fixed forced `No Stop` impossible branch in `FuelCalcs.CalculateSingleStrategy(...)` for time-limited races so it no longer reuses stop-time-deducted lap count.
+- Forced no-stop underfuelled output now recomputes no-stop laps and fuel requirement from full no-stop race clock basis, then reports consistent shortfall/breakdown/time values.
+- Feasible planner paths remain unchanged.
+- Runtime strategy exports/time-source fix (`CurrentSessionInfo._SessionTime`) and `FuelDeltaPlanned` behavior remain intact.
 
 ## Notes
 - `Docs/Code_Snapshot.md` remains non-canonical orientation-only documentation.

@@ -20,6 +20,13 @@ namespace LaunchPlugin
         public enum RaceType { LapLimited, TimeLimited }
         public enum TrackCondition { Dry, Wet }
         public enum PlanningSourceMode { Profile, LiveSnapshot }
+        public enum PitStrategyMode
+        {
+            NoStop = 0,
+            SingleStop = 1,
+            MultiStop = 2,
+            Auto = 3
+        }
     public readonly struct FuelTimingSnapshot
     {
         public double RefuelRateLps { get; }
@@ -772,8 +779,7 @@ namespace LaunchPlugin
             if (p.RaceLaps.HasValue) RaceLaps = p.RaceLaps.Value;
         }
 
-        // Mandatory stop
-        MandatoryStopRequired = p.MandatoryStopRequired;
+        SelectedPitStrategy = NormalizePitStrategyValue(p.PitStrategyMode);
 
         // Tyre change time: only when specified
         if (p.TireChangeTimeSec.HasValue)
@@ -828,7 +834,7 @@ namespace LaunchPlugin
             (_appliedPreset.Type == RacePresetType.TimeLimited && (_appliedPreset.RaceMinutes ?? RaceMinutes) != RaceMinutes) ||
             (_appliedPreset.Type == RacePresetType.LapLimited && (_appliedPreset.RaceLaps ?? RaceLaps) != RaceLaps);
 
-        bool stopDiff = _appliedPreset.MandatoryStopRequired != MandatoryStopRequired;
+        bool stopDiff = NormalizePitStrategyValue(_appliedPreset.PitStrategyMode) != SelectedPitStrategy;
 
         bool tyreDiff = _appliedPreset.TireChangeTimeSec.HasValue &&
                         Math.Abs(_appliedPreset.TireChangeTimeSec.Value - TireChangeTime) > 0.05;
@@ -2288,21 +2294,42 @@ namespace LaunchPlugin
         set { IsContingencyInLaps = !value; }
     }
 
-    // --- Mandatory stop (simple) ---
-    private bool _mandatoryStopRequired;
-    public bool MandatoryStopRequired
+    private int _selectedPitStrategy = (int)PitStrategyMode.Auto;
+    public int SelectedPitStrategy
     {
-        get => _mandatoryStopRequired;
+        get => _selectedPitStrategy;
         set
         {
-            if (_mandatoryStopRequired != value)
+            int normalized = NormalizePitStrategyValue(value);
+            if (_selectedPitStrategy != normalized)
             {
-                _mandatoryStopRequired = value;
-                OnPropertyChanged();        // nameof(MandatoryStopRequired)
+                _selectedPitStrategy = normalized;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedPitStrategyText));
                 CalculateStrategy();
                 RaisePresetStateChanged();
+                MarkPlannerDirty();
             }
         }
+    }
+
+    public string SelectedPitStrategyText
+    {
+        get
+        {
+            switch ((PitStrategyMode)NormalizePitStrategyValue(_selectedPitStrategy))
+            {
+                case PitStrategyMode.NoStop: return "No Stop";
+                case PitStrategyMode.SingleStop: return "Single Stop";
+                case PitStrategyMode.MultiStop: return "Multi Stop";
+                default: return "Auto";
+            }
+        }
+    }
+
+    private static int NormalizePitStrategyValue(int raw)
+    {
+        return (raw >= 0 && raw <= 3) ? raw : (int)PitStrategyMode.Auto;
     }
 
     private void RebuildAvailableCarProfiles()
@@ -2441,7 +2468,7 @@ namespace LaunchPlugin
             this.RaceLaps = 20;
             this.RaceMinutes = 40;
         }
-        this.MandatoryStopRequired = false;
+        this.SelectedPitStrategy = (int)PitStrategyMode.Auto;
 
         // Smartly default Max Fuel: use the profile base tank (or default).
         if (!preserveMaxFuel)
@@ -2508,6 +2535,7 @@ namespace LaunchPlugin
         // 5) Save car-level settings
         targetProfile.FuelContingencyValue = this.ContingencyValue;
         targetProfile.IsContingencyInLaps = this.IsContingencyInLaps;
+        targetProfile.PitStrategyMode = NormalizePitStrategyValue(this.SelectedPitStrategy);
         targetProfile.WetFuelMultiplier = this.WetFactorPercent;
         targetProfile.TireChangeTime = this.TireChangeTime;
 
@@ -2675,7 +2703,7 @@ namespace LaunchPlugin
         target.Type = source.Type;
         target.RaceMinutes = source.RaceMinutes;
         target.RaceLaps = source.RaceLaps;
-        target.MandatoryStopRequired = source.MandatoryStopRequired;
+        target.PitStrategyMode = NormalizePitStrategyValue(source.PitStrategyMode);
         target.TireChangeTimeSec = source.TireChangeTimeSec;
         target.MaxFuelPercent = source.MaxFuelPercent;
         target.LegacyMaxFuelLitres = source.LegacyMaxFuelLitres;
@@ -2693,7 +2721,7 @@ namespace LaunchPlugin
             Type = source.Type,
             RaceMinutes = source.RaceMinutes,
             RaceLaps = source.RaceLaps,
-            MandatoryStopRequired = source.MandatoryStopRequired,
+            PitStrategyMode = NormalizePitStrategyValue(source.PitStrategyMode),
             TireChangeTimeSec = source.TireChangeTimeSec,
             MaxFuelPercent = source.MaxFuelPercent,
             LegacyMaxFuelLitres = source.LegacyMaxFuelLitres,
@@ -2810,7 +2838,7 @@ namespace LaunchPlugin
             RaceMinutes = IsTimeLimitedRace ? (int?)RaceMinutes : null,
             RaceLaps = IsLapLimitedRace ? (int?)RaceLaps : null,
 
-            MandatoryStopRequired = MandatoryStopRequired,
+            PitStrategyMode = NormalizePitStrategyValue(SelectedPitStrategy),
             TireChangeTimeSec = TireChangeTime,
             MaxFuelPercent = ConvertMaxFuelOverrideToPercent(MaxFuelOverride),
             LegacyMaxFuelLitres = null,
@@ -2828,7 +2856,7 @@ namespace LaunchPlugin
             Type = RacePresetType.TimeLimited,
             RaceLaps = null,
             RaceMinutes = 40,
-            MandatoryStopRequired = false,
+            PitStrategyMode = (int)PitStrategyMode.Auto,
             TireChangeTimeSec = 23,
             MaxFuelPercent = 100,
             LegacyMaxFuelLitres = null,
@@ -4009,6 +4037,7 @@ namespace LaunchPlugin
                 ApplyRefuelRateFromProfile(car.RefuelRate);
                 this.ContingencyValue = car.FuelContingencyValue;
                 this.IsContingencyInLaps = car.IsContingencyInLaps;
+                this.SelectedPitStrategy = NormalizePitStrategyValue(car.PitStrategyMode);
                 this.WetFactorPercent = car.WetFuelMultiplier;
             }
 
@@ -4712,7 +4741,12 @@ namespace LaunchPlugin
         result.TotalFuel = (totalLaps * fuelPerLap) + contingencyFuel + FormationLapFuelLiters;
 
         // If no stop is needed, we're done (unless user requires a stop).
-        if (result.TotalFuel <= maxFuelLimit && !MandatoryStopRequired)
+        int selectedStrategy = NormalizePitStrategyValue(SelectedPitStrategy);
+        bool forceNoStop = selectedStrategy == (int)PitStrategyMode.NoStop;
+        bool forceSingleStop = selectedStrategy == (int)PitStrategyMode.SingleStop;
+        bool forceMultiStop = selectedStrategy == (int)PitStrategyMode.MultiStop;
+
+        if (result.TotalFuel <= maxFuelLimit && (selectedStrategy == (int)PitStrategyMode.Auto || forceNoStop || forceMultiStop))
         {
             result.Stops = 0;
             result.FirstStintFuel = result.TotalFuel;
@@ -4760,9 +4794,7 @@ namespace LaunchPlugin
             LastLapsLappedExpected = lappedEventsNoStop.Count;
             return result;
         }
-        // Mandatory-tyres integration: if baseline would be 0-stop, force exactly one stop
-        // If baseline would be 0-stop but a mandatory stop is requested, force exactly one stop
-        else if (result.TotalFuel <= maxFuelLimit && MandatoryStopRequired)
+        else if (result.TotalFuel <= maxFuelLimit && forceSingleStop)
         {
             // Base components
             double lane = pitLaneTimeLoss;
@@ -4838,7 +4870,7 @@ namespace LaunchPlugin
             result.FirstStopTimeLoss = estStopTime;
 
             // ----- Breakdown (style aligned) -----
-            var header = $"Summary:  {adjustedLaps:F0} Laps  |  1 Mandatory Stop";
+            var header = $"Summary:  {adjustedLaps:F0} Laps  |  1 Stop";
             var sb = new StringBuilder();
 
             var pitApprox = TimeSpan.FromSeconds(firstStintLaps * playerPaceSeconds);
@@ -4864,6 +4896,39 @@ namespace LaunchPlugin
             return result;
         }
 
+        if (forceNoStop)
+        {
+            result.Stops = 0;
+            result.FirstStintFuel = Math.Round(maxFuelLimit, 1);
+
+            double noStopLaps = totalLaps;
+            if (SelectedRaceType == RaceType.TimeLimited && playerPaceSeconds > 0.0)
+            {
+                // Forced no-stop impossible branch must use a true no-stop assumption,
+                // not a lap count already reduced by stop-time convergence.
+                noStopLaps = Math.Max(1.0, Math.Floor(raceClockSeconds / playerPaceSeconds));
+            }
+
+            double noStopContingencyFuel = IsContingencyInLaps ? (ContingencyValue * fuelPerLap) : ContingencyValue;
+            double noStopTotalFuel = (noStopLaps * fuelPerLap) + noStopContingencyFuel + FormationLapFuelLiters;
+            result.TotalFuel = noStopTotalFuel;
+
+            var bodyForcedNoStop = new StringBuilder();
+            bodyForcedNoStop.AppendLine($"STINT 1:  {noStopLaps:F0} Laps   Est {TimeSpan.FromSeconds(noStopLaps * playerPaceSeconds):hh\:mm\:ss}   Start {result.FirstStintFuel:F1} litres");
+            bodyForcedNoStop.AppendLine();
+            bodyForcedNoStop.AppendLine($"NO STOP FORCED: Required {result.TotalFuel:F1}L exceeds max start fuel {maxFuelLimit:F1}L.");
+            bodyForcedNoStop.AppendLine($"UNDERFUELLED: Short by {Math.Max(0.0, result.TotalFuel - maxFuelLimit):F1}L if no pit stop is taken.");
+
+            result.Breakdown = $"Summary:  {noStopLaps:F0} Laps  |  No Stop Forced  |  Underfuelled" +
+                               Environment.NewLine + Environment.NewLine +
+                               bodyForcedNoStop.ToString();
+            result.TotalTime = noStopLaps * playerPaceSeconds;
+            result.FirstStopTimeLoss = 0.0;
+            result.PlayerLaps = noStopLaps;
+            LastLapsLappedExpected = 0;
+            return result;
+        }
+
         // --- Logic for races requiring pit stops ---
         // We build the body first, then prepend a one-line Summary header.
         var body = new StringBuilder();
@@ -4879,7 +4944,22 @@ namespace LaunchPlugin
         var lappedEvents = new List<int>(); // for Summary: lap numbers the leader catches you
 
         // Calculate how many stops are required
-        result.Stops = (int)Math.Ceiling(fuelNeededFromPits / maxFuelLimit);
+        int baseStopsRequired = (int)Math.Ceiling(fuelNeededFromPits / maxFuelLimit);
+        result.Stops = baseStopsRequired;
+
+        bool singleStopInfeasible = false;
+        if (forceSingleStop)
+        {
+            if (baseStopsRequired <= 1)
+            {
+                result.Stops = 1;
+            }
+            else
+            {
+                // Keep truthful feasible stop count; do not claim impossible one-stop completion.
+                singleStopInfeasible = true;
+            }
+        }
 
         // Stint 1 (starting stint)
         // Include formation fuel in the starting load, but respect the tank cap.
@@ -5057,9 +5137,16 @@ namespace LaunchPlugin
             }
         }
 
+        if (singleStopInfeasible)
+        {
+            body.AppendLine();
+            body.AppendLine($"SINGLE STOP INFEASIBLE: Fuel model requires {baseStopsRequired} stops to finish.");
+        }
+
         // Summary: only include non-empty facts
         var summaryParts = new List<string> { $"{totalLaps:F0} Laps" };
         if (result.Stops > 0) summaryParts.Add($"{result.Stops} Stops");
+        if (singleStopInfeasible) summaryParts.Add($"Single Stop infeasible ({baseStopsRequired} needed)");
         if (lappedEvents.Count > 0) summaryParts.Add($"Lapped on Lap {string.Join(", ", lappedEvents)}");
 
         var summary = "Summary:  " + string.Join(" | ", summaryParts);

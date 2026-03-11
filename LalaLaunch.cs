@@ -600,6 +600,13 @@ namespace LaunchPlugin
         public double Fuel_Delta_LitresCurrentSave { get; private set; }
         public double Fuel_Delta_LitresPlanSave { get; private set; }
         public double Fuel_Delta_LitresWillAddSave { get; private set; }
+        public int Strategy_Selected { get; private set; } = 3;
+        public string Strategy_SelectedText { get; private set; } = "Auto";
+        public int Strategy_PlannedStops { get; private set; }
+        public double Strategy_CalculatedStops { get; private set; }
+        public double Strategy_TotalFuelNeeded { get; private set; }
+        public double Strategy_FuelDeltaToEnd { get; private set; }
+        public double Strategy_FuelDeltaPlanned { get; private set; }
         private bool _isRefuelSelected = true;
         private bool _isTireChangeSelected = true;
         public double LiveCarMaxFuel { get; private set; }
@@ -648,6 +655,22 @@ namespace LaunchPlugin
         private double _lastProjectionLapSeconds = 0.0;
         private DateTime _lastProjectionLapLogUtc = DateTime.MinValue;
         private double _lastLoggedProjectionAfterZero = double.NaN;
+
+        private static int NormalizeStrategyMode(int raw)
+        {
+            return (raw >= 0 && raw <= 3) ? raw : 3;
+        }
+
+        private static string StrategyModeText(int mode)
+        {
+            switch (NormalizeStrategyMode(mode))
+            {
+                case 0: return "No Stop";
+                case 1: return "Single Stop";
+                case 2: return "Multi Stop";
+                default: return "Auto";
+            }
+        }
 
         // Stable model inputs
         private double _stableFuelPerLap = 0.0;
@@ -2099,6 +2122,7 @@ namespace LaunchPlugin
 
             double sessionTime = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTime", 0.0);
             double sessionTimeRemain = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.Telemetry.SessionTimeRemain", double.NaN);
+            double raceSessionDurationSeconds = SafeReadDouble(pluginManager, "DataCorePlugin.GameRawData.CurrentSessionInfo._SessionTime", double.NaN);
 
             int trackWetness = ReadTrackWetness(pluginManager);
             TrackWetness = trackWetness;
@@ -2871,6 +2895,14 @@ namespace LaunchPlugin
                 PitStopsRequiredByPlan = 0;
                 Pit_StopsRequiredToEnd = 0;
 
+                Strategy_Selected = NormalizeStrategyMode(FuelCalculator?.SelectedPitStrategy ?? 3);
+                Strategy_SelectedText = StrategyModeText(Strategy_Selected);
+                Strategy_PlannedStops = 0;
+                Strategy_CalculatedStops = 0;
+                Strategy_TotalFuelNeeded = 0;
+                Strategy_FuelDeltaToEnd = 0;
+                Strategy_FuelDeltaPlanned = 0;
+
                 Fuel_Delta_LitresCurrent = 0;
                 Fuel_Delta_LitresPlan = 0;
                 Fuel_Delta_LitresWillAdd = 0;
@@ -3038,16 +3070,64 @@ namespace LaunchPlugin
                     ? (Pit_FuelOnExit / fuelSaveRate) - LiveLapsRemainingInRace_Stable
                     : 0;
 
-                // Pit stop counts based on requested MFD refuel amount and
-                // the effective tank capacity shared with the Fuel tab's detected max.
+                // Pit stop counts based on current fuel and effective tank capacity.
                 double litresShort = Math.Max(0, litresRequiredToFinish - currentFuel);
                 int stopsRequiredByFuel = (effectiveMaxTank > 0)
                     ? (int)Math.Ceiling(litresShort / effectiveMaxTank)
                     : 0;
-                int stopsRequiredByPlan = strategyRequiredStops > 0 ? strategyRequiredStops : stopsRequiredByFuel;
+
+                int selectedStrategy = NormalizeStrategyMode(FuelCalculator?.SelectedPitStrategy ?? 3);
+                // Planner remains authoritative for feasible stop-count outputs.
+                int plannedStops = Math.Max(0, strategyRequiredStops);
+
+                double strategyProjectionLapSeconds = projectionLapSeconds;
+                double strategyFuelPerLap = stableFuelPerLap > 0.0 ? stableFuelPerLap : fuelPerLapForCalc;
+
+                double strategyForecastRaceLaps = 0.0;
+                if (raceSessionDurationSeconds > 0.0 && strategyProjectionLapSeconds > 0.0)
+                {
+                    strategyForecastRaceLaps = Math.Max(0.0, (raceSessionDurationSeconds + _afterZeroUsedSeconds) / strategyProjectionLapSeconds);
+                }
+                else if (stableLapsRemaining > 0.0)
+                {
+                    // Fallback only when race session definition time is unavailable.
+                    strategyForecastRaceLaps = stableLapsRemaining;
+                }
+
+                double strategyTotalFuelNeeded =
+                    (strategyForecastRaceLaps > 0.0 && strategyFuelPerLap > 0.0)
+                        ? strategyForecastRaceLaps * strategyFuelPerLap
+                        : 0.0;
+
+                double strategyRawCalculatedStops = (effectiveMaxTank > 0.0)
+                    ? Math.Max(0.0, (strategyTotalFuelNeeded - currentFuel) / effectiveMaxTank)
+                    : 0.0;
+
+                Strategy_Selected = selectedStrategy;
+                Strategy_SelectedText = StrategyModeText(selectedStrategy);
+                Strategy_PlannedStops = Math.Max(0, plannedStops);
+                Strategy_CalculatedStops = Math.Round(Math.Max(0.0, strategyRawCalculatedStops), 1);
+                Strategy_TotalFuelNeeded = strategyTotalFuelNeeded;
+                Strategy_FuelDeltaToEnd = currentFuel - strategyTotalFuelNeeded;
+
+                double plannedSingleStopRefuel = Pit_WillAdd;
+                if (plannedSingleStopRefuel <= 0.0)
+                {
+                    plannedSingleStopRefuel = Math.Max(0.0, pitWindowRequestedAdd);
+                }
+
+                switch (selectedStrategy)
+                {
+                    case 1:
+                        Strategy_FuelDeltaPlanned = (currentFuel + plannedSingleStopRefuel) - strategyTotalFuelNeeded;
+                        break;
+                    default:
+                        Strategy_FuelDeltaPlanned = currentFuel - strategyTotalFuelNeeded;
+                        break;
+                }
 
                 PitStopsRequiredByFuel = Math.Max(0, stopsRequiredByFuel);
-                PitStopsRequiredByPlan = Math.Max(0, stopsRequiredByPlan);
+                PitStopsRequiredByPlan = Strategy_PlannedStops;
                 Pit_StopsRequiredToEnd = PitStopsRequiredByPlan;
 
                 // --- Push / max-burn guidance ---
@@ -4284,6 +4364,13 @@ namespace LaunchPlugin
             AttachCore("Fuel.After0.PlannerSeconds", () => AfterZeroPlannerSeconds);
             AttachCore("Fuel.After0.LiveEstimateSeconds", () => AfterZeroLiveEstimateSeconds);
             AttachCore("Fuel.After0.Source", () => AfterZeroSource);
+            AttachCore("LalaLaunch.Strategy.Selected", () => Strategy_Selected);
+            AttachCore("LalaLaunch.Strategy.SelectedText", () => Strategy_SelectedText);
+            AttachCore("LalaLaunch.Strategy.PlannedStops", () => Strategy_PlannedStops);
+            AttachCore("LalaLaunch.Strategy.CalculatedStops", () => Strategy_CalculatedStops);
+            AttachCore("LalaLaunch.Strategy.TotalFuelNeeded", () => Strategy_TotalFuelNeeded);
+            AttachCore("LalaLaunch.Strategy.FuelDeltaToEnd", () => Strategy_FuelDeltaToEnd);
+            AttachCore("LalaLaunch.Strategy.FuelDeltaPlanned", () => Strategy_FuelDeltaPlanned);
             AttachCore("Fuel.ProjectionLapTime_Stable", () => ProjectionLapTime_Stable);
             AttachCore("Fuel.ProjectionLapTime_StableSource", () => ProjectionLapTime_StableSource);
             AttachCore("Fuel.Live.ProjectedDriveSecondsRemaining", () => LiveProjectedDriveSecondsRemaining);
@@ -11533,6 +11620,14 @@ namespace LaunchPlugin
             Fuel_Delta_LitresCurrentSave = 0;
             Fuel_Delta_LitresPlanSave = 0;
             Fuel_Delta_LitresWillAddSave = 0;
+
+            Strategy_Selected = 3;
+            Strategy_SelectedText = "Auto";
+            Strategy_PlannedStops = 0;
+            Strategy_CalculatedStops = 0;
+            Strategy_TotalFuelNeeded = 0;
+            Strategy_FuelDeltaToEnd = 0;
+            Strategy_FuelDeltaPlanned = 0;
 
             // --- Additional dashboard-facing fuel/projection outputs that must not latch across resets ---
             // (These were listed in SessionResetIssues.docx)

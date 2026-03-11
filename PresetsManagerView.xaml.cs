@@ -142,7 +142,7 @@ namespace LaunchPlugin
             Type = p.Type,
             RaceMinutes = p.RaceMinutes,
             RaceLaps = p.RaceLaps,
-            MandatoryStopRequired = p.MandatoryStopRequired,
+            PitStrategyMode = p.PitStrategyMode,
             TireChangeTimeSec = p.TireChangeTimeSec,
             MaxFuelPercent = p.MaxFuelPercent,
             LegacyMaxFuelLitres = p.LegacyMaxFuelLitres,

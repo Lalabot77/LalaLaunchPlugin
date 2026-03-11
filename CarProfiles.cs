@@ -45,6 +45,28 @@ namespace LaunchPlugin
         public double FuelContingencyValue { get => _fuelContingencyValue; set { if (_fuelContingencyValue != value) { _fuelContingencyValue = value; OnPropertyChanged(); } } }
         private bool _isContingencyInLaps = true;
         public bool IsContingencyInLaps { get => _isContingencyInLaps; set { if (_isContingencyInLaps != value) { _isContingencyInLaps = value; OnPropertyChanged(); } } }
+        private int _pitStrategyMode = 3;
+        public int PitStrategyMode
+        {
+            get => (_pitStrategyMode >= 0 && _pitStrategyMode <= 3) ? _pitStrategyMode : 3;
+            set
+            {
+                int normalized = (value >= 0 && value <= 3) ? value : 3;
+                if (_pitStrategyMode != normalized)
+                {
+                    _pitStrategyMode = normalized;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        // Legacy compatibility when older profile JSON includes a mandatory-stop bool.
+        [JsonProperty("MandatoryStopRequired", NullValueHandling = NullValueHandling.Ignore)]
+        public bool MandatoryStopRequired
+        {
+            get => PitStrategyMode == 1;
+            set => PitStrategyMode = value ? 1 : 3;
+        }
         private double _wetFuelMultiplier = 90;
         public double WetFuelMultiplier
         {
