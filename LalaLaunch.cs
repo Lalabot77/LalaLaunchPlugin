@@ -3110,11 +3110,7 @@ namespace LaunchPlugin
                 Strategy_TotalFuelNeeded = strategyTotalFuelNeeded;
                 Strategy_FuelDeltaToEnd = currentFuel - strategyTotalFuelNeeded;
 
-                double plannedSingleStopRefuel = Pit_WillAdd;
-                if (plannedSingleStopRefuel <= 0.0)
-                {
-                    plannedSingleStopRefuel = Math.Max(0.0, pitWindowRequestedAdd);
-                }
+                double plannedSingleStopRefuel = Math.Max(0.0, pitWindowRequestedAdd);
 
                 switch (selectedStrategy)
                 {

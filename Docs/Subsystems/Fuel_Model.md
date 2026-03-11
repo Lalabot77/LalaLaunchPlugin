@@ -209,4 +209,4 @@ Reset contract (what gets cleared) is canonical in `FuelProperties_Spec.md`.
 - Strategy deltas and calculated stops intentionally keep **current fuel** as the live basis for stop and delta visibility while gridding.
 - `LalaLaunch.Strategy.TotalFuelNeeded`: strategy projection fuel needed using race session definition time (`CurrentSessionInfo._SessionTime`) + after-zero over projection lap time, with stable fuel burn.
 - `LalaLaunch.Strategy.FuelDeltaToEnd`: current fuel minus live fuel needed to finish (raw truth, no strategy add assumption).
-- `LalaLaunch.Strategy.FuelDeltaPlanned`: strategy-aware planned delta; currently only `Single Stop` adds planned refuel (`Pit_WillAdd`) before subtracting fuel needed.
+- `LalaLaunch.Strategy.FuelDeltaPlanned`: strategy-aware planned delta; for `Single Stop` it adds the pit-menu set refuel amount (`PitSvFuel`) as driver intent before subtracting fuel needed (does not use tank-space-clamped `Pit_WillAdd`).
