@@ -4914,8 +4914,8 @@ namespace LaunchPlugin
             result.TotalFuel = noStopTotalFuel;
 
             var bodyForcedNoStop = new StringBuilder();
-            bodyForcedNoStop.AppendLine($"STINT 1:  {noStopLaps:F0} Laps   Est {TimeSpan.FromSeconds(noStopLaps * playerPaceSeconds):hh\:mm\:ss}   Start {result.FirstStintFuel:F1} litres");
-            bodyForcedNoStop.AppendLine();
+                bodyForcedNoStop.AppendLine($"STINT 1:  {noStopLaps:F0} Laps   Est {TimeSpan.FromSeconds(noStopLaps * playerPaceSeconds):hh\\:mm\\:ss}   Start {result.FirstStintFuel:F1} litres");
+                bodyForcedNoStop.AppendLine();
             bodyForcedNoStop.AppendLine($"NO STOP FORCED: Required {result.TotalFuel:F1}L exceeds max start fuel {maxFuelLimit:F1}L.");
             bodyForcedNoStop.AppendLine($"UNDERFUELLED: Short by {Math.Max(0.0, result.TotalFuel - maxFuelLimit):F1}L if no pit stop is taken.");
 
