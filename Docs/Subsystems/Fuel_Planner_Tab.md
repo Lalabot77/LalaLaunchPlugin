@@ -141,7 +141,7 @@ Using planner-selected lap time + fuel per lap:
 - Total fuel required to finish.
 - Fuel delta (surplus/deficit).
 - Number of stops required by plan from the planner-feasible strategy result.
-- Selected pit mode is shared with the PreRace info layer as display intent only; planner stop count remains planner-authoritative and independent.
+- Selected pit mode is shared with the PreRace info layer as display intent only; planner stop count remains planner-authoritative and independent. When mode is Auto, PreRace mirrors planner totals/assumptions instead of running a parallel estimate.
 - Dash-facing pre-race visibility uses `LalaLaunch.PreRace.Stints` instead of separate stop-count exports.
 - Pit add requirement.
 

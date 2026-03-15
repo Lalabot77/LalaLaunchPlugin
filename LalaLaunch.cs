@@ -688,8 +688,11 @@ namespace LaunchPlugin
             }
 
             source = "fallback";
-            return 0.0;
+            return PreRaceFallbackFuelPerLapLiters;
         }
+
+        private const double PreRaceFallbackFuelPerLapLiters = 3.0;
+        private const double PreRaceFallbackLapSeconds = 120.0;
 
         private double GetPreRaceLapSeconds(GameData data, out string source)
         {
@@ -715,7 +718,83 @@ namespace LaunchPlugin
             }
 
             source = "fallback";
-            return 0.0;
+            return PreRaceFallbackLapSeconds;
+        }
+
+        private void UpdatePreRaceOutputs(
+            GameData data,
+            double currentFuel,
+            double pitWindowRequestedAdd,
+            double raceSessionDurationSeconds,
+            double stableLapsRemaining,
+            double fallbackFuelPerLap,
+            double effectiveMaxTank,
+            double maxTankCapacity)
+        {
+            int selectedStrategy = NormalizeStrategyMode(FuelCalculator?.SelectedPitStrategy ?? 3);
+            PreRace_Selected = selectedStrategy;
+            PreRace_SelectedText = StrategyModeText(selectedStrategy);
+
+            double usableTank = effectiveMaxTank > 0.0 ? effectiveMaxTank : maxTankCapacity;
+
+            double plannerTotalFuelNeeded = Math.Max(0.0, FuelCalculator?.TotalFuelNeeded ?? 0.0);
+            double plannerFirstStintFuel = Math.Max(0.0, FuelCalculator?.FirstStintFuel ?? 0.0);
+            bool autoPlannerAvailable = selectedStrategy == 3 && plannerTotalFuelNeeded > 0.0;
+
+            if (autoPlannerAvailable)
+            {
+                PreRace_TotalFuelNeeded = plannerTotalFuelNeeded;
+                PreRace_Stints = usableTank > 0.0
+                    ? Math.Round(Math.Max(0.0, plannerTotalFuelNeeded / usableTank), 1)
+                    : 0.0;
+
+                double plannerDeltaReferenceFuel = plannerFirstStintFuel > 0.0
+                    ? plannerFirstStintFuel
+                    : plannerTotalFuelNeeded;
+                PreRace_FuelDelta = currentFuel - plannerDeltaReferenceFuel;
+                PreRace_FuelSource = "planner";
+                PreRace_LapTimeSource = "planner";
+                return;
+            }
+
+            string preRaceFuelSource;
+            double preRaceFuelPerLap = GetPreRaceFuelPerLap(fallbackFuelPerLap, out preRaceFuelSource);
+
+            string preRaceLapSource;
+            double preRaceProjectionLapSeconds = GetPreRaceLapSeconds(data, out preRaceLapSource);
+
+            double forecastRaceLaps = 0.0;
+            if (raceSessionDurationSeconds > 0.0 && preRaceProjectionLapSeconds > 0.0)
+            {
+                forecastRaceLaps = Math.Max(0.0, (raceSessionDurationSeconds + _afterZeroUsedSeconds) / preRaceProjectionLapSeconds);
+            }
+            else if (stableLapsRemaining > 0.0)
+            {
+                forecastRaceLaps = stableLapsRemaining;
+            }
+
+            PreRace_TotalFuelNeeded =
+                (forecastRaceLaps > 0.0 && preRaceFuelPerLap > 0.0)
+                    ? forecastRaceLaps * preRaceFuelPerLap
+                    : 0.0;
+
+            PreRace_Stints = usableTank > 0.0
+                ? Math.Round(Math.Max(0.0, PreRace_TotalFuelNeeded / usableTank), 1)
+                : 0.0;
+
+            double plannedSingleStopRefuel = Math.Max(0.0, pitWindowRequestedAdd);
+            switch (selectedStrategy)
+            {
+                case 1:
+                    PreRace_FuelDelta = (currentFuel + plannedSingleStopRefuel) - PreRace_TotalFuelNeeded;
+                    break;
+                default:
+                    PreRace_FuelDelta = currentFuel - PreRace_TotalFuelNeeded;
+                    break;
+            }
+
+            PreRace_FuelSource = preRaceFuelSource;
+            PreRace_LapTimeSource = preRaceLapSource;
         }
 
         // Stable model inputs
@@ -2941,13 +3020,15 @@ namespace LaunchPlugin
                 PitStopsRequiredByPlan = 0;
                 Pit_StopsRequiredToEnd = 0;
 
-                PreRace_Selected = NormalizeStrategyMode(FuelCalculator?.SelectedPitStrategy ?? 3);
-                PreRace_SelectedText = StrategyModeText(PreRace_Selected);
-                PreRace_Stints = 0;
-                PreRace_TotalFuelNeeded = 0;
-                PreRace_FuelDelta = 0;
-                PreRace_FuelSource = "fallback";
-                PreRace_LapTimeSource = "fallback";
+                UpdatePreRaceOutputs(
+                    data,
+                    currentFuel,
+                    pitWindowRequestedAdd,
+                    raceSessionDurationSeconds,
+                    stableLapsRemaining: 0.0,
+                    fallbackFuelPerLap,
+                    effectiveMaxTank,
+                    maxTankCapacity);
 
                 Fuel_Delta_LitresCurrent = 0;
                 Fuel_Delta_LitresPlan = 0;
@@ -3122,54 +3203,18 @@ namespace LaunchPlugin
                     ? (int)Math.Ceiling(litresShort / effectiveMaxTank)
                     : 0;
 
-                int selectedStrategy = NormalizeStrategyMode(FuelCalculator?.SelectedPitStrategy ?? 3);
                 // Planner remains authoritative for feasible stop-count outputs.
                 int plannedStops = Math.Max(0, strategyRequiredStops);
 
-                string preRaceFuelSource;
-                double preRaceFuelPerLap = GetPreRaceFuelPerLap(fallbackFuelPerLap, out preRaceFuelSource);
-
-                string preRaceLapSource;
-                double preRaceProjectionLapSeconds = GetPreRaceLapSeconds(data, out preRaceLapSource);
-
-                double strategyForecastRaceLaps = 0.0;
-                if (raceSessionDurationSeconds > 0.0 && preRaceProjectionLapSeconds > 0.0)
-                {
-                    strategyForecastRaceLaps = Math.Max(0.0, (raceSessionDurationSeconds + _afterZeroUsedSeconds) / preRaceProjectionLapSeconds);
-                }
-                else if (stableLapsRemaining > 0.0)
-                {
-                    // Fallback only when race session definition time is unavailable.
-                    strategyForecastRaceLaps = stableLapsRemaining;
-                }
-
-                double strategyTotalFuelNeeded =
-                    (strategyForecastRaceLaps > 0.0 && preRaceFuelPerLap > 0.0)
-                        ? strategyForecastRaceLaps * preRaceFuelPerLap
-                        : 0.0;
-
-                double strategyRawCalculatedStops = (effectiveMaxTank > 0.0)
-                    ? Math.Max(0.0, (strategyTotalFuelNeeded - currentFuel) / effectiveMaxTank)
-                    : 0.0;
-
-                PreRace_Selected = selectedStrategy;
-                PreRace_SelectedText = StrategyModeText(selectedStrategy);
-                PreRace_Stints = Math.Round(Math.Max(0.0, strategyRawCalculatedStops), 1);
-                PreRace_TotalFuelNeeded = strategyTotalFuelNeeded;
-                PreRace_FuelSource = preRaceFuelSource;
-                PreRace_LapTimeSource = preRaceLapSource;
-
-                double plannedSingleStopRefuel = Math.Max(0.0, pitWindowRequestedAdd);
-
-                switch (selectedStrategy)
-                {
-                    case 1:
-                        PreRace_FuelDelta = (currentFuel + plannedSingleStopRefuel) - strategyTotalFuelNeeded;
-                        break;
-                    default:
-                        PreRace_FuelDelta = currentFuel - strategyTotalFuelNeeded;
-                        break;
-                }
+                UpdatePreRaceOutputs(
+                    data,
+                    currentFuel,
+                    pitWindowRequestedAdd,
+                    raceSessionDurationSeconds,
+                    stableLapsRemaining,
+                    fallbackFuelPerLap,
+                    effectiveMaxTank,
+                    maxTankCapacity);
 
                 PitStopsRequiredByFuel = Math.Max(0, stopsRequiredByFuel);
                 PitStopsRequiredByPlan = plannedStops;
