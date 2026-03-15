@@ -739,13 +739,15 @@ namespace LaunchPlugin
 
             double plannerTotalFuelNeeded = Math.Max(0.0, FuelCalculator?.TotalFuelNeeded ?? 0.0);
             double plannerFirstStintFuel = Math.Max(0.0, FuelCalculator?.FirstStintFuel ?? 0.0);
+            double plannerTankBasis = Math.Max(0.0, FuelCalculator?.PlannerTankBasisLitres ?? 0.0);
             bool autoPlannerAvailable = selectedStrategy == 3 && plannerTotalFuelNeeded > 0.0;
 
             if (autoPlannerAvailable)
             {
+                double autoTankBasis = plannerTankBasis > 0.0 ? plannerTankBasis : usableTank;
                 PreRace_TotalFuelNeeded = plannerTotalFuelNeeded;
-                PreRace_Stints = usableTank > 0.0
-                    ? Math.Round(Math.Max(0.0, plannerTotalFuelNeeded / usableTank), 1)
+                PreRace_Stints = autoTankBasis > 0.0
+                    ? Math.Round(Math.Max(0.0, plannerTotalFuelNeeded / autoTankBasis), 1)
                     : 0.0;
 
                 double plannerDeltaReferenceFuel = plannerFirstStintFuel > 0.0
@@ -777,6 +779,8 @@ namespace LaunchPlugin
                 (forecastRaceLaps > 0.0 && preRaceFuelPerLap > 0.0)
                     ? forecastRaceLaps * preRaceFuelPerLap
                     : 0.0;
+
+            PreRace_TotalFuelNeeded += 2.0 * preRaceFuelPerLap;
 
             PreRace_Stints = usableTank > 0.0
                 ? Math.Round(Math.Max(0.0, PreRace_TotalFuelNeeded / usableTank), 1)
@@ -3020,6 +3024,10 @@ namespace LaunchPlugin
                 PitStopsRequiredByPlan = 0;
                 Pit_StopsRequiredToEnd = 0;
 
+                _afterZeroPlannerSeconds = 0.0;
+                _afterZeroLiveEstimateSeconds = 0.0;
+                _afterZeroUsedSeconds = 0.0;
+
                 UpdatePreRaceOutputs(
                     data,
                     currentFuel,
@@ -3052,9 +3060,6 @@ namespace LaunchPlugin
                 LiveProjectedDriveTimeAfterZero = 0;
                 LiveProjectedDriveSecondsRemaining = 0;
 
-                _afterZeroPlannerSeconds = 0.0;
-                _afterZeroLiveEstimateSeconds = 0.0;
-                _afterZeroUsedSeconds = 0.0;
                 _afterZeroSourceUsed = string.Empty;
                 _lastProjectedLapsRemaining = 0.0;
                 _lastSimLapsRemaining = 0.0;

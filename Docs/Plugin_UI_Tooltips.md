@@ -112,7 +112,7 @@ Branch: work
 - L555: Add extra litres as a safety margin.
 - L558: Number of extra laps of fuel to add.
 - L560: Extra fuel to add as a safety margin (L).
-- L569: Driver-selected mode for the PreRace on-grid info layer only. Auto mirrors planner-derived assumptions; manual modes only affect PreRace outputs and never change planner/live fuel behavior.
+- L569: Driver-selected mode for the PreRace on-grid info layer only. Auto is planner-first (falls back to runtime estimate only if planner values are unavailable); manual modes only affect PreRace outputs and never change planner/live fuel behavior.
 - L580: Estimated pit lane loss per stop. Auto selection uses: drive-through loss, then direct pit entry-to-exit time, then the default.
 - L592: Additional stationary time if tyres are changed. Set to 0s for a drive-through-only stop.
 - L606: Reload the planner from the active profile and live session without clearing live samples.

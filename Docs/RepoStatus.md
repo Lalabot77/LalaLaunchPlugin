@@ -16,13 +16,13 @@ Branch: work
 
 ## Delivery status highlights
 - Refactored race-start dash-facing outputs from `LalaLaunch.Strategy.*` to `LalaLaunch.PreRace.*` in `LalaLaunch.cs`.
-- Implemented unified PreRace outputs with one stints value, one total-fuel value, and one delta value; fixed Auto to mirror planner outputs.
+- Implemented unified PreRace outputs with one stints value, one total-fuel value, and one delta value; Auto now mirrors planner outputs when planner values are available and falls back at runtime when unavailable.
 - Preserved selected mode persistence/label behavior (0 No Stop, 1 Single Stop, 2 Multi Stop, 3 Auto).
 - PreRace race distance basis remains `DataCorePlugin.GameRawData.CurrentSessionInfo._SessionTime` (+ after-zero allowance).
-- Implemented explicit source ordering for pre-race manual-mode inputs:
+- Implemented explicit source ordering for pre-race manual-mode inputs and a fixed +2-lap manual allowance:
   - Fuel burn: planner/profile value -> SimHub computed burn -> hard fallback (3.0 L/lap).
   - Lap time: planner/profile value -> SimHub/iRacing predicted value chain -> hard fallback (120.0 s).
-- `Single Stop` PreRace delta uses current fuel + pit-menu refuel intent (`PitSvFuel`) for live on-grid response; Auto PreRace delta now mirrors planner first-stint assumption.
+- `Single Stop` PreRace delta uses current fuel + pit-menu refuel intent (`PitSvFuel`) for live on-grid response; Auto PreRace delta mirrors planner first-stint assumption when planner values are available.
 - Planner and continuous live `Fuel.*` model behavior remain unchanged beyond read-only reuse of existing inputs.
 
 ## Notes
