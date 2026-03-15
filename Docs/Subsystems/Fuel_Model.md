@@ -141,7 +141,7 @@ Using current fuel + projected laps + burns (push/stable/save), compute:
 - Liters needed vs end (`Fuel.Pit.TotalNeededToEnd`), liters to add (`Fuel.Pit.NeedToAdd`).
 - “Will add” litres based on MFD request clamped to tank space.
 - Required stops by capacity vs by plan, and final stops required to end.
-- **Stops-required fields:** `PitStopsRequiredByFuel` is computed from liters short ÷ effective tank capacity. `PitStopsRequiredByPlan` now mirrors planner-feasible stop count output (authoritative planner result). Driver-selected strategy intent remains separately exported via `LalaLaunch.Strategy.Selected` / `SelectedText`, while `LalaLaunch.Strategy.CalculatedStops` remains the raw current-fuel stop estimate. `Pit.StopsRequiredToEnd` mirrors the plan-first value for dashboards.
+- **Stops-required fields:** `PitStopsRequiredByFuel` is computed from liters short ÷ effective tank capacity. `PitStopsRequiredByPlan` now mirrors planner-feasible stop count output (authoritative planner result). Driver-selected mode intent is exported via `LalaLaunch.PreRace.Selected` / `SelectedText` for the pre-race info layer only. `Pit.StopsRequiredToEnd` still mirrors planner-feasible stop count for live/planner dashboards.
 - **Stint burn target (current tank only):** a per-lap target burn that respects the configured pit-in reserve (percentage of one lap’s stable burn). The output is banded (`SAVE`/`PUSH`/`HOLD`/`OKAY`) to guide the current stint without implying long-term strategy.
 
 ### 7) Pit window state machine (continuous)
@@ -200,13 +200,10 @@ Reset contract (what gets cleared) is canonical in `FuelProperties_Spec.md`.
 - **Replay sessions:** timer behaviour and lap validity may differ; projection/after-zero source switching should be validated with logs.
 
 
-### Start-of-race strategy exports
-- Strategy.* exports are race-start planning context outputs and are intentionally separate from the continuous live `Fuel.*` model view.
-- `LalaLaunch.Strategy.Selected` / `SelectedText`: selected strategy mode (0 No Stop, 1 Single Stop, 2 Multi Stop, 3 Auto).
-- `Selected` / `SelectedText` are driver-selected display intent values.
-- `LalaLaunch.Strategy.PlannedStops`: planner-feasible stop count (authoritative planner output), independent from selected intent mode.
-- `LalaLaunch.Strategy.CalculatedStops`: raw capacity-based stops from current fuel and forecast requirement (clamped >= 0, rounded 1dp).
-- Strategy deltas and calculated stops intentionally keep **current fuel** as the live basis for stop and delta visibility while gridding.
-- `LalaLaunch.Strategy.TotalFuelNeeded`: strategy projection fuel needed using race session definition time (`CurrentSessionInfo._SessionTime`) + after-zero over projection lap time, with stable fuel burn.
-- `LalaLaunch.Strategy.FuelDeltaToEnd`: current fuel minus live fuel needed to finish (raw truth, no strategy add assumption).
-- `LalaLaunch.Strategy.FuelDeltaPlanned`: strategy-aware planned delta; for `Single Stop` it adds the pit-menu set refuel amount (`PitSvFuel`) as driver intent before subtracting fuel needed (does not use tank-space-clamped `Pit_WillAdd`).
+### Pre-race info exports
+- `LalaLaunch.PreRace.*` exports are a short-lived pre-race/on-grid info layer and are intentionally separate from the continuous live `Fuel.*` model view and planner internals.
+- `LalaLaunch.PreRace.Selected` / `SelectedText`: selected pre-race mode (0 No Stop, 1 Single Stop, 2 Multi Stop, 3 Auto). Mode persistence remains shared with planner settings, but mode impact is limited to PreRace outputs.
+- `LalaLaunch.PreRace.Stints`: key threshold signal (decimal, 1dp) computed as total fuel required / usable tank capacity; this is total stints needed (not shortfall from current fuel) and replaces separate stop exports for dash contract use.
+- `LalaLaunch.PreRace.TotalFuelNeeded`: unified pre-race fuel projection using race session definition time (`CurrentSessionInfo._SessionTime`) + after-zero allowance. Manual modes include a fixed +2-lap fuel allowance (pre-race-only proxy for formation+contingency).
+- `LalaLaunch.PreRace.FuelDelta`: single pre-race delta output. `Auto` is planner-first and mirrors planner first-stint delta reference when planner values are available (runtime fallback only when planner values are unavailable); `Single Stop` uses current fuel + pit-menu refuel intent (`PitSvFuel`); `No Stop`/`Multi Stop` use current fuel only.
+- `LalaLaunch.PreRace.FuelSource` / `LapTimeSource`: short informational source labels (`planner`, `simhub`, `fallback`) for dash message assembly. Auto reports planner/planner when planner values are available, with runtime fallback labels only when planner values are unavailable. Manual modes use explicit fallback order: planner/profile -> SimHub/iRacing -> hard fallback defaults (3.0 L/lap fuel, 120.0 s lap).

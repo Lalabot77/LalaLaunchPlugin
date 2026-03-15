@@ -2370,6 +2370,7 @@ namespace LaunchPlugin
     }
     public double TotalFuelNeeded { get => _totalFuelNeeded; private set { _totalFuelNeeded = value; OnPropertyChanged("TotalFuelNeeded"); } }
     public int RequiredPitStops { get => _requiredPitStops; private set { _requiredPitStops = value; OnPropertyChanged("RequiredPitStops"); } }
+    public double PlannerTankBasisLitres { get; private set; }
     public int LastLapsLappedExpected { get; private set; }
     public string StintBreakdown { get => _stintBreakdown; private set { _stintBreakdown = value; OnPropertyChanged("StintBreakdown"); } }
     public int StopsSaved { get => _stopsSaved; private set { _stopsSaved = value; OnPropertyChanged("StopsSaved"); } }
@@ -4518,6 +4519,8 @@ namespace LaunchPlugin
                                double.IsNaN(maxFuelLimit) || double.IsInfinity(maxFuelLimit) ||
                                maxFuelLimit <= 0.0 || maxFuelLimit > maxAllowed;
 
+            PlannerTankBasisLitres = tankInvalid ? 0.0 : maxFuelLimit;
+
             if (lapInvalid)
             {
                 ValidationMessage = "Error: Your Estimated Lap Time must be between 20s and 900s.";
@@ -4552,6 +4555,7 @@ namespace LaunchPlugin
                 StrategyLeaderExtraSecondsAfterZero = 0.0;
                 StrategyDriverExtraSecondsAfterZero = 0.0;
                 FirstStintFuel = 0.0;
+                PlannerTankBasisLitres = 0.0;
                 return;
             }
             // ------------------------------------------------------------------------
